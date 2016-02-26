@@ -9,7 +9,7 @@
 	"targetName": "acos5_64",
 	"targetPath": "lib",
 	"targetType": "dynamicLibrary",
-	"dflags" : ["-fPIC", "-defaultlib=libphobos2.so"],
+	"dflags" : ["-fPIC", "-gc", "-vtls", "-defaultlib=libphobos2.so"],
 	"lflags" : ["--strip-all", "--version-script=lib/libacos5_64.map"],
 	"buildRequirements" : ["disallowDeprecations"],
 	"libs": ["rt", "pthread"],

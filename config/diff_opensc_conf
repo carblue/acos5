@@ -1,0 +1,100 @@
+--- opensc_original_x86_64-linux-gnu.conf	2016-02-26 22:11:43.467045247 +0100
++++ opensc.conf	2016-02-26 22:28:39.375237624 +0100
+@@ -119,31 +119,38 @@
+ 	# internal) driver is supplied, a separate configuration
+ 	# configuration block has to be written for the driver.
+ 	# Default: internal
+ 	# NOTE: When "internal" keyword is used, must be last entry
+ 	#
+ 	# card_drivers = customcos, internal;
++	card_drivers = acos5_64, internal;
+ 
+ 	# Card driver configuration blocks.
+ 
+ 	# For card drivers loaded from an external shared library/DLL,
+ 	# you need to specify the path name of the module
+ 	#
+ 	# card_driver customcos {
+ 		# The location of the driver library
+ 		# module = /usr/lib/x86_64-linux-gnu/card_customcos.so;
+ 	# }
++	card_driver acos5_64 {
++		# The location of the driver library
++		# if it's not in a 'OS's standard search path' for libs: module = /path/to/libacos5_64.so;
++		module = /path/to/libacos5_64.so;
++	}
+ 
+ 	# Force using specific card driver
+ 	#
+ 	# If this option is present, OpenSC will use the supplied
+ 	# driver with all inserted cards.
+ 	#
+ 	# Default: autodetect
+ 	#
+ 	# force_card_driver = customcos;
++	force_card_driver = acos5_64;
+ 
+ 	# In addition to the built-in list of known cards in the
+ 	# card driver, you can configure a new card for the driver
+ 	# using the card_atr block. The goal is to centralize
+ 	# everything related to a certain card to card_atr.
+ 	#
+@@ -323,12 +330,40 @@
+                 name = "Amos IAS/ECC v1.0.1";
+                 md_read_only = false;
+                 md_supports_X509_enrollment = true;
+                 secure_messaging = local_amos_eid;
+         }
+ 
++	card_atr 3B:BE:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00 {
++		type = 16003;
++		driver = "acos5_64";
++		name = "ACS ACOS5-64 (CryptoMate64)";
++		force_protocol = "t0";
++		flags = "rng";
++		# pkcs15emu = "acos5_64";
++		# md_read_only = false;
++		# md_supports_X509_enrollment = true;
++		# Name of SM configuration sub-section
++		# Attention: If driver-module and sm-module are the same (as they are currently) and next entry "secure_messaging = acos5_64_sm" is enabled,
++		#            then in case of an sm-error it can happen, that the module gets unloaded completely (ref count down to 0 in linux), as opensc handles
++		#            module load/unload for driver and sm independantly ! Perhaps a nice security feature, as I intend to make SM mandatory where possible?
++		#secure_messaging = acos5_64_sm;
++	}
++
++	secure_messaging acos5_64_sm  {
++		module_name = libacos5_64.so;
++		# if it's not in an OS's 'standard search path' for libs: module_path = /path/to/;
++		module_path = /path/to/;
++		#module_data: Options (below: default) for mandatory test of SM functionality in POSIX syntax for (command line) options, s.a. github.com/carblue/acos5_64 ; dlang.org/phobos/std_getopt.html
++		#module_data = "so --keyrefextauth=0x81 --keyrefintauth=0x82 --smMSErestore --smSEID=0x05 --smUQB=0x70 --smkeytag=0x84 --smCCTkeyref=0x83 --smCCTalgo=0x02 --CT --smCTkeyref=0x83 --smCTalgo=0x02"; 
++		mode = acl;             # transmit, acl
++		ifd_serial = "11:22:33:44:55:66:77:88";
++		keyset_41434F53504B43532D313576312E3030_01_enc = "00:01:02:03:04:05:06:07:08:09:0A:0B:0C:0D:0E:0F";
++		keyset_41434F53504B43532D313576312E3030_01_mac = "0F:0E:0D:0C:0B:0A:09:08:07:06:05:04:03:02:01:00";
++	}
++
+ 	secure_messaging local_authentic  {
+ 		#path to ans name of external SM module
+ 		#module_name = libsmm-local.so.3;
+ 		#module_path = /usr/lib/x86_64-linux-gnu;
+ 
+ 		# specific data to tune the module initialization
+@@ -467,12 +502,17 @@
+ 		# and customize the card_atr example above correctly.
+ 		#
+ 		# emulate custom {
+ 			# The location of the driver library
+ 			# module = /usr/lib/x86_64-linux-gnu/p15emu_custom.so;
+ 		# }
++		emulate acos5_64 {
++			# The location of the driver library
++			# module =  /path/to/libacos5_64.so;
++			# function = "sc_pkcs15emu_acos5_64_init_ex";
++		}
+ 
+ 		# some additional application parameters:
+ 		# - type (generic, protected) used to distinguish the common access application
+ 		#   and application for which authentication to perform some operation cannot be
+ 		#   obtained with the common procedures (ex. object creation protected by secure messaging).
+ 		#   Used by PKCS#11 module configurated to expose restricted number of slots.
