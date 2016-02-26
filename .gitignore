@@ -14,7 +14,16 @@
 # Executables
 *.exe
 
+# eclipse/DDT
+.project
+.settings
+
 # DUB
 .dub
 docs.json
 __dummy.html
+dub.selections.json
+
+# not necessary or later
+source/acos5_64_h.d
+source/acos5_64_sm.d
