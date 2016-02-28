@@ -87,11 +87,11 @@
  			# The location of the driver library
  			# module = /usr/lib/x86_64-linux-gnu/p15emu_custom.so;
  		# }
-+		emulate acos5_64 {
++		# emulate acos5_64 {
 +			# The location of the driver library
 +			# module =  /path/to/libacos5_64.so;
 +			# function = "sc_pkcs15emu_acos5_64_init_ex";
-+		}
++		# }
  
  		# some additional application parameters:
  		# - type (generic, protected) used to distinguish the common access application

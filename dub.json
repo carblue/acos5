@@ -4,7 +4,7 @@
 	"dependencies" : {
 		"opensc": "~>0.15.0",
 		"openssl": "~>1.1.4+1.0.1g",
-		"sodium":  "~>0.0.5"
+		"sodium": "~master"
 	},
 	"targetName": "acos5_64",
 	"targetPath": "lib",
