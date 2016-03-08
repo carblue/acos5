@@ -2,7 +2,7 @@ module acos5_64;
 
 import core.stdc.config : c_ulong;
 import core.stdc.locale : setlocale, LC_ALL;
-import core.stdc.string : memset, memcpy, strlen;
+import core.stdc.string : memset, memcpy, memcmp, strlen;
 import core.stdc.stdlib : realloc, free;
 import core.runtime : Runtime;
 /*
@@ -64,18 +64,18 @@ immutable sc_path MF = sc_path( cast(immutable(ubyte)[SC_MAX_PATH_SIZE]) x"3F00 
 
 private immutable(char)[28]  chip_name      = "ACS ACOS5-64 (CryptoMate64)"; // C-style null-terminated string equivalent, +1 for literal-implicit \0
 private immutable(char)[ 9]  chip_shortname = "acos5_64";
-private immutable(ubyte)[SC_MAX_ATR_SIZE]  ATR       = cast(immutable(ubyte)[SC_MAX_ATR_SIZE]) x"3B BE 96 00 00 41 05 20 00 00 00 00 00 00 00 00 00 90 00";
-private immutable(char )[57]               ATR_colon =                                          "3B:BE:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00"; // FIXME get rid of this, calc from ATR
+private immutable(char)[57]               ATR_colon =                                          "3B:BE:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00";
+//ivate immutable(ubyte)[SC_MAX_ATR_SIZE] ATR       = cast(immutable(ubyte)[SC_MAX_ATR_SIZE]) x"3B BE 96 00 00 41 05 20 00 00 00 00 00 00 00 00 00 90 00"; // FIXME get rid of this, calc from ATR_colon if req.
 
 /* ATR Table list. */
 private immutable(sc_atr_table)[2] acos5_64_atrs = [
 	sc_atr_table(
-		ATR_colon.ptr,//"3B:BE:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00",
+		ATR_colon.ptr,
 		"FF:FF:FF:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF",
 		chip_shortname.ptr,
 		SC_CARD_TYPE_ACOS5_64,
 		SC_CARD_FLAG_RNG, // flags
-		null), // _sc_match_atr_block(sc_context_t *ctx, struct sc_card_driver *driver, struct sc_atr *atr)
+		null),
 	sc_atr_table(null, null, null, 0, 0, null) // list end marker
 ];
 
@@ -100,7 +100,7 @@ private immutable(char)[7] module_version = "0.15.0";  // uint major = 0, minor 
 
 export extern (C) __gshared immutable(char)* sc_module_version   = module_version.ptr;
 export extern (C) __gshared immutable(char)* sc_driver_version() {
-	version(FAKE_OPENSC_VERSION) return sc_get_version();
+	version(FAKE_OPENSC_VERSION) return sc_get_version;
 	else                         return module_version.ptr;
 }
 export extern (C) __gshared immutable(void)* sc_module_init(const(char)* name) { return &sc_get_acos5_64_driver; }
@@ -110,7 +110,7 @@ private sc_card_driver* sc_get_acos5_64_driver() {
 	enforce(DES_KEY_SZ == SM_SMALL_CHALLENGE_LEN && DES_KEY_SZ== 8,
 		"For some reason size [byte] of DES-block and challenge-response (card/host) is not equal and/or not 8 bytes!");
 
-	sc_card_driver* iso_drv  = sc_get_iso7816_driver();
+	sc_card_driver* iso_drv  = sc_get_iso7816_driver;
 	iso_ops_ptr         = iso_drv.ops; // iso_ops_ptr for initialization and casual use
 
 	acos5_64_ops        = *iso_ops_ptr; // initialize all ops with iso7816_driver's implementations
@@ -120,13 +120,13 @@ private sc_card_driver* sc_get_acos5_64_driver() {
 		finish            = &acos5_64_finish;
 /*
 		erase_binary      = &acos5_64_erase_binary;
+*/
 		select_file       = &acos5_64_select_file;
 		get_challenge     = &acos5_64_get_challenge;
 //	verify            = null; // like in *iso_ops_ptr  this is deprecated
 		logout            = &acos5_64_logout;
 		list_files        = &acos5_64_list_files;
 //	check_sw          = &acos5_64_check_sw; // switch on/off in some cases only
-*/
 		card_ctl          = &acos5_64_card_ctl;
 /*
 		pin_cmd           = &acos5_64_pin_cmd;
@@ -137,49 +137,18 @@ private sc_card_driver* sc_get_acos5_64_driver() {
 	return &acos5_64_drv;
 }
 
-shared static this() {
-	Runtime.initialize();
+private shared static this() {
+	Runtime.initialize;
 	setlocale (LC_ALL, "C"); // char* currentlocale =
 }
 
-shared static ~this() {
-	Runtime.terminate();
+private shared static ~this() {
+	Runtime.terminate;
 }
 
+// TODO eliminate dep. on memmem in the D way: peel off front
 //This function is a GNU extension in glibc: void* memmem(const(void)* haystack, size_t haystacklen, const(void) *needle, size_t needlelen);
 extern (C) void* memmem(const(void)* l, size_t l_len, const(void)* s, size_t s_len);
-
-private int acos5_64_check_sw(sc_card *card, uint sw1, uint sw2) {
-	/* intercept SW of pin_cmd ? */
-	/* intercept SW 7.3.1. Get Card Info Identify Self? */
-	int rv = SC_ERROR_UNKNOWN;
-	sc_context* ctx = card.ctx;
-	sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_check_sw",
-		"sw1 = 0x%02x, sw2 = 0x%02x\n", sw1, sw2);
-//	mixin (log!(q{"acos5_64_check_sw"}, q{"called"}));
-	scope(exit) {
-		if (rv <= 0)
-			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_check_sw",
-				"returning with: %d (%s)\n", rv, sc_strerror(rv));
-		else
-			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_check_sw",
-				"returning with: %d\n", rv);
-	}
-
-	if (sw1 == 0x90)
-		return rv=SC_SUCCESS;
-/*
-	else if (sw1 == 0x63 && (sw2 & 0xFFFFFFF0U) == 0xC0 ) {
-		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_check_sw",
-			"Verification failed (remaining tries: %d)\n", (sw2 & 0x0f));
-		return rv=SC_ERROR_PIN_CODE_INCORRECT;
-	}
-*/
-	else if (sw1 == 0x95U && sw2 == 0x40U) // expected response of "Get Card Info Identify Self"
-		return rv=SC_SUCCESS;
-	/* iso error */
-	return rv=iso_ops_ptr.check_sw(card, sw1, sw2);
-}
 
 /**
  * Retrieve serial number (6 bytes) from card.
@@ -248,6 +217,86 @@ private int acos5_64_get_serialnr(sc_card* card, sc_serial_number* serial) {
 	return rv=SC_SUCCESS;
 }
 
+private int missing_match_atr_table(sc_context* ctx, immutable(sc_atr_table)* table, sc_atr* atr)
+{ // c source match_atr_table copied, translated to D
+	ubyte* card_atr_bin;
+	size_t card_atr_bin_len;
+	char[3 * SC_MAX_ATR_SIZE] card_atr_hex;
+	size_t                    card_atr_hex_len;
+	uint i = 0;
+
+	if (ctx == null || table == null || atr == null)
+		return -1;
+	card_atr_bin     = atr.value.ptr;
+	card_atr_bin_len = atr.len;
+	sc_bin_to_hex(card_atr_bin, card_atr_bin_len, card_atr_hex.ptr, card_atr_hex.sizeof, ':');
+	card_atr_hex_len = strlen(card_atr_hex.ptr);
+
+	sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "missing_match_atr_table", "ATR     : %s", card_atr_hex.ptr);
+
+	for (i = 0; table[i].atr != null; i++) {
+		const(char)* tatr = table[i].atr;
+		const(char)* matr = table[i].atrmask;
+		size_t tatr_len = strlen(tatr);
+		ubyte[SC_MAX_ATR_SIZE] mbin, tbin;
+		size_t mbin_len, tbin_len, s, matr_len;
+		size_t fix_hex_len = card_atr_hex_len;
+		size_t fix_bin_len = card_atr_bin_len;
+
+		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "missing_match_atr_table", "ATR try : %s", tatr);
+
+		if (tatr_len != fix_hex_len) {
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "missing_match_atr_table", "ignored - wrong length");
+			continue;
+		}
+		if (matr != null) {
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "missing_match_atr_table", "ATR mask: %s", matr);
+
+			matr_len = strlen(matr);
+			if (tatr_len != matr_len)
+				continue;
+			tbin_len = tbin.sizeof;
+			sc_hex_to_bin(tatr, tbin.ptr, &tbin_len);
+			mbin_len = mbin.sizeof;
+			sc_hex_to_bin(matr, mbin.ptr, &mbin_len);
+			if (mbin_len != fix_bin_len) {
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "missing_match_atr_table",
+					"length of atr and atr mask do not match - ignored: %s - %s", tatr, matr);
+				continue;
+			}
+			for (s = 0; s < tbin_len; s++) {
+				/* reduce tatr with mask */
+				tbin[s] = (tbin[s] & mbin[s]);
+				/* create copy of card_atr_bin masked) */
+				mbin[s] = (card_atr_bin[s] & mbin[s]);
+			}
+			if (memcmp(tbin.ptr, mbin.ptr, tbin_len) != 0)
+				continue;
+		}
+		else {
+			if (!equal(fromStringz(tatr), card_atr_hex[])) //(strncasecmp(tatr, card_atr_hex, tatr_len) != 0)
+				continue;
+		}
+		return i;
+	}
+	return -1;
+}
+
+
+private int missing_sc_match_atr(sc_card* card, immutable(sc_atr_table)* table, int* type_out)
+{ // c source _sc_match_atr copied, translated to D
+	int res;
+
+	if (card == null)
+		return -1;
+	res = missing_match_atr_table(card.ctx, table, &card.atr);
+	if (res < 0)
+		return res;
+	if (type_out != null)
+		*type_out = table[res].type;
+	return res;
+}
+
 private int acos5_64_match_card_checks(sc_card *card) { // regular return value: 0==SUCCESS
 	int rv = SC_ERROR_UNKNOWN;
 	sc_context* ctx = card.ctx;
@@ -284,7 +333,7 @@ private int acos5_64_match_card_checks(sc_card *card) { // regular return value:
 	sc_format_apdu(card, &apdu, SC_APDU_CASE_2, 0x14, 0x06, 0x00);
 	with (apdu) {
 		cla = 0x80;
-		le  = 0x08;
+		le  =    8;
 		resp    = rbuf.ptr;
 		resplen = rbuf.sizeof;
 	}
@@ -346,14 +395,8 @@ private extern (C) int acos5_64_match_card(sc_card *card) { // irregular/special
 				"card matched (%s)", acos5_64_atrs[0].name);
 	}
 
-/*
-//extern (C) int _sc_match_atr(sc_card* card, const(sc_atr_table)* table, int* type_out); // sadly, isn't exported, FIXME get rid of "ubyte[SC_MAX_ATR_SIZE] ATR" and use acos5_64_atrs
-	if ((rv=_sc_match_atr(card, acos5_64_atrs.ptr, &card.type)) < 0)
+	if ((rv=missing_sc_match_atr(card, acos5_64_atrs.ptr, &card.type)) < 0)
 		return rv=0;
-	thus temporarily, a 'shortcut' replacement: */
-	if (!equal(card.atr.value[], ATR[]))
-		return rv=0;
-	card.type = SC_CARD_TYPE_ACOS5_64;
 
 	return rv=!cast(bool)acos5_64_match_card_checks(card);
 }
@@ -392,10 +435,9 @@ version(none) // FIXME activate this again for Posix, investigate for Windows, w
 version(Posix)
 {	
 	import core.sys.posix.sys.resource : RLIMIT_CORE, rlimit, setrlimit;
-	rlimit rl = rlimit(0, 0);
-	if ((rv=setrlimit(RLIMIT_CORE, &rl)) != 0) { // inhibit core dumps, https://download.libsodium.org/doc/helpers/memory_management.html
-		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_init",
-			"Setting rlimit failed: %s\n", sodium_version_string());
+	rlimit core_limits; // = rlimit(0, 0);
+	if ((rv=setrlimit(RLIMIT_CORE, &core_limits)) != 0) { // inhibit core dumps, https://download.libsodium.org/doc/helpers/memory_management.html
+		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_init", "Setting rlimit failed !\n");
 		return rv;
 	}
 }
@@ -410,7 +452,7 @@ version(USE_SODIUM)
 		}
 	}
 	sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_init",
-		"This module initialized libsodium version: %s\n", sodium_version_string());
+		"This module initialized libsodium version: %s\n", sodium_version_string);
 	private_data = cast(acos5_64_private_data*) sodium_malloc(acos5_64_private_data.sizeof);
 	if (private_data == null)
 		return rv=SC_ERROR_MEMORY_FAILURE;
@@ -431,7 +473,7 @@ version(USE_SODIUM)
 
 	with (*card) {
 		caps   = SC_CARD_CAP_RNG | SC_CARD_CAP_USE_FCI_AC; // c_ulong   we have a random number generator
-		cla           = 0x00;// int      default APDU class (interindustry)
+		cla           = 0x00;  // int      default APDU class (interindustry)
 		max_send_size = 0x0FF; // size_t,  Max Lc supported by the card
 		max_recv_size = 0x100; // size_t,  Max Le supported by the card, decipher (in chaining mode) with a 4096-bit key returns 2 chunks of 256 bytes each !!
 
@@ -467,8 +509,8 @@ version(USE_SODIUM)
 		drv_data = private_data; // void*, null if NOT version=USE_SODIUM, garbage collector (GC) not involved
 		max_pin_len = 8; // int
 		with (cache) { // sc_card_cache
-		  // on reset, MF is automatocally selected
-			current_df = sc_file_new();
+		  // on reset, MF is automatically selected
+			current_df = sc_file_new;
 			if (current_df == null)
 				return rv=SC_ERROR_MEMORY_FAILURE;
 
@@ -495,8 +537,7 @@ version(ENABLE_SM)
 } // version(ENABLE_SM)
 	} // with (*card)
 
-	rv = SC_SUCCESS;
-	return rv;
+	return rv=SC_SUCCESS;
 } // acos5_64_init
 
 /**
@@ -523,7 +564,7 @@ private extern (C) int acos5_64_finish(sc_card *card) {
 
 version(USE_SODIUM)
 {
-	rv = 	sodium_mprotect_readonly(card.drv_data);
+	rv = sodium_mprotect_readonly(card.drv_data);
 /+
 	acos5_64_private_data* private_data = cast(acos5_64_private_data*)card.drv_data;
 	acos5_64_se_info*  se_info = private_data.se_info, next;
@@ -540,6 +581,401 @@ version(USE_SODIUM)
 	card.drv_data = null;
 }
 	return rv = SC_SUCCESS;
+}
+
+private int acos5_64_select_file_by_path(sc_card* card, const(sc_path) *in_path, sc_file **file_out)
+{
+/* TODO consolidate this
+ACOS's Search Sequence for Target File ID is: current DF -> current DF's children -> current DF's parent ->
+current DF's siblings -> MF -> MF's children.
+This can be used, if it's reliably known where we are actually before selecting the new path.
+Otherwise, take the path as is, and decompose it.
+While looping (if necessary), no interest in analyzing FCI, except when we get to the target.
+We can't assume, that in_path always starts with 3F00 */
+	size_t          in_len = in_path.len;
+	const(ubyte) *  in_pos = in_path.value.ptr;
+	ubyte *        p = null;
+	int  /*result = -1,*/ in_path_complete = 1, diff = 2;
+	sc_path path;
+	sc_path path_substitute;
+	sc_path* p_path = cast(sc_path*)in_path;  /*pointing to in_path or path_substitute*/
+
+	uint file_type = SC_FILE_TYPE_WORKING_EF;
+
+	sc_context* ctx = card.ctx;
+	sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_select_file_by_path", "called\n");
+	int rv = SC_ERROR_UNKNOWN;
+	mixin (log!(q{"acos5_64_select_file_by_path"}, q{"called"}));
+	scope(exit) { 
+		if (rv <= 0)
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_select_file_by_path",
+				"returning with: %d (%s)\n", rv, sc_strerror(rv));
+		else
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_select_file_by_path",
+				"returning with: %d\n", rv);
+	}
+
+	/* Check parameters. */
+	with (*in_path) {
+		if (len % 2 != 0 || len < 2) {
+			return rv=SC_ERROR_INVALID_ARGUMENTS;
+		}
+		if (type==SC_PATH_TYPE_FROM_CURRENT || type==SC_PATH_TYPE_PARENT)
+			return rv=SC_ERROR_UNKNOWN;
+	}
+
+	if (!sc_compare_path_prefix(&MF, in_path)) /*incomplete path given for in_path */
+		in_path_complete = 0;
+	with (*in_path) with (card.cache)  sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_select_file_by_path",
+		"starting with card->cache.current_df->path=%s, card->cache.valid=%d, searching: path->len=%lu, path->index=%d, path->count=%d, path->type=%d, file_out=%p",
+			sc_print_path(&current_df.path), valid, len, index, count, type, file_out);
+	if (card.cache.valid) {
+		if (!in_path_complete) {
+			with (card.cache)  p = cast(ubyte*)memmem(current_df.path.value.ptr, current_df.path.len, in_path.value.ptr, 2);
+			if (p && ((p-card.cache.current_df.path.value.ptr) % 2 == 0)) {
+				sc_path path_prefix;
+				memset(&path_prefix, 0, sc_path.sizeof);
+				path_prefix.len = p-card.cache.current_df.path.value.ptr;
+				memcpy(&path_prefix, &card.cache.current_df.path, path_prefix.len);
+				sc_concatenate_path(&path_substitute, &path_prefix, in_path);
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_select_file_by_path",
+					"starting with path_substitute=%s (memmem)\n", sc_print_path(&path_substitute));
+				p_path = &path_substitute;
+				in_len = path_substitute.len;
+				in_pos = path_substitute.value.ptr;
+			}
+			/*if card->cache.current_df->path==MF and card->cache.valid and in_path->len ==2*/
+			else if (sc_compare_path(&card.cache.current_df.path, &MF) /*&& in_path->len == 2*/) {
+				sc_concatenate_path(&path_substitute, &MF, in_path);
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_select_file_by_path",
+					"starting with path_substitute=%s (MFprefix)\n", sc_print_path(&path_substitute));
+				p_path = &path_substitute;
+				in_len = path_substitute.len;
+				in_pos = path_substitute.value.ptr;
+			}
+		}
+
+		with (card.cache) {
+		/* Don't need to select if it's other than MF ? */
+			if (sc_compare_path(&current_df.path, p_path) &&
+				!sc_compare_path(&current_df.path, &MF)) { /*check current DF*/
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_select_file_by_path",
+					"Don't need to select! ending with card->cache.current_df->path=%s, card->cache.valid=%d",	sc_print_path(&current_df.path), valid);
+				rv=SC_SUCCESS;
+				return rv;
+			}
+			/* shorten the path based on card->cache.current_df->path */
+			if (in_len>2) {
+//			if (sc_compare_path(&card->cache.current_df->path, p_path)) { /*check current DF*/
+//				in_pos += in_len-2;
+//				in_len = 2;
+//			}
+				if (sc_compare_path_prefix(&current_df.path, p_path)) { /* check current DF's children*/
+					in_len -= current_df.path.len;
+					in_pos += current_df.path.len;
+				}
+				else if (current_df.path.len > 2) { /* check current DF's parent and it's children*/
+					sc_path path_parent;
+					sc_path_set(&path_parent, /*SC_PATH_TYPE.*/SC_PATH_TYPE_FILE_ID, current_df.path.value.ptr, current_df.path.len-2, 0, -1);
+					if ( sc_compare_path(&path_parent, p_path) ||
+							(sc_compare_path_prefix(&path_parent, p_path) && current_df.path.len==in_len)) {
+						in_pos += in_len-2;
+						in_len = 2;
+					}
+				}
+				/*check MF's children */
+				else if (sc_compare_path_prefix(&MF, p_path) && 4==in_len) {
+					in_pos += in_len-2;
+					in_len = 2;
+				}
+			}
+		} // with (card.cache)
+	} // if (card.cache.valid)
+
+	/* process path components */
+	memset(&path, 0, sc_path.sizeof);
+	path.type = /*SC_PATH_TYPE.*/SC_PATH_TYPE_FILE_ID;
+	path.len = 2;		/* one path component at a time */
+	do {
+		if (in_len>=4) {
+			sc_apdu apdu;
+			sc_format_apdu(card, &apdu, SC_APDU_CASE_3_SHORT, 0xA4, 0, 0);
+			with (apdu){
+				lc = datalen = 2;
+				data = cast(ubyte*)in_pos;
+				flags |= SC_APDU_FLAGS_NO_GET_RESP;
+			}
+			rv = sc_transmit_apdu(card, &apdu) || apdu.sw1 != 0x61;
+			/*sc_log(ctx, "rv=%d, apdu.sw1: 0x%02X", rv, apdu.sw1);*/
+		}
+		if (in_len==2 || rv) {
+			memcpy(path.value.ptr, in_pos, 2);
+			if (file_out) {
+				rv = iso_ops_ptr.select_file(card, &path, file_out);
+				if (file_out && *file_out)
+					file_type = (**file_out).type;
+			}
+			else {
+				sc_file *file = sc_file_new();
+				file.path = path;
+			  rv = iso_ops_ptr.select_file(card, &path, &file /*null ?*/);
+				file_type = file.type;
+				sc_file_free(file);
+			}
+			diff = (file_type == SC_FILE_TYPE_DF ? 0 : 2);
+			/*sc_log(ctx, "file->type detected: %u", file_type);*/
+		}
+		in_len -= 2;
+		in_pos += 2;
+	} while (in_len && rv == SC_SUCCESS);
+
+	/* adapt card->cache.current_df->path */
+	if (rv==SC_SUCCESS) with (card.cache) {
+		memset(&current_df.path, 0, sc_path.sizeof);
+		if (in_path_complete) {
+			current_df.path.len = (in_path.len      == 2 ? 2 : in_path.len-diff);
+			memcpy(current_df.path.value.ptr, in_path.value.ptr, current_df.path.len);
+			valid = 1;
+		}
+		else if (p_path != in_path) { /* we have path_substitute */
+			current_df.path.len = (path_substitute.len == 2 ? 2 : path_substitute.len-diff);
+			memcpy(current_df.path.value.ptr, path_substitute.value.ptr, current_df.path.len);
+			valid = 1;
+		}
+		else
+			valid = 0;
+		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_select_file_by_path",
+			"ending with card->cache.current_df->path=%s, card->cache.valid=%d",	sc_print_path(&current_df.path), valid);
+	}
+
+	return rv;
+}
+
+
+private extern (C) int acos5_64_select_file(sc_card *card, const(sc_path)* path, sc_file **file_out)
+{
+/* acos can handle path->type SC_PATH_TYPE_FILE_ID (P1=0) and SC_PATH_TYPE_DF_NAME (P1=4) only.
+Other values for P1 are not supported.
+We have to take care for SC_PATH_TYPE_PATH and (maybe those are used too)
+SC_PATH_TYPE_FROM_CURRENT as well as SC_PATH_TYPE_PARENT */
+/* FIXME if path is SC_PATH_TYPE_DF_NAME, card->cache.current_df->path is not adapted */
+	sc_context* ctx = card.ctx;
+	int rv = SC_ERROR_INS_NOT_SUPPORTED;
+	sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_select_file",
+		"called with path->type: %d\n", path.type);
+	scope(exit) {
+		if (rv <= 0)
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_select_file",
+				"returning with: %d (%s)\n", rv, sc_strerror(rv));
+		else
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_select_file",
+				"returning with: %d\n", rv);
+	}
+
+	final switch (cast(SC_PATH_TYPE)path.type) {
+		case SC_PATH_TYPE_FILE_ID:
+			goto case SC_PATH_TYPE_PATH;
+		case SC_PATH_TYPE_DF_NAME:
+			rv = iso_ops_ptr.select_file(card, path, file_out);
+			if (file_out && *file_out && (**file_out).path.len > 0) {
+				/* TODO test this */
+				card.cache.current_df.path = (**file_out).path;
+				card.cache.valid = 1; /* maybe not starting with 3F00 */
+			}
+			else
+				card.cache.valid = 0;
+			return rv;
+		case SC_PATH_TYPE_PATH:
+			return rv=acos5_64_select_file_by_path(card, path, file_out);
+		case SC_PATH_TYPE_PATH_PROT:
+			return rv;
+		case SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT:
+			goto case SC_PATH_TYPE_PATH;
+	}
+}
+
+
+/**
+ *  The iso7816.c -version get_challenge get's wrapped to have RNDc known by terminal/host in sync with card's last SM_SMALL_CHALLENGE_LEN challenge handed out
+ *  len is restricted to be a multiple of 8 AND 8<=len
+ */
+private extern (C) int acos5_64_get_challenge(sc_card *card, ubyte * rnd, size_t len)
+{
+	int rv = SC_ERROR_UNKNOWN;
+	sc_context* ctx = card.ctx;
+	mixin (log!(q{"acos5_64_get_challenge"}, q{"called"})); //
+	scope(exit) { 
+		if (rv <= 0)
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_get_challenge",
+				"returning with: %d (%s)\n", rv, sc_strerror(rv));
+		else
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_get_challenge",
+				"returning with: %d\n", rv);
+	}
+	
+	if (len<SM_SMALL_CHALLENGE_LEN || (len%SM_SMALL_CHALLENGE_LEN)) {
+		rv = -1;
+		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_get_challenge",
+			"called with inappropriate len arument: %d (%s)\n", rv, sc_strerror(rv));
+		return rv;
+	}
+
+	if ((rv=iso_ops_ptr.get_challenge(card, rnd, len)) < 0) {
+		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_get_challenge",
+			"iso_ops_ptr.get_challenge failed: %d (%s)\n", rv, sc_strerror(rv));
+		return rv;
+	}
+	
+version(ENABLE_SM)
+{
+	memcpy(card.sm_ctx.info.session.cwa.card_challenge.ptr, &rnd[len-SM_SMALL_CHALLENGE_LEN], SM_SMALL_CHALLENGE_LEN);
+	memcpy(card.sm_ctx.info.session.cwa.ssc.ptr,            &rnd[len-SM_SMALL_CHALLENGE_LEN], SM_SMALL_CHALLENGE_LEN);
+}
+
+	return rv;
+}
+
+private extern (C) int acos5_64_logout(sc_card *card)
+{
+/* ref. manual:
+7.2.2.
+ Logout
+Logout command is used to de-authenticate the user's global or local PIN access condition status.
+The user controls PIN rights without resetting the card and interrupting the flow of events.
+[The same may be achieved simply be selecting a different DF(/MF)]
+7.2.7.
+ De-authenticate
+This command allows ACOS5-64 to de-authenticate the authenticated key without resetting the card.
+
+TODO Check if 'Logout' does all we want or if/when we need 'De-authenticate' too
+ */
+	sc_context* ctx = card.ctx;
+	mixin (log!(q{"acos5_64_logout"}, q{"called"})); //
+	int rv;
+	scope(exit) { 
+		if (rv <= 0)
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_logout",
+				"returning with: %d (%s)\n", rv, sc_strerror(rv));
+		else
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_logout",
+			"returning with: %d\n", rv);
+	}
+
+	sc_apdu apdu;
+	sc_format_apdu(card, &apdu, SC_APDU_CASE_1, 0x2E, 0x00, 0x81);
+	apdu.cla = 0x80;
+
+	if ((rv = sc_transmit_apdu(card, &apdu)) < 0) {
+		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_logout",
+			"APDU transmit failed: %d (%s)\n", rv, sc_strerror(rv));
+		return rv;
+	}	
+	
+	return rv = sc_check_sw(card, apdu.sw1, apdu.sw2);
+}
+
+private extern (C) int acos5_64_list_files(sc_card* card, ubyte* buf, size_t buflen)
+{
+  sc_apdu apdu;
+  int rv;
+  size_t count;
+  ubyte* bufp = buf;
+  int fno = 0;    /* current file index */
+
+	sc_context* ctx = card.ctx;
+	mixin (log!(q{"acos5_64_list_files"}, q{"called"})); //
+	scope(exit) { 
+		if (rv <= 0)
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_list_files",
+				"returning with: %d (%s)\n", rv, sc_strerror(rv));
+		else
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_list_files",
+				"returning with: %d\n", rv);
+	}
+	
+  /* Check parameters. */
+  if (!buf || (buflen < 8))
+    return SC_ERROR_INVALID_ARGUMENTS;
+
+  /*
+   * Use CARD GET INFO to fetch the number of files under the
+   * curently selected DF.
+   */
+  sc_format_apdu(card, &apdu, SC_APDU_CASE_1, 0x14, 0x01, 0x00);
+  apdu.cla = 0x80;
+	if ((rv=sc_transmit_apdu(card, &apdu)) < 0) {
+		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_list_files",
+			"APDU transmit failed: %d (%s)\n", rv, sc_strerror(rv));
+		return rv;
+	}
+  if (apdu.sw1 != 0x90)
+    return rv=SC_ERROR_INTERNAL;
+  count = apdu.sw2;
+
+  while (count--) {
+    ubyte[8] info;
+
+    /*
+     * Truncate the scan if no more room left in output buffer.
+     */
+    if (buflen == 0)
+      break;
+
+		apdu = apdu.init;
+		sc_format_apdu(card, &apdu, SC_APDU_CASE_2_SHORT, 0x14, 0x02, fno++);
+		with (apdu) {
+			cla = 0x80;
+			resp         = info.ptr;
+			resplen = le = info.sizeof;
+		}
+		if ((rv=sc_transmit_apdu(card, &apdu)) < 0) {
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_list_files",
+				"APDU transmit failed: %d (%s)\n", rv, sc_strerror(rv));
+			return rv;
+		}
+
+		if (apdu.sw1 != 0x90 || apdu.sw2 != 0x00)
+			return rv=SC_ERROR_INTERNAL;
+
+		*bufp++ = info[2];
+		*bufp++ = info[3];
+		buflen -= 2;
+	}
+
+	return  rv=cast(int)(bufp - buf);
+}
+
+private int acos5_64_check_sw(sc_card *card, uint sw1, uint sw2)
+{
+	/* intercept SW of pin_cmd ? */
+	/* intercept SW 7.3.1. Get Card Info Identify Self? */
+	int rv = SC_ERROR_UNKNOWN;
+	sc_context* ctx = card.ctx;
+	sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_check_sw",
+		"called for: sw1 = 0x%02x, sw2 = 0x%02x\n", sw1, sw2);
+//	mixin (log!(q{"acos5_64_check_sw"}, q{"called"})); //
+	scope(exit) { 
+		if (rv <= 0)
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_check_sw",
+				"returning with: %d (%s)\n", rv, sc_strerror(rv));
+		else
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_check_sw",
+				"returning with: %d\n", rv);
+	}
+
+	if (sw1 == 0x90)
+		return rv=SC_SUCCESS;
+/*
+	else if (sw1 == 0x63 && (sw2 & 0xFFFFFFF0U) == 0xC0 ) {
+		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_check_sw",
+			"Verification failed (remaining tries: %d)\n", (sw2 & 0x0f));
+		return rv=SC_ERROR_PIN_CODE_INCORRECT;
+	}
+*/
+	else if (sw1 == 0x95U && sw2 == 0x40U)
+		return rv=SC_SUCCESS;
+	/* iso error */
+	return rv=iso_ops_ptr.check_sw(card, sw1, sw2);
 }
 
 
@@ -563,9 +999,8 @@ private extern (C) int acos5_64_card_ctl(sc_card* card, c_ulong request, void* d
 	sc_context* ctx = card.ctx;
 	int rv = SC_ERROR_INS_NOT_SUPPORTED;
 	mixin (log!(q{"acos5_64_card_ctl"}, q{"called"})); //
-//	sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_card_ctl",
-//		"request=%lu\n", request);
-  scope(exit) {
+//	sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_card_ctl", "request=%lu\n", request);
+	scope(exit) {
 		if (rv <= 0)
 			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_card_ctl",
 				"returning with: %d (%s)\n", rv, sc_strerror(rv));
