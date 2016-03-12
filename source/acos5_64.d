@@ -1,5 +1,11 @@
 module acos5_64;
 
+/*
+TODO: watch, when DMD will master visibility [http://wiki.dlang.org/Access_specifiers_and_visibility]
+	workaround for linux (gcc/ld):           "--version-script=lib/libacos5_64.map"
+	workaround for Windows (-m64 msvc/link): ?
+*/
+
 import core.stdc.config : c_ulong;
 import core.stdc.locale : setlocale, LC_ALL;
 import core.stdc.string : memset, memcpy, memcmp, strlen;
@@ -44,6 +50,11 @@ import libopensc.sm;
 
 import deimos.openssl.des : DES_cblock, const_DES_cblock, DES_KEY_SZ; //, DES_key_schedule, DES_SCHEDULE_SZ /* is not fixed length, as dep. on DES_LONG */, DES_LONG /*c_ulong*/;
 
+// we'll often deal with ubyte[8]; thus it's worth an alias; don't mix up opensc's  typedef unsigned char u8;
+//ias  DES_cblock = ubyte[8];
+alias  ub8        = ubyte[8];
+//ias iub8        = immutable(ubyte)[8];
+
 struct acos5_64_private_data {
 //	sm_cwa_keyset				cwa_keyset;
 //uint                sdo_reference;
@@ -84,7 +95,7 @@ private __gshared sc_card_operations  acos5_64_ops;
 
 /* Module definition for card driver */
 private __gshared sc_card_driver  acos5_64_drv = sc_card_driver(
-	chip_name.ptr,      /**< Full name for acos5_64 card driver */
+	chip_name.ptr,      /**< Full  name for acos5_64 card driver */
 	chip_shortname.ptr, /**< Short name for acos5_64 card driver */
 	null,               /**< pointer to acos5_64_ops (acos5_64 card driver operations) */
 	acos5_64_atrs.ptr,  /**< List of card ATR's handled by this driver */
@@ -98,40 +109,38 @@ private immutable(char)[7] module_version = "0.15.0";  // uint major = 0, minor 
 
 /* The 3 module exports: */
 
-export extern (C) __gshared immutable(char)* sc_module_version   = module_version.ptr;
-export extern (C) __gshared immutable(char)* sc_driver_version() {
+export extern (C) __gshared const(char)* sc_module_version   = module_version.ptr;
+export extern (C) __gshared const(char)* sc_driver_version() {
 	version(FAKE_OPENSC_VERSION) return sc_get_version;
 	else                         return module_version.ptr;
 }
 export extern (C) __gshared immutable(void)* sc_module_init(const(char)* name) { return &sc_get_acos5_64_driver; }
 
 
-private sc_card_driver* sc_get_acos5_64_driver() {
+private sc_card_driver* sc_get_acos5_64_driver()
+{
 	enforce(DES_KEY_SZ == SM_SMALL_CHALLENGE_LEN && DES_KEY_SZ== 8,
 		"For some reason size [byte] of DES-block and challenge-response (card/host) is not equal and/or not 8 bytes!");
 
 	sc_card_driver* iso_drv  = sc_get_iso7816_driver;
 	iso_ops_ptr         = iso_drv.ops; // iso_ops_ptr for initialization and casual use
-
 	acos5_64_ops        = *iso_ops_ptr; // initialize all ops with iso7816_driver's implementations
+
 	with (acos5_64_ops) {
 		match_card        = &acos5_64_match_card;
 		acos5_64_ops.init = &acos5_64_init;
 		finish            = &acos5_64_finish;
-/*
-		erase_binary      = &acos5_64_erase_binary;
-*/
+//	erase_binary      = &acos5_64_erase_binary;
 		select_file       = &acos5_64_select_file;
 		get_challenge     = &acos5_64_get_challenge;
 //	verify            = null; // like in *iso_ops_ptr  this is deprecated
 		logout            = &acos5_64_logout;
+		create_file       = &acos5_64_create_file;
 		list_files        = &acos5_64_list_files;
-//	check_sw          = &acos5_64_check_sw; // switch on/off in some cases only
+//	check_sw          = &acos5_64_check_sw; // NO external use
 		card_ctl          = &acos5_64_card_ctl;
-/*
-		pin_cmd           = &acos5_64_pin_cmd;
+//	pin_cmd           = &acos5_64_pin_cmd;
 		process_fci       = &acos5_64_process_fci;
-*/
 	}
 	acos5_64_drv.ops = &acos5_64_ops;
 	return &acos5_64_drv;
@@ -151,13 +160,15 @@ private shared static ~this() {
 extern (C) void* memmem(const(void)* l, size_t l_len, const(void)* s, size_t s_len);
 
 /**
- * Retrieve serial number (6 bytes) from card.
+ * Retrieve serial number (6 bytes) from card and cache it
  *
  * @param card pointer to card description
  * @param serial where to store data retrieved
  * @return SC_SUCCESS if ok; else error code
  */
 private int acos5_64_get_serialnr(sc_card* card, sc_serial_number* serial) {
+	if (card == null || card.ctx == null)
+		return SC_ERROR_INVALID_ARGUMENTS;
 	sc_context* ctx = card.ctx;
 	mixin (log!(q{"acos5_64_get_serialnr"}, q{"called"}));
 	int rv;
@@ -170,14 +181,13 @@ private int acos5_64_get_serialnr(sc_card* card, sc_serial_number* serial) {
 				"returning with: %d  (Serial Number is cached)\n", rv);
 	}
 
-	if (card == null || card.ctx == null)
-		return rv=SC_ERROR_INVALID_ARGUMENTS;
 	if (card.type != SC_CARD_TYPE_ACOS5_64)
 		return rv=SC_ERROR_INS_NOT_SUPPORTED;
 
 	/* if serial number is cached, use it */
-	if (serial && card.serialnr.value.ptr && card.serialnr.len==6) {
-		serial.value[0..6] = card.serialnr.value[0..6];
+	with (card.serialnr)
+	if (serial && value.ptr && len==6) {
+		serial.value[0..6] = value[0..6];
 		serial.len    = 6;
 		return rv=SC_SUCCESS;
 	}
@@ -217,8 +227,9 @@ private int acos5_64_get_serialnr(sc_card* card, sc_serial_number* serial) {
 	return rv=SC_SUCCESS;
 }
 
+// for some reason, this usefull function is not exported from libopensc
 private int missing_match_atr_table(sc_context* ctx, immutable(sc_atr_table)* table, sc_atr* atr)
-{ // c source match_atr_table copied, translated to D
+{ // c source function 'match_atr_table' copied, translated to D
 	ubyte* card_atr_bin;
 	size_t card_atr_bin_len;
 	char[3 * SC_MAX_ATR_SIZE] card_atr_hex;
@@ -328,7 +339,7 @@ private int acos5_64_match_card_checks(sc_card *card) { // regular return value:
 
 	/* call 7.3.1. Get Card Info Card OS Version */
 	immutable(ubyte)[8] vbuf = cast(immutable(ubyte)[8]) x"41434F5305 02 00 40"; // "ACOS 0x05 ...", major vers.=2, minor=0, 0x40 kBytes user EEPROM capacity
-	ubyte[8] rbuf;
+	ub8 rbuf;
 	apdu = apdu.init;
 	sc_format_apdu(card, &apdu, SC_APDU_CASE_2, 0x14, 0x06, 0x00);
 	with (apdu) {
@@ -374,10 +385,10 @@ private int acos5_64_match_card_checks(sc_card *card) { // regular return value:
  * do not declare static, if pkcs15-acos5_64 module should be necessary
  *
  * @param card Pointer to card structure
- * @return on card matching 0 if no match; negative return means error
+ * @returns 1 on card matched, 0 if no match (or error)
  *
- * Returning error still doesn't stop using this driver.
- * Thus for case "card not matched" another 'killer argument': set card.type to impossible one and rule out in acos5_64_init
+ * Returning 'no match' still doesn't stop opensc-pkcs11 using this driver, when forced to use acos5_64
+ * Thus for case "card not matched", another 'killer argument': set card.type to impossible one and rule out in acos5_64_init
  */
 private extern (C) int acos5_64_match_card(sc_card *card) { // irregular/special return value: 0==FAILURE
 	int rv;
@@ -603,7 +614,7 @@ We can't assume, that in_path always starts with 3F00 */
 	uint file_type = SC_FILE_TYPE_WORKING_EF;
 
 	sc_context* ctx = card.ctx;
-	sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_select_file_by_path", "called\n");
+//	sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_select_file_by_path", "called\n");
 	int rv = SC_ERROR_UNKNOWN;
 	mixin (log!(q{"acos5_64_select_file_by_path"}, q{"called"}));
 	scope(exit) { 
@@ -908,18 +919,18 @@ private extern (C) int acos5_64_list_files(sc_card* card, ubyte* buf, size_t buf
 			"APDU transmit failed: %d (%s)\n", rv, sc_strerror(rv));
 		return rv;
 	}
-  if (apdu.sw1 != 0x90)
-    return rv=SC_ERROR_INTERNAL;
-  count = apdu.sw2;
+	if (apdu.sw1 != 0x90)
+		return rv=SC_ERROR_INTERNAL;
+	count = apdu.sw2;
 
-  while (count--) {
-    ubyte[8] info;
+	while (count--) {
+		ub8 info;
 
-    /*
-     * Truncate the scan if no more room left in output buffer.
-     */
-    if (buflen == 0)
-      break;
+		/*
+		 * Truncate the scan if no more room left in output buffer.
+		 */
+		if (buflen == 0)
+			break;
 
 		apdu = apdu.init;
 		sc_format_apdu(card, &apdu, SC_APDU_CASE_2_SHORT, 0x14, 0x02, fno++);
@@ -1040,6 +1051,424 @@ enum {
 
 	return rv;
 }
+
+/*
+ * The reason for this function is that OpenSC doesn't set any
+ * Security Attribute Tag in the FCI upon file creation if there
+ * is no file->sec_attr. I set the file->sec_attr to a format
+ * understood by the applet (ISO 7816-4 tables 16, 17 and 20).
+ * The iso7816_create_file will then set this as Tag 86 - Sec.
+ * Attr. Prop. Format.
+ * The applet will then be able to set and enforce access rights
+ * for any file created by OpenSC. Without this function, the
+ * applet would not know where to enforce security rules and
+ * when.
+ *
+ * Note: IsoApplet currently only supports a "onepin" option.
+ *
+ * Format of the sec_attr: 8 Bytes:
+ *  7      - ISO 7816-4 table 16 or 17
+ *  6 to 0 - ISO 7816-4 table 20
+ */
+private extern (C) int acos5_64_create_file(sc_card* card, sc_file* file)
+{
+	/*
+	 * @brief convert an OpenSC ACL entry to the security condition
+	 * byte used by this driver.
+	 *
+	 * Used by acos5_64_create_file to parse OpenSC ACL entries
+	 * into ISO 7816-4 Table 20 security condition bytes.
+	 *
+	 * @param entry The OpenSC ACL entry.
+	 *
+	 * @return The security condition byte. No restriction (0x00)
+	 *         if unknown operation.
+	 */
+	ubyte acos5_64_acl_to_security_condition_byte(const(sc_acl_entry)* entry)
+	{
+		if (!entry)
+			return 0x00;
+		switch(entry.method) {
+			case SC_AC_CHV:
+				return 0x90;
+			case SC_AC_NEVER:
+				return 0xFF;
+			case SC_AC_NONE:
+			default:
+				return 0x00;
+		}
+	}
+
+	int rv = SC_SUCCESS;
+	sc_context* ctx = card.ctx;
+	mixin (log!(q{"acos5_64_create_file"}, q{"called"})); //
+	scope(exit) {
+		if (rv <= 0)
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_create_file",
+				"returning with: %d (%s)\n", rv, sc_strerror(rv));
+		else
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_create_file",
+				"returning with: %d\n", rv);
+	}
+
+	if (file.sec_attr_len == 0) {
+		ub8 access_buf;
+		int[8] idx = [
+			0, /* Reserved. */
+			SC_AC_OP_DELETE_SELF, /* b6 */
+			SC_AC_OP_LOCK,        /* b5   (Terminate) */
+			SC_AC_OP_ACTIVATE,    /* b4 */
+			SC_AC_OP_DEACTIVATE,  /* b3 */
+			0, /* Preliminary */  /* b2 */
+			0, /* Preliminary */  /* b1 */
+			0  /* Preliminary */  /* b0 */
+		];
+
+		if (file.type == SC_FILE_TYPE_DF) {
+			const(int)[3] df_idx = [ /* These are the SC operations. */
+				SC_AC_OP_CREATE_DF,   /* b2 */
+				SC_AC_OP_CREATE_EF,   /* b1 */
+				SC_AC_OP_DELETE       /* b0   (Delete Child) */
+			];
+			idx[5..8] = df_idx[];
+		}
+		else {  /* EF */
+			const(int)[3] ef_idx = [
+				SC_AC_OP_WRITE,       /* b2 */ // file.type == ? 0: 
+				SC_AC_OP_UPDATE,      /* b1 */
+				SC_AC_OP_READ         /* b0 */
+			];
+			idx[5..8] = ef_idx[];
+		}
+		/* Now idx contains the operation identifiers.
+		 * We now search for the OPs. */
+		access_buf[0] = 0xFF; /* A security condition byte is present for every OP. (Table 19) */
+		for (int i=1; i<8; ++i) {
+			const(sc_acl_entry)* entry;
+			entry = sc_file_get_acl_entry(file, idx[i]);
+			access_buf[i] = acos5_64_acl_to_security_condition_byte(entry);
+		}
+
+		if ((rv=sc_file_set_sec_attr(file, access_buf.ptr, 8)) < 0) {
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_create_file", "Error adding security attribute.");
+			return rv;
+		}
+	}
+
+	return rv=iso_ops_ptr.create_file(card, file);
+}
+
+/*
+ * Add an ACL entry to the OpenSC file struct, according to the operation
+ * and the saByte (Encoded according to IsoApplet FCI proprietary security
+ * information, see also ISO 7816-4 table 20).
+ *
+ * @param[in,out] file
+ * @param[in]     operation The OpenSC operation.
+ * @param[in]     saByte    The security condition byte returned by the applet.
+ * /
+private int
+acos5_64_add_sa_to_acl(sc_file* file, uint operation, ubyte saByte)
+{
+	int rv;
+
+	switch (saByte) {
+	case 0x90:
+		if ((rv=sc_file_add_acl_entry(file, operation, SC_AC_CHV, 1)) < 0)
+			return rv;
+		break;
+	case 0xFF:
+		if ((rv=sc_file_add_acl_entry(file, operation, SC_AC_NEVER, SC_AC_KEY_REF_NONE)) < 0)
+			return rv;
+		break;
+	case 0x00:
+		if ((rv=sc_file_add_acl_entry(file, operation, SC_AC_NONE, SC_AC_KEY_REF_NONE)) < 0)
+			return rv;
+		break;
+	default:
+		if ((rv=sc_file_add_acl_entry(file, operation, SC_AC_UNKNOWN, SC_AC_KEY_REF_NONE)) < 0)
+			return rv;
+	}
+	return SC_SUCCESS;
+}
+*/
+
+/**
+ * This function first calls the iso7816.c process_fci() for any other FCI
+ * information and then updates the ACL of the OpenSC file struct according
+ * to the FCI (from the isoapplet.
+ */
+private extern (C) int acos5_64_process_fci(sc_card* card, sc_file* file, const(ubyte)* buf, size_t buflen)
+{
+	void file_add_acl_entry (sc_file *file, int op, uint SCB) // checked against card-acos5_64.c  OPENSC_loc
+	{
+		uint method, keyref = SC_AC_KEY_REF_NONE;
+
+		switch (SCB) {
+		case 0x00:
+			method = SC_AC_NONE;
+			break;
+		case 0xFF:
+			method = SC_AC_NEVER;
+			break;
+		case 0x41: .. case 0x4E: // Force the use of Secure Messaging and at least one condition specified in the SE-ID of b3-b0
+			// TODO
+			method = SC_AC_SCB;
+			keyref = SCB & 0x0F;
+			break;
+		case 0x01: .. case 0x0E: // At least one condition specified in the SE ID of b3-b0
+			goto case;  // continues to the next case
+		case 0x81: .. case 0x8E: // All conditions         specified in the SE ID of b3-b0
+			method = SC_AC_CHV;
+			keyref = SCB & 0x0F;
+			break;
+		default:
+			method = SC_AC_UNKNOWN;
+			break;
+		}
+		sc_file_add_acl_entry(file, op, method, keyref);
+	}
+
+/*
+	ubyte bitsSet(ubyte value) // or CTFE for ultimate speed, like in Andrei Alexandrescu TDPL, makeHammingWeightsTable
+	{
+		ubyte result;
+		for (; value; ++result)
+			value &= value - 1;
+		return result;
+	}
+*/
+	import core.cpuid : hasPopcnt;
+	import core.bitop : _popcnt, popcnt;
+
+	size_t taglen, plen = buflen;
+	const(ubyte)* tag = null, p = buf;
+	int rv;
+	sc_context* ctx = card.ctx;
+	mixin (log!(q{"acos5_64_process_fci"}, q{"called"})); //
+	scope(exit) {
+		if (rv <= 0)
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_process_fci",
+				"returning with: %d (%s)\n", rv, sc_strerror(rv));
+		else
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_process_fci",
+				"returning with: %d\n", rv);
+	}
+
+	if ((rv = iso_ops_ptr.process_fci(card, file, buf, buflen)) < 0) {
+		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_process_fci",
+			"error parsing fci: %d (%s)\n", rv, sc_strerror(rv));
+		return rv;
+	}
+
+	if (!file)
+		return rv=SC_SUCCESS;
+
+	file_add_acl_entry (file, SC_AC_OP_SELECT,						SC_AC_NONE);
+	ubyte FDB;
+	/* catch up on everything, iso_ops_ptr.process_fci did omit: SE-file FDB (0x1C), tags 0x8C and 0xAB */
+	/* correct/add/refine   File Descriptor Byte (FDB) for
+		 Security Environment file (proprietary) has FDB : 1C */
+//	if (file.type == 0 || file.type == SC_FILE_TYPE_INTERNAL_EF) {
+	tag = sc_asn1_find_tag(ctx, p, plen, 0x82, &taglen);
+	if (tag && taglen > 0) {
+		FDB = tag[0];
+		switch ((FDB >> 3) & 7) {
+			case 1: // shall some of file.type == SC_FILE_TYPE_INTERNAL_EF be switched to SC_FILE_TYPE_BSO ?
+				break;
+			case 3:
+//				type = "internal EF";
+				file.type = SC_FILE_TYPE.SC_FILE_TYPE_INTERNAL_EF; // refinement might be SC_FILE_TYPE_INTERNAL_SE_EF
+				sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_process_fci", "  type (corrected): proprietary EF"); // SE-file  // FDB == 0x1C
+				break;
+			default:	
+				break;
+		}
+	}
+//}
+	if (!FDB)
+		return rv=SC_ERROR_INVALID_ASN1_OBJECT;
+/+	
+	/* Construct the ACL from the sec_attr. */
+	if (file.sec_attr && file.sec_attr_len == 8) {
+		ubyte* sa = file.sec_attr;
+		if (sa[0] != 0xFF) {
+			rv = SC_ERROR_INVALID_DATA;
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_process_fci", "File security attribute does not contain a ACL byte for every operation.");
+			return rv;
+		}
+		if ((rv=acos5_64_add_sa_to_acl(file, SC_AC_OP_DELETE_SELF, sa[1])) < 0) {
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_process_fci", "Error adding ACL entry.");
+			return rv;
+		}
+		if ((rv=acos5_64_add_sa_to_acl(file, SC_AC_OP_LOCK, sa[2])) < 0) {
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_process_fci", "Error adding ACL entry.");
+			return rv;
+		}
+		if ((rv=acos5_64_add_sa_to_acl(file, SC_AC_OP_ACTIVATE, sa[3])) < 0) {
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_process_fci", "Error adding ACL entry.");
+			return rv;
+		}
+		if ((rv=acos5_64_add_sa_to_acl(file, SC_AC_OP_DEACTIVATE, sa[4])) < 0) {
+			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_process_fci", "Error adding ACL entry.");
+			return rv;
+		}
+
+		if (file.type == SC_FILE_TYPE_DF) {
+			r = acos5_64_add_sa_to_acl(file, SC_AC_OP_CREATE_DF, sa[5]);
+			LOG_TEST_RET(card.ctx, r, "Error adding ACL entry.");
+			r = acos5_64_add_sa_to_acl(file, SC_AC_OP_CREATE_EF, sa[6]);
+			LOG_TEST_RET(card.ctx, r, "Error adding ACL entry.");
+			r = acos5_64_add_sa_to_acl(file, SC_AC_OP_DELETE, sa[7]);
+			LOG_TEST_RET(card.ctx, r, "Error adding ACL entry.");
+		}
+		else if(file.type == SC_FILE_TYPE_INTERNAL_EF
+		        || file.type == SC_FILE_TYPE_WORKING_EF)
+		{
+			r = acos5_64_add_sa_to_acl(file, SC_AC_OP_WRITE, sa[5]);
+			LOG_TEST_RET(card.ctx, r, "Error adding ACL entry.");
+			r = acos5_64_add_sa_to_acl(file, SC_AC_OP_UPDATE, sa[6]);
+			LOG_TEST_RET(card.ctx, r, "Error adding ACL entry.");
+			r = acos5_64_add_sa_to_acl(file, SC_AC_OP_READ, sa[7]);
+			LOG_TEST_RET(card.ctx, r, "Error adding ACL entry.");
+		}
+
+	}
++/
+
+	tag = sc_asn1_find_tag(ctx, p, plen, 0x8C, &taglen); // e.g. 8C 08 7F FF FF 01 01 01 01 FF; taglen==8, x"7F FF FF 01 01   01 01 FF"
+//	sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_process_fci",
+//		"1sc_asn1_find_tag(ctx, p, plen, 0x8C, &taglen): 0x8C %d    %s\n", taglen, sc_dump_hex(tag, taglen));
+	ubyte AM;
+	ub8   SC; // = SC_AC_NONE;
+
+	if (tag && taglen > 0) {
+		AM = *tag++;
+		if (1+ (hasPopcnt? _popcnt(AM) : popcnt(AM)) != taglen)
+			return rv=SC_ERROR_INVALID_ASN1_OBJECT;
+
+		foreach (i, ref b; SC)
+			if (AM & (0b1000_0000 >> i))
+				b = *tag++;
+
+//		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_process_fci",
+//			"2sc_asn1_find_tag(ctx, p, plen, 0x8C, &taglen): 0x8C %d %02X %s\n", taglen, AM, sc_dump_hex(SC.ptr, 8));
+
+		file_add_acl_entry (file, SC_AC_OP_DELETE_SELF,			SC[1]);
+		file_add_acl_entry (file, SC_AC_OP_LOCK,						SC[2]); // Terminate
+		file_add_acl_entry (file, SC_AC_OP_ACTIVATE,				SC[3]);
+		file_add_acl_entry (file, SC_AC_OP_REHABILITATE,		SC[3]);
+		file_add_acl_entry (file, SC_AC_OP_DEACTIVATE,			SC[4]);
+		file_add_acl_entry (file, SC_AC_OP_INVALIDATE,			SC[4]);
+
+		final switch (cast(SC_FILE_TYPE)file.type) {
+			case SC_FILE_TYPE_DF:
+				file_add_acl_entry (file, SC_AC_OP_CREATE_DF,		SC[5]);
+				file_add_acl_entry (file, SC_AC_OP_CREATE_EF,		SC[6]);
+				file_add_acl_entry (file, SC_AC_OP_CREATE,			SC[6]);
+				file_add_acl_entry (file, SC_AC_OP_DELETE,			SC[7]); //  Delete Child 
+				file_add_acl_entry (file, SC_AC_OP_LIST_FILES,	SC_AC_NONE);
+				break;
+			case SC_FILE_TYPE_INTERNAL_EF:
+				switch (FDB) {
+					case 0x1C: //  EF(SE)
+						file_add_acl_entry (file, SC_AC_OP_WRITE,		SC[5]); //  MSE Restore
+						break;
+					case 0x0A: //  EF(CHV)
+//					file_add_acl_entry (file, SC_AC_OP_WRITE,		);
+						break;
+					case 0x09, 0x0C: //   RSA Key EF,  Symmetric Key EF
+//					file_add_acl_entry (file, SC_AC_OP_GENERATE,								SC[5]);
+						file_add_acl_entry (file, SC_AC_OP_WRITE,										SC[5]); // MSE/PSO  Commands
+						if (FDB==0x0C) { // Symmetric Key EF
+							file_add_acl_entry (file, SC_AC_OP_PSO_DECRYPT,						SC[5]);
+							file_add_acl_entry (file, SC_AC_OP_PSO_ENCRYPT,						SC[5]);
+							file_add_acl_entry (file, SC_AC_OP_PSO_COMPUTE_CHECKSUM,	SC[5]);
+							file_add_acl_entry (file, SC_AC_OP_PSO_VERIFY_CHECKSUM,		SC[5]);
+							file_add_acl_entry (file, SC_AC_OP_CRYPTO,								SC[5]);
+						}
+						else if (FDB==0x09) { // RSA
+							if (SC[7]==0xFF) { // then assume it's the private key
+								file_add_acl_entry (file, SC_AC_OP_PSO_DECRYPT,						SC[5]);
+								file_add_acl_entry (file, SC_AC_OP_PSO_COMPUTE_SIGNATURE,	SC[5]);
+								file_add_acl_entry (file, SC_AC_OP_CRYPTO,								SC[5]);
+							}
+							else {
+								file_add_acl_entry (file, SC_AC_OP_PSO_ENCRYPT,						SC[5]);
+								file_add_acl_entry (file, SC_AC_OP_PSO_VERIFY_SIGNATURE,	SC[5]);
+								file_add_acl_entry (file, SC_AC_OP_CRYPTO,								SC[5]);
+							}
+						}
+						break;
+					default:
+						break;
+				}
+				file_add_acl_entry (file, SC_AC_OP_UPDATE,					SC[6]);
+				file_add_acl_entry (file, SC_AC_OP_ERASE,						SC[6]);
+				file_add_acl_entry (file, SC_AC_OP_READ,						SC[7]);
+				break;
+/*
+			case SC_FILE_TYPE_INTERNAL_SE_EF:
+				file_add_acl_entry (file, SC_AC_OP_WRITE,		SC[5]); //  MSE Restore
+				break;
+*/
+			case SC_FILE_TYPE_WORKING_EF:
+//			file_add_acl_entry (file, SC_AC_OP_WRITE,		);
+				file_add_acl_entry (file, SC_AC_OP_UPDATE,	SC[6]);
+				file_add_acl_entry (file, SC_AC_OP_ERASE,		SC[6]);
+				file_add_acl_entry (file, SC_AC_OP_READ,		SC[7]);
+				break;
+			case SC_FILE_TYPE_BSO:
+				break;
+		}
+	} // if (tag && taglen >= 1)
+	else { /* must have come from nonexistant 8C or from 8C00; just for opensc-tool reporting  SC_AC_NONE */
+//		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_process_fci",
+//			"3sc_asn1_find_tag(ctx, p, plen, 0x8C, &taglen): 0x8C %d %02X %s\n", taglen, AM, sc_dump_hex(SC.ptr, 8));
+		file_add_acl_entry (file, SC_AC_OP_DELETE_SELF,			SC_AC_NONE);
+		file_add_acl_entry (file, SC_AC_OP_LOCK,						SC_AC_NONE);
+		file_add_acl_entry (file, SC_AC_OP_ACTIVATE,				SC_AC_NONE);
+		file_add_acl_entry (file, SC_AC_OP_REHABILITATE,		SC_AC_NONE);
+		file_add_acl_entry (file, SC_AC_OP_DEACTIVATE,			SC_AC_NONE);
+		file_add_acl_entry (file, SC_AC_OP_INVALIDATE,			SC_AC_NONE);
+		final switch (cast(SC_FILE_TYPE)file.type) {
+			case SC_FILE_TYPE_DF:
+				file_add_acl_entry (file, SC_AC_OP_CREATE_DF,		SC_AC_NONE);
+				file_add_acl_entry (file, SC_AC_OP_CREATE_EF,		SC_AC_NONE);
+				file_add_acl_entry (file, SC_AC_OP_CREATE,			SC_AC_NONE);
+				file_add_acl_entry (file, SC_AC_OP_DELETE,			SC_AC_NONE);
+
+				file_add_acl_entry (file, SC_AC_OP_LIST_FILES,	SC_AC_NONE);
+				break;
+			case SC_FILE_TYPE_INTERNAL_EF/*, SC_FILE_TYPE_INTERNAL_SE_EF*/, SC_FILE_TYPE_WORKING_EF:
+//				file_add_acl_entry (file, SC_AC_OP_WRITE,				SC_AC_NONE);
+				file_add_acl_entry (file, SC_AC_OP_UPDATE,			SC_AC_NONE);
+				file_add_acl_entry (file, SC_AC_OP_ERASE,				SC_AC_NONE);
+				file_add_acl_entry (file, SC_AC_OP_READ,				SC_AC_NONE);
+				break;
+			case SC_FILE_TYPE_BSO:
+				file_add_acl_entry (file, SC_AC_OP_WRITE,				SC_AC_NONE);
+				file_add_acl_entry (file, SC_AC_OP_UPDATE,			SC_AC_NONE);
+				file_add_acl_entry (file, SC_AC_OP_ERASE,				SC_AC_NONE);
+				file_add_acl_entry (file, SC_AC_OP_READ,				SC_AC_NONE);
+				break;
+		}
+//		sc_bin_to_hex(buf, buflen, AMSCB, sizeof(AMSCB), ' ');
+//		sc_log(ctx, "tag '8C' value : %s", AMSCB);
+	}
+
+	/* do some post processing, if file.size if record based files determined by iso7816_process_fci is zero; read from tag 0x82, if available */
+	if (file.size == 0) {
+		tag = sc_asn1_find_tag(ctx, p, plen, 0x82, &taglen);
+		if (tag != null && taglen >= 5 && taglen <= 6) {
+			ubyte MRL = tag[3], NOR = tag[taglen-1];
+			file.size = MRL * NOR;
+		}
+	}
+
+	return rv=SC_SUCCESS;
+}
+
 
 
 version(REINITIALIZE)

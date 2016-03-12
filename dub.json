@@ -2,7 +2,7 @@
 	"name" : "acos5_64",
 	"description" : "ACS ACOS5-64/CryptoMate64 driver and SM external module for the OpenSC framework",
 	"dependencies" : {
-		"opensc": "~>0.15.0",
+		"opensc": "~master",
 		"openssl": "~>1.1.4+1.0.1g",
 		"sodium": "~master"
 	},
@@ -10,8 +10,8 @@
 	"targetPath": "lib",
 	"targetType": "dynamicLibrary",
 	"dflags" : ["-fPIC", "-gc", "-vtls", "-defaultlib=libphobos2.so"],
-	"lflags" : ["--strip-all", "--version-script=lib/libacos5_64.map"],
+	"lflags" : ["--strip-all", "--version-script=lib/libacos5_64.ver"],
 	"buildRequirements" : ["disallowDeprecations"],
 	"libs": ["rt", "pthread"],
-	"versions" : ["ENABLE_SM", "USE_SODIUM"]
+	"versions" : ["ENABLE_SM", "USE_SODIUM", "FAKE_OPENSC_VERSION"]
 }
