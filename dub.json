@@ -3,15 +3,16 @@
 	"description" : "ACS ACOS5-64/CryptoMate64 driver and SM external module for the OpenSC framework",
 	"dependencies" : {
 		"opensc": "~master",
-		"openssl": "~>1.1.4+1.0.1g",
-		"sodium": "~master"
+		"sodium": "~master",
+		"openssl": "~>1.1.4+1.0.1g"
 	},
 	"targetName": "acos5_64",
 	"targetPath": "lib",
 	"targetType": "dynamicLibrary",
-	"dflags" : ["-fPIC", "-gc", "-vtls", "-defaultlib=libphobos2.so"],
-	"lflags" : ["--strip-all", "--version-script=lib/libacos5_64.ver"],
+	"dflags-posix" : ["-fPIC", "-gc", "-vtls", "-defaultlib=libphobos2.so"],
+	"lflags-posix" : ["--strip-all", "--version-script=lib/libacos5_64.ver"],
+	"dflags-windows-x86-dmd" : ["-gc", "-vtls", "-defaultlib=phobos.lib"],
+	"sourceFiles-windows-x86-dmd": ["lib/win32/opensc.lib", "lib/win32/sodium.lib"],
 	"buildRequirements" : ["disallowDeprecations"],
-	"libs": ["rt", "pthread"],
 	"versions" : ["ENABLE_SM", "USE_SODIUM", "FAKE_OPENSC_VERSION"]
 }

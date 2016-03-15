@@ -9,7 +9,7 @@
 
 # Compiled Static libraries
 *.a
-*.lib
+#*.lib
 
 # Executables
 *.exe
@@ -25,5 +25,6 @@ __dummy.html
 dub.selections.json
 
 # not necessary or later
+private/
 source/acos5_64_h.d
 source/acos5_64_sm.d

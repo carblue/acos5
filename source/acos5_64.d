@@ -2,7 +2,7 @@ module acos5_64;
 
 /*
 TODO: watch, when DMD will master visibility [http://wiki.dlang.org/Access_specifiers_and_visibility]
-	workaround for linux (gcc/ld):           "--version-script=lib/libacos5_64.map"
+	workaround for linux (gcc/ld):           "--version-script=lib/libacos5_64.ver"
 	workaround for Windows (-m64 msvc/link): ?
 */
 
@@ -21,7 +21,9 @@ import std.stdio : stdout, stderr, writeln, File;
 import std.string : toStringz, fromStringz, lastIndexOf, CaseSensitive;
 import std.exception : enforce; //, assumeUnique;
 import std.format : format;
-import std.algorithm.comparison: min, equal;
+import std.algorithm.comparison : min, equal;
+import std.algorithm.searching : find;
+import std.range : take;
 import std.conv : to;
 import std.array;
 
@@ -49,6 +51,25 @@ import libopensc.cards : SC_CARD_TYPE_ACOS5_64;
 import libopensc.sm;
 
 import deimos.openssl.des : DES_cblock, const_DES_cblock, DES_KEY_SZ; //, DES_key_schedule, DES_SCHEDULE_SZ /* is not fixed length, as dep. on DES_LONG */, DES_LONG /*c_ulong*/;
+
+
+version(Posix) {
+	private shared static this() {
+		Runtime.initialize;
+		setlocale (LC_ALL, "C"); // char* currentlocale =
+	}
+
+	private shared static ~this() {
+		Runtime.terminate;
+	}
+}
+
+version(Windows)
+{
+	import core.sys.windows.dll : SimpleDllMain;
+
+	mixin SimpleDllMain;
+}
 
 // we'll often deal with ubyte[8]; thus it's worth an alias; don't mix up opensc's  typedef unsigned char u8;
 //ias  DES_cblock = ubyte[8];
@@ -145,19 +166,6 @@ private sc_card_driver* sc_get_acos5_64_driver()
 	acos5_64_drv.ops = &acos5_64_ops;
 	return &acos5_64_drv;
 }
-
-private shared static this() {
-	Runtime.initialize;
-	setlocale (LC_ALL, "C"); // char* currentlocale =
-}
-
-private shared static ~this() {
-	Runtime.terminate;
-}
-
-// TODO eliminate dep. on memmem in the D way: peel off front
-//This function is a GNU extension in glibc: void* memmem(const(void)* haystack, size_t haystacklen, const(void) *needle, size_t needlelen);
-extern (C) void* memmem(const(void)* l, size_t l_len, const(void)* s, size_t s_len);
 
 /**
  * Retrieve serial number (6 bytes) from card and cache it
@@ -605,7 +613,8 @@ While looping (if necessary), no interest in analyzing FCI, except when we get t
 We can't assume, that in_path always starts with 3F00 */
 	size_t          in_len = in_path.len;
 	const(ubyte) *  in_pos = in_path.value.ptr;
-	ubyte *        p = null;
+	ubyte*          p = null;
+	ubyte[]         p_arr;
 	int  /*result = -1,*/ in_path_complete = 1, diff = 2;
 	sc_path path;
 	sc_path path_substitute;
@@ -642,7 +651,8 @@ We can't assume, that in_path always starts with 3F00 */
 			sc_print_path(&current_df.path), valid, len, index, count, type, file_out);
 	if (card.cache.valid) {
 		if (!in_path_complete) {
-			with (card.cache)  p = cast(ubyte*)memmem(current_df.path.value.ptr, current_df.path.len, in_path.value.ptr, 2);
+			p_arr = find(card.cache.current_df.path.value[], take(in_path.value[], 2));
+			p = p_arr.empty? null : p_arr.ptr;
 			if (p && ((p-card.cache.current_df.path.value.ptr) % 2 == 0)) {
 				sc_path path_prefix;
 				memset(&path_prefix, 0, sc_path.sizeof);
@@ -1484,4 +1494,3 @@ version(REINITIALIZE)
 	}
 
 } // version(REINITIALIZE)
-
