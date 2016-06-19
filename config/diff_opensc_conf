@@ -1,3 +1,6 @@
++ signs in the 1. column indicate, where additions took place (+ signs itself not to be included in opensc.conf)
+# indicates: the remaining of the line is a comment
+
 --- opensc_original_x86_64-linux-gnu.conf	2016-02-26 22:11:43.467045247 +0100
 +++ opensc.conf	2016-02-26 22:28:39.375237624 +0100
 @@ -119,31 +119,38 @@
@@ -20,8 +23,8 @@
  	# }
 +	card_driver acos5_64 {
 +		# The location of the driver library
-+		# if it's not in a 'OS's standard search path' for libs: module = /path/to/libacos5_64.so;
-+		module = /path/to/libacos5_64.so;
++		# module = /path/to/libacos5_64.so;
++		module = /usr/local/lib/libacos5_64.so;
 +	}
  
  	# Force using specific card driver
@@ -32,4 +35,4 @@
  	# Default: autodetect
  	#
  	# force_card_driver = customcos;
-+#	force_card_driver = acos5_64;
++   # force_card_driver = acos5_64;
