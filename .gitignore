@@ -31,3 +31,4 @@ source/acos5_64_h.d
 source/acos5_64_sm.d
 source/acos5_64_old.ddd
 source/libacos5_64.def
+config/diff_complete_opensc_conf

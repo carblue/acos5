@@ -1,8 +1,44 @@
 # acos5_64
 
-Work in progress:
+ACS ACOS5-64/CryptoMate64 driver (shared library/DLL) for the OpenSC framework
 
-ACS ACOS5-64/CryptoMate64 driver and SM module (shared library/DLL) for the OpenSC framework
+brief instruction:
+
+clone or download/unzip to e.g. directory acos5_64-master
+
+basic Linux smart card software requirements:<br>
+package pcscd      [sudo apt-get install pcscd] depends on other required packages: libccid, libpcsclite1<br>
+
+build requirements:<br>
+DMD compiler  [https://dlang.org/download.html; for the experienced only, LDC will do as well, but not via DUB, and will require building LDC from source with cmake -DBUILD_SHARED_LIBS=ON ..]<br>
+DUB binary    [https://code.dlang.org/download]<br>
+required:    package libsodium      [sudo apt-get install libsodium]<br>
+required:    package opensc-pkcs11  [sudo apt-get install opensc-pkcs11] if not already installed, this will install the required package openssl as well<br>
+recommended: package opensc         [sudo apt-get install opensc]<br>
+note the version of binary package opensc-pkcs11, that is installed<br>
+
+building:<br>
+(the settings/version identifiers in the managing file dub.json assume, that the version of binary package opensc-pkcs11 is less than 0.16.0 (released June 2016), otherwise omit  , "FAKE_OPENSC_VERSION")<br>
+cd acos5_64-master<br>
+dub build --build=release<br>
+sudo cp lib/libacos5_64.so /usr/local/lib/libacos5_64.so<br>
+
+editing /etc/opensc/opensc.conf:<br>
+apply changes according to file config/diff_opensc_conf<br>
+
+testing via recommended package opensc's tool(s):<br>
+opensc-tool -D<br>
+
+should show the line:<br>
+  acos5_64         ACS ACOS5-64 (CryptoMate64)<br>
+
+If it doesn't, turn on debugging output in opensc.conf (e.g. debug = 9; uncomment debug_file), run test again and inspect /tmp/opensc-debug.log.<br>
+If the test failed, You might end up with the wrong (internal) driver acos5, which is quite useless but greedily pretends to support ACOS5-64 as well.<br>
+With a recent change in opensc.conf to load only acos5_64 and default driver, acos5 isn't available any more and doesn't need forcing acos5_64 driver.
+---
+---
+
+Work in progress:
 
 The library will be limited to OS Windows and POSIX (excluding Mac OSX; I've neither access to nor knowledge of Mac OSX. But if it doesn't work out of the box, it should be quite easy to support Mac OS X as well, if someone interested in will assist/test).
 
@@ -31,7 +67,7 @@ Pins will always be in plain text commands. I've to make my mind how to deal wit
 Steps to compile/install
 ========================
 
-<br> are line breaks, only used for presenting text here, not to be part of any copying or command.
+< br > are line breaks, only used for presenting text here, not to be part of any copying or command.
 
 Prerequisites:
 
@@ -52,7 +88,7 @@ Concerning Windows, the required DMD download is "self-contained" for building 3
 (For building 64bit-executables (x86_64), it relies on the Microsoft linker.
 If not installed, FIRST download and INSTALL e.g. free "Visual Studio Community" AND ONLY AFTERWARDS INSTALL DMD (so that DMD install-script can look-up paths to the Microschrott-tools and set-up everything)).
 
-- Get a recent D-compiler DMD and runtime library libphobos2 (i.e. DMD 2.070.2 as of now or higher from https://dlang.org/download.html; so far, I've tested and support DMD only)
+- Get a recent D-compiler DMD and runtime library libphobos2 (i.e. DMD 2.071 as of now or higher from https://dlang.org/download.html; so far, I've tested and support DMD only)
 - Get DUB - The D package registry... (https://code.dlang.org/download or for Ubuntu users: http://d-apt.sourceforge.net/ ; there is DMD too and more).
 	This step is optional but highly recommended, as it eases compiling the D source code and any of it's prerequisites (D-bindings to libopensc, libsodium and the later required libcrypto/libeay32):
 	it automatically downloads/compiles/links everything defined in my dub.json file; otherwise have a look in file dub.json for compiler/linker settings etc.; (DUB website, subject: Package file format JSON)
@@ -132,8 +168,8 @@ user@host:~$ opensc-tool -D<br>
   acos5            ACS ACOS5 card<br>
   ...  <br>
 	
-  This library got tested as version "0.15.0" (D code constant "module_version") with OS Kubuntu 15.10 and Windows 8.1 to work as intended to the extend supported with OpenSC package release version "0.15.0", https://github.com/OpenSC/OpenSC/wiki.<br>
-  Older opensc versions will probably do as well but I didn't check that AND FAKE_OPENSC_VERSION must be used then; to get users of acos5_64 going in the first place and demonstrate where it's done, this is incorporated a priori in dub.json, despite it's not the long-term way to handle this versioning issue: Prefer to update opensc to the latest version 0.15.0 (if linux distros are behind, install prerequisites and follow the "Typical Installation" described in https://github.com/OpenSC/OpenSC/wiki/Compiling-and-Installing-OpenSC-on-Unix-flavors; I replace command sudo make install by sudo checkinstall), and update this library as well, thus version no.s match in fact and omit FAKE_OPENSC_VERSION from dub.json. Usage of FAKE_OPENSC_VERSION is intended on an interim basis only, mainly for the meantime since a new opensc release version is out and on Your box and I'm not ready with my updated homonymous version;<br>FAKE_OPENSC_VERSION may hide API discrepancies and You/this driver may be screwed by ignoring this issue.<br>
+  This library got tested as version "0.16.0" (D code constant "module_version") with OS Kubuntu 16.04 to work as intended to the extend supported with OpenSC package release version "0.15.0", https://github.com/OpenSC/OpenSC/wiki.<br>
+  Older opensc versions will probably do as well but I didn't check that AND FAKE_OPENSC_VERSION must be used then; to get users of acos5_64 going in the first place and demonstrate where it's done, this is incorporated a priori in dub.json, despite it's not the long-term way to handle this versioning issue: Prefer to update opensc to the latest version 0.16.0 (if linux distros are behind, install prerequisites and follow the "Typical Installation" described in https://github.com/OpenSC/OpenSC/wiki/Compiling-and-Installing-OpenSC-on-Unix-flavors; I replace command sudo make install by sudo checkinstall), and update this library as well, thus version no.s match in fact and omit FAKE_OPENSC_VERSION from dub.json. Usage of FAKE_OPENSC_VERSION is intended on an interim basis only, mainly for the meantime since a new opensc release version is out and on Your box and I'm not ready with my updated homonymous version;<br>FAKE_OPENSC_VERSION may hide API discrepancies and You/this driver may be screwed by ignoring this issue.<br>
   
   IMPORTANT: Installed opensc version and the version, this library reports to opensc, MUST match (even though faked-wise), OTHERWISE, this external library will be REJECTED by opensc !<br>
   IMPORTANT: Remove FAKE_OPENSC_VERSION from dub.json as soon as possible !
@@ -194,7 +230,7 @@ $ opensc-tool -f<br>
 00000000: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................
 
 
-Debug file content (opensc.conf: debug set to 9) after running on linux: $ opensc-tool -f<br>
+Debug file content (opensc.conf: debug set to 9; following source code line numbers may be outdated) after running on linux: $ opensc-tool -f<br>
 0x7ff198613700 19:26:18.078 [opensc-tool] ctx.c:726:sc_context_create: ===================================<br>
 0x7ff198613700 19:26:18.078 [opensc-tool] ctx.c:727:sc_context_create: opensc version: 0.15.0<br>
 0x7ff198613700 19:26:18.079 [opensc-tool] reader-pcsc.c:668:pcsc_init: PC/SC options: connect_exclusive=0 disconnect_action=1 transaction_end_action=0 reconnect_action=0 enable_pinpad=1 enable_pace=1<br>

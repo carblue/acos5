@@ -67,6 +67,7 @@ version(USE_SODIUM) {
 
 version(Posix) {
 	private shared static this() {
+//		static assert(sc_get_version() == "0.16.0");
 		Runtime.initialize;
 		setlocale (LC_ALL, "C"); // char* currentlocale =
 	}
@@ -148,7 +149,7 @@ export extern(C) __gshared const(char)* sc_driver_version() {
 	version(FAKE_OPENSC_VERSION) return sc_get_version;
 	else                         return module_version.ptr;
 }
-export extern(C) __gshared immutable(void)* sc_module_init(const(char)* name) { return &sc_get_acos5_64_driver; }
+export extern(C) __gshared void* sc_module_init(const(char)* name) { return &sc_get_acos5_64_driver; }
 
 
 private sc_card_driver* sc_get_acos5_64_driver()
