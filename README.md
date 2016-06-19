@@ -56,6 +56,9 @@ If not installed, FIRST download and INSTALL e.g. free "Visual Studio Community"
 - Get DUB - The D package registry... (https://code.dlang.org/download or for Ubuntu users: http://d-apt.sourceforge.net/ ; there is DMD too and more).
 	This step is optional but highly recommended, as it eases compiling the D source code and any of it's prerequisites (D-bindings to libopensc, libsodium and the later required libcrypto/libeay32):
 	it automatically downloads/compiles/links everything defined in my dub.json file; otherwise have a look in file dub.json for compiler/linker settings etc.; (DUB website, subject: Package file format JSON)
+	
+Ensure that dmd and dub are available in the command line.
+
 
 - Download (zip and extract)/git clone code from https://github.com/carblue/acos5_64; within the extracted/cloned folder run $ dub build<br>
 	  This command takes all it needs to know (potentially for different compilers, OSes, configurations) from file dub.json and the resulting libacos5_64.so/.dll driver executable will be in folder /lib<br>

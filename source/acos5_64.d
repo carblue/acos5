@@ -20,26 +20,29 @@ import std.file;
 import std.stdio : stdout, stderr, writeln, File;
 import std.string : toStringz, fromStringz, lastIndexOf, CaseSensitive;
 import std.exception : enforce; //, assumeUnique;
-import std.format : format;
-import std.algorithm.comparison : min, equal;
-import std.algorithm.searching : find;
+import std.format;
 import std.range : take;
 import std.conv : to;
 import std.array;
 
-version(USE_SODIUM) {
-	import sodium.core : sodium_init;
-	import sodium.utils : sodium_malloc, sodium_free, sodium_mlock, sodium_mprotect_noaccess, sodium_mprotect_readwrite, sodium_mprotect_readonly;
-	import sodium.version_ : sodium_version_string;
+version (GNU) { // gdc compiler
+	import std.algorithm : min, equal, find;
+//	import gcc.attribute;
+}
+else { // DigitalMars or LDC compiler
+	import std.algorithm.comparison : min, equal;
+	import std.algorithm.searching : find;
 }
 
 import libopensc.asn1 : sc_asn1_find_tag;
-import libopensc.cardctl : SC_CARDCTL, SC_CARDCTL_GENERIC_BASE, SC_CARDCTL_ERASE_CARD, SC_CARDCTL_GET_DEFAULT_KEY, SC_CARDCTL_LIFECYCLE_GET,
+import libopensc.cardctl : SC_CARDCTL_GENERIC_BASE, SC_CARDCTL_ERASE_CARD, SC_CARDCTL_GET_DEFAULT_KEY, SC_CARDCTL_LIFECYCLE_GET,
 					SC_CARDCTL_GET_SE_INFO, SC_CARDCTL_GET_CHV_REFERENCE_IN_SE, SC_CARDCTL_PKCS11_INIT_TOKEN, SC_CARDCTL_PKCS11_INIT_PIN,
 					SC_CARDCTL_LIFECYCLE_SET, SC_CARDCTL_GET_SERIALNR;
 import libopensc.internal : sc_atr_table;
 import libopensc.log : sc_dump_hex, sc_do_log, SC_LOG_DEBUG_NORMAL, log;
 import libopensc.opensc;
+import libopensc.types;// : sc_path, sc_atr, sc_file, sc_serial_number, SC_MAX_PATH_SIZE, SC_PATH_TYPE_PATH, sc_apdu;
+import libopensc.errors;
 /+
 import acos5_64_h : /*libopenscLoader,*/ SC_CARD_TYPE_ACOS5_64, acos5_64_private_data, DES_KEY_SZ;
 
@@ -50,7 +53,16 @@ version(ENABLE_SM)
 import libopensc.cards : SC_CARD_TYPE_ACOS5_64;
 import libopensc.sm;
 
-import deimos.openssl.des : DES_cblock, const_DES_cblock, DES_KEY_SZ; //, DES_key_schedule, DES_SCHEDULE_SZ /* is not fixed length, as dep. on DES_LONG */, DES_LONG /*c_ulong*/;
+version(USE_SODIUM) {
+	import sodium.core : sodium_init;
+	import sodium.utils : sodium_malloc, sodium_free, sodium_mlock, sodium_mprotect_noaccess, sodium_mprotect_readwrite, sodium_mprotect_readonly;
+	import sodium.version_ : sodium_version_string;
+}
+
+//import cryptlib;
+//import gcrypt;
+
+//import deimos.openssl.des : DES_cblock, const_DES_cblock, DES_KEY_SZ; //, DES_key_schedule, DES_SCHEDULE_SZ /* is not fixed length, as dep. on DES_LONG */, DES_LONG /*c_ulong*/;
 
 
 version(Posix) {
@@ -79,35 +91,36 @@ alias  ub8        = ubyte[8];
 struct acos5_64_private_data {
 //	sm_cwa_keyset				cwa_keyset;
 //uint                sdo_reference;
-	ubyte[2*DES_KEY_SZ] card_key2;
-	ubyte[2*DES_KEY_SZ] host_key1;
+	ubyte[2*8] card_key2;
+	ubyte[2*8] host_key1;
 //	sm_cwa_token_data		ifd;
-	ubyte[1*DES_KEY_SZ] cwa_session_ifd_sn;
-	ubyte[1*DES_KEY_SZ] cwa_session_ifd_rnd;
-	ubyte[4*DES_KEY_SZ]	cwa_session_ifd_k;
+	ubyte[1*8] cwa_session_ifd_sn;
+	ubyte[1*8] cwa_session_ifd_rnd;
+	ubyte[4*8]	cwa_session_ifd_k;
 
-	ubyte[1*DES_KEY_SZ]	card_challenge; // cwa_session.card_challenge.ptr
+	ubyte[1*8]	card_challenge; // cwa_session.card_challenge.ptr
 }
 
 //////////////////////////////////////////////////
 
-immutable sc_path MF = sc_path( cast(immutable(ubyte)[SC_MAX_PATH_SIZE]) x"3F00 0000000000000000000000000000",
-	2, 0, 0, SC_PATH_TYPE_PATH /*all following bytes of aid: zero*/);
+immutable sc_path MF = sc_path( cast(immutable(ubyte)[SC_MAX_PATH_SIZE]) x"3F00 0000000000000000000000000000", 2, 0, 0, SC_PATH_TYPE_PATH /*all following bytes of aid: zero*/);
 
 private immutable(char)[28]  chip_name      = "ACS ACOS5-64 (CryptoMate64)"; // C-style null-terminated string equivalent, +1 for literal-implicit \0
 private immutable(char)[ 9]  chip_shortname = "acos5_64";
 private immutable(char)[57]               ATR_colon =                                          "3B:BE:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00";
 //ivate immutable(ubyte)[SC_MAX_ATR_SIZE] ATR       = cast(immutable(ubyte)[SC_MAX_ATR_SIZE]) x"3B BE 96 00 00 41 05 20 00 00 00 00 00 00 00 00 00 90 00"; // FIXME get rid of this, calc from ATR_colon if req.
+private immutable(char)[57]               ATR_mask  =                                          "FF:FF:FF:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF";
 
 /* ATR Table list. */
-private immutable(sc_atr_table)[2] acos5_64_atrs = [
+private __gshared sc_atr_table[2] acos5_64_atrs = [
 	sc_atr_table(
 		ATR_colon.ptr,
-		"FF:FF:FF:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF",
+		ATR_mask.ptr,
 		chip_shortname.ptr,
 		SC_CARD_TYPE_ACOS5_64,
 		SC_CARD_FLAG_RNG, // flags
-		null),
+		null
+	),
 	sc_atr_table(null, null, null, 0, 0, null) // list end marker
 ];
 
@@ -125,22 +138,22 @@ private __gshared sc_card_driver  acos5_64_drv = sc_card_driver(
 );
 
 // the OpenSC version, this driver implementation is based on.
-private immutable(char)[7] module_version = "0.15.0";  // uint major = 0, minor = 15, fix = 0;
+private immutable(char)[7] module_version = "0.16.0";  // uint major = 0, minor = 16, fix = 0;
 
 
 /* The 3 module exports: */
 
-export extern (C) __gshared const(char)* sc_module_version   = module_version.ptr;
-export extern (C) __gshared const(char)* sc_driver_version() {
+export extern(C) __gshared const(char)* sc_module_version   = module_version.ptr;
+export extern(C) __gshared const(char)* sc_driver_version() {
 	version(FAKE_OPENSC_VERSION) return sc_get_version;
 	else                         return module_version.ptr;
 }
-export extern (C) __gshared immutable(void)* sc_module_init(const(char)* name) { return &sc_get_acos5_64_driver; }
+export extern(C) __gshared immutable(void)* sc_module_init(const(char)* name) { return &sc_get_acos5_64_driver; }
 
 
 private sc_card_driver* sc_get_acos5_64_driver()
 {
-	enforce(DES_KEY_SZ == SM_SMALL_CHALLENGE_LEN && DES_KEY_SZ== 8,
+	enforce(8 == SM_SMALL_CHALLENGE_LEN,
 		"For some reason size [byte] of DES-block and challenge-response (card/host) is not equal and/or not 8 bytes!");
 
 	sc_card_driver* iso_drv  = sc_get_iso7816_driver;
@@ -236,7 +249,7 @@ private int acos5_64_get_serialnr(sc_card* card, sc_serial_number* serial) {
 }
 
 // for some reason, this usefull function is not exported from libopensc
-private int missing_match_atr_table(sc_context* ctx, immutable(sc_atr_table)* table, sc_atr* atr)
+private int missing_match_atr_table(sc_context* ctx, sc_atr_table* table, sc_atr* atr)
 { // c source function 'match_atr_table' copied, translated to D
 	ubyte* card_atr_bin;
 	size_t card_atr_bin_len;
@@ -302,7 +315,7 @@ private int missing_match_atr_table(sc_context* ctx, immutable(sc_atr_table)* ta
 }
 
 
-private int missing_sc_match_atr(sc_card* card, immutable(sc_atr_table)* table, int* type_out)
+private int missing_sc_match_atr(sc_card* card, sc_atr_table* table, int* type_out)
 { // c source _sc_match_atr copied, translated to D
 	int res;
 
@@ -398,7 +411,7 @@ private int acos5_64_match_card_checks(sc_card *card) { // regular return value:
  * Returning 'no match' still doesn't stop opensc-pkcs11 using this driver, when forced to use acos5_64
  * Thus for case "card not matched", another 'killer argument': set card.type to impossible one and rule out in acos5_64_init
  */
-private extern (C) int acos5_64_match_card(sc_card *card) { // irregular/special return value: 0==FAILURE
+private extern(C) int acos5_64_match_card(sc_card *card) { // irregular/special return value: 0==FAILURE
 	int rv;
 	sc_context* ctx = card.ctx;
 	sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_match_card",
@@ -421,7 +434,7 @@ private extern (C) int acos5_64_match_card(sc_card *card) { // irregular/special
 }
 
 
-private extern (C) int acos5_64_init(sc_card *card) {
+private extern(C) int acos5_64_init(sc_card *card) {
 	sc_context* ctx = card.ctx;
 	mixin (log!(q{"acos5_64_init"}, q{"called"}));
 	int rv = SC_ERROR_NO_CARD_SUPPORT;
@@ -433,12 +446,23 @@ private extern (C) int acos5_64_init(sc_card *card) {
 			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_init",
 				"returning with: %d\n", rv);
 	}
+/* * /
+	if (cryptInit != CRYPT_OK) {
+		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_init", "cryptInit() returned indicating a failure)\n");
+		return rv=SC_ERROR_CARD_CMD_FAILED;
+	}
+	immutable(char)* inst_version = gcry_check_version("1.6.3" / *req_version* /);
+	if (inst_version == null) {
+		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_init", "gcry_check_version() returned indicating a failure)\n");
+		return rv=SC_ERROR_CARD_CMD_FAILED;
+	}
+/ * */
 
 	int ii;
-	for (ii=0; acos5_64_atrs[ii].atr; ++ii)   {
-		if (card.type == acos5_64_atrs[ii].type)   {
-			card.name    = acos5_64_atrs[ii].name;
-			card.flags   = acos5_64_atrs[ii].flags;
+	for (ii=0; acos5_64_atrs[ii].atr; ++ii) {
+		if (card.type  == acos5_64_atrs[ii].type) {
+			card.name   = acos5_64_atrs[ii].name;
+			card.flags  = acos5_64_atrs[ii].flags;
 			break;
 		}
 	}
@@ -447,7 +471,7 @@ private extern (C) int acos5_64_init(sc_card *card) {
 		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_init", "about to stall this driver (some matching problem)\n");
 		return rv=SC_ERROR_NO_CARD_SUPPORT;
 	}
-	acos5_64_private_data* private_data; // = null;
+	acos5_64_private_data* private_data;
 
 version(none) // FIXME activate this again for Posix, investigate for Windows, when debugging is done
 {
@@ -493,8 +517,8 @@ version(USE_SODIUM)
 	with (*card) {
 		caps   = SC_CARD_CAP_RNG | SC_CARD_CAP_USE_FCI_AC; // c_ulong   we have a random number generator
 		cla           = 0x00;  // int      default APDU class (interindustry)
-		max_send_size = 0x0FF; // size_t,  Max Lc supported by the card
-		max_recv_size = 0x100; // size_t,  Max Le supported by the card, decipher (in chaining mode) with a 4096-bit key returns 2 chunks of 256 bytes each !!
+		max_send_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE; //0x0FF; // size_t,  Max Lc supported by the card
+		max_recv_size = SC_READER_SHORT_APDU_MAX_RECV_SIZE; //0x100; // size_t,  Max Le supported by the card, decipher (in chaining mode) with a 4096-bit key returns 2 chunks of 256 bytes each !!
 
 		int missingExport_sc_card_add_rsa_alg(sc_card* card, uint key_length, c_ulong flags, c_ulong exponent)
 		{ // same as in opensc, but combined with _sc_card_add_algorithm; both are not exported by libopensc
@@ -504,10 +528,7 @@ version(USE_SODIUM)
 			info.key_length = key_length;
 			info.flags = cast(uint)flags;
 			info.u._rsa.exponent = exponent;
-
-			sc_algorithm_info* p;
-//		assert(info != null);
-			p = cast(sc_algorithm_info*) realloc(card.algorithms, (card.algorithm_count + 1) * info.sizeof);
+			sc_algorithm_info* p = cast(sc_algorithm_info*) realloc(card.algorithms, (card.algorithm_count + 1) * info.sizeof);
 			if (!p) {
 				if (card.algorithms)
 					free(card.algorithms);
@@ -568,7 +589,7 @@ version(ENABLE_SM)
  * @param card Pointer to card driver data structure
  * @return SC_SUCCESS if ok; else error code
  */
-private extern (C) int acos5_64_finish(sc_card *card) {
+private extern(C) int acos5_64_finish(sc_card *card) {
 	int rv = SC_ERROR_UNKNOWN;
 	sc_context* ctx = card.ctx;
 	mixin (log!(q{"acos5_64_finish"}, q{"called"})); //
@@ -773,7 +794,7 @@ We can't assume, that in_path always starts with 3F00 */
 }
 
 
-private extern (C) int acos5_64_select_file(sc_card *card, const(sc_path)* path, sc_file **file_out)
+private extern(C) int acos5_64_select_file(sc_card *card, const(sc_path)* path, sc_file **file_out)
 {
 /* acos can handle path->type SC_PATH_TYPE_FILE_ID (P1=0) and SC_PATH_TYPE_DF_NAME (P1=4) only.
 Other values for P1 are not supported.
@@ -820,7 +841,7 @@ SC_PATH_TYPE_FROM_CURRENT as well as SC_PATH_TYPE_PARENT */
  *  The iso7816.c -version get_challenge get's wrapped to have RNDc known by terminal/host in sync with card's last SM_SMALL_CHALLENGE_LEN challenge handed out
  *  len is restricted to be a multiple of 8 AND 8<=len
  */
-private extern (C) int acos5_64_get_challenge(sc_card *card, ubyte * rnd, size_t len)
+private extern(C) int acos5_64_get_challenge(sc_card *card, ubyte * rnd, size_t len)
 {
 	int rv = SC_ERROR_UNKNOWN;
 	sc_context* ctx = card.ctx;
@@ -856,7 +877,7 @@ version(ENABLE_SM)
 	return rv;
 }
 
-private extern (C) int acos5_64_logout(sc_card *card)
+private extern(C) int acos5_64_logout(sc_card *card)
 {
 /* ref. manual:
 7.2.2.
@@ -895,7 +916,7 @@ TODO Check if 'Logout' does all we want or if/when we need 'De-authenticate' too
 	return rv = sc_check_sw(card, apdu.sw1, apdu.sw2);
 }
 
-private extern (C) int acos5_64_list_files(sc_card* card, ubyte* buf, size_t buflen)
+private extern(C) int acos5_64_list_files(sc_card* card, ubyte* buf, size_t buflen)
 {
   sc_apdu apdu;
   int rv;
@@ -1014,7 +1035,7 @@ private int acos5_64_check_sw(sc_card *card, uint sw1, uint sw2)
  *
  * TODO: wait for GET_CARD_INFO generic cardctl to be implemented in opensc
  */
-private extern (C) int acos5_64_card_ctl(sc_card* card, c_ulong request, void* data) {
+private extern(C) int acos5_64_card_ctl(sc_card* card, c_ulong request, void* data) {
 	if (card == null || card.ctx == null)
 		return SC_ERROR_INVALID_ARGUMENTS;
 	sc_context* ctx = card.ctx;
@@ -1033,10 +1054,7 @@ private extern (C) int acos5_64_card_ctl(sc_card* card, c_ulong request, void* d
 	if (data == null)
 		return rv=SC_ERROR_INVALID_ARGUMENTS;
 
-	final switch (cast(SC_CARDCTL)request) {
-	case SC_CARDCTL_GENERIC_BASE, SC_CARDCTL_ERASE_CARD, SC_CARDCTL_GET_DEFAULT_KEY, SC_CARDCTL_LIFECYCLE_GET
-				,SC_CARDCTL_GET_SE_INFO, SC_CARDCTL_GET_CHV_REFERENCE_IN_SE, SC_CARDCTL_PKCS11_INIT_TOKEN, SC_CARDCTL_PKCS11_INIT_PIN:
-		break;
+	switch (request) {
 	case SC_CARDCTL_LIFECYCLE_SET: // SC_CARDCTRL_LIFECYCLE_ADMIN int lcycle
 		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_card_ctl",
 			"request=SC_CARDCTL_LIFECYCLE_SET with *data: %d\n", *(cast(int*)data));
@@ -1056,6 +1074,10 @@ enum {
 		break;
 	case SC_CARDCTL_GET_SERIALNR: /* call card to obtain serial number */
 		rv = acos5_64_get_serialnr(card, cast(sc_serial_number*) data);
+		break;
+	case SC_CARDCTL_GENERIC_BASE, SC_CARDCTL_ERASE_CARD, SC_CARDCTL_GET_DEFAULT_KEY, SC_CARDCTL_LIFECYCLE_GET
+				,SC_CARDCTL_GET_SE_INFO, SC_CARDCTL_GET_CHV_REFERENCE_IN_SE, SC_CARDCTL_PKCS11_INIT_TOKEN, SC_CARDCTL_PKCS11_INIT_PIN:
+	default:
 		break;
 	}
 
@@ -1080,7 +1102,7 @@ enum {
  *  7      - ISO 7816-4 table 16 or 17
  *  6 to 0 - ISO 7816-4 table 20
  */
-private extern (C) int acos5_64_create_file(sc_card* card, sc_file* file)
+private extern(C) int acos5_64_create_file(sc_card* card, sc_file* file)
 {
 	/*
 	 * @brief convert an OpenSC ACL entry to the security condition
@@ -1208,7 +1230,7 @@ acos5_64_add_sa_to_acl(sc_file* file, uint operation, ubyte saByte)
  * information and then updates the ACL of the OpenSC file struct according
  * to the FCI (from the isoapplet.
  */
-private extern (C) int acos5_64_process_fci(sc_card* card, sc_file* file, const(ubyte)* buf, size_t buflen)
+private extern(C) int acos5_64_process_fci(sc_card* card, sc_file* file, const(ubyte)* buf, size_t buflen)
 {
 	void file_add_acl_entry (sc_file *file, int op, uint SCB) // checked against card-acos5_64.c  OPENSC_loc
 	{
@@ -1249,7 +1271,7 @@ private extern (C) int acos5_64_process_fci(sc_card* card, sc_file* file, const(
 	}
 */
 	import core.cpuid : hasPopcnt;
-	import core.bitop : _popcnt, popcnt;
+	import core.bitop : /* _popcnt, */ popcnt;
 
 	size_t taglen, plen = buflen;
 	const(ubyte)* tag = null, p = buf;
@@ -1354,7 +1376,7 @@ private extern (C) int acos5_64_process_fci(sc_card* card, sc_file* file, const(
 
 	if (tag && taglen > 0) {
 		AM = *tag++;
-		if (1+ (hasPopcnt? _popcnt(AM) : popcnt(AM)) != taglen)
+		if (1+ (/*hasPopcnt? _popcnt(AM) :*/ popcnt(AM)) != taglen)
 			return rv=SC_ERROR_INVALID_ASN1_OBJECT;
 
 		foreach (i, ref b; SC)

@@ -2,17 +2,16 @@
 	"name" : "acos5_64",
 	"description" : "ACS ACOS5-64/CryptoMate64 driver and SM external module for the OpenSC framework",
 	"dependencies" : {
-		"opensc": "~master",
-		"sodium": "~master",
-		"openssl": "~>1.1.4+1.0.1g"
+		"opensc": "~>0.15.3",
+		"sodium": "~>0.0.7"
 	},
 	"targetName": "acos5_64",
 	"targetPath": "lib",
 	"targetType": "dynamicLibrary",
-	"dflags-posix" : ["-fPIC", "-gc", "-vtls", "-defaultlib=libphobos2.so"],
-	"lflags-posix" : ["--strip-all", "--version-script=lib/libacos5_64.ver"],
-	"dflags-windows-x86-dmd" : ["-gc", "-vtls", "-defaultlib=phobos.lib"],
-	"sourceFiles-windows-x86-dmd": ["lib/win32/opensc.lib", "lib/win32/sodium.lib"],
 	"buildRequirements" : ["disallowDeprecations"],
-	"versions" : ["ENABLE_SM", "USE_SODIUM", "FAKE_OPENSC_VERSION"]
+	"dflags-posix-dmd" : ["-fPIC"],
+	"dflags-posix-gdc" : ["-fPIC", "-v", "linking fails: /usr/lib/gcc/x86_64-linux-gnu/5/libgphobos2.a: error adding symbols"],
+	"dflags-posix-ldc" : ["-defaultlib=phobos2-ldc,druntime-ldc", "loading fails: needs patching of dub: no -defaultlib=phobos2 !"],
+	"lflags-posix" : ["--strip-all", "--version-script=lib/libacos5_64.ver"],
+	"versions" : ["ENABLE_SM", "USE_SODIUM", "FAKE_OPENSC_VERSION", "until15"]
 }

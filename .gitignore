@@ -24,7 +24,10 @@ docs.json
 __dummy.html
 dub.selections.json
 
-# not necessary or later
+.directory
+# not necessary to be done or later:
 private/
 source/acos5_64_h.d
 source/acos5_64_sm.d
+source/acos5_64_old.ddd
+source/libacos5_64.def
