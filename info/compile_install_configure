@@ -1,8 +1,15 @@
 This is the content of a preceding/older README.md which contains text about the topic, updated slightly.
 Havn't had time for a full update.
-FAKE_OPENSC_VERSION is NOT set in dub.json, thus it is expected opensc version is 0.16.0 !
+
+
+The driver will compile with the latest opensc version only (currently 0.16.0) ! Thus, forget about FAKE_OPENSC_VERSION (didn't have time to remove it from this and other documents).
+i.e. FAKE_OPENSC_VERSION is NOT set in dub.json any more.
+
+(The reason is, opensc version 0.16.0 binary libopensc.so exports more functions needed, and it would require code duplication in D for older versions; regretfully I did that partially, but switched to patching opensc 0.15.0 in order to export what is missing;
+
 package libsodium is currently no requirement any more. The requirement will revive at a later step of implementation.
 Look at file info/options concerning D lang version identifiers.
+
 
 
 # acos5_64
