@@ -1,8 +1,12 @@
 {
 	"name" : "acos5_64",
 	"description" : "ACS ACOS5-64/CryptoMate64 driver and SM external module for the OpenSC framework",
+	"license": "LGPL-2.1",
+	"copyright": "Copyright © 2017, Carsten Blüggel",
+	"authors": ["Carsten Blüggel"],
+	"homepage": "https://github.com/carblue/acos5_64",
 	"dependencies" : {
-		"opensc": "~>0.15.6"
+		"opensc": "~>0.15.7"
 	},
 	"subConfigurations": {
 		"opensc": "deimos"
@@ -10,17 +14,11 @@
 	"targetName": "acos5_64",
 	"targetPath": "lib",
 	"targetType": "dynamicLibrary",
-	"excludedSourceFiles": [],
 	"buildRequirements" : ["disallowDeprecations"],
-	"dflags-dmd": ["-defaultlib=libphobos2.so"],
-	"dflags-ldc": ["-defaultlib=:libphobos2-ldc.so,:libdruntime-ldc.so"],
-	"lflags-dmd" : ["--no-undefined", "--strip-all", "--version-script=lib/libacos5_64.ver"],
-	"lflags-ldc" : ["--no-undefined", "--strip-all", "--version-script=lib/libacos5_64.ver",
-		     "-L/path/to/shared/ldc_phobos2_and_druntime/lib",
-		"-rpath=/path/to/shared/ldc_phobos2_and_druntime/lib"
-	],
-	"dflags-posix-concerning_ldc" : ["ldc built with cmake -DBUILD_SHARED_LIBS=ON"],
-	"xversions_alter" : ["RSA_PKCS_PSS", "ENABLE_TOSTRING", "ENABLE_TOSTRING_SM_CWA", "USE_SODIUM",
-						 "ENABLE_SM", "ENABLE_ACOS5_64_UI", "FAKE_SUCCESS_FOR_SIGN_VERIFY_TESTS", "TRY_SUCCESS_FOR_SIGN_VERIFY_TESTS"],
-	"versions" :        ["ENABLE_SM", "ENABLE_ACOS5_64_UI"]
+	"dflags-posix-dmd": ["-defaultlib=libphobos2.so"],
+	"dflags-posix-ldc": ["-defaultlib=:libphobos2-ldc.so,:libdruntime-ldc.so"],
+	"dflags-posix-gdc": ["-shared-libphobos"],
+
+	"lflags-posix" : ["--no-undefined", "--version-script=lib/libacos5_64.ver"],
+	"versions" :       ["ACOSMODE_V2", "SESSIONKEYSIZE24"]
 }

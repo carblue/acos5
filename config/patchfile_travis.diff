@@ -1,0 +1,104 @@
+--- from/opensc.conf	2017-02-07 22:15:46.963680660 +0100
++++ to/opensc.conf	2017-02-07 22:44:06.728994680 +0100
+@@ -19,7 +19,7 @@
+ 	# Special values 'stdout' and 'stderr' are recognized.
+ 	# Default: stderr
+ 	#
+-	# debug_file = /tmp/opensc-debug.log
++	# debug_file = /tmp/opensc-debug.log;
+ 
+ 	# Re-open debug file  (used in WIN32)
+ 	#
+@@ -126,6 +126,10 @@
+ 	# NOTE: When "internal" keyword is used, must be last entry
+ 	#
+ 	# card_drivers = customcos, internal;
++# NOTE: the driver acos5 (included in internal; it's for ACOS5-32 but claims to serve ACOS5-64 as well) must be avoided, either by this setting, or by e.g. force_card_driver=acos5_64, or by other settings (ignored_readers doesn't seem to work as expected);
++# The default driver isn't very useful and won't be used unless the external module acos5_64 get's unloaded unexpectedly, yet You will notice that instead of going on with a wrong driver acos5 !
++# In the beginning, to test that acos5_64 is well configured, start with excluding all internal drivers, but the dummy default driver (as set below). Later, if other cards/token than acos5_64 shall be served by opensc as well, replace default by internal
++card_drivers = acos5_64, default;
+ 
+ 	# Card driver configuration blocks.
+ 
+@@ -136,6 +140,15 @@
+ 		# The location of the driver library
+ 		# module = /usr/lib/x86_64-linux-gnu/libcard_customcos.so;
+ 	# }
++	card_driver acos5_64 {
++		# The name (+location) of the driver library; specify /path/to/ if it's
++		# not in a OS's standard search path for dynamic libraries: module = /path/to/libacos5_64.so; or on Windows module = path\to\acos5_64.dll;
++		module = $HOME/carblue/acos5_64/lib/libacos5_64.so;
++		#
++		# Parameters for the Graphical User Interface app 'Consent for signing' (currently Linux only); defaults: app [pinentry], enabled [true]
++		user_consent_app = /usr/bin/pinentry;
++		user_consent_enabled = false;
++	}
+ 
+ 	# Force using specific card driver
+ 	#
+@@ -379,6 +392,56 @@
+ 		md_guid_as_label = true;
+ 	}
+ 
++	card_atr 3B:BE:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00 {
++		type = 16003;
++		name = "ACS ACOS5-64 (v2.00: Smart Card/CryptoMate64)";
++		driver = "acos5_64";
++		secure_messaging = acos5_64_sm;
++
++		#force_protocol = "t0"; # set automatically
++		#flags = "rng"; # as of v0.16.0 not used in OpenSC
++		#
++		# pkcs15emu = "acos5_64";
++		# md_read_only = false;
++		# md_supports_X509_enrollment = true;
++		# Name of SM configuration sub-section
++		# Attention: If driver-module and sm-module are the same (as they are currently) and next entry "secure_messaging = acos5_64_sm" is enabled,
++		#            then in case of an sm-error it can happen, that the module gets unloaded completely (ref count down to 0 in linux), as opensc handles
++		#            module load/unload for driver and sm independantly ! Perhaps a nice security feature, as I intend to make SM mandatory where possible?
++	}
++	card_atr 3B:BE:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00 {
++		type = 16004;
++		name = "ACS ACOS5-64 (v3.00: Smart Card/CryptoMate Nano)";
++		driver = "acos5_64";
++		secure_messaging = acos5_64_sm;
++	}
++
++	secure_messaging acos5_64_sm  {
++		module_name = libacos5_64.so;
++		module_path = $HOME/carblue/acos5_64/lib;  # module_path required, if module_name isn't in an OS's 'standard search path' for libs: module_path = /path/to/;
++		mode = acl;  # alternatives: transmit, acl (the default: each file header's SAC in combination with appl. DF's SE-File specifies, whether to do SM on-demand for which 'group of operations', essentialy single-op 'group READ', multi-op 'group write/append/update/erase[parts of file]' etc.)
++		#
++		# more infos in info/secure_messaging_configure
++		#
++		# module_data will be used later to select the keyset to be used and more fine-grained control; currently unused (keyset=01 or 02 and other data hardcoded in source code)
++		# module_data: Options (below: default) for mandatory test of SM functionality in POSIX syntax for (command line) options, s.a. github.com/carblue/acos5_64 ; dlang.org/phobos/std_getopt.html
++		module_data = "so --keyrefextauth=0x81 --keyrefintauth=0x82 --smMSErestore --smSEID=0x05 --smUQB=0x70 --smkeytag=0x84 --smCCTkeyref=0x83 --smCCTalgo=0x02 --CT --smCTkeyref=0x83 --smCTalgo=0x02"; 
++		#
++		# if ifd_serial is changed to other than default value 'acos5_64' (see below) and ?? vers. identifier (or higher) is set, it's assumed You want a match with one dedicated tokens's 8 byte serial no. and the driver won't work for different token serial no.s ! Issue opensc-tool --serial
++		ifd_serial = "61:63:6F:73:35:5F:36:34";  # decoded to ASCII: acos5_64
++		# the key naming_41434F53504B43532D313576312E3030 (decoded to ASCII, len=len_max=16: ACOSPKCS-15v1.00)  may have to be changed according to card/token application DF's file name
++		# the key value, within quotes, colon (:) delimited hex encoding, MUST BE CHANGED INDIVIDUALLY IN ANY CASE, here and on card/token !!!
++		# using 24 byte instead of default 16 byte keys requires compiling the driver with this version identifier set: SESSIONKEYSIZE24
++		# the effective security level of 16 byte key is around 80 bits; 24 byte key effective security level is around 112 bits
++		# keyset...enc is called key_card, keyset...mac is called key_host; key_card takes part in Internal Auth. and computation of key session_enc; key_host takes part in External Auth. and computation of key session_mac (key_host will be in state 'authenticated' after success in External Auth.)
++		# session keys: Block cipher modes of operation: ECB for generation of session keys, CBC for usage of session keys. cipher: Triple-DES-ede(3) only
++		# keysets to select from: 
++		keyset_41434F53504B43532D313576312E3030_01_enc = "F1:01:02:13:04:85:16:07:08:49:A1:B0:C1:D0:E0:F1"; # 16 bytes for 2-key Triple-DES,ECB: EVP_des_ede(); used only for generation of new key (SM's random-based session key for the encryption part in mode 'Authenticity and Confidentiality)
++		keyset_41434F53504B43532D313576312E3030_01_mac = "F1:E0:D0:C1:B0:A1:89:08:07:16:45:04:13:02:01:F1"; # 16 bytes for 2-key Triple-DES,ECB: EVP_des_ede(); used only for generation of new key (SM's random-based session key for mac'ing in mode 'Authenticity' and mac'ing part in above)
++		keyset_41434F53504B43532D313576312E3030_02_enc = "F1:01:02:13:04:85:16:07:08:49:A1:B0:C1:D0:E0:F1:45:89:B3:16:FE:94:37:C8"; # 24 bytes for 3-key Triple-DES,ECB: EVP_des_ede3(); used for SM's random-based session key generation only
++		keyset_41434F53504B43532D313576312E3030_02_mac = "F1:E0:D0:C1:B0:A1:89:08:07:16:45:04:13:02:01:F1:89:FE:B3:C8:37:45:16:94"; # 24 bytes for 3-key Triple-DES,ECB: EVP_des_ede3(); used for SM's random-based session key generation only
++	}
++
+ 	secure_messaging local_authentic  {
+ 		# name of external SM module
+ 		# module_name = libsmm-local.so;
+@@ -489,7 +552,7 @@
+ 		# (with certificate check)  where $HOME is not set
+ 		# Default: path in user home
+ 		# file_cache_dir = /var/lib/opensc/cache
+-                #
++		#
+ 		# Use PIN caching?
+ 		# Default: true
+ 		# use_pin_caching = false;

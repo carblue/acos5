@@ -1,0 +1,19 @@
+language: d
+
+# latest dmd, gdc and ldc
+d:
+  - dmd
+#  - gdc
+#  - ldc
+
+dist: trusty
+sudo: required
+
+script:
+  - dub test --compiler=$DC
+#ls -la
+#dub build --compiler=$DC --build=release
+#sudo ldconfig
+#sudo patch -u -b /etc/opensc/opensc.conf config/patchfile_travis.diff
+#cat /etc/opensc/opensc.conf
+#opensc-tool -D

@@ -2,14 +2,15 @@ This is the content of a preceding/older README.md which contains text about the
 Havn't had time for a full update.
 
 
-The driver will compile with the latest opensc version only (currently 0.16.0) ! Thus, forget about FAKE_OPENSC_VERSION (didn't have time to remove it from this and other documents).
-i.e. FAKE_OPENSC_VERSION is NOT set in dub.json any more.
-
+The driver will compile/link with the 2 latest libopensc.so/.dll versions only (currently 0.15.0 and 0.16.0) !
+But with 0.15.0, no RSA private key sign and decipher is supported, thus it's not a really viable alternative.
+By default, the opensc package's dub.json is configured to link against latest OpenSC version.
 (The reason is, opensc version 0.16.0 binary libopensc.so exports more functions needed, and it would require code duplication in D for older versions; regretfully I did that partially, but switched to patching opensc 0.15.0 in order to export what is missing;
 
 package libsodium is currently no requirement any more. The requirement will revive at a later step of implementation.
 Look at file info/options concerning D lang version identifiers.
 
+Compilers that got tested to successfully compile the code: DMD, LDC and GDC (since recently GDC is able to build shared libraries, but it's not yet included in dub.json).
 
 
 # acos5_64
