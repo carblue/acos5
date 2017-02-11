@@ -1,9 +1,11 @@
 language: d
 
 # latest dmd, gdc and ldc
+# ldc fails; built with cmake -DBUILD_SHARED_LIBS=ON ? if yes, ld doesn't find them or names are wrong; "dflags-posix-ldc": ["-defaultlib=:libphobos2-ldc.so,:libdruntime-ldc.so"]
+# gdc:
 d:
   - dmd
-  - ldc
+  - gdc
 
 dist: trusty
 sudo: required
