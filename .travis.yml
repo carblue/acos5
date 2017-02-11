@@ -33,6 +33,8 @@ script:
   - dub test  --compiler=$DC
   - dub build --compiler=$DC --build=release
   - sudo patch -u -b /etc/opensc/opensc.conf config/patchfile_travis.diff
-  - cat /etc/opensc/opensc.conf
+#  - cat /etc/opensc/opensc.conf
+  - find . -name libacos5_64.so
+  - ls -la
   - opensc-tool -D
   - cat /tmp/opensc-debug.log
