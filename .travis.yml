@@ -1,9 +1,9 @@
 language: d
 
-# latest dmd, gdc and ldc
-# ldc fails; ldc built with cmake -DBUILD_SHARED_LIBS=ON ? if yes, ld doesn't find them or names are wrong; "dflags-posix-ldc": ["-defaultlib=:libphobos2-ldc.so,:libdruntime-ldc.so"]
-# gdc fails; gdc built with --enable-shared ?
-# Running ./lib/acos5_64-test-library 
+# latest dmd, ldc, gdc working on my own box; with travis, dmd build only succeeds:
+# ldc fails; ldc built with cmake -DBUILD_SHARED_LIBS=ON ? if yes, ld doesn't find them or names are different;  "dflags-posix-ldc": ["-defaultlib=:libphobos2-ldc.so,:libdruntime-ldc.so"]
+# gdc fails; gdc built with --enable-shared ?  "dflags-posix-gdc": ["-shared-libphobos"]
+# gdc: Running ./lib/acos5_64-test-library
 # ./lib/acos5_64-test-library: error while loading shared libraries: libgphobos.so.68: cannot open shared object file: No such file or directory
 # Program exited with code 127
 # Both ldc and gdc seem to be built without shared libs phobos/druntime
@@ -14,14 +14,16 @@ d:
 dist: trusty
 sudo: required
 
-# opensc-pkcs11 is required for libopensc.so(.*), opensc seems to be optional if no tools/opensc.conf/profile used
+# opensc-pkcs11 is required for libopensc.so(.*), opensc required for opensc-tool and /etc/opensc/opensc.conf
+# the ppa used is v0.16.0 backported (16.04, 14.10, 14.04, 12.04), but missing a link for libopensc.so
 before_install:
   - sudo add-apt-repository -y ppa:gertvdijk/opensc-backports
   - sudo apt-get update -y -qq
   - sudo apt-get install -y opensc-pkcs11 opensc
   - sudo ln -s -T /usr/lib/x86_64-linux-gnu/libopensc.so.4.0.0 /usr/lib/libopensc.so
   - sudo ldconfig
-# install from source:
+# want to build/install opensc from source, possibly patching opensc source code:
+# https://github.com/OpenSC/OpenSC/wiki/Compiling-and-Installing-OpenSC-on-Unix-flavors
 #before_install:
 #  - sudo apt-get install -y pcscd libccid libpcsclite-dev libssl-dev libltdl-dev libreadline-dev autoconf automake build-essential docbook-xsl xsltproc libtool pkg-config openssl
 #install:
@@ -32,9 +34,9 @@ before_install:
 script:
   - dub test  --compiler=$DC
   - dub build --compiler=$DC --build=release
+  - echo $TRAVIS_BUILD_DIR
   - sudo patch -u -b /etc/opensc/opensc.conf config/patchfile_travis.diff
+  - diff /etc/opensc/opensc.conf.orig /etc/opensc/opensc.conf
 #  - cat /etc/opensc/opensc.conf
-  - find . -name libacos5_64.so
-  - ls -la
   - opensc-tool -D
   - cat /tmp/opensc-debug.log
