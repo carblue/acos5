@@ -2,10 +2,14 @@ language: d
 
 # latest dmd, gdc and ldc
 # ldc fails; built with cmake -DBUILD_SHARED_LIBS=ON ? if yes, ld doesn't find them or names are wrong; "dflags-posix-ldc": ["-defaultlib=:libphobos2-ldc.so,:libdruntime-ldc.so"]
-# gdc:
+# gdc:fails:
+# Running ./lib/acos5_64-test-library 
+# ./lib/acos5_64-test-library: error while loading shared libraries: libgphobos.so.68: cannot open shared object file: No such file or directory
+# Program exited with code 127
+# Both ldc and gdc seem to be built without shared libs phobos/druntime
+
 d:
   - dmd
-  - gdc
 
 dist: trusty
 sudo: required
@@ -17,7 +21,7 @@ before_install:
   - sudo apt-get install -y opensc-pkcs11 opensc
   - sudo ln -s -T /usr/lib/x86_64-linux-gnu/libopensc.so.4.0.0 /usr/lib/libopensc.so
   - sudo ldconfig
-# - sudo apt-get install -y pkg-config openssl libssl-dev libpcsclite-dev libltdl-dev libreadline-dev
+# install from source:
 #before_install:
 #  - sudo apt-get install -y pcscd libccid libpcsclite-dev libssl-dev libltdl-dev libreadline-dev autoconf automake build-essential docbook-xsl xsltproc libtool pkg-config openssl
 #install:
@@ -26,11 +30,8 @@ before_install:
 #  - pushd opensc-0.16.0 && ./bootstrap && ./configure --prefix=/usr --sysconfdir=/etc/opensc && make && sudo make install && popd
 #  - sudo ldconfig
 script:
-  - dub test --compiler=$DC
-#ls -la
-#dub build --compiler=$DC --build=release
-#sudo ldconfig
-#sudo patch -u -b /etc/opensc/opensc.conf config/patchfile_travis.diff
-#cat /etc/opensc/opensc.conf
-#opensc-tool -D
-#git clone https://github.com/OpenSC/OpenSC.git
+  - dub test  --compiler=$DC
+  - dub build --compiler=$DC --build=release
+  - sudo patch -u -b /etc/opensc/opensc.conf config/patchfile_travis.diff
+  - cat /etc/opensc/opensc.conf
+  - opensc-tool -D
