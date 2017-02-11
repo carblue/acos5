@@ -8,14 +8,12 @@ d:
 
 dist: trusty
 sudo: required
-
-# opensc-pkcs11 is required, opensc seems to be optional if no tools/opensc.conf/profile used
 before_install:
-  - sudo add-apt-repository -y ppa:gertvdijk/opensc-backports
-  - sudo apt-get update -y -qq
-  - sudo apt-get install -y opensc-pkcs11 opensc
-  - sudo ln -s -T /usr/lib/x86_64-linux-gnu/libopensc.so.4.0.0 /usr/lib/libopensc.so
-  - sudo ldconfig 
+  - sudo apt-get install -y pkg-config openssl libssl-dev libpcsclite-dev libltdl-dev libreadline-dev
+install:
+  - wget https://sourceforge.net/projects/opensc/files/OpenSC/opensc-0.16.0/opensc-0.16.0.tar.gz
+  - tar -xzvf opensc-0.16.0.tar.gz
+  - pushd opensc-0.16.0 && ./configure --prefix=/usr --sysconfdir=/etc/opensc && make && sudo make install && popd
 
 script:
   - dub test --compiler=$DC
