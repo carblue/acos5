@@ -35,7 +35,7 @@
 +	card_driver acos5_64 {
 +		# The name (+location) of the driver library; specify /path/to/ if it's
 +		# not in a OS's standard search path for dynamic libraries: module = /path/to/libacos5_64.so; or on Windows module = path\to\acos5_64.dll;
-+		module = $HOME/carblue/acos5_64/lib/libacos5_64.so;
++		module = /home/travis/carblue/acos5_64/lib/libacos5_64.so;
 +		#
 +		# Parameters for the Graphical User Interface app 'Consent for signing' (currently Linux only); defaults: app [pinentry], enabled [true]
 +		user_consent_app = /usr/bin/pinentry;
@@ -74,7 +74,7 @@
 +
 +	secure_messaging acos5_64_sm  {
 +		module_name = libacos5_64.so;
-+		module_path = $HOME/carblue/acos5_64/lib;  # module_path required, if module_name isn't in an OS's 'standard search path' for libs: module_path = /path/to/;
++		module_path = /home/travis/carblue/acos5_64/lib;  # module_path required, if module_name isn't in an OS's 'standard search path' for libs: module_path = /path/to/;
 +		mode = transmit;  # alternatives: transmit, acl (the default: each file header's SAC in combination with appl. DF's SE-File specifies, whether to do SM on-demand for which 'group of operations', essentialy single-op 'group READ', multi-op 'group write/append/update/erase[parts of file]' etc.)
 +		#
 +		# more infos in info/secure_messaging_configure
