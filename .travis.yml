@@ -1,8 +1,8 @@
 language: d
 
 # latest dmd, gdc and ldc
-# ldc fails; built with cmake -DBUILD_SHARED_LIBS=ON ? if yes, ld doesn't find them or names are wrong; "dflags-posix-ldc": ["-defaultlib=:libphobos2-ldc.so,:libdruntime-ldc.so"]
-# gdc:fails:
+# ldc fails; ldc built with cmake -DBUILD_SHARED_LIBS=ON ? if yes, ld doesn't find them or names are wrong; "dflags-posix-ldc": ["-defaultlib=:libphobos2-ldc.so,:libdruntime-ldc.so"]
+# gdc fails; gdc built with --enable-shared ?
 # Running ./lib/acos5_64-test-library 
 # ./lib/acos5_64-test-library: error while loading shared libraries: libgphobos.so.68: cannot open shared object file: No such file or directory
 # Program exited with code 127
@@ -35,3 +35,4 @@ script:
   - sudo patch -u -b /etc/opensc/opensc.conf config/patchfile_travis.diff
   - cat /etc/opensc/opensc.conf
   - opensc-tool -D
+  - cat /tmp/opensc-debug.log
