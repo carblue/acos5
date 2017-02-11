@@ -24,10 +24,9 @@ version(ACOSMODE_V3_FIPS_140_2L3) {
 	version=SESSIONKEYSIZE24;
 }
 
-
 import core.stdc.config : c_ulong;
 import core.stdc.locale : setlocale, LC_ALL;
-import core.stdc.string : memset, memcpy, memcmp, strlen/*, strcasecmp*/;
+import core.stdc.string : memset, memcpy, memcmp, memmove, strlen/*, strcasecmp*/;
 import core.stdc.stdlib : realloc, free, malloc, calloc;
 import std.stdio : stdout, stderr, writeln, writefln, File, snprintf;
 import std.string : toStringz, fromStringz, lastIndexOf, CaseSensitive, representation;
@@ -66,9 +65,6 @@ import libopensc.cardctl : SC_CARDCTL, SC_CARDCTL_GENERIC_BASE, SC_CARDCTL_ERASE
 					SC_CARDCTRL_LIFECYCLE, SC_CARDCTRL_LIFECYCLE_ADMIN, SC_CARDCTRL_LIFECYCLE_USER, SC_CARDCTRL_LIFECYCLE_OTHER;
 
 import libopensc.internal : sc_atr_table;
-
-version(OPENSC_VERSION_LATEST) // libopensc 0.16.0 binary exports these functions, whereas 0.15.0 does NOT; the first two are missing, the last 2 are duplicazed in this driver
-	import libopensc.internal : sc_pkcs1_strip_01_padding, sc_pkcs1_strip_02_padding, _sc_card_add_rsa_alg, _sc_match_atr;
 
 import libopensc.log : sc_dump_hex, sc_do_log, SC_LOG_DEBUG_NORMAL, log;
 import libopensc.opensc; // sc_format_path, SC_ALGORITHM_RSA, sc_print_path, sc_file_get_acl_entry
@@ -789,14 +785,8 @@ private sc_card_driver* sc_get_acos5_64_driver() {
 //		verify            = null; // like in *iso_ops_ptr  this is deprecated
 			logout            = &acos5_64_logout;
 			set_security_env  = &acos5_64_set_security_env;
-version(OPENSC_VERSION_LATEST) { // due to missing exports in 0.15.0: sc_pkcs1_strip_01_padding, sc_pkcs1_strip_02_padding
 			decipher          = &acos5_64_decipher;
 			compute_signature = &acos5_64_compute_signature;
-}
-else {
-			decipher          = null; // iso_ops_ptr.compute_signature: IIRC, DOESN't work for acos5_64, at least not with key bits>2048
-			compute_signature = null; // iso_ops_ptr.decipher         : IIRC, DOESN't work for acos5_64, at least not with key bits>2048
-}
 ////			create_file       = &acos5_64_create_file;
 ////			delete_file       = &acos5_64_delete_file;
 			list_files        = &acos5_64_list_files;
@@ -1010,8 +1000,8 @@ version(ENABLE_SM)
 
 	return rv=SC_SUCCESS;
 }
-version(OPENSC_VERSION_LATEST) {}
-else // for some reason, this usefull function is not exported from libopensc's version 0.15.0
+
+// for some reason, this usefull function is not exported from libopensc's version 0.15.0
 private int missingExport_match_atr_table(sc_context* ctx, sc_atr_table* table, sc_atr* atr)
 { // c source function 'match_atr_table' copied, translated to D
 	ubyte* card_atr_bin;
@@ -1179,11 +1169,6 @@ private extern(C) int acos5_64_match_card(sc_card *card) { // irregular/special 
 				"card matched (%s)", acos5_64_atrs[0].name);
 	}
 
-version(OPENSC_VERSION_LATEST) {
-	if ((rv=             _sc_match_atr(card, acos5_64_atrs.ptr, &card.type)) < 0)
-		return rv=0;
-}
-else { // for some reason, this usefull function is not exported from libopensc's version 0.15.0
 	int missingExport_sc_match_atr(sc_card* card, sc_atr_table* table, int* type_out)
 	{ // c source _sc_match_atr copied, translated to D
 		int res;
@@ -1199,7 +1184,7 @@ else { // for some reason, this usefull function is not exported from libopensc'
 	}
 	if ((rv=missingExport_sc_match_atr(card, acos5_64_atrs.ptr, &card.type)) < 0)
 		return rv=0;
-}
+
 	return rv=!cast(bool)acos5_64_match_card_checks(card);
 }
 
@@ -1507,8 +1492,6 @@ version(USE_SODIUM)
 			return SC_SUCCESS;
 		}
 
-version(OPENSC_VERSION_LATEST) {}
-else
 		int missingExport_sc_card_add_rsa_alg(sc_card* card, uint key_length, c_ulong flags, c_ulong exponent)
 		{ // same as in opensc, but combined with _sc_card_add_algorithm; both are not exported by libopensc
 			sc_algorithm_info info;
@@ -1537,10 +1520,7 @@ else
 	immutable uint key_len_from = 0x200, key_len_to = 0x1000, key_len_step = 0x100; 
 
 		for (uint key_len = key_len_from; key_len <= key_len_to; key_len += key_len_step) {
-version(OPENSC_VERSION_LATEST)
-										_sc_card_add_rsa_alg(card, key_len, algoflags, 0x10001);
-else
-			 missingExport_sc_card_add_rsa_alg(card, key_len, algoflags, 0x10001);
+			missingExport_sc_card_add_rsa_alg(card, key_len, algoflags, 0x10001);
 		}
 		drv_data = private_data; // void*, null if NOT version=USE_SODIUM, garbage collector (GC) not involved
 		max_pin_len = 8; // int
@@ -2460,7 +2440,7 @@ version(RSA_PKCS_PSS) {
 }
 else {
 	if      (card.algorithms.flags & SC_ALGORITHM_RSA_PAD_PKCS1) {
-		if ((rv=sc_pkcs1_strip_02_padding(ctx, parr.ptr, received, out_, &out_len_new)) < 0) {
+		if ((rv=missingExport_sc_pkcs1_strip_02_padding(ctx, parr.ptr, received, out_, &out_len_new)) < 0) {
 			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_decipher",
 				"MESSAGE FROM PRIVATE KEY USAGE: SC_ALGORITHM_RSA_PAD_PKCS1 is defined; padding of cryptogram is wrong (NOT BT=02  or other issue)\n");
 			return rv;
@@ -2472,7 +2452,7 @@ else {
 		if (call_to_compute_signature_in_progress)
 			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__,   "acos5_64_decipher", "MESSAGE FROM PRIVATE KEY USAGE: The digestInfo(prefix+hash) was padded correctly for signing (BT=01)\n"); //
 		else {
-			rv = sc_pkcs1_strip_02_padding(ctx, parr.ptr, received, null, &out_len_new); // this is a check only, out_len_new doesn't get changed
+			rv = missingExport_sc_pkcs1_strip_02_padding(ctx, parr.ptr, received, null, &out_len_new); // this is a check only, out_len_new doesn't get changed
 			if (rv==SC_SUCCESS)
 				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_decipher", "MESSAGE FROM PRIVATE KEY USAGE: SC_ALGORITHM_RSA_RAW is defined (NOTHING has to be stripped); the cryptogram was padded correctly (BT=02)\n");
 			else {
@@ -2768,7 +2748,7 @@ Decryption (RSA)
 		{
 			size_t  digestInfoLen = in_len; // unfortunately, tmp_arr.length is no lvalue, can't be set by sc_pkcs1_strip_01_padding directly, therfore the scope to get rid of digestInfoLen soon
 			// TODO the following is for EMSA-PKCS1-v1_5-ENCODE only, but ther is also EMSA-PSS
-			if ((rv=sc_pkcs1_strip_01_padding(ctx, in_, in_len, tmp_arr.ptr, &digestInfoLen)) < 0) { // what remains, should (for RSASSA-PKCS1-v1_5) be a valid ASN.1 DigestInfo with either SHA-1 or SHA-256 digestAlgorithm, otherwise we have to handle that with another function
+			if ((rv=missingExport_sc_pkcs1_strip_01_padding(ctx, in_, in_len, tmp_arr.ptr, &digestInfoLen)) < 0) { // what remains, should (for RSASSA-PKCS1-v1_5) be a valid ASN.1 DigestInfo with either SHA-1 or SHA-256 digestAlgorithm, otherwise we have to handle that with another function
 				//stripp padding BT=01 failed: refuse to sign !
 				bool maybe_PSS = in_[in_len-1]==0xbc;
 				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_compute_signature",
@@ -5610,4 +5590,75 @@ export extern(C) int /*sm_acos5_64_*/ get_apdus(sc_context* ctx, sm_info* info, 
 				"returning with: %d\n", rv);
 	}
 	return rv;
+}
+
+private int missingExport_sc_pkcs1_strip_01_padding(sc_context* ctx, const(ubyte)* in_dat, size_t in_len, ubyte* out_, size_t* out_len)
+{
+	const(ubyte)* tmp = in_dat;
+	size_t    len;
+
+	if (in_dat == null || in_len < 10)
+		return SC_ERROR_INTERNAL;
+	/* skip leading zero byte */
+	if (*tmp == 0) {
+		tmp++;
+		in_len--;
+	}
+	len = in_len;
+	if (*tmp != 0x01)
+		return SC_ERROR_WRONG_PADDING;
+	for (tmp++, len--; *tmp == 0xff && len != 0; tmp++, len--)
+	{}
+	if (!len || (in_len - len) < 9 || *tmp++ != 0x00)
+		return SC_ERROR_WRONG_PADDING;
+	len--;
+	if (out_ == null)
+		/* just check the padding */
+		return SC_SUCCESS;
+	if (*out_len < len)
+		return SC_ERROR_INTERNAL;
+	memmove(out_, tmp, len);
+//	out_[0..len] = tmp[0..len];
+	*out_len = len;
+	return SC_SUCCESS;
+}
+
+
+/* remove pkcs1 BT02 padding (adding BT02 padding is currently not
+ * needed/implemented) */
+private int missingExport_sc_pkcs1_strip_02_padding(sc_context* ctx, const(ubyte)* data, size_t len, ubyte* out_, size_t* out_len)
+{
+	uint	n = 0;
+
+//	LOG_FUNC_CALLED(ctx);
+	if (data == null || len < 3)
+		return SC_ERROR_INTERNAL; // LOG_FUNC_RETURN(ctx, SC_ERROR_INTERNAL);
+
+	/* skip leading zero byte */
+	if (*data == 0) {
+		data++;
+		len--;
+	}
+	if (data[0] != 0x02)
+		return SC_ERROR_WRONG_PADDING; // LOG_FUNC_RETURN(ctx, SC_ERROR_WRONG_PADDING);
+	/* skip over padding bytes */
+	for (n = 1; n < len && data[n]; n++)
+	{}
+	/* Must be at least 8 pad bytes */
+	if (n >= len || n < 9)
+		return SC_ERROR_WRONG_PADDING; // LOG_FUNC_RETURN(ctx, SC_ERROR_WRONG_PADDING);
+	n++;
+	if (out_ == null)
+		/* just check the padding */
+		return SC_SUCCESS; // LOG_FUNC_RETURN(ctx, SC_SUCCESS);
+
+	/* Now move decrypted contents to head of buffer */
+	if (*out_len < len - n)
+		return SC_ERROR_INTERNAL; // LOG_FUNC_RETURN(ctx, SC_ERROR_INTERNAL);
+	*out_len = len - n;
+	memmove(out_, data + n, *out_len);
+
+	sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sc_pkcs1_strip_02_padding",
+		"stripped output(%i): %s", len - n, sc_dump_hex(out_, len - n));
+	return cast(uint)len - n; // LOG_FUNC_RETURN(ctx, len - n);
 }

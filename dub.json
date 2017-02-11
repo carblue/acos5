@@ -6,7 +6,7 @@
 	"authors": ["Carsten Blüggel"],
 	"homepage": "https://github.com/carblue/acos5_64",
 	"dependencies" : {
-		"opensc": "~>0.15.9"
+		"opensc": "~>0.15.10"
 	},
 	"subConfigurations": {
 		"opensc": "deimos"
@@ -19,6 +19,5 @@
 	"dflags-posix-ldc": ["-defaultlib=:libphobos2-ldc.so,:libdruntime-ldc.so"],
 	"dflags-posix-gdc": ["-shared-libphobos"],
 	"lflags-posix" : ["--no-undefined", "--version-script=lib/libacos5_64.ver"],
-	"libs-posix": ["opensc"],
-	"versions" : ["ACOSMODE_V2", "SESSIONKEYSIZE24", "OPENSC_VERSION_LATEST"]
+	"versions" : ["ACOSMODE_V2", "SESSIONKEYSIZE24"]
 }
