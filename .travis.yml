@@ -21,7 +21,7 @@ before_install:
   - sudo apt-get update -y -qq
   - sudo apt-get install -y opensc-pkcs11 opensc
   - sudo ln -s -T /usr/lib/x86_64-linux-gnu/libopensc.so.4.0.0 /usr/lib/libopensc.so
-  - sudo ldconfig
+#  - sudo ldconfig
 # want to build/install opensc from source, possibly patching opensc source code:
 # https://github.com/OpenSC/OpenSC/wiki/Compiling-and-Installing-OpenSC-on-Unix-flavors
 #before_install:
@@ -34,9 +34,12 @@ before_install:
 script:
   - dub test  --compiler=$DC
   - dub build --compiler=$DC --build=release
-  - echo $TRAVIS_BUILD_DIR
+  - sudo cp lib/libacos5_64.so /usr/lib
+  - sudo ldconfig
+#  - echo $TRAVIS_BUILD_DIR   /home/travis/build/carblue/acos5_64
+  - ls -la $TRAVIS_BUILD_DIR
   - sudo patch -u -b /etc/opensc/opensc.conf config/patchfile_travis.diff
-  - diff /etc/opensc/opensc.conf.orig /etc/opensc/opensc.conf
-#  - cat /etc/opensc/opensc.conf
+#  - diff /etc/opensc/opensc.conf.orig /etc/opensc/opensc.conf
+  - cat /etc/opensc/opensc.conf
   - opensc-tool -D
   - cat /tmp/opensc-debug.log
