@@ -3,7 +3,7 @@ environment:
  matrix:
   - DC: dmd
     DVersion: 2.073.0
-    arch: x64
+    arch: x86
 
 skip_tags: false
 branches:
@@ -46,10 +46,10 @@ install:
               popd;
             }
         }
-  - cinst openssl.light
-  - cinst dmd
+  - ps: SetUpDCompiler
   - cinst dub
-  - powershell -Command Invoke-WebRequest https://sourceforge.net/projects/opensc/files/OpenSC/opensc-0.16.0/OpenSC-0.16.0-win64_vs12-Release.msi/download -OutFile opensc.msi
+  - cinst openssl.light -version 1.0.2.20160710
+  - powershell -Command Invoke-WebRequest https://sourceforge.net/projects/opensc/files/OpenSC/opensc-0.16.0/OpenSC-0.16.0-win32_vs12-Release.msi/download -OutFile opensc.msi
   - ps: msiexec /i opensc.msi /quiet /qn /norestart /log install.log
   - dub --version
 
