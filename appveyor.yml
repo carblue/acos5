@@ -52,6 +52,7 @@ install:
   - ps: pushd c:\\;
   - ps: msiexec /i opensc.msi /quiet /qn /norestart /log install.log;
   - ps: popd;
+  - ps: $env:PATH += ";C:\OpenSSL-Win32\bin;C:\Program Files (x86)\OpenSC Project\OpenSC\tools";
   - dub --version
 
 before_build:
