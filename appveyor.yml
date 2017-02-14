@@ -51,6 +51,8 @@ install:
   - powershell -Command Invoke-WebRequest "https://sourceforge.net/projects/opensc/files/OpenSC/opensc-0.16.0/OpenSC-0.16.0-win32_vs12-Release.msi/download" -OutFile "c:\opensc.msi";
   - ps: pushd c:\\;
   - ps: msiexec /i opensc.msi /quiet /qn /norestart /log install.log;
+  - ps: type install.log;
+  - ps: if exist C:\OpenSSL-Win32\bin echo It exists;
   - ps: popd;
   - ps: $env:PATH += ";C:\OpenSSL-Win32\bin;C:\Program Files (x86)\OpenSC Project\OpenSC\tools";
   - dub --version
