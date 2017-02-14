@@ -4663,7 +4663,7 @@ unittest {
 	ubyte[2] ub2 = [0x41, 0x03];
 	assert(ub22integral([0x41, 0x03]) == 0x4103);
 	writeln("PASSED: ub22integral");
-
+version(X86_64) {
 	const integralVal = 0xFFEEDDCCBBAA9988UL;
 	assert(equal(integral2ub!8(integralVal), [0xFF, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA, 0x99, 0x88][]));
 	writeln("PASSED: integral2ub!8");
@@ -4671,6 +4671,14 @@ version(LittleEndian) {
 	assert(equal(integral2ub!4(integralVal),                         [0xBB, 0xAA, 0x99, 0x88][]));
 	writeln("PASSED: integral2ub!4");
 }
+}
+else version(X86) {
+	const integralVal = 0xFFEEDDCCUL;
+	assert(equal(integral2ub!4(integralVal), [0xFF, 0xEE, 0xDD, 0xCC][]));
+	writeln("PASSED: integral2ub!4");
+}
+else
+	static assert(0);
 }
 
 version(ENABLE_ACOS5_64_UI/*ENABLE_DNIE_UI*/) {

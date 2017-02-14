@@ -49,10 +49,8 @@ install:
   - ps: SetUpDCompiler
   - cinst dub
   - powershell -Command Invoke-WebRequest "https://sourceforge.net/projects/opensc/files/OpenSC/opensc-0.16.0/OpenSC-0.16.0-win32_vs12-Release.msi/download" -OutFile "c:\opensc.msi";
-  - ps: echo "finished downloading opensc.msi.";
   - ps: pushd c:\\;
   - ps: msiexec /i opensc.msi /quiet /qn /norestart /log install.log;
-  - ps: echo "finished installing opensc.";
   - ps: popd;
   - dub --version
 
