@@ -647,7 +647,9 @@ extern(C) int rt_term(); // in Windows, a DLL_PROCESS_DETACH calls rt_term(); wh
 shared static this() {
 	setlocale (LC_ALL, "C"); // char* currentlocale =
 	/* Initialise the openssl library */
-	ERR_load_crypto_strings();
+	ERR_load_CRYPTO_strings();
+	//000000000011e0f0 T ERR_load_crypto_strings
+	//0000000000064e30 T ERR_load_CRYPTO_strings
 	OpenSSL_add_all_algorithms();
 	OPENSSL_config(null);
 	bn_ctx = BN_CTX_new();
