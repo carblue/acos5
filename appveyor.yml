@@ -48,7 +48,8 @@ install:
         }
   - ps: SetUpDCompiler
   - cinst dub
-  - cinst openssl.light -version 1.0.2.20160710
+  - powershell -Command Invoke-WebRequest https://slproweb.com/download/Win32OpenSSL_Light-1_0_2k.exe -OutFile openssl.exe
+  - ps: openssl.exe
   - powershell -Command Invoke-WebRequest https://sourceforge.net/projects/opensc/files/OpenSC/opensc-0.16.0/OpenSC-0.16.0-win32_vs12-Release.msi/download -OutFile opensc.msi
   - ps: msiexec /i opensc.msi /quiet /qn /norestart /log install.log
   - dub --version
