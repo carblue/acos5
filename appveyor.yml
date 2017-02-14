@@ -46,13 +46,11 @@ install:
               popd;
             }
         }
-  - ps: SetUpDCompiler
-  - powershell -Command Invoke-WebRequest https://code.dlang.org/files/dub-1.2.0-windows-x86.zip -OutFile dub.zip
-  - 7z x dub.zip -odub > nul
-  - set PATH=%CD%\%binpath%;%CD%\dub;%PATH%
   - cinst openssl.light
-  - ps: (new-object net.webclient).DownloadFile('https://sourceforge.net/projects/opensc/files/OpenSC/opensc-0.16.0/OpenSC-0.16.0-win64_vs12-Release.msi/download', 'OpenSC-0.16.0-win64_vs12-Release.msi')
-  - ps: msiexec /i OpenSC-0.16.0-win64_vs12-Release.msi /quiet /qn /norestart /log install.log
+  - cinst dmd
+  - cinst dub
+  - powershell -Command Invoke-WebRequest https://sourceforge.net/projects/opensc/files/OpenSC/opensc-0.16.0/OpenSC-0.16.0-win64_vs12-Release.msi/download -OutFile opensc.msi
+  - ps: msiexec /i opensc.msi /quiet /qn /norestart /log install.log
   - dub --version
 
 before_build:
