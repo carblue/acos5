@@ -36,14 +36,11 @@ script:
   - dub build --compiler=$DC --build=release
   - sudo cp lib/libacos5_64.so /usr/lib
   - sudo ldconfig
-#  - echo $TRAVIS_BUILD_DIR   /home/travis/build/carblue/acos5_64
-#  - ls -la $TRAVIS_BUILD_DIR   got all my repo files/dirs in here as expected, but nevertheless this didn't work with travis so far: module = $TRAVIS_BUILD_DIR/lib/libacos5_64.so 
-  - ls -la ${TRAVIS_BUILD_DIR}/lib
+#  - echo $TRAVIS_BUILD_DIR   /home/travis/build/carblue/acos5_64; problem to get this expanded in the patched opensc.conf
   - sudo patch -u -b /etc/opensc/opensc.conf config/patchfile_travis.diff
   - diff /etc/opensc/opensc.conf.orig /etc/opensc/opensc.conf || true
-#  - cat /etc/opensc/opensc.conf
   - opensc-tool -D
-# should result in:
+# should result in mentioning acos5_64:
 #Configured card drivers:
 #  acos5_64         ACS ACOS5-64 (v2.00: Smart Card/CryptoMate64)
 #  default          Default driver for unknown cards

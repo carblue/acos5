@@ -6,7 +6,7 @@
 	"authors": ["Carsten Blüggel"],
 	"homepage": "https://github.com/carblue/acos5_64",
 	"dependencies" : {
-		"opensc": "~>0.15.10"
+		"opensc": "==0.15.10"
 	},
 	"subConfigurations": {
 		"opensc": "deimos"

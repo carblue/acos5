@@ -3,12 +3,12 @@ Also the version identifiers from package opensc are recapitulated here in the e
 
 Some version identifiers are set or not set automatically by the compiler for the environment used (as documented by DMD), like GNU, Posix, Windows, LittleEndian, CRuntime_* etc.
 
-If something is going wrong with the driver, the definite source to get infos, is the file opensc-debug.log, if configured in opensc.conf with e.g. debug=9 !
+If something is going wrong with the driver, the definite source to get infos, is the file /tmp/opensc-debug.log, if configured in opensc.conf with e.g. debug=9 !
 
 Not all of the folowing is currently implemented, here is a brief intro of the essential version identifiers:
 The library is under heavy development.
 I assume, Your token is a ACS ACOS5-64 (v2.00, Smart Card / CryptoMate64). Adaptations for ACS ACOS5-64 (v3.00, Smart Card / CryptoMate Nano) are work in progress
-dub.json sets ACOSMODE_V2 therfore and no more is required for the time being. Anything related to SM requires explaining of some actions to do in opensc.conf and on card token.
+dub.json sets ACOSMODE_V2 therefore and the optional SESSIONKEYSIZE24 and what is set in package opensc's dub.json (defaults: ENABLE_SM, OPENSC_VERSION_LATEST), but no more is required for the time being. Anything related to SM requires explaining of some actions to do in opensc.conf and on card token.
 
 --------------------------------------
 
@@ -20,25 +20,26 @@ ACOSMODE_V3_NSH_1
 SESSIONKEYSIZE24
 
 ENFORCE_SM
+TRY_SM_MORE
 TRY_SM
 ENABLE_SM
-There are 3 "levels" refering to Secure Messaging, each depending on the lower ones, ENABLE_SM being the lowest, refer to the end of this document. Without ENABLE_SM, Secure Messaging won't work !
+There are currently 4 "levels" (later on or both TRY_SM* will vanish) refering to Secure Messaging, each depending on the lower ones, ENABLE_SM being the lowest, refer to the end of this document. Without ENABLE_SM, Secure Messaging won't work !
 TRY_SM is just an intermediate level intended to check, if configuration of opensc.conf and card/token (i.e. essentially the keyset) is well prepared for Secure messaging (more infos in file info/secure_messaging_configure; later, when a function token_initialization is available and used, this won't be neccessary any more). with version identifier set, the card/token shall be usable without SM, even if SM is not configured as required.
 ENFORCE_SM is intended to:
 1. also set version identifier TRY_SM and unload the driver if configuration doesn't match requirements for SM.
-2. issue only SM protected communication with the token for all commands that allow this. Commands that are supported by the cos to be SM protected are these (in PKCS#11/cos naming):
+2. issue only SM protected communication with the token for all commands that allow this. Commands that are supported by the acos to be SM protected are these (in PKCS#11/cos naming):
 
 TODO check which of the 2 SM-modes for which command to choose:
-There are two modes of SM that can be applied in two different security levels. The first mode is SM
+There are two modes of SM that can be applied as two different security levels. The first mode is SM
 for authenticity (SM-sign) the other is SM for confidentiality (SM-enc). The SM modes will be applied
 to both the command and response data. Whether to use the SM mode will depend on the conditions
 set in the current security environment and the command to perform.
 
 ACOS5-64 supports Secure Messaging (SM) for Authentication and Confidentiality. SM with
 Authentication means the APDU is transmitted together with a MAC while SM with Confidentiality
-means the APDU is transmitted in encrypted format. Secure messaging ensures data transmitted
+means the APDU is transmitted in encrypted format (same with card's responses). Secure messaging ensures data transmitted
 between card and terminal/server is secured and not susceptible to eavesdropping, replay attack and
-unauthorized modifications. It applies to the following commands:
+unauthorized modifications. It applies to the following commands (ther are differences for ACOSMODE_V2 and the ACOSMODE_V3 modes):
 
 Create File
 Update Binary
@@ -63,6 +64,7 @@ Commands that are NOT supported by the acos to be SM protected are these (in PKC
 All pin related  in ACOSMODE_V2
 ...
 
+Ideas, not implemented yet, maybe for a acos5_64-tool
 SETINDIVIDUALKEYS_SM
 UPDATE_CARDKEYSET_INITIAL_SM : set once und unset immediately after compilation: serves to get SM going with keyset read from opensc.conf (same what token_initialization does)
 UPDATE_CARDKEYSET_SM         : set once und unset immediately after compilation: serves to update keys (to be introduced in source code) required for Mutual Authentication via SM protected, confidential APDU commands.
@@ -79,11 +81,11 @@ This way, a window will pop up before signing is done or canceled, whatever the 
 card_driver acos5_64 {
     # The name (+location) of the driver library; specify /path/to/ if it's
     # not in a OS's standard search path for dynamic libraries: module = /path/to/libacos5_64.so; or on Windows module = path\to\acos5_64.dll;
-    module = libacos5_64.so;
+    module = /path/to/libacos5_64.so;
     #
     # Parameters for the Graphical User Interface app 'Consent for signing' (currently Linux only); defaults: app [pinentry], enabled [true]
     # user_consent_app = /usr/bin/pinentry;
-    # user_consent_enabled = false;
+    # user_consent_enabled = true;
 }
 
 more about OpenSC's confiǵuration in config/diff_opensc_conf
@@ -92,27 +94,30 @@ more about OpenSC's confiǵuration in config/diff_opensc_conf
 FAKE_SUCCESS_FOR_SIGN_VERIFY_TESTS
 TRY_SUCCESS_FOR_SIGN_VERIFY_TESTS
 These 2 version identifiers are to be used only for pkcs11-tool --test ! DON'T USE THEM FOR REGULAR USE CASES !
-IMHO some of these tests are sending data to be signed which don't comply with PKCS#1. thus would be refused by acos5_64_compute_signature in it's regular operation.
+IMHO some of these tests are sending data to be signed which don't comply with PKCS#1v1.5 thus would be refused by acos5_64_compute_signature in it's regular operation.
+Note: Though it's basicly the same math. operation concerning the priv. key, acos distinguishes a command for signing from a command for deciphering (raw RSA exponentiation), same as PKCS#1v1.5 and OpenSC does.
+(opensc) or the driver may decide depending on circumstances, to sign by using the command for deciphering, but the RSA keys capabilities set during file creation must match this intended key usage, otherwise using command deciphering is not allowed by acos.
 Using one or both version identifiers weakens the requirements and may result in less errors indicated by pkcs11-tool.
 Set version=FAKE_SUCCESS_FOR_SIGN_VERIFY_TESTS to FAKE a signing success for 1 test case, where no 01_padding is contained in the data. Effectively no signing takes place, the test-procedure goes on and indicates an expected verification error. From a security perspective, using this version identifier is still save.
 Set version=TRY_SUCCESS_FOR_SIGN_VERIFY_TESTS to get tests passed, that supply data with correct padding, but data's payload are zeros only of length len <= max k-11 (no digestInfo given).
-From a security perspective, I consider using this version identifier as UNSAFE, because an attacker might get some information about the key used.
+From a security perspective, I consider using this version identifier as UNSAFE, because an attacker might get some information about the key used (IMHO, but I'm not a crypto-analyst).
 
 
 USE_SODIUM, RSA_PKCS_PSS, RESTRICTED_SN_TOKEN, SEALED_BINARY  will come later:
 
 USE_SODIUM
 currently the code makes no use of sodium. This will come later.
-Set version=USE_SODIUM, if You want to take advantage from libsodium's capabilities: Regarding memory protection of sensible private data, it allows a higher level, like disalow swapping these data, disalow core dumps to contain these data (same for kernel crash dumps),
+Set version=USE_SODIUM, if You want to take advantage from libsodium's capabilities: Regarding memory protection of sensible private data, it allows a higher level, like disallow swapping these data, disallow core dumps to contain these data (same for kernel crash dumps),
 making these data inaccessible while not actually in use and auto-zeroing sensible data memory when usage has finished etc. It's cryptographic capabilities aren't used currently, as there is the mandatory openssl as package opensc dependency anyway, but this may change too.
+There are applications, like Thunderbird does, keeping a cryptoki session open as long as they are running, which may be a long time. Thus I will later place sensible data in "libsodium-protected" memory.
 
 RSA_PKCS_PSS
 currently not publicly usable.
-There is an experimental way through the code to sign ala RSASSA-PSS. opensc currently doesn't support PSS, and You can make use of it only in some tricky way for keys that allow both signing AND decipher (currently there is another dependancy on an yet unpublished package pkcs11).
+There is an experimental way through the code to sign àla RSASSA-PSS. opensc currently doesn't support PSS, work on is stuck for month now, and You can make use of it only in some tricky way for keys that allow both signing AND decipher (currently there is another dependancy on an yet unpublished package pkcs11).
 
 RESTRICTED_SN_TOKEN
-This is meant to bind the drivers working or being put off duty depending on communication with a specified token (i.e. token's serial no. is present, otherwise, the driver refuses to init() and gets unloaded).
-The serial no. has to be inserted into the source code and set version=RESTRICTED_SN_TOKEN.
+This is meant to bind the drivers working or being put off duty depending on communication with a specified token (i.e. that token's serial no. is present, otherwise, the driver refuses to init() and gets unloaded).
+The serial no. has to be inserted into the source code and set version=RESTRICTED_SN_TOKEN. An alternative has come up with opensc.conf's ifd_serial, which probably makes this obsolete
 
 SEALED_BINARY
 not yet implemented publicly
@@ -127,22 +132,10 @@ none/all
 
 ### IMPORTANT: ###
 
-================================================= This section is a copy from package opensc refering to version=OPENSC_VERSION_LATEST =================================================
-
-OPENSC_VERSION_LATEST  [default: set]
-(which currently is OpenSC 0.16.0; and in view of an upcoming version presumably 0.17.0, OPENSC_VERSION_LATEST remains refering to 0.16.0 until I upgraded this binding to support 0.17.0 and 0.16.0, dropping 0.15.0 support then).
-Set version=OPENSC_VERSION_LATEST, if linking against OpenSC's latest version 0.16.0, otherwise don't, which implies linking against OpenSC's version 0.15.0.
-This controls differences in OpenSC API that have to be taken care of (e.g. some structs have other fields and differing .sizeof, module auxdata available or not,nnew functions available or not etc.).
-This also controls, which functions are actually callable from the OpenSC binary (independent from API differences, as 0.15.0 didn't export some existing functions, though part of the 0.15.0 API.
-
-Look at PATCH_LIBOPENSC_EXPORTS there too.
-=================================================
-
-
 The following is a copy of version identifiers from package libopensc ! They are essential for this package too.
 ================================================================================================================
 This binding supports some version identifiers, some of which are essential to know about when compiling/linking against a binary libopensc.so/dll.
-Except SIMCLIST_WITH_THREADS and ENABLE_SM which stem from opensc, they are introduced by this binding:
+Except SIMCLIST_WITH_THREADS and ENABLE_SM which stem from Opensc source code, they are introduced by this binding:
 
 When I talk about versions here, the version of OpenSC, especially it's binary libopensc.so/.dll is meant, not that of this package ('opensc'), which is arbitrary (except the statement, that this binding opensc' supports OpenSC's API versions 0.15.0 and 0.16.0) !
 Let's assume a project called "carddriver", that depends on this package.
@@ -153,7 +146,7 @@ In either case the carddriver's dub.json is a suitable choice, as DUB "passes" v
 But some version identifiers can be thougth of as rarely changing, making this package's dub.json fit equally or better.
 I consider this to be true for the next (libopensc related version identifiers), thus taken care for in this package's dub.json according to defaults of a Linux build of latest opensc version.
 
-Compiling-and-Installing-OpenSC-on-Unix-flavors (if the distribution doesn't provide the latest OpenSC package) is easy/straightforward:
+Compiling-and-Installing-OpenSC-on-Unix-flavors (if the distribution doesn't provide one of the two latest OpenSC package) is easy/straightforward:
 I prefer to git clone (or download)  0.16.0 tagged (or whatever is the latest) from https://github.com/OpenSC/OpenSC.git.
 
 https://github.com/OpenSC/OpenSC/wiki/Compiling-and-Installing-OpenSC-on-Unix-flavors <br>
@@ -167,15 +160,15 @@ Specifying the libopensc's binary version from OpenSC to link against and relate
 version=
 
 OPENSC_VERSION_LATEST  [default: set]
-(which currently is OpenSC 0.16.0; and in view of an upcoming version presumably 0.17.0, OPENSC_VERSION_LATEST remains refering to 0.16.0 until I upgraded this binding to support 0.17.0 and 0.16.0, dropping 0.15.0 support then).
+(which currently is OpenSC 0.16.0, or more precisely, what is stated in this packages README.md early in the beginning; thus in view of an upcoming version presumably 0.17.0, OPENSC_VERSION_LATEST remains refering to 0.16.0 until I upgraded this binding and the README.md to support 0.17.0 and 0.16.0, dropping 0.15.0 support then).
 Set version=OPENSC_VERSION_LATEST, if linking against OpenSC's latest version 0.16.0, otherwise don't, which implies linking against OpenSC's version 0.15.0.
-This controls differences in OpenSC API that have to be taken care of (e.g. some structs have other fields and differing .sizeof, module auxdata available or not,nnew functions available or not etc.).
-This also controls, which functions are actually callable from the OpenSC binary (independent from API differences, as 0.15.0 didn't export some existing functions, though part of the 0.15.0 API.
+This controls differences in OpenSC API that have to be taken care of (e.g. some structs have other fields and differing .sizeof, module auxdata available or not, new functions available or not etc.).
+This also controls, which functions are actually callable from the OpenSC binary (if there are differences independent from API differences).
 
 
 PATCH_LIBOPENSC_EXPORTS  [default: not set]
 For OpenSC's version 0.15.0 and 0.16.0, the declarations in scopes version(PATCH_LIBOPENSC_EXPORTS) are NOT available/exported from their binaries, thus You are reminded by compiler errors rather than linker errors.
-Set version=PATCH_LIBOPENSC_EXPORTS to get the D declarations and You'll know what needs patching OpenSC's sources, if it's required to be called from the driver.
+Set version=PATCH_LIBOPENSC_EXPORTS to get the D declarations and You'll know what needs patching OpenSC's sources (IIRC patch src/libopensc/libopensc.exports), if it's required to be called from the driver.
 It's also helpfull, to compile the "carddriver"  with "lflags" : ["--no-undefined", "and possibly other flags"]
 
 
@@ -186,7 +179,7 @@ Otherwise, being defined for the OpenSC build, version=SIMCLIST_WITH_THREADS   *
 
 ENABLE_SM  [default: set]
 Same as with all version identifiers in this libopensc related section, this has to match how libopensc was build. The default is with SM enabled !
-Depending what is used by "carddriver", it may be required to link to libsmm-local.so/.dll as well.
+Depending what is used by "carddriver", it may be required to link to libsmm-local.so/.dll as well (but in my acos5_64 driver I provide all SM functionality independently from libsmm-local.so and thus must inhibit loading of libsmm-local.so for name clashing reason).
 
 
 Any mismatch in this section will sooner or later inevitably cause a SIGSEGV.

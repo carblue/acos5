@@ -2331,7 +2331,7 @@ err:
 	return rv;
 }
 
-version(OPENSC_VERSION_LATEST)
+
 private extern(C) int acos5_64_decipher(sc_card* card, const(ubyte)* in_, /*in*/ size_t in_len, ubyte* out_, /*in*/ size_t out_len)
 { // check in_len, out_len, they aren't constant any more, but treat them as if they are constant
 
@@ -2622,7 +2622,7 @@ unittest {
 } // version(RSA_PKCS_PSS)
 
 
-version(OPENSC_VERSION_LATEST)
+
 /** This function doesn't slavishly perform Computing RSA Signature: Some conditions must be fulfilled, except,
  * it gets either 20 or 32 (, or 0) bytes which are assumed to be a hash from sha1 or sha256 (or a pkcs11-tool test case), but this may result in a verification error due to false assumption.
 
