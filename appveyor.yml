@@ -69,7 +69,7 @@ install:
   - ps: SetUpACSpcsc
   - ps: SetUpOpenSC
   - ps: $env:PATH += ";C:\OpenSSL-Win32\bin;C:\Program Files (x86)\OpenSC Project\OpenSC\tools;C:\projects\acos5-64\lib;C:\projects\acos5_64\lib";
-  - cinst dub
+  - cinst dub --allow-empty-checksums
   - dub --version
 
 before_build:
@@ -102,4 +102,4 @@ test_script:
  - echo %PATH%
  - '%DC% --version'
  - dub build --arch=%Darch% --compiler=%DC%
-# - opensc-tool -D
+ - opensc-tool -D
