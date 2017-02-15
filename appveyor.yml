@@ -63,10 +63,6 @@ install:
            echo "finished.";
            pushd c:\\;
            msiexec /i OpenSC1632.msi /qn /norestart;
-#msiexec /i "C:\OpenSC-0.16.0-win32_vs12-Release.msi" /quiet /qn /norestart /log "C:\openscpackage.log";
-#  - opensc-tool -i;
-#  - ps: type "C:\openscpackage.log";
-#  - ps: copy C:\projects\acos5-64\config\opensc_16_win_acos.conf "C:\Program Files (x86)\OpenSC Project\OpenSC\opensc.conf";
            popd;
         }
   - ps: SetUpDCompiler
