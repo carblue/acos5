@@ -48,7 +48,7 @@ install:
         }
   - ps: SetUpDCompiler
   - cinst dub
-  - powershell -Command Invoke-WebRequest "https://sourceforge.net/projects/opensc/files/OpenSC/opensc-0.16.0/OpenSC-0.16.0-win32_vs12-Release.msi/download" -OutFile "C:\OpenSC-0.16.0-win32_vs12-Release.msi";
+  - ps: Invoke-WebRequest "https://sourceforge.net/projects/opensc/files/OpenSC/opensc-0.16.0/OpenSC-0.16.0-win32_vs12-Release.msi/download" -OutFile "C:\OpenSC-0.16.0-win32_vs12-Release.msi";
   - ps: msiexec /i "C:\OpenSC-0.16.0-win32_vs12-Release.msi" /quiet /qn /norestart /log "C:\openscpackage.log";
   - ps: type "C:\openscpackage.log";
   - ps: $env:PATH += ";C:\OpenSSL-Win32\bin;C:\Program Files (x86)\OpenSC Project\OpenSC\tools;C:\projects\acos5-64\lib";
