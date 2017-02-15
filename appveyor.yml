@@ -46,18 +46,34 @@ install:
               popd;
             }
         }
-  - ps: SetUpDCompiler
-  - cinst dub
-  - ps: Invoke-WebRequest "http://www.acs.com.hk/download-driver-unified/8244/ACS-Unified-MSI-Winx64-4220.zip" -OutFile "c:\acs_pcsc.zip";
-  - ps: 7z x acs_pcsc.zip -oacs_pcsc > $null;
-  - ps: acs_pcsc\Setup.exe /norestart;
-  - ps: Invoke-WebRequest "https://sourceforge.net/projects/opensc/files/OpenSC/opensc-0.16.0/OpenSC-0.16.0-win32_vs12-Release.msi/download" -OutFile "C:\OpenSC-0.16.0-win32_vs12-Release.msi";
-#  - ps: msiexec /i "C:\OpenSC-0.16.0-win32_vs12-Release.msi" /quiet /qn /norestart /log "C:\openscpackage.log";
-  - ps: msiexec /i "C:\OpenSC-0.16.0-win32_vs12-Release.msi" /qn /norestart;
-  - ps: $env:PATH += ";C:\OpenSSL-Win32\bin;C:\Program Files (x86)\OpenSC Project\OpenSC\tools;C:\projects\acos5-64\lib";
+  - ps: function SetUpACSpcsc
+        {
+           echo "downloading ...";
+           Invoke-WebRequest "http://www.acs.com.hk/download-driver-unified/8244/ACS-Unified-MSI-Winx64-4220.zip" -OutFile "c:\ACSpcsc.zip";
+           echo "finished.";
+           pushd c:\\;
+           7z x ACSpcsc.zip -oACSpcsc > $null;
+           ACSpcsc\\Setup.exe /norestart;
+           popd;
+        }
+  - ps: function SetUpOpenSC
+        {
+           echo "downloading ...";
+           Invoke-WebRequest "https://sourceforge.net/projects/opensc/files/OpenSC/opensc-0.16.0/OpenSC-0.16.0-win32_vs12-Release.msi/download" -OutFile "C:\OpenSC1632.msi";
+           echo "finished.";
+           pushd c:\\;
+           msiexec /i OpenSC1632.msi /qn /norestart;
+#msiexec /i "C:\OpenSC-0.16.0-win32_vs12-Release.msi" /quiet /qn /norestart /log "C:\openscpackage.log";
+#  - opensc-tool -i;
 #  - ps: type "C:\openscpackage.log";
 #  - ps: copy C:\projects\acos5-64\config\opensc_16_win_acos.conf "C:\Program Files (x86)\OpenSC Project\OpenSC\opensc.conf";
-#  - opensc-tool -i;
+           popd;
+        }
+  - ps: SetUpDCompiler
+  - ps: SetUpACSpcsc
+  - ps: SetUpOpenSC
+  - ps: $env:PATH += ";C:\OpenSSL-Win32\bin;C:\Program Files (x86)\OpenSC Project\OpenSC\tools;C:\projects\acos5-64\lib;C:\projects\acos5_64\lib";
+  - cinst dub
   - dub --version
 
 before_build:
