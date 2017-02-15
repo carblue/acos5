@@ -49,7 +49,7 @@ install:
   - ps: SetUpDCompiler
   - cinst dub
   - ps: Invoke-WebRequest "http://www.acs.com.hk/download-driver-unified/8244/ACS-Unified-MSI-Winx64-4220.zip" -OutFile "c:\acs_pcsc.zip";
-  - ps: 7z x acs_pcsc.zip -oacs_pcsc > nul;
+  - ps: 7z x acs_pcsc.zip -oacs_pcsc > $null;
   - ps: acs_pcsc\Setup.exe /norestart;
   - ps: Invoke-WebRequest "https://sourceforge.net/projects/opensc/files/OpenSC/opensc-0.16.0/OpenSC-0.16.0-win32_vs12-Release.msi/download" -OutFile "C:\OpenSC-0.16.0-win32_vs12-Release.msi";
 #  - ps: msiexec /i "C:\OpenSC-0.16.0-win32_vs12-Release.msi" /quiet /qn /norestart /log "C:\openscpackage.log";
