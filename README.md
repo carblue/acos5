@@ -1,7 +1,7 @@
 # Build state
 
 [![Build Status](https://travis-ci.org/carblue/acos5_64.svg?branch=v0.0.1)](https://travis-ci.org/carblue/acos5_64)
-[![Build status](https://ci.appveyor.com/api/projects/status/27fwesynpu5mx4fx?svg=true)](https://ci.appveyor.com/project/carblue/acos5-64)
+<!--[![Build status](https://ci.appveyor.com/api/projects/status/27fwesynpu5mx4fx?svg=true)](https://ci.appveyor.com/project/carblue/acos5-64)-->
 
 # acos5_64
 
