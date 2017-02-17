@@ -29,21 +29,21 @@ This is still work in progress (sadly, not all is correct in ref. manuals, the c
 
 In case anybody wants to donate, I'm still in need of the latest PKCS#15 standard document ISO/IEC 7816-15:2016.
 
-A list of functions (in terms of PKCS#11 naming), for which this card driver can/has to implement supporting code (to be called by OpenSC, aside from those that are implemented purely by OpenSC or OpenSC's implementation is sufficient for ACS ACOS5-64), stating, which are YES/NO/NOT implemented/implementable.<br>
+A list of functions (in terms of PKCS#11 naming), for which this card driver can/has to implement supporting code (to be called by OpenSC (OSC), aside from those that are implemented purely by OpenSC or OpenSC's implementation is sufficient for ACS ACOS5-64), stating, which are YES/NO/NOT implemented/implementable.<br>
 After going through the following list (summarily: all token read-only operations should work, support of operations writing to the token is very limited though), the next step is outlined in directory `info` file `compile_install_configure`. There is mutch info I collected and deem usefull, all in directory `info` but not yet well and finally organized/presented while still a lot is changing.
 
 General-purpose functions:<br>
-YES  C_Initialize<br>
-YES  C_Finalize<br>
-     C_GetInfo (opensc only)<br>
-YES  C_GetFunctionList
- 
+YES     C_Initialize<br>
+YES     C_Finalize<br>
+OpenSC  C_GetInfo<br>
+OpenSC  C_GetFunctionList
+
 Slot and token management functions:<br>
-     C_GetSlotList (opensc only)<br>
-     C_GetSlotInfo (opensc only)<br>
-YES  C_GetTokenInfo<br>
-NOT  C_WaitForSlotEvent (not supported by ACS ACOS5-64)<br>
-YES  C_GetMechanismList (for RSA; howto for sym. keys?)<br>
+YES     C_GetSlotList<br>
+OpenSC  C_GetSlotInfo<br>
+YES     C_GetTokenInfo<br>
+NOT     C_WaitForSlotEvent (not reasonably usable; 'blocking' unsupported by OpenSC)<br>
+YES/OSC C_GetMechanismList (for RSA; howto for sym. keys?)<br>
 YES  C_GetMechanismInfo (for RSA; howto for sym. keys?)<br>
 NO   C_InitToken<br>
 NO   C_InitPIN<br>

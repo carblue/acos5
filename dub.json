@@ -19,5 +19,20 @@
 	"dflags-posix-ldc": ["-defaultlib=:libphobos2-ldc.so,:libdruntime-ldc.so"],
 	"dflags-posix-gdc": ["-shared-libphobos"],
 	"lflags-posix" : ["--no-undefined", "--version-script=lib/libacos5_64.ver"],
-	"versions" : ["ACOSMODE_V2", "SESSIONKEYSIZE24"]
+	"configurations": [
+		{
+			"name": "library",
+			"versions": ["ACOSMODE_V2", "SESSIONKEYSIZE24"]
+		},
+		{
+			"name": "unittest",
+			"versions": ["ACOSMODE_V2", "SESSIONKEYSIZE24", "ENABLED_DEBUG_FILE"],
+			"dependencies": {
+				"pkcs11": "*"
+			},
+			"subConfigurations": {
+				"pkcs11": "derelict"
+			}
+		}
+	]
 }

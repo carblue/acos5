@@ -29,7 +29,7 @@ import core.stdc.locale : setlocale, LC_ALL;
 import core.stdc.string : memset, memcpy, memcmp, memmove, strlen/*, strcasecmp*/;
 import core.stdc.stdlib : realloc, free, malloc, calloc;
 import std.stdio : stdout, stderr, writeln, writefln, File, snprintf;
-import std.string : toStringz, fromStringz, lastIndexOf, CaseSensitive, representation;
+import std.string : toStringz, fromStringz, lastIndexOf, CaseSensitive, representation, strip;
 import std.exception : enforce, assumeUnique;
 import std.format;
 import std.range : take, retro;
@@ -5672,3 +5672,191 @@ private int missingExport_sc_pkcs1_strip_02_padding(sc_context* ctx, const(ubyte
 		"stripped output(%i): %s", len - n, sc_dump_hex(out_, len - n));
 	return cast(uint)len - n; // LOG_FUNC_RETURN(ctx, len - n);
 }
+
+
+/*
+The following unittest (in parts) heavyly depends on interpreting /tmp/opensc-debug.log, thus debuging should be switched on; level=3, see also string debug_file = "/tmp/opensc-debug.log"
+Next is the basic way to call into Cryptoki using package pkcs11
+There are other, higher-level ways, e.g. lipp11, and option to  load and enumerate PKCS#11 modules (p11-kit) once the D bindings exist
+*/
+version(ENABLED_DEBUG_FILE) {
+unittest {
+	import core.stdc.stdlib : exit, malloc, EXIT_FAILURE;
+	import std.stdio,
+				 std.algorithm.searching,
+				 std.algorithm.comparison,
+				 pkcs11;
+
+version(Posix) {
+	import std.process,
+				 std.conv;
+	string debug_file = "/tmp/opensc-debug.log";
+	{
+		auto f = File(debug_file, "w"); // eraze/create
+	}
+	auto opensc_tool_i = executeShell("opensc-tool -i");
+	if (opensc_tool_i.status) {
+		writeln("FAILED: PKCS#11 functions: opensc_tool_i; the opensc tools (sudo apt-get install opensc) or the pkcs#11 module (sudo apt-get install opensc-pkcs11) seem to be missing");
+		return;
+	}
+	else {
+		writeln("opensc-tool -i   Prints information about OpenSC, such as the OpenSC version and parameters it was build with.");
+		writeln("opensc-tool -i   Must show one of the two latest OpenSC versions, otherwise it fails prerequisites of dependancy package opensc and all bets are off (crash, undefined behaviour etc..)");
+		writeln(opensc_tool_i.output);
+		writeln("PASSED: PKCS#11 functions: opensc_tool_i");
+	}
+	auto grep_load_dynamic_driver_acos5_64 = executeShell(`grep -c "load_dynamic_driver: successfully loaded card driver 'acos5_64'"` ~ ' ' ~ debug_file);
+	if (grep_load_dynamic_driver_acos5_64.status)
+		writeln("FAILED: PKCS#11 functions: grep_load_dynamic_driver_acos5_64. There are many reasons why OpenSC might fail to load libacos5_64.so, miss-configured opensc.conf, missing or unknown location of libacos5_64.so being likely ones");
+	else {
+		assert(strip(grep_load_dynamic_driver_acos5_64.output).to!int==1);
+		writeln("PASSED: PKCS#11 functions: grep_load_dynamic_driver_acos5_64");
+	}
+	{
+		auto f = File(debug_file, "w"); // open for writing, i.e. Create an empty file for output operations. If a file with the same name already exists, its contents are discarded and the file is treated as a new empty file.
+	}
+}
+
+	void check_return_value(CK_RV rv, string message) {
+		if (rv != CKR_OK) {
+			writefln("Error at %s: %s", message, rv);
+			stdout.flush();
+		}
+	}
+
+	CK_SLOT_ID get_slot() {
+		CK_RV           rv;
+		CK_SLOT_ID[10]  slotIds;
+		CK_ULONG        slotCount = slotIds.length;
+
+		rv = C_GetSlotList(CK_TRUE, slotIds.ptr, &slotCount);
+		check_return_value(rv, "get slot list");
+
+		if (slotCount < 1) {
+			stderr.writeln("STOPED: PKCS#11 functions: No slots with a present token found!");
+			return cast(CK_ULONG)-1;
+		}
+
+		CK_SLOT_ID  slotId = slotIds[0];
+		writefln("slot count: %s", slotCount);
+		return slotId;
+	}
+
+	extern(C) CK_RV notify_me(
+		CK_SESSION_HANDLE hSession,
+		CK_NOTIFICATION   event,
+		CK_VOID_PTR       pApplication
+	) nothrow @nogc @system {
+		return CKR_OK;
+	}
+
+	CK_SESSION_HANDLE start_session(CK_SLOT_ID slotId) {
+		CK_RV              rv;
+		CK_SESSION_HANDLE  session;
+		rv = C_OpenSession(slotId,
+			CKF_SERIAL_SESSION,
+			null,
+			&notify_me,
+			&session);
+		check_return_value(rv, "open session");
+		return session;
+	}
+
+	void end_session(CK_SESSION_HANDLE session) {
+		CK_RV rv;
+		rv = C_CloseSession(session);
+		check_return_value(rv, "close session");
+	}
+
+	void login(CK_SESSION_HANDLE session, ubyte[] pin) {
+		CK_RV rv;
+		if (pin !is null) {
+			rv = C_Login(session, CKU_USER, pin.ptr, pin.length);
+			check_return_value(rv, "log in");
+		}
+	}
+
+	void logout(CK_SESSION_HANDLE session) {
+		CK_RV rv;
+		rv = C_Logout(session);
+		if (rv != CKR_USER_NOT_LOGGED_IN)
+			check_return_value(rv, "log out");
+	}
+
+/////////////
+	PKCS11.load("opensc-pkcs11.so");
+	CK_RV rv;
+	if ((rv=C_Initialize(NULL_PTR)) != CKR_OK) {
+		writeln("Failed to initialze Cryptoki");
+		return;
+	}
+	scope(exit)
+		C_Finalize(NULL_PTR);
+
+	CK_INFO info;
+	rv = C_GetInfo(&info);
+	check_return_value(rv, "get info");
+	writeln("cryptokiVersion.major: ", info.cryptokiVersion.major);
+	writeln("cryptokiVersion.minor: ", info.cryptokiVersion.minor);
+	writeln("PASSED: PKCS#11 functions that don't require a present token");
+
+	CK_SLOT_ID  slotID = get_slot(); // OpenSC does a lot for a present token now on C_GetSlotList
+	if (slotID == cast(CK_ULONG)-1)
+		return;
+	writeln("slotID: ", slotID);
+
+version(Posix) {
+version(TRY_SM_MORE) {
+	auto grep_try_sm_more = executeShell("grep -c '##### SM Response Successfully Verified. Operation was performed as requested #####'" ~ ' ' ~ debug_file);
+	if (grep_try_sm_more.status != 0)
+		writeln("FAILED: PKCS#11 functions: grep_try_sm_more");
+	else {
+		assert(strip(grep_try_sm_more.output).to!int==1);
+		writeln("PASSED: PKCS#11 functions: grep_try_sm_more");
+	}
+}
+}
+
+	CK_SLOT_INFO  slotInfo;
+	rv = C_GetSlotInfo(slotID, &slotInfo);
+	check_return_value(rv, "get slot info");
+	ptrdiff_t pos = clamp(countUntil(slotInfo.slotDescription[], [ubyte(32),ubyte(32)]), 0,64);
+	writeln ("slotDescription: ", (cast(char*)slotInfo.slotDescription.ptr)[0..pos]);
+	pos = clamp(/*countUntil(slotInfo.manufacturerID[], [ubyte(32),ubyte(32)])*/32, 0,32);
+	writeln ("manufacturerID:  ", (cast(char*)slotInfo.manufacturerID.ptr)[0..pos]);
+	writeln ("flags:           ", slotInfo.flags);
+	writefln("hardwareVersion: %s.%s", slotInfo.hardwareVersion.major, slotInfo.hardwareVersion.minor);
+	writefln("firmwareVersion: %s.%s", slotInfo.firmwareVersion.major, slotInfo.firmwareVersion.minor);
+
+	CK_TOKEN_INFO tokenInfo;
+	rv = C_GetTokenInfo(slotID, &tokenInfo);
+	check_return_value(rv, "get token info");
+	pos = clamp(/*countUntil(tokenInfo.label[], [ubyte(32),ubyte(32)])*/32, 0,32);
+	writeln ("token.label: 	", (cast(char*)tokenInfo.label.ptr)[0..pos]);
+	writeln("PASSED: PKCS#11 functions that do require a present token");
+
+	CK_FLAGS flags = CKF_DONT_BLOCK;
+	CK_SLOT_ID  slotID_waiton;
+	/* Don't Block and don't wait for a slot event (blockink isn't supportred by OpenSC */
+	rv = C_WaitForSlotEvent(flags, &slotID_waiton, NULL_PTR);
+	check_return_value(rv, "wait for slot event");
+	writeln ("Didn't wait on slot ", slotID_waiton);
+
+	CK_MECHANISM_TYPE[]  mechanismList;
+	CK_ULONG             mechanismListCount;
+	CK_MECHANISM_INFO    mechanismInfo;
+	rv =   C_GetMechanismList(slotID, cast(CK_MECHANISM_TYPE_PTR)NULL_PTR, &mechanismListCount);
+
+	if ((rv == CKR_OK) && (mechanismListCount > 0))  {
+		mechanismList.length = mechanismListCount;
+		rv = C_GetMechanismList(slotID, mechanismList.ptr, &mechanismListCount);
+		if (rv == CKR_OK)
+			foreach (i, mt; mechanismList) {
+				mechanismInfo = CK_MECHANISM_INFO.init;
+				/*rv =*/ C_GetMechanismInfo(slotID, mt, &mechanismInfo);
+				writefln("mechanismList[%s]: 0x%04X; mInfo: MinKeySize: %s, MaxKeySize: %s, flags: 0x%04X", i, mt, mechanismInfo.ulMinKeySize, mechanismInfo.ulMaxKeySize, mechanismInfo.flags); // CKM_*
+			}
+	}
+//	stdout.flush();
+} // unittest
+} // version(ENABLED_DEBUG_FILE)

@@ -32,8 +32,7 @@ before_install:
 #  - pushd opensc-0.16.0 && ./bootstrap && ./configure --prefix=/usr --sysconfdir=/etc/opensc && make && sudo make install && popd
 #  - sudo ldconfig
 script:
-  - dub test  --compiler=$DC
-  - dub build --compiler=$DC --build=release
+  - dub build --build=release --compiler=$DC
   - sudo cp lib/libacos5_64.so /usr/lib
   - sudo ldconfig
 #  - echo $TRAVIS_BUILD_DIR   /home/travis/build/carblue/acos5_64; problem to get this expanded in the patched opensc.conf
@@ -44,4 +43,5 @@ script:
 #Configured card drivers:
 #  acos5_64         ACS ACOS5-64 (v2.00: Smart Card/CryptoMate64)
 #  default          Default driver for unknown cards
+  - dub test  --compiler=$DC
 #  - cat /tmp/opensc-debug.log
