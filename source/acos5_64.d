@@ -154,7 +154,7 @@ enum DigestInfo_Algo_RSASSA_PKCS1_v1_5 : ubyte  { // contents from RFC 8017 are 
 	id_rsassa_pkcs1_v1_5_with_sha3_384,
 	id_rsassa_pkcs1_v1_5_with_sha3_512,
 /*
-version(D_LP64) {
+version(X86_64) {
 id_rsassa_pkcs1_v1_5_with_blake2b160, // https://tools.ietf.org/html/rfc7693
 id_rsassa_pkcs1_v1_5_with_blake2b256,
 id_rsassa_pkcs1_v1_5_with_blake2b384,
@@ -395,7 +395,7 @@ immutable(DI_data[]) DI_table = [ // DigestInfo_table
 	DI_data("2.16.840.1.101.3.4.2.9",  id_rsassa_pkcs1_v1_5_with_sha3_384,   48, 67, true,  false, cast(immutable(ubyte)[]) x"30 41 30 0d 06 09 60 86 48 01 65 03 04 02 09 05 00 04 30"),
 	DI_data("2.16.840.1.101.3.4.2.10", id_rsassa_pkcs1_v1_5_with_sha3_512,   64, 83, true,  false, cast(immutable(ubyte)[]) x"30 51 30 0d 06 09 60 86 48 01 65 03 04 02 0a 05 00 04 40"),
 /*
-version(D_LP64) { //Blak2s is not mentioned in PKCS#2.2
+version(X86_64) { //Blak2s is not mentioned in PKCS#2.2
 data("1.3.6.1.4.1.1722.12.2.1.5",  id_rsassa_pkcs1_v1_5_with_blake2b160, 20, 41, true,  false, cast(immutable(ubyte)[]) x"30 27 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 01 05 05 00 04 14"),
 data("1.3.6.1.4.1.1722.12.2.1.8",  id_rsassa_pkcs1_v1_5_with_blake2b256, 32, 53, true,  false, cast(immutable(ubyte)[]) x"30 33 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 01 08 05 00 04 20"),
 data("1.3.6.1.4.1.1722.12.2.1.12", id_rsassa_pkcs1_v1_5_with_blake2b384, 48, 69, true,  false, cast(immutable(ubyte)[]) x"30 43 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 01 0c 05 00 04 30"),
@@ -648,8 +648,6 @@ shared static this() {
 	setlocale (LC_ALL, "C"); // char* currentlocale =
 	/* Initialise the openssl library */
 	ERR_load_CRYPTO_strings();
-	//000000000011e0f0 T ERR_load_crypto_strings
-	//0000000000064e30 T ERR_load_CRYPTO_strings
 	OpenSSL_add_all_algorithms();
 	OPENSSL_config(null);
 	bn_ctx = BN_CTX_new();
@@ -4681,6 +4679,7 @@ else
 	static assert(0);
 }
 
+
 version(ENABLE_ACOS5_64_UI/*ENABLE_DNIE_UI*/) {
 	/**
 	 * To handle user interface routines
@@ -5149,7 +5148,7 @@ private extern(C) int sm_acos5_64_card_open(sc_card* card) {
 version(TRY_SM) {
 	rv = SC_ERROR_UNKNOWN;
 
-	const sc_path test_EF = sc_path(cast(immutable(ubyte)[SC_MAX_PATH_SIZE]) x"3F00 4100 3901 00000000000000000000", 6, 0, 0, SC_PATH_TYPE.SC_PATH_TYPE_PATH);
+	const sc_path test_EF = sc_path(cast(immutable(ubyte)[SC_MAX_PATH_SIZE]) x"3F00 4100 3901 00000000000000000000", 6, 0, 0, SC_PATH_TYPE.SC_PATH_TYPE_PATH, sc_aid());
 	if ((rv=acos5_64_select_file_by_path(card, &test_EF,  null)) != SC_SUCCESS)
 		return rv=SC_ERROR_KEYPAD_CANCELLED;
 

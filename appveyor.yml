@@ -102,11 +102,11 @@ test_script:
   - echo %PATH%
   - '%DC% --version'
   - dub build --arch=%Darch% --compiler=%DC%
-  - echo I know, the Win32 build is okay (on my own Win10 box lacking VS), opensc-tool -D showing the acos5_64 driver, and it's working!
+  - echo I know, the Win32 build is okay (on my own Win10 box lacking VS), opensc-tool -D showing the acos5_64 driver, and its working!
   - echo But Windows again wastes my time: Struggling for hours with appveyor.yml, remote admin Windows on Appveyor worker is enough now !
-  - echo Compare the ease of .travis.yml and the dog's breakfast Window's/AppVeyor's appveyor.yml.
+  - echo Compare the ease of .travis.yml and the dogs breakfast Windows/AppVeyors appveyor.yml.
   - echo Obviously still something is wrong with the prerequisites/OpenSC installation:
-  - opensc-tool -i
+# - opensc-tool -i
 # - ps: type "C:\openscpackage.log";
 # - ps: copy C:\projects\acos5-64\config\opensc_16_win_acos.conf "C:\Program Files (x86)\OpenSC Project\OpenSC\opensc.conf";
 # - opensc-tool -D
