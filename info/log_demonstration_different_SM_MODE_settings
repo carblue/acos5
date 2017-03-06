@@ -1,0 +1,110 @@
+logs of opensc-tool -f
+A: acos5_64, set to belong to the "sm_module_operations-fraction" (none of sm_card_operations are defined, all of sm_module_operations defined, no mode set in secure_messaging acos5_64_sm section 
+B: acos5_64, set to belong to the "sm_card_operations-fraction"   (all  of sm_card_operations are defined, all of sm_module_operations defined, mode=transmit set in secure_messaging acos5_64_sm section
+ "sm_card_operations-fraction" (mode)
+
+The different select target in the end is due to some SM testing done in sm_acos5_64_card_open before bewginning work for opensc-tool -f
+ 
+A:
+ctx.c:726:sc_context_create: ===================================
+ctx.c:727:sc_context_create: opensc version: 0.15.0
+reader-pcsc.c:668:pcsc_init: PC/SC options: connect_exclusive=0 disconnect_action=1 transaction_end_action=0 reconnect_action=0 enable_pinpad=1 enable_pace=1
+ctx.c:382:load_dynamic_driver: successfully loaded card driver 'acos5_64'
+reader-pcsc.c:956:pcsc_detect_readers: called
+reader-pcsc.c:970:pcsc_detect_readers: Probing PC/SC readers
+reader-pcsc.c:999:pcsc_detect_readers: Establish PC/SC context
+reader-pcsc.c:1047:pcsc_detect_readers: Found new PC/SC reader 'ACS CryptoMate64 00 00'
+reader-pcsc.c:285:refresh_attributes: ACS CryptoMate64 00 00 check
+reader-pcsc.c:309:refresh_attributes: current  state: 0x00000022
+reader-pcsc.c:310:refresh_attributes: previous state: 0x00000000
+reader-pcsc.c:364:refresh_attributes: card present, changed
+...
+acos5_64:1900:acos5_64_init: returning with: 0 (Success)
+card.c:265:sc_connect_card: card info name:'ACS ACOS5-64 (v2.00: Smart Card/CryptoMate64)', type:16003, flags:0x0, max_send/recv_size:255/256
+card.c:1290:sc_card_sm_check: called
+card.c:1291:sc_card_sm_check: card->sm_ctx.ops.open (nil)
+card.c:923:match_atr_table: ATR     : 3b:be:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00
+card.c:934:match_atr_table: ATR try : 3B:BE:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00
+card.c:1302:sc_card_sm_check: secure_messaging configuration block 'acos5_64_sm'
+card.c:1321:sc_card_sm_check: SM module 'libacos5_64.so' in  '$HOME/workspace/libacos5_64/lib'
+card.c:1186:sc_card_sm_load: called
+card.c:1212:sc_card_sm_load: SM module 'libacos5_64.so' located in '$HOME/workspace/libacos5_64/lib'
+card.c:1226:sc_card_sm_load: try to load SM module '$HOME/workspace/libacos5_64/lib/libacos5_64.so'
+card.c:1264:sc_card_sm_load: SM handler 'test' not exported -- ignored
+card.c:1277:sc_card_sm_load: returning with: 0 (Success)
+card.c:1332:sc_card_sm_check: 'module_init' handler 0x7fa6bf23f398
+card.c:1335:sc_card_sm_check: module_data 'so --keyrefextauth=0x81 --keyrefintauth=0x82 --smMSErestore --smSEID=0x05 --smUQB=0x70 --smkeytag=0x84 --smCCTkeyref=0x83 --smCCTalgo=0x02 --CT --smCTkeyref=0x83 --smCTalgo=0x02'
+acos5_64:8568:module_init: called
+acos5_64:8571:module_init: returning with: 0 (Success)
+card.c:1343:sc_card_sm_check: SM mode '(null)'; 'open' handler (nil)
+card.c:1353:sc_card_sm_check: SM mode:100
+card.c:1354:sc_card_sm_check: returning with: 0 (Success)
+card.c:277:sc_connect_card: returning with: 0 (Success)
+card.c:352:sc_lock: called
+reader-pcsc.c:519:pcsc_lock: called
+card.c:650:sc_select_file: called; type=2, path=3f00
+acos5_64:2479:acos5_64_select_file: called with path.type: 2
+acos5_64:2432:acos5_64_select_file_by_path: called with card.cache.current_df.path.value: 3F00, valid: 1, force_select_prefix: 0
+acos5_64:2439:acos5_64_select_file_by_path: called with                          in_path: 3F00, &(sc_file*): (nil)
+apdu.c:563:sc_transmit_apdu: called
+card.c:352:sc_lock: called
+apdu.c:530:sc_transmit: called
+apdu.c:384:sc_single_transmit: called
+apdu.c:389:sc_single_transmit: CLA:0, INS:A4, P1:0, P2:0, data(2) 0x7fffb43f9f60
+reader-pcsc.c:251:pcsc_transmit: reader 'ACS CryptoMate64 00 00'
+apdu.c:187:sc_apdu_log: 
+Outgoing APDU data [    7 bytes] =====================================
+00 A4 00 00 02 3F 00 .....?.
+
+
+B:
+ctx.c:726:sc_context_create: ===================================
+ctx.c:727:sc_context_create: opensc version: 0.15.0
+reader-pcsc.c:668:pcsc_init: PC/SC options: connect_exclusive=0 disconnect_action=1 transaction_end_action=0 reconnect_action=0 enable_pinpad=1 enable_pace=1
+ctx.c:382:load_dynamic_driver: successfully loaded card driver 'acos5_64'
+reader-pcsc.c:956:pcsc_detect_readers: called
+reader-pcsc.c:970:pcsc_detect_readers: Probing PC/SC readers
+reader-pcsc.c:999:pcsc_detect_readers: Establish PC/SC context
+reader-pcsc.c:1047:pcsc_detect_readers: Found new PC/SC reader 'ACS CryptoMate64 00 00'
+reader-pcsc.c:285:refresh_attributes: ACS CryptoMate64 00 00 check
+reader-pcsc.c:309:refresh_attributes: current  state: 0x00000022
+reader-pcsc.c:310:refresh_attributes: previous state: 0x00000000
+reader-pcsc.c:364:refresh_attributes: card present, changed
+...
+acos5_64:1900:acos5_64_init: returning with: 0 (Success)
+card.c:265:sc_connect_card: card info name:'ACS ACOS5-64 (v2.00: Smart Card/CryptoMate64)', type:16003, flags:0x0, max_send/recv_size:255/256
+card.c:1290:sc_card_sm_check: called
+card.c:1291:sc_card_sm_check: card->sm_ctx.ops.open 0x7f666f2f7540
+card.c:923:match_atr_table: ATR     : 3b:be:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00
+card.c:934:match_atr_table: ATR try : 3B:BE:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00
+card.c:1302:sc_card_sm_check: secure_messaging configuration block 'acos5_64_sm'
+card.c:1321:sc_card_sm_check: SM module 'libacos5_64.so' in  '/home/bodo/workspace/libacos5_64/lib'
+card.c:1186:sc_card_sm_load: called
+card.c:1212:sc_card_sm_load: SM module 'libacos5_64.so' located in '/home/bodo/workspace/libacos5_64/lib'
+card.c:1226:sc_card_sm_load: try to load SM module '/home/bodo/workspace/libacos5_64/lib/libacos5_64.so'
+card.c:1264:sc_card_sm_load: SM handler 'test' not exported -- ignored
+card.c:1277:sc_card_sm_load: returning with: 0 (Success)
+card.c:1332:sc_card_sm_check: 'module_init' handler 0x7f666f2fb3f0
+card.c:1335:sc_card_sm_check: module_data 'so --keyrefextauth=0x81 --keyrefintauth=0x82 --smMSErestore --smSEID=0x05 --smUQB=0x70 --smkeytag=0x84 --smCCTkeyref=0x83 --smCCTalgo=0x02 --CT --smCTkeyref=0x83 --smCTalgo=0x02'
+acos5_64:8567:module_init: called
+acos5_64:8570:module_init: returning with: 0 (Success)
+card.c:1343:sc_card_sm_check: SM mode 'transmit'; 'open' handler 0x7f666f2f7540
+acos5_64:7711:sm_acos5_64_card_open: called
+acos5_64:2432:acos5_64_select_file_by_path: called with card.cache.current_df.path.value: 3F00, valid: 1, force_select_prefix: 0
+acos5_64:2439:acos5_64_select_file_by_path: called with                          in_path: 3F0041003901, &(sc_file*): (nil)
+apdu.c:762:sc_bytes2apdu: Case 4 short APDU, 8 bytes:	ins=a4 p1=00 p2=00 lc=0002 le=0056
+apdu.c:563:sc_transmit_apdu: called
+card.c:352:sc_lock: called
+reader-pcsc.c:519:pcsc_lock: called
+apdu.c:530:sc_transmit: called
+apdu.c:384:sc_single_transmit: called
+apdu.c:389:sc_single_transmit: CLA:0, INS:A4, P1:0, P2:0, data(2) 0x7f6670acf455
+sm.c:133:sc_sm_single_transmit: called
+sm.c:134:sc_sm_single_transmit: SM_MODE:200
+acos5_64:8009:sm_acos5_64_card_get_apdu: called
+acos5_64:8012:sm_acos5_64_card_get_apdu: returning with: -1610 (SM not applied)
+reader-pcsc.c:251:pcsc_transmit: reader 'ACS CryptoMate64 00 00'
+apdu.c:187:sc_apdu_log: 
+Outgoing APDU data [    7 bytes] =====================================
+00 A4 00 00 02 41 00 .....A.
+ 
