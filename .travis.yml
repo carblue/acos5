@@ -44,4 +44,7 @@ script:
 #  acos5_64         ACS ACOS5-64 (v2.00: Smart Card/CryptoMate64)
 #  default          Default driver for unknown cards
   - dub test  --compiler=$DC
+# - dub test -b unittest-cov --compiler=$DC
+# this should (at least/travis) run up to: PASSED: PKCS#11 functions that don't require a present token
+# and depending on a present token either "STOPED: PKCS#11 functions: No slots with a present token found!" or test more
 #  - cat /tmp/opensc-debug.log
