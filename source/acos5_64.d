@@ -331,6 +331,7 @@ alias  ub4        = ubyte[4];
 alias  ub8        = ubyte[8];
 alias  ub16       = ubyte[16];
 alias  ub24       = ubyte[24];
+alias iuba        = immutable(ubyte)[];
 
 alias TSMarguments = Tuple!(
 	 int,       "cse_plain"     /* APDU case before wrapping*/
@@ -1138,20 +1139,20 @@ private int acos5_64_get_serialnr(sc_card* card, sc_serial_number* serial) {
 			return rv=SC_ERROR_INS_NOT_SUPPORTED;
 		/* if serial number is cached, use it */
 		with (card.serialnr) {
-			if (value.ptr && len==8/*6*/)
+			if (value.ptr && len==6/*6 8*/)
 				return rv=SC_SUCCESS;
 		/* not cached, retrieve serial number using GET CARD INFO, and cache serial number */
 			len   = 0;
 			value = value.init;
 			/* Case 2 short APDU, 5 bytes: lc=0000     CLAINSP1 P2  le      ubyte[SC_MAX_APDU_BUFFER_SIZE] rbuf;*/
-			bytes2apdu(ctx, cast(immutable(ubyte)[5])x"80 14 00 00  08", apdu);
+			bytes2apdu(ctx, representation(x"80 14 00 00  06"), apdu);
 			apdu.resp    = value.ptr;
 			apdu.resplen = value.length;
 			if ((rv=transmit_apdu_strerror_do(__LINE__))<0) return rv;
-			if (sc_check_sw(card, apdu.sw1, apdu.sw2) || apdu.resplen!=8/*6; first 6 bytes only are different in V2; using 8 because of icc.sn.length and V3*/)
+			if (sc_check_sw(card, apdu.sw1, apdu.sw2) || apdu.resplen!=6/*6; first 6 bytes only are different in V2; using 8 because of icc.sn.length and V3*/)
 				return rv=SC_ERROR_INTERNAL;
 
-			len = 8/*6*/;
+			len = 6/*6 8*/;
 version(ENABLE_SM) {
 			card.sm_ctx.info.session.cwa.icc.sn = ub8.init;
 			card.sm_ctx.info.session.cwa.icc.sn[0..len] = apdu.resp[0..len];
@@ -2057,8 +2058,8 @@ struct SelectSupport {
 			if (force_select_prefix || plen==2 || CP.length==0) {
 				if (!sc_compare_path(&MF_path, path))
 					return -1;
-				seid_changed =             (*pclen==2? false : true);
-				skip_some_seid_retrieval = plen>4;
+				seid_changed             = (*pclen==2? false : true);
+				skip_some_seid_retrieval = false; //plen>4;
 				*pclen = 0;
 				card.cache.valid = 0;
 			}
@@ -2082,11 +2083,12 @@ struct SelectSupport {
 		}
 
 /* * /
-		if (card.cache.current_df)
+		if (card.cache.current_df) {
 //			current_df_path_value =  card.cache.current_df.path.value[0..*pclen];
 			writefln("current_df_path_value: [%(%02X %)]", card.cache.current_df.path.value[0..*pclen]);
 			writefln("path.value[0..plen]:   [%(%02X %)]", path.value[0..plen]);
 			writeln;
+		}
 / * */
 
 // Second cut ("cut" in the sense what needn't be left for a final iso_ops_ptr.select_file);
@@ -2098,23 +2100,23 @@ struct SelectSupport {
 //			"sc_dump_hex(path.value.ptr, path.len)"));
 		size_t  cutLen = path.len - 2;
 		if (cutLen)   {
-			sc_apdu          apdu;
+			sc_apdu  apdu;
 			mixin transmit_apdu_strerror!("struct SelectSupport:run");
 			scope(exit)
 				card.cache.valid = rv<0? 0 : 1;
 			foreach (j; 0..cutLen/2) {
 				assert(path.len>=2);
 				ubyte[MAX_FCI_GET_RESPONSE_LEN]  rbuf;
-				apdu = sc_apdu();
-				bytes2apdu(ctx, cast(immutable(ubyte)[5])x"00 A4 00 00 02" ~ path.value[0..2] ~ ubyte(MAX_FCI_GET_RESPONSE_LEN) /*le estimated*/, apdu);
+				bytes2apdu(ctx, representation(x"00 A4 00 00 02") ~ path.value[0..2] ~ ubyte(MAX_FCI_GET_RESPONSE_LEN) /*le estimated*/, apdu);
 				apdu.resp    = rbuf.ptr;
 				apdu.resplen = rbuf.length;
 				if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0)  return rv;
 				if ((rv=sc_check_sw(card, apdu.sw1, apdu.sw2)) < 0)  return rv;
+				card.cache.valid = 1;
 				if (!skip_some_seid_retrieval || j+1>=cutLen/2)
-					if ((rv=process_fci_sac_se(card, rbuf[0..apdu.resplen],null,/*enveloped=*/true)) < 0)  return rv; // communicate potential change of Security Environment
+					if ((rv=process_fci_sac_se(card, rbuf[0..apdu.resplen],null,/*enveloped=*/true,/*skip_seid_retrieval=*/false,/*sacNONE=*/false)) < 0)  return rv; // communicate potential change of Security Environment
 
-				auto UBA  = UByteArray!1(path.value[0..plen]); // will later also produce UBA.LSdropped/leftShift_dropped! !
+				auto UBA  = UByteArray!1(path.value[0..plen]);
 				with (path) {
 					value[0..plen] = (UBA <<= 2)[];
 					len           -= 2;
@@ -2151,22 +2153,22 @@ private int acos5_64_select_file_by_path(sc_card* card, const(sc_path)* in_path,
 		mixin (log!(`"acos5_64_select_file_by_path"`, `"called with card.cache.current_df.path.value: %s, valid: %i, force_select_prefix: %i"`,
 			"sc_dump_hex(card.cache.current_df.path.value.ptr, card.cache.current_df.path.len)", "card.cache.valid", "force_select_prefix"));
 //		mixin (log!(`"acos5_64_select_file_by_path"`, `"called with                        path_fid : %s"`, "sc_dump_hex(info.path_fid.value.ptr,  info.path_fid.len)"));
-//		sc_path  path_seid = card.cache.current_df.path; sc_append_path_id(&path_seid, private_data.current_df_se_info.seid.ptr, 2);
-//		mixin (log!(`"acos5_64_select_file_by_path"`, `"called with                        path_seid: %s"`, "sc_dump_hex(path_seid.value.ptr, path_seid.len)"));
+		sc_path  path_seid = card.cache.current_df.path; sc_append_path_id(&path_seid, private_data.current_df_se_info.seid.ptr, 2);
+		mixin (log!(`"acos5_64_select_file_by_path"`, `"called with                        path_seid: %s"`, "sc_dump_hex(path_seid.value.ptr, path_seid.len)"));
 	}
 /* */
 	mixin (log!(`"acos5_64_select_file_by_path"`, `"called with                          in_path: %s, &(sc_file*): %p"`,
 		"sc_dump_hex(in_path.value.ptr, in_path.len)", "file_out"));
 	mixin log_scope_exit!("acos5_64_select_file_by_path");
 	scope(exit) {
-		card.cache.valid = rv<0? 0 : 1; // refers only to card.cache.current_df
+		card.cache.valid = rv<0 || (card.cache.current_df && card.cache.current_df.path.len==0)? 0 : 1; // refers only to card.cache.current_df
 /* */
 		if (card.cache.current_df) {
 			mixin (log!(`"acos5_64_select_file_by_path"`, `"returning card.cache.current_df.path.value: %s, valid: %i"`,
 				"sc_dump_hex(card.cache.current_df.path.value.ptr, card.cache.current_df.path.len)", "card.cache.valid"));
-//			mixin (log!(`"acos5_64_select_file_by_path"`, `"returning                             fid : %s"`, "sc_dump_hex(info.fid.ptr, 2)"));
-//			sc_path  path_seid = card.cache.current_df.path; sc_append_path_id(&path_seid, private_data.current_df_se_info.seid.ptr, 2);
-//			mixin (log!(`"acos5_64_select_file_by_path"`, `"returning                        path_seid: %s"`, "sc_dump_hex(path_seid.value.ptr, path_seid.len)"));
+			mixin (log!(`"acos5_64_select_file_by_path"`, `"returning                             fid : %s"`, "sc_dump_hex(info.fid.ptr, 2)"));
+			sc_path  path_seid = card.cache.current_df.path; sc_append_path_id(&path_seid, private_data.current_df_se_info.seid.ptr, 2);
+			mixin (log!(`"acos5_64_select_file_by_path"`, `"returning                        path_seid: %s"`, "sc_dump_hex(path_seid.value.ptr, path_seid.len)"));
 		}
 /* */
 		log_scope_exit_do(__LINE__);
@@ -2183,7 +2185,8 @@ private int acos5_64_select_file_by_path(sc_card* card, const(sc_path)* in_path,
 			ubyte[MAX_FCI_GET_RESPONSE_LEN] arr;
 			size_t count = MAX_FCI_GET_RESPONSE_LEN;
 			if ((rv=  iso_ops_ptr.get_response(card, &count, arr.ptr)) < 0)      return rv;
-			if ((rv=  process_fci_sac_se(card, arr[0..count], null,/*enveloped=*/true)) < 0)  return rv;
+			if ((rv=  process_fci_sac_se(card, arr[0..count], null,/*enveloped=*/true,/*skip_seid_retrieval=*/false,/*sacNONE=*/false)) < 0)
+				return rv;
 		}
 	}
 //		if (card.cache.current_df)
@@ -3750,16 +3753,16 @@ private int process_fci_sac_se(sc_card* card, in uba fci_carrier, cache_current_
 	const(uba)  fci = enveloped? fci_carrier[2..2+taglen] : fci_carrier;
 
 	tag = sc_asn1_find_tag(ctx, fci.ptr, fci.length, ISO7816_TAG_FCP_FID /*0x83*/, &taglen);
-	if (!tag || taglen != TAG_FCP_len(ISO7816_TAG_FCP_FID))
+	if (!tag ||                taglen != TAG_FCP_len(ISO7816_TAG_FCP_FID))
 		return SC_ERROR_ASN1_END_OF_CONTENTS;
 	info.fid = tag[0..taglen]; // e.g. [0x41, 0x00]
 
 	tag = sc_asn1_find_tag(ctx, fci.ptr, fci.length, ISO7816_RFU_TAG_FCP_SAC /*0x8C*/, &taglen);
-	if (!tag || taglen > TAG_FCP_len(ISO7816_RFU_TAG_FCP_SAC) || read_8C_SAC_Bytes_to_ub8SC(info.sac, tag[0..taglen]) < 0)
+	if (!tag ||                 taglen > TAG_FCP_len(ISO7816_RFU_TAG_FCP_SAC) || read_8C_SAC_Bytes_to_ub8SC(info.sac, tag[0..taglen]) < 0)
 		return SC_ERROR_ASN1_END_OF_CONTENTS;
 
 	tag = sc_asn1_find_tag(ctx, fci.ptr, fci.length, ISO7816_TAG_FCP_TYPE /*0x82*/, &taglen); // e.g.  82 06  1C 00 00 30 00 05
-	if (!tag || !taglen || taglen > 6)
+	if (!tag || !taglen ||      taglen > TAG_FCP_len(ISO7816_TAG_FCP_TYPE))
 		return SC_ERROR_ASN1_END_OF_CONTENTS;
 	if (!canFind([EnumMembers!EFDB], tag[0]))
 		return SC_ERROR_INVALID_ASN1_OBJECT;
@@ -3776,110 +3779,114 @@ private int process_fci_sac_se(sc_card* card, in uba fci_carrier, cache_current_
 	if ((info.fdb & ISO7816_FILE_TYPE_DF) == ISO7816_FILE_TYPE_DF)  { // DF/MF
 	//tag = sc_asn1_find_tag(ctx, fci.ptr, fci.length, ISO7816_TAG_FCP_DF_NAME /*0x84*/, &taglen);
 		tag = sc_asn1_find_tag(ctx, fci.ptr, fci.length, ISO7816_RFU_TAG_FCP_SAE /*0xAB*/, &taglen);
-		if (!tag || taglen>TAG_FCP_len(ISO7816_RFU_TAG_FCP_SAE))
+		if (!tag ||                 taglen > TAG_FCP_len(ISO7816_RFU_TAG_FCP_SAE))
 			return SC_ERROR_ASN1_END_OF_CONTENTS;
 		info.sae_len        = cast(uint)taglen;
 		info.sae[0..taglen] = tag[0..taglen];
 
 		tag = sc_asn1_find_tag(ctx, fci.ptr, fci.length, ISO7816_RFU_TAG_FCP_SEID /*0x8D*/, &taglen);
-		if (!tag || taglen!=TAG_FCP_len(ISO7816_RFU_TAG_FCP_SEID))
+		if (!tag ||                taglen != TAG_FCP_len(ISO7816_RFU_TAG_FCP_SEID))
 			return SC_ERROR_ASN1_END_OF_CONTENTS;
 		info.seid      = tag[0..taglen];
+//		info.path_seid = card.cache.current_df.path; //cache_current_df_path;
+//		sc_append_path_id(&info.path_seid, info.seid.ptr, 2);
+//			path_seid = card.cache.current_df.path; sc_append_path_id(&path_seid, private_data.current_df_se_info.seid.ptr, 2);
 
 		private_data.current_df_se_info = info;
-	} // if (info.fdb)
 
-	if (info_out)
-		*info_out = info;
-
-	if (((info.fdb & ISO7816_FILE_TYPE_DF) == ISO7816_FILE_TYPE_DF) && skip_seid_retrieval==false) { // do cache the new SE-Files information, discarding previous content; possibly later switch to a on-demand solution
+		if (!skip_seid_retrieval) { // do cache the new SE-Files information, discarding previous content; possibly later switch to a on-demand solution
 		// Take mutch care here as it may result in "infinite" recursion if the cache.current_df-updating or something else related is buggy
-		if (equal(info.seid[], info.fid[])) {
-			mixin (log!(`"process_fci_sac_se"`, `"Something went wrong retrieving seid and fid: The values would incur 'infinite' recursion !!!"`));
-			return SC_ERROR_ASN1_END_OF_CONTENTS;
-		}
+			if (equal(info.seid[], info.fid[])) {
+				mixin (log!(`"process_fci_sac_se"`, `"Something went wrong retrieving seid and fid: The values would incur 'infinite' recursion !!!"`));
+				return SC_ERROR_ASN1_END_OF_CONTENTS;
+			}
 
-		if (card.cache.current_df /*&& (append || card.cache.current_df.path.len==0 || !sc_compare_path(&card.cache.current_df.path, &MF_path) )*/ ) {
+			if (card.cache.current_df /*&& card.cache.valid && (append || card.cache.current_df.path.len==0 || !sc_compare_path(&card.cache.current_df.path, &MF_path) )*/ ) {
 //			mixin (log!(`"process_fci_sac_se"`, `"card.cache.current_df.path : %s"`, "sc_dump_hex(card.cache.current_df.path.value.ptr, card.cache.current_df.path.len)"));
 //			mixin (log!(`"process_fci_sac_se"`, `"card.cache.current_df.path : %s"`, "sc_dump_hex(card.cache.current_df.path.value.ptr, card.cache.current_df.path.len)"));
-			sc_append_path_id(&card.cache.current_df.path, info.fid.ptr, 2);
+				sc_append_path_id(&card.cache.current_df.path, info.fid.ptr, 2);
 //			mixin (log!(`"process_fci_sac_se"`, `"sc_append_path_id for cache.current_df.path resulted in: %s"`,
 //				"sc_dump_hex(card.cache.current_df.path.value.ptr, card.cache.current_df.path.len)"));
-		}
+			}
 
-		if (equal(info.seid[], [0,3][]))
-			return SC_SUCCESS;
+//		sc_path  cache_current_df_path = card.cache.current_df.path; //card.cache.current_df? card.cache.current_df.path : MF_path;
+//		info.path_fid = cache_current_df_path;
+
+
+//		if (equal(info.seid[], [0,3][]))
+//			return SC_SUCCESS;
 //		mixin (log!(`"process_fci_sac_se"`, `"No SE info in cache or outdated, now examine SE file"`));
 //		mixin (log!(`"process_fci_sac_se"`, `"info.path_seid.value: %s"`, "sc_dump_hex(info.path_seid.value.ptr, info.path_seid.len)"));
 //		ubyte[MAX_FCI_GET_RESPONSE_LEN] rbuf;
-		ubyte[255] rbuf;
-		sc_apdu apdu;
-		int rv;
-		mixin transmit_apdu_strerror!("process_fci_sac_se");
-		bytes2apdu(ctx, cast(immutable(ubyte)[5])x"00 A4 00 00 02"~info.seid~ubyte(MAX_FCI_GET_RESPONSE_LEN), apdu);
-		apdu.resp    = rbuf.ptr;
-		apdu.resplen = rbuf.length;
-		if ((rv=transmit_apdu_strerror_do(__LINE__))<0) return rv;
-		if (sc_check_sw(card, apdu.sw1, apdu.sw2)) return SC_ERROR_INTERNAL;
-		cache_current_df_se_info  info_seid; // required for NOR and MRL
-		if ((rv= process_fci_sac_se(card, rbuf[0..apdu.resplen], &info_seid,/*enveloped=*/true,/*skip_seid_retrieval=*/false,/*sacNONE=*/true)) < 0)
-			return rv;
+			ubyte[255] rbuf;
+			sc_apdu apdu;
+			int rv;
+			mixin transmit_apdu_strerror!("process_fci_sac_se");
+			bytes2apdu(ctx, representation(x"00 A4 00 00 02")~info.seid~ubyte(MAX_FCI_GET_RESPONSE_LEN), apdu);
+			apdu.resp    = rbuf.ptr;
+			apdu.resplen = rbuf.length;
+			if ((rv=transmit_apdu_strerror_do(__LINE__))<0) return rv;
+			if (sc_check_sw(card, apdu.sw1, apdu.sw2)) return SC_ERROR_INTERNAL;
+			cache_current_df_se_info  info_seid; // required for NOR and MRL
+			if ((rv= process_fci_sac_se(card, rbuf[0..apdu.resplen], &info_seid,/*enveloped=*/true,/*skip_seid_retrieval=*/false,/*sacNONE=*/true)) < 0) return rv;
+//		mixin (log!(`"process_fci_sac_se"`, `"record_count:   %i"`, "file.record_count"));
+//		mixin (log!(`"process_fci_sac_se"`, `"record_length:  %i"`, "file.record_length"));
 
-		if (info_seid.NOR) {
-			{
-				auto   se_info = private_data.pse_info;
-				typeof(se_info) next;
+		version(all) {
+			acos5_64_se_info*  se_info = private_data.pse_info; // acos5_64_se_info*
+			acos5_64_se_info*  next;
+
+			if (se_info) // delete private_data.se_info
 				while (se_info)   {
-//						if (se_info->df)
-//							sc_file_free(se_info->df);
+//				if (se_info->df)
+//						sc_file_free(se_info->df);
 					next = se_info.next;
 					free(se_info);
 					se_info = next;
 				}
-				private_data.pse_info = null;
-			}
+			private_data.pse_info = null;
+		} // version(all)
+
 /+
-		// processing of MF's SE-File currently gets skipped, see code line 3810: if (equal(info.seid[], [0,3][]))  return SC_SUCCESS;
-		// thus only the else branch will be taken and 'PIN USER' must be supplied here if SE-File in applications directory is pin-protected.
-		// Uncomment this code block then !
-		if (equal(info.seid[], [0,3][])) {                         // SOPIN
-			bytes2apdu(ctx, cast(immutable(ubyte)[13])x"00 20 00 01  08 3837363534333231", apdu);
+		if (equal(info.seid[], [0,3][])) {
+			bytes2apdu(ctx, representation(x"00 20 00 01  08 3837363534333231"), apdu);
 		}
-		else                                                       // PIN USER
-			bytes2apdu(ctx, cast(immutable(ubyte)[13])x"00 20 00 81  08 3132333435363738", apdu);
+		else
+			bytes2apdu(ctx, representation(x"00 20 00 81  08 3132333435363738"), apdu);
 		if ((rv=transmit_apdu_strerror_do(__LINE__))<0) return rv;
 		if (sc_check_sw(card, apdu.sw1, apdu.sw2)) return SC_ERROR_INTERNAL;
 +/
-			foreach (i; 0..info_seid.NOR) {
-				apdu = sc_apdu();
-				bytes2apdu(ctx, cast(immutable(ubyte)[4])x"00 B2 00 04" ~ info_seid.MRL, apdu);
-				apdu.p1 = cast(ubyte)(i+1);
+			foreach (rec_no; iota(ubyte(1), cast(ubyte)(1+info_seid.NOR))) {
+				bytes2apdu(ctx, representation(x"00 B2 00 04") ~ info_seid.MRL, apdu);
+				apdu.p1 = rec_no;
 				apdu.resp    = rbuf.ptr;
 				apdu.resplen = rbuf.length;
 				if ((rv=transmit_apdu_strerror_do(__LINE__))<0) return rv;
 				if (sc_check_sw(card, apdu.sw1, apdu.sw2)) return SC_ERROR_INTERNAL;
 				tag = sc_asn1_find_tag(ctx, rbuf.ptr, apdu.resplen, 0x80, &taglen);
-				if (!tag /*|| tag!=rbuf.ptr*/ || taglen!=1)
-					return SC_ERROR_ASN1_END_OF_CONTENTS;
-//				se.reference = tag[0];
-				acos5_64_se_info  se; // { tag[0] };
+				if (!tag || tag!=rbuf.ptr+2 || taglen!=1)
+					continue;
+				acos5_64_se_info  se;
 				se.reference = tag[0];
 
 				int parse_len = acos5_64_crt_parse(ctx, rbuf[3..apdu.resplen], &se);
-
 				assert(!any(apdu.resp[3+parse_len..apdu.resplen]));
-//				mixin (log!(`"process_fci_sac_se"`, `"se.crts[0].tag:     %X"`, "se.crts[0].tag"));
-//				mixin (log!(`"process_fci_sac_se"`, `"se.crts[0].usage:   %X"`, "se.crts[0].usage"));
-//				mixin (log!(`"process_fci_sac_se"`, `"se.crts[0].algo:    %X"`, "se.crts[0].algo"));
-//				mixin (log!(`"process_fci_sac_se"`, `"se.crts[0].refs[0]: %X"`, "se.crts[0].refs[0]"));
-
+/*
+				mixin (log!(`"process_fci_sac_se"`, `"se.crts[0].tag:     %X"`, "se.crts[0].tag"));
+				mixin (log!(`"process_fci_sac_se"`, `"se.crts[0].usage:   %X"`, "se.crts[0].usage"));
+				mixin (log!(`"process_fci_sac_se"`, `"se.crts[0].algo:    %X"`, "se.crts[0].algo"));
+				mixin (log!(`"process_fci_sac_se"`, `"se.crts[0].refs[0]: %X"`, "se.crts[0].refs[0]"));
+*/
 				if ((rv= acos5_64_se_set_cached_info(card, &se)) < 0) {
 					mixin (log!(`"acos5_64_se_get_info"`, `"failed to put SE data into cache"`));
 					return rv;
 				}
-			} // foreach (i; 0..file.record_count)
-		} // if (info_seid.NOR)
-	}
+			} // foreach (i; iota(ubyte(1), cast(ubyte)(1+info_seid.NOR)))
+		} // if (!skip_seid_retrieval)
+	} // if (((info.fdb & ISO7816_FILE_TYPE_DF) == ISO7816_FILE_TYPE_DF))
+
+	if (info_out)
+		*info_out = info;
 	return SC_SUCCESS;
 }
 
@@ -5622,7 +5629,7 @@ else
 		if ((rv=alloc_rdata_rapdu_do(__LINE__))<0) return rv;
 		bytes2apdu(card.ctx, cast(immutable(ubyte)[3])x"00 22 01"~construct_sc_security_env(1, null, CCT, Session_Key_SM), rapdu.apdu);
 		if ((rv=alloc_rdata_rapdu_do(__LINE__))<0) return rv;
-		bytes2apdu(card.ctx, cast(immutable(ubyte)[3])x"00 22 01"~construct_sc_security_env(1, null, AT, SymKey_Authenticate, 0x82), rapdu.apdu); // requires the (already done) Authentication of key for External Auth.
+		bytes2apdu(card.ctx, cast(immutable(ubyte)[3])x"00 22 01"~construct_sc_security_env(1, null, AT, SymKey_Authenticate, 0x81 /*key_host_authenticated*/), rapdu.apdu); // requires the (already done) Authentication of key for External Auth.
 		if ((rv=alloc_rdata_rapdu_do(__LINE__))<0) return rv;
 
 		TSMarguments smArguments;
@@ -6017,11 +6024,11 @@ int sm_acos5_64_cwa_initialize(sc_context* ctx, sm_info* info, sc_remote_data* r
 
 	if ((rv=alloc_rdata_rapdu_do(__LINE__))<0) return rv;
 	// SC_APDU_CASE_3_SHORT,le=0               CLAINSP1 P2 lc    Ext. Auth.; if this succeeds, key_host/get_cwa_keyset_mac(card.sm_ctx.info.session.cwa) is authenticated from card's point of view
-	bytes2apdu(ctx, cast(immutable(ubyte)[5])x"00 82 00 82 08" ~ card_challenge_encrypted_tdesecb_with_key_host_done_by_host, rapdu.apdu);
+	bytes2apdu(ctx, representation(x"00 82 00 81 08") ~ card_challenge_encrypted_tdesecb_with_key_host_done_by_host, rapdu.apdu);
 
 	if ((rv=alloc_rdata_rapdu_do(__LINE__))<0) return rv;
 	// SC_APDU_CASE_4_SHORT,le=8               CLAINSP1 P2 lc   Int. Auth.; this doesn't authenticate key_card/get_cwa_keyset_enc(card.sm_ctx.info.session.cwa) seen from card's point of view
-	bytes2apdu(ctx, cast(immutable(ubyte)[5])x"00 88 00 81 08" ~ info.session.cwa.ifd.rnd ~ ubyte(8)/*le*/, rapdu.apdu);
+	bytes2apdu(ctx, representation(x"00 88 00 82 08") ~ info.session.cwa.ifd.rnd ~ ubyte(8)/*le*/, rapdu.apdu);
 	rapdu.flags |= SC_REMOTE_APDU_FLAG_RETURN_ANSWER;
 	rapdu.apdu.resp    = rapdu.rbuf.ptr;    // host_challenge_encrypted_tdesecb_with_key_card_done_by_card.ptr;
 	rapdu.apdu.resplen = rapdu.rbuf.length; // host_challenge_encrypted_tdesecb_with_key_card_done_by_card.length;
