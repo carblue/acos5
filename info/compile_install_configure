@@ -1,16 +1,14 @@
-This is the content of a preceding/older README.md which contains text about the topic, updated slightly.
+This is the content of a preceding/older README.md which contains text about the topic, updated up to "But keep this in mind".
 Havn't had time for a full update.
 
 
 The driver will compile/link with the 2 latest libopensc.so/.dll versions only (currently 0.15.0 and 0.16.0) !
-But with 0.15.0, no RSA private key sign and decipher is supported, thus it's not a really viable alternative.
 By default, the opensc package's dub.json is configured to link against latest OpenSC version.
-(The reason is, opensc version 0.16.0 binary libopensc.so exports more functions needed, and it would require code duplication in D for older versions; regretfully I did that partially, but switched to patching opensc 0.15.0 in order to export what is missing;
 
 package libsodium is currently no requirement any more. The requirement will revive at a later step of implementation.
 Look at file info/options concerning D lang version identifiers.
 
-Compilers that got tested to successfully compile the code: DMD, LDC and GDC (since recently GDC is able to build shared libraries, but it's not yet included in dub.json).
+Compilers that got tested to successfully compile the code: DMD, LDC and GDC.
 
 
 # acos5_64
@@ -20,34 +18,37 @@ ACS ACOS5-64/CryptoMate64 driver (shared library/DLL) for the OpenSC framework
 
 brief instruction:
 
-clone or download/unzip to e.g. directory acos5_64-master
+clone or download/unzip the latest tagged release to e.g. directory acos5_64-vX.Y.Z
 
 basic Linux smart card software requirements:<br>
 =============================================
 package pcscd      [sudo apt-get install pcscd] depends on other required packages: libccid, libpcsclite1<br>
-(installing libacsccid1 replacing libccid; as ubuntu package or from http://www.acs.com.hk/en/products/18/cryptomate64-cryptographic-usb-tokens/#tab_downloads<br>
-doesn't seem to be necessary; I didn't)<br>
+installing ACSCCID from http://acsccid.sourceforge.net/
+is currently necessary only for ACOS5-64 V3.0 until ccid version 1.4.27 is available<br>
 
 build requirements:<br>
 ===================
 (For Ubuntu, there is the repository [http://d-apt.sourceforge.net/] to get DMD and DUB: sudo apt-get install dmd-bin dub)
 Gnu C compiler (gcc); required for linking on Linux
-DMD compiler  [https://dlang.org/download.html;  LDC will do as well, but will require a build including shared versions of phobos and druntime (building LDC from source with cmake -DBUILD_SHARED_LIBS=ON ..])<br>
+DMD compiler  [https://dlang.org/download.html;  LDC and GDC will do as well, but will require a manual build including shared versions of phobos and druntime (building LDC from source with cmake -DBUILD_SHARED_LIBS=ON ..], building GDC with ...)<br>
 DUB build tool    [https://code.dlang.org/download]<br>
 not currently required:    package libsodium      [sudo apt-get install libsodium]<br>
-required:    package opensc-pkcs11  [sudo apt-get install opensc-pkcs11] if not already installed, this will install the required package openssl as well<br>
-recommended: package opensc (for the tools)       [sudo apt-get install opensc]<br>
+required:    package openssl<br>
+required:    package opensc-pkcs11  requires manual build with patch applied for keys>2048 bit<br>
+recommended: package opensc (for the tools)       is included in the manual build of opensc-pkcs11<br>
 note the version of binary package opensc-pkcs11, that is installed (opensc-tool -i  will tell as well)<br>
 
 building:<br>
-(the settings/version identifiers in the managing file dub.json assume, that the version of binary package opensc-pkcs11 is 0.16.0 (released June 2016), otherwise add "FAKE_OPENSC_VERSION" for opensc version 0.15.0)<br>
-cd acos5_64-master<br>
+(the settings/version identifiers in the managing file dub.json assume, that the version of binary package opensc-pkcs11 is 0.16.0 (released June 2016), otherwise remove "OPENSC_VERSION_LATEST" for opensc version 0.15.0) from dependency packages's dub.json<br>
+cd acos5_64-vX.Y.Z<br>
 dub build --build=release<br>
 optional: sudo cp lib/libacos5_64.so /usr/local/lib/libacos5_64.so && ldconfig<br>
 
 editing /etc/opensc/opensc.conf:<br>
 ================================
-apply changes according to file config/diff_opensc_conf<br>
+change config/diff_opensc_conf such that the /path/to will be correct for You
+apply changes according to file config/diff_opensc_conf (it's a diff to version 0.16.0 or git-master /etc/opensc.conf after having installed opensc on Linux)<br>
+copy/backup /etc/opensc.conf to some save location, as an uninstall of opensc or dpkg -r ...  will remove /etc/opensc.conf as well
 
 testing via recommended opensc package's tool(s):<br>
 opensc-tool -D<br>
@@ -55,12 +56,33 @@ opensc-tool -D<br>
 should show the line:<br>
   acos5_64         ACS ACOS5-64 (CryptoMate64)<br>
 
-If it doesn't, turn on debugging output in opensc.conf (e.g. debug = 9; uncomment debug_file), run test again and inspect /tmp/opensc-debug.log.<br>
+If it doesn't, turn on debugging output in opensc.conf (e.g. debug = 3; uncomment debug_file), run test again and inspect /tmp/opensc-debug.log.<br>
+The log should contain a line right in the beginning, something like:
+[opensc-pkcs11] ctx.c:770:sc_context_create: ===================================
+[opensc-pkcs11] ctx.c:771:sc_context_create: opensc version: 0.16.0
+[opensc-pkcs11] reader-pcsc.c:714:pcsc_init: PC/SC options: connect_exclusive=0 disconnect_action=1 transaction_end_action=0 reconnect_action=0 enable_pinpad=1 enable_pace=1
+[opensc-pkcs11] ctx.c:441:load_dynamic_driver: successfully loaded card driver 'acos5_64'
+
 If the test failed, You might end up with the wrong (internal) driver acos5, which is quite useless but greedily pretends to support ACOS5-64 as well.<br>
-With a recent change in diff_opensc_conf to load only acos5_64 and default driver, acos5 isn't available any more and forcing acos5_64 driver isn't required any more.
+With a recent change in diff_opensc_conf to load only acos5_64 and default driver, acos5 isn't available any more and thus forcing acos5_64 driver isn't necessary, but then You can access only acos5_64 cards/token, nothing else through opensc-pkcs11.so.
+But keep this in mind if You ever change card_drivers = acos5_64, default;  to  card_drivers = acos5_64, internal;
 ---
 ---
 
+
+
+
+
+
+
+The following may be outdated, I don't check that now
+
+
+
+
+
+
+---
 Work in progress:
 
 The library will be limited to OS Windows and POSIX (excluding Mac OSX; I've neither access to nor knowledge of Mac OSX. But if it doesn't work out of the box, it should be quite easy to support Mac OS X as well, if someone interested in will assist/test). Windows has less priority for me.
@@ -74,7 +96,7 @@ Forcing driver acos5_64 (or prohibiting that internal acos5 driver is available)
 
 As long as DMD for Linux doesn't obey visibility of symbols declared [http://wiki.dlang.org/Access_specifiers_and_visibility], the script for the linker 'libacos5_64.ver' ("managed" by dub.json) does the job as well.
 
-Building with DUB and DMD is easy and blazingly fast. After installing prerequisite binaries: Within (downloaded/cloned) directory e.g. 'acos5_64-master', execute: $ dub build --build=release<br>
+Building with DUB and DMD is easy and blazingly fast. After installing prerequisite binaries: Within (downloaded/cloned) directory e.g. 'acos5_64', execute: $ dub build --build=release<br>
 The binary will be compiled/linked/placed to sub-directory lib, if You go with DUB/dub.json.
 
 Soon to come: More code and SM to be integrated, as review of existing code goes on:

@@ -1,0 +1,141 @@
+Secure messaging (SM)
+
+First off, the way ACOS5-64 card operating system offers to establish a secure channel for SM doesn't match exactly those cared for in OpenSC: CWA, GP01, DH;
+I decided to use the data structures provided for CWA and adjusted struct usage and functions where required.
+Also function names carrying the 'cwa' in their name reflect the cwa structs usage, not compliance with CWA.
+
+SM establishment requires, that 2 secret sym. keys (length both either 16 or 24 bytes for use with TDES) are known to both, the terminal (host computer) and the ACOS5-64 card/token.
+Use version=SESSIONKEYSIZE24 to select 24 byte sym key. The explanation continues referring to 24 byte keys !
+Or don't use version=SESSIONKEYSIZE24 and the key sizes taking part in SM (establishment and usage) will be 16 byte then.
+One key is used for External Authentication, the other for Internal Authentication.
+
+One maybe confusing complexity here is, that the same key is named/referenced differently in multiple places, e.g. the sym key for External Authentication (the host/terminal authenticates itself towards the card), let's call it key_host:
+
+key_host
+keyset_... ..._.._mac                                  (in opensc.conf)
+#1, 1. record of local sym. key file with ID: 1        (when writing/updating sym. key file
+KeyID:    81hex=129 for referencing within the driver
+
+and, let's call the sym key for Internal Authentication (the card authenticates itself towards the host/terminal), key_card:
+key_card
+keyset_... ..._.._enc                                  (in opensc.conf)
+#2, 2. record of local sym. key file with ID: 2        (when writing/updating sym. key file
+KeyID:    82hex=130 for referencing within the driver
+
+
+The location for these keys:
+============================
+
+host: currently in the opensc.conf file, delimited by colons (:) in keyset* as hexadecimal values:
+====
+	secure_messaging acos5_64_sm  {
+		module_name = libacos5_64.so;
+		module_path = TO_BE_ADJUSTED_PATH_TO_DIRECTORY_CONTAINING_libacos5_64.so;
+		#mode = acl; this is the default
+		ifd_serial = "61:63:6F:73:35:5F:36:34";  # decoded to ASCII: acos5_64
+		keyset_41434F53504B43532D313576312E3030_02_enc = "F1:01:02:13:04:85:16:07:08:49:A1:B0:C1:D0:E0:F1:45:89:B3:16:FE:94:37:C8"; # 24 bytes for 3-key Triple-DES,ECB     TO BE SET INDIVIDUALLY !!!
+		keyset_41434F53504B43532D313576312E3030_02_mac = "F1:E0:D0:C1:B0:A1:89:08:07:16:45:04:13:02:01:F1:89:FE:B3:C8:37:45:16:94"; # 24 bytes for 3-key Triple-DES,ECB     TO BE SET INDIVIDUALLY !!!
+	}
+
+card:
+====
+    the same 2 keys have to be stored on card within an application directory's (DF) sym. key file, which is on my card : 3F0041004102
+    41434F53504B43532D313576312E3030 is the hexadecimal encoding of: "ACOSPKCS-15v1.00", the name of an application directory; in this example it's the name that the acos client kit (for ACS ACOS5-64 V2.00) gives to it's single existant DF 4100
+    The file 4102 is never readable, write-protected by user's pin, created as iEF, ef structure: linear-variable, each record having 37 bytes: 37 bytes is sufficient for the internal key info + up to 32 bytes for a sym. key
+    keyset_HEXADECIMALNAMEOFDF_02_enc  and key in second record of 4102 (key_card)  HAVE TO BE THE SAME and key is #2 !
+    keyset_HEXADECIMALNAMEOFDF_02_mac  and key in first  record of 4102 (key_host)  HAVE TO BE THE SAME and key is #1 !
+    
+    use a tool like e.g. gscriptor from pcsc-tools (sudo apt-get install pcsc-tools) to write Your individual keys to the card/token, assumed Your user's pin is 12345678, == hexidecimal: 3132333435363738
+    command sequence:
+00A40000024100                                                                          <- this is select application directory DF file 4100
+00C0000032                                                                              <- this is get response i.e. read file 4100 File Control information
+00A40000024102                                                                          <- this is select local sym. key  file 4102
+00C0000020                                                                              <- this is get response i.e. read file 4102 File Control information
+00200081083132333435363738                                                              <- this is verify user's (local) pin#1 , 8 bytes length, value hex., e.g.: 3132333435363738
+00DC01042500000000000000000000000000000000000000000000000000000000000000000000000000    <- this is an example update first record of currently selected file (4102) with 0x25 =37 bytes each hex.: 00  i.e. clear contents, NOT REQUIRED
+
+00DC0104258101FF14F1E0D0C1B0A1890807164504130201F189FEB3C837451694000000000000000000    <- this is actual update first  record with 24 byte key Kt for External Authentication; CHANGE 24 BYTES XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX INDIVIDUALLY
+00DC0204258202FFFF14F1010213048516070849A1B0C1D0E0F14589B316FE9437C80000000000000000    <- this is actual update second record with 24 byte key Kc for Internal Authentication; CHANGE 24 BYTES XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX INDIVIDUALLY
+
+******
+KeyID:    81h = 1 | 80h  #1, local sym. key, cannot be unblocked (doesn't make much sense to unblock, better set new keys)
+KeyID:    82h = 2 | 80h  #2, local sym. key, cannot be unblocked (doesn't make much sense to unblock, better set new keys)
+
+Key Type:   01: Key is allowed to be used during External Authentication (only) and Key Info Field contains the Error Counter.
+Key Type:   02: Key is allowed to be used during Internal Authentication (only) and Key Info Field contains two bytes Usage Counter.
+
+Key Info: This field depends on the Key Type field. It contains Retry or Usage Counter(s) of the key. and consists of 1-3 bytes
+    for Key Type: 01: External Authentication Error Counter. The External Authentication Error Counter limits the number of consecutive unsuccessful attempts of External Authentication,
+        When the counter reaches zero, the key (on card) will become invalid. Unlimited: FF
+              FF
+    for Key Type: 02: Internal Authentication Usage Counter (2 bytes). The Internal Authentication Usage Counter can limit the number of times a key can be used for Internal Authentication.
+        Each execution attempt of the mutual authentication procedure will decrement the usage counter. When the counter reaches zero, the key (on card) will become invalid. Unlimited: FF FF
+              FFFF
+Algorithm Reference: TDES: 04 (Applies to a 128-bit 3DES algorithm only) or 14 (Applies to a 192-bit 3DES algorithm only)
+                  14
+                14  
+
+I personally care for the parity bits in my TDES keys; I haven't seen breakage with opensc if You don't, but it depends what the keys are used for.
+
+Later, when the driver supports writing keys, there will be code intended to check for the weak/semi-weak TDES keys before anything gets written on card by the driver.
+
+
+When this is done, use version=TRY_SM and temporarily replace in opensc.conf
+mode = acl;  # alternatives: transmit, acl
+by
+mode = transmit;
+compile, run opensc-tool --serial
+and watch the logfile, if there is the line
+         ### Card/Token and Host sym. keys configured are     suitable for Secure Messaging. The Mutual Authentication procedure succeeded ! ###
+
+With mode = transmit, the opensc code will try to establish a secure channel soon after card's init-function (intended in principle for all commands, yet deactivated by me in sm_acos5_64_card_get_apdu; I misuse this here for the keyset testing and switch back to mode = acl internally once this test is done and the secure channel will be closed again).
+
+On success, the mutual authentication procedure ( External Autenthication + Internal Authentication ) with the keyset has been done, the session keys will be generated and available for coming SM protected commands.
+Without success here, Secure Messaging is impossible.
+Later ENFORCE_SM will be dub.json default and a secure channel will be established each time a command/action-on-a-file requires SM.
+Most SM invocations will originate from 'action-on-a-file' and this has to be decided on file's creation by setting the file's Security Attribute Compact SAC by forcing usage of SM and pointing to a record in the SE-file containing the relevant security requirements.
+At least 2 SE-records (#5 and #6) will be reserved for that
+
+-------------------------------------------------------------------------------------------------
+The remaining are some excerpts from reference manual:
+
+7.2.5.  Internal Authentication
+This command allows ACOS5-64 to produce an encrypted challenge data for authenticating itself
+against a host or terminal. The card will use the Key ID in P2 known as the Card key or Kc. Please
+see Section 5.5 for more information.
+
+7.2.6.  External Authentication
+This command allows ACOS5-64 to check if the terminal or host is authentic. This asks for a challenge
+data from ACOS5-64 using the Get Challenge command and the challenge data should be encrypted
+with the Kt or Terminal Key.
+
+7.2.8.  Mutual Authentication (### This ACOS-command won't be used as it requires key_card==key_host ###)
+This command authenticates the referenced key of the currently selected DF. Both internal and
+external authentication processes are performed. Access rights are gained if successful. For more
+information regarding mutual authentication, please refer to Mutual Authentication Procedure.
+
+5.5. Mutual Authentication Procedure
+To provide maximum flexibility, ACOS5-64 uses two different (pairs of) 3DES keys: A terminal key KT
+and a card key KC. These (pair of) keys should both be on-board, and they both should be either 16
+bytes or both 24 bytes.
+A random number generator is on-board ACOS5-64 to generate a card random number, RNDC, in
+response of the GET CHALLENGE command.
+Please follow the below diagram for the detailed steps of mutual authenticate procedure:
+Order is 1. External Authenticate than 2. Internal Authenticate
+
+Session key Ks - ENC is produced by encrypting derivation data with key Kc
+Session key Ks - MAC is produced by encrypting derivation data with key Kt
+ 
+We will only support 3DES session keys as DES is not considered secured anymore. Session key
+generation is automatically executed by ACOS5-64 after a Mutual Authentication procedure.
+Length of Session Key is based on the length of Kc/Kt. Both keys should have the same length for
+compatibility purposes.
+
+KS-ENC is responsible for encryption for:
+• Secure Messaging
+• PSO commands with CT-symmetric set with DO tag 84h
+KS-MAC is responsible for MAC:
+• Secure Messaging
+• PSO commands with CCT set with DO tag 84h
+
+-ö.

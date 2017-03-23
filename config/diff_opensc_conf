@@ -1,15 +1,76 @@
-+ signs in the 1. column indicate, where additions took place (+ signs itself not to be included in opensc.conf)
-# indicates: the remaining of the line is a comment
-
---- opensc_original_x86_64-linux-gnu.conf	2016-02-26 22:11:43.467045247 +0100
-+++ opensc.conf	2016-02-26 22:28:39.375237624 +0100
-@@ -119,31 +119,38 @@
- 	# internal) driver is supplied, a separate configuration
- 	# configuration block has to be written for the driver.
- 	# Default: internal
+--- /etc/opensc/opensc.conf.new	2017-03-18 11:02:44.000000000 +0100
++++ /etc/opensc/opensc.conf	2017-03-22 18:59:49.956166449 +0100
+@@ -13,22 +13,24 @@
+ 	# Default: 0
+ 	#
+ 	#debug = 3;
++	debug = 3;
+ 
+ 	# The file to which debug output will be written
+ 	#
+ 	# Special values 'stdout' and 'stderr' are recognized.
+ 	# Default: stderr
+ 	#
+-	# debug_file = /tmp/opensc-debug.log
++	# debug_file = /tmp/opensc-debug.log;
++	debug_file = /tmp/opensc-debug.log;
+ 
+-	# Reopen debug file at the every debug message.
++	# Re-open debug file  (used in WIN32)
+ 	#
+-	# For Windows it's forced to 'true'. The reason is that
+-	#   in Windows file handles can not be shared between DLL-s,
+-	#   each DLL has a separate file handle table.
++	# In Windows, file handles can not be shared between DLL-s,
++	#  each DLL has a separate file handle table.
++	# For that reason reopen debug file before every debug message.
+ 	#
+-	# Default: false
+-	# reopen_debug_file = true;
++	# Default: true
++	# reopen_debug_file = false;
+ 
+ 	# PKCS#15 initialization / personalization
+ 	# profiles directory for pkcs15-init.
+@@ -45,11 +47,6 @@
+ 	#
+ 	# paranoid_memory = false;
+ 
+-	# Dsiable pop-ups of built-in GUI
+-	#
+-	# Default: false
+-	# disable_popups = true;
+-
+ 	# Enable default card driver
+ 	# Default card driver is explicitely enabled for the 'opensc-explorer' and 'opensc-tool'.
+ 	#
+@@ -70,13 +67,10 @@
+ 
+ 	# The following section shows definitions for PC/SC readers.
+ 	reader_driver pcsc {
+-		# Limit command and response sizes. Some Readers don't propagate their
+-		# transceive capabilities correctly. max_send_size and max_recv_size
+-		# allow setting the limits manually, for example to enable extended
+-		# length capabilities.
++		# Limit command and response sizes.
+ 		# Default: max_send_size = 255, max_recv_size = 256;
+-		# max_send_size = 65535;
+-		# max_recv_size = 65536;
++		# max_send_size = 0;
++		# max_recv_size = 0;
+ 		#
+ 		# Connect to reader in exclusive mode?
+ 		# Default: false
+@@ -134,16 +128,26 @@
  	# NOTE: When "internal" keyword is used, must be last entry
  	#
  	# card_drivers = customcos, internal;
++# NOTE: the driver acos5 (included in internal; it's for ACOS5-32 but claims to serve ACOS5-64 as well) must be avoided, either by this setting, or by e.g. force_card_driver=acos5_64,
++#       or by other settings (ignored_readers doesn't seem to work as expected);
++#       The default driver isn't very useful and won't be used unless the external module acos5_64 get's unloaded unexpectedly, yet You will notice that instead of going on with a wrong driver acos5 !
++#       In the beginning, to test that acos5_64 is well configured, start with excluding all internal drivers, but the dummy default driver (as set below). 
++#       Later, if other cards/token than acos5_64 shall be served by opensc as well, replace default by internal
++
 +	card_drivers = acos5_64, default;
  
  	# Card driver configuration blocks.
@@ -17,22 +78,88 @@
  	# For card drivers loaded from an external shared library/DLL,
  	# you need to specify the path name of the module
  	#
- 	# card_driver customcos {
- 		# The location of the driver library
- 		# module = /usr/lib/x86_64-linux-gnu/card_customcos.so;
- 	# }
+-	# card_driver customcos {
+-		# The location of the driver library
+-		# module = /usr/lib/libcard_customcos.so;
+-	# }
 +	card_driver acos5_64 {
-+		# The location of the driver library
-+		# module = /path/to/libacos5_64.so;
-+		module = /usr/local/lib/libacos5_64.so;
++		# The (location/) name of the driver library
++		module = /path/to/lib/libacos5_64.so;
++		# Parameters for the Graphical User Interface app 'Consent for signing' (currently Linux only); defaults: app [pinentry], enabled [true]
++		user_consent_app = /usr/bin/pinentry;
++		user_consent_enabled = false;
 +	}
  
  	# Force using specific card driver
  	#
- 	# If this option is present, OpenSC will use the supplied
- 	# driver with all inserted cards.
- 	#
- 	# Default: autodetect
- 	#
- 	# force_card_driver = customcos;
-+   # force_card_driver = acos5_64;
+@@ -387,6 +391,70 @@
+ 		md_guid_as_label = true;
+ 	}
+ 
++	# ACOS5-64 V2.00
++	card_atr 3B:BE:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00 {
++		type = 16003;
++		name = "ACS ACOS5-64 (v2.00: Smart Card/CryptoMate64)";
++		driver = "acos5_64";
++		secure_messaging = acos5_64_sm;
++	}
++
++	# ACOS5-64 V3.00
++	card_atr 3B:BE:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00 {
++		type = 16004;
++		name = "ACS ACOS5-64 (v3.00: Smart Card/CryptoMate Nano)";
++		driver = "acos5_64";
++		secure_messaging = acos5_64_sm;
++	}
++
++	secure_messaging acos5_64_sm  {
++		# name of external SM module
++		module_name = libacos5_64.so;
++		# directory with external SM module
++		module_path = /path/to/libacos5_64/lib;
++
++		# specific data to tune the module initialization
++		# module_data = "Here can be your SM module init data";
++
++		# SM mode:
++		# 'transmit' -- in this mode the procedure to securize an APDU is called by the OpenSC general
++		#	       APDU transmit procedure.
++		#		In this mode all APDUs, except the ones filtered by the card specific procedure,
++		#	       are securized.
++		# 'acl' -- in this mode APDU are securized only if needed by the ACLs of the command to be executed.
++		#
++		#mode = transmit;
++		mode = transmit;  # alternatives: transmit, acl (the default: each file header's SAC in combination with appl. DF's SE-File specifies, whether to do SM on-demand for which 'group of operations', essentialy single-op 'group READ', multi-op 'group write/append/update/erase[parts of file]' etc.)
++
++		# SM type specific flags
++		# flags = 0x78;	   # 0x78 -- level 3, channel 0
++
++		#
++		# more infos in info/secure_messaging_configure
++		#
++		# module_data will be used later to select the keyset to be used and more fine-grained control; currently unused (keyset=01 or 02 and other data hardcoded in source code)
++		# module_data: Options (below: default) for mandatory test of SM functionality in POSIX syntax for (command line) options, s.a. github.com/carblue/acos5_64 ; dlang.org/phobos/std_getopt.html
++		module_data = "so --keyrefextauth=0x81 --keyrefintauth=0x82 --smMSErestore --smSEID=0x05 --smUQB=0x70 --smkeytag=0x84 --smCCTkeyref=0x83 --smCCTalgo=0x02 --CT --smCTkeyref=0x83 --smCTalgo=0x02"; 
++		#
++		# if ifd_serial is changed to other than default value 'acos5_64' (see below) and ?? vers. identifier (or higher) is set, it's assumed You want a match with one dedicated tokens's
++		# 8 byte serial no. and the driver won't work for different token serial no.s ! Issue opensc-tool --serial
++
++		ifd_serial = "61:63:6F:73:35:5F:36:34";  # decoded to ASCII: acos5_64
++
++		# the key naming_41434F53504B43532D313576312E3030 (decoded to ASCII, len=len_max=16: ACOSPKCS-15v1.00)  may have to be changed according to card/token application DF's file name
++		# the key value, within quotes, colon (:) delimited hex encoding, MUST BE CHANGED INDIVIDUALLY IN ANY CASE, here and on card/token !!!
++		# using 24 byte instead of default 16 byte keys requires compiling the driver with this version identifier set: SESSIONKEYSIZE24
++		# the effective security level of 16 byte key is around 80 bits; 24 byte key effective security level is around 112 bits
++		# keyset...enc is called key_card, keyset...mac is called key_host; key_card takes part in Internal Auth. and computation of key session_enc;
++		# key_host takes part in External Auth. and computation of key session_mac (key_host will be in state 'authenticated' after success in External Auth.)
++		# session keys: Block cipher modes of operation: ECB for generation of session keys, CBC for usage of session keys. cipher: Triple-DES-ede(3) only
++		# keysets to select from: 
++		keyset_41434F53504B43532D313576312E3030_01_enc = "F1:01:02:13:04:85:16:07:08:49:A1:B0:C1:D0:E0:F1"; # 16 bytes for 2-key Triple-DES,ECB: EVP_des_ede(); used only for generation of new key (SM's random-based session key for the encryption part in mode 'Authenticity and Confidentiality)
++		keyset_41434F53504B43532D313576312E3030_01_mac = "F1:E0:D0:C1:B0:A1:89:08:07:16:45:04:13:02:01:F1"; # 16 bytes for 2-key Triple-DES,ECB: EVP_des_ede(); used only for generation of new key (SM's random-based session key for mac'ing in mode 'Authenticity' and mac'ing part in above)
++		keyset_41434F53504B43532D313576312E3030_02_enc = "F1:01:02:13:04:85:16:07:08:49:A1:B0:C1:D0:E0:F1:45:89:B3:16:FE:94:37:C8"; # 24 bytes for 3-key Triple-DES,ECB: EVP_des_ede3(); used for SM's random-based session key generation only
++		keyset_41434F53504B43532D313576312E3030_02_mac = "F1:E0:D0:C1:B0:A1:89:08:07:16:45:04:13:02:01:F1:89:FE:B3:C8:37:45:16:94"; # 24 bytes for 3-key Triple-DES,ECB: EVP_des_ede3(); used for SM's random-based session key generation only
++	}
++
+ 	secure_messaging local_authentic  {
+ 		# name of external SM module
+ 		# module_name = libsmm-local.so;
