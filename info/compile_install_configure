@@ -14,7 +14,7 @@ Compilers that got tested to successfully compile the code: DMD, LDC and GDC.
 # acos5_64
 
 
-ACS ACOS5-64/CryptoMate64 driver (shared library/DLL) for the OpenSC framework
+ACS ACOS5-64/CryptoMate64/Nano driver (shared library/DLL) for the OpenSC framework
 
 brief instruction:
 
@@ -24,23 +24,25 @@ basic Linux smart card software requirements:<br>
 =============================================
 package pcscd      [sudo apt-get install pcscd] depends on other required packages: libccid, libpcsclite1<br>
 installing ACSCCID from http://acsccid.sourceforge.net/
-is currently necessary only for ACOS5-64 V3.0 until ccid version 1.4.27 is available<br>
+is currently necessary only for ACOS5-64 V3.0 until ccid version 1.4.27 is available (or follow "Get the current source code from git" at https://pcsclite.alioth.debian.org/ccid.html and compile from source)<br>
 
 build requirements:<br>
 ===================
 (For Ubuntu, there is the repository [http://d-apt.sourceforge.net/] to get DMD and DUB: sudo apt-get install dmd-bin dub)
 Gnu C compiler (gcc); required for linking on Linux
-DMD compiler  [https://dlang.org/download.html;  LDC and GDC will do as well, but will require a manual build including shared versions of phobos and druntime (building LDC from source with cmake -DBUILD_SHARED_LIBS=ON ..], building GDC with ...)<br>
+DMD compiler  [https://dlang.org/download.html;  LDC and GDC will do as well, but will require a manual build including shared versions of phobos and druntime (building LDC from source with cmake -DBUILD_SHARED_LIBS=ON ..], building GDC with --enable-shared)<br>
 DUB build tool    [https://code.dlang.org/download]<br>
-not currently required:    package libsodium      [sudo apt-get install libsodium]<br>
+currently not required:    package libsodium      [sudo apt-get install libsodium]<br>
 required:    package openssl<br>
 required:    package opensc-pkcs11  requires manual build with patch applied for keys>2048 bit<br>
 recommended: package opensc (for the tools)       is included in the manual build of opensc-pkcs11<br>
 note the version of binary package opensc-pkcs11, that is installed (opensc-tool -i  will tell as well)<br>
 
+
 building:<br>
 (the settings/version identifiers in the managing file dub.json assume, that the version of binary package opensc-pkcs11 is 0.16.0 (released June 2016), otherwise remove "OPENSC_VERSION_LATEST" for opensc version 0.15.0) from dependency packages's dub.json<br>
 cd acos5_64-vX.Y.Z<br>
+check the info/options and change dub.json appropriately
 dub build --build=release<br>
 optional: sudo cp lib/libacos5_64.so /usr/local/lib/libacos5_64.so && ldconfig<br>
 

@@ -6,12 +6,15 @@ If something is going wrong with the driver, the definite source to get infos, i
 This library supports some version identifiers, some of which are essential to know about when compiling/linking.
 Also the version identifiers from package opensc are recapitulated/copied here in the end:
 
-Some version identifiers are set or not set automatically by the compiler for the environment used (as documented by DMD), like GNU, Posix, Windows, LittleEndian, CRuntime_* etc.
+Some version identifiers are set or not set automatically by the compiler for the environment used (as documented e.g. by DMD),
+like GNU, Posix, Windows, LittleEndian, CRuntime_* etc.
 
 Not all of the following is currently implemented, here is a brief intro of the essential version identifiers:
 The library is under heavy development.
-I assume, Your token is a ACS ACOS5-64 (v2.00, Smart Card / CryptoMate64). Adaptations for ACS ACOS5-64 (v3.00, Smart Card / CryptoMate Nano) are work in progress
-dub.json sets ACOSMODE_V2 therefore and the optional SESSIONKEYSIZE24 and what is set in package opensc's dub.json (defaults: ENABLE_SM, OPENSC_VERSION_LATEST), but no more is required for the time being.
+I assume, Your token is a ACS ACOS5-64 (v2.00, Smart Card / CryptoMate64). Adaptations for ACS ACOS5-64 (v3.00, Smart Card /
+ CryptoMate Nano) are work in progress
+dub.json sets ACOSMODE_V2 therefore and the optional SESSIONKEYSIZE24 and what is set in package opensc's dub.json (defaults:
+ ENABLE_SM, OPENSC_VERSION_LATEST), but no more is required for the time being.
 Anything related to SM requires explaining of some actions to do in opensc.conf and on card token.
 
 --------------------------------------
@@ -25,30 +28,48 @@ ACOS5-64 V3.00
 
 ACOS5-64 V2.00 can be set to 2 different operation modes; omitting the ACOS5 (32K) mode, simply 1 remains, the default/factory setting ACOS5-64 V2.00 mode
 ACOS5-64 V3.00 can be set to 4 different operation modes; omitting the ACOS5 (32K) mode, 3 remain:
-1. the default/factory setting FIPS 140-2 Level 3–Compliant Mode, referred to here with version identifier ACOSMODE_V3_FIPS_140_2L3
-2. 64K Mode, often incorrectly called Non-FIPS Mode,              referred to here with version identifier ACOSMODE_V2
-2. 64K Mode, often incorrectly called Non-FIPS Mode,              referred to here with version identifier ACOSMODE_V3_NSH_1
+1. the default/factory setting FIPS 140-2 Level 3–Compliant Mode, ref'ed here with version identifier ACOSMODE_V3_FIPS_140_2L3
+2. 64K Mode, often incorrectly called Non-FIPS Mode,              ref'ed here with version identifier ACOSMODE_V2
+3. NSH-1 Mode,                                                    ref'ed here with version identifier ACOSMODE_V3_NSH_1
 
-Totally we have 4 operation modes, but ACOS5-64 V2.00's "single" mode is almost identical to ACOS5-64 V3.00's 64K Mode and for the purpose here (the users view) we can sum up both under the version identifier ACOSMODE_V2; yet the driver still must know,
-whether it is serving a ACOS5-64 V2.00 or ACOS5-64 V3.00 hardware/card_os under version identifier ACOSMODE_V2: E.g. ACOS5-64 V3.00 allows to use SM for Verify-PIN-Command, ACOS5-64 V2.00 does not;
+Totally we have 4 operation modes, but ACOS5-64 V2.00's "single" mode is almost identical to ACOS5-64 V3.00's 64K Mode and for
+the purpose here (the users view) we can sum up both under the version identifier ACOSMODE_V2; yet the driver still must know,
+whether it is serving a ACOS5-64 V2.00 or ACOS5-64 V3.00 hardware/card_os under version identifier ACOSMODE_V2:
+E.g. ACOS5-64 V3.00 allows to use SM for Verify-PIN-Command, ACOS5-64 V2.00 does not; also serial no. length are different etc.
 
-The current driver code can't do all the possible distinction of cases purely during runtime if possible at all; thus the driver will need to be told in advance while being compiled, which one (only) of the operation modes
-ACOSMODE_V3_FIPS_140_2L3 or
+This should be mentioned here: It is imaginable, that ACOS5-64 V2.00 hardware is being served and the driver fails, because the card
+internally is set to operation mode 32K. ACOS5-64 V2.00 offers no means to detect that, thus the driver does assume, the card is set to the only supported mode ACOSMODE_V2.
+ACOS5-64 V3.00 offers a command to detect unsupported operation modes.
+
+The current driver code can't do all the possible distinction of cases purely during runtime if possible at all;
+thus the driver will need to be told in advance while being compiled, which one (only) of the operation modes
 ACOSMODE_V2 or
+ACOSMODE_V3_FIPS_140_2L3 or
 ACOSMODE_V3_NSH_1
 
-it will/is capable to serve afterwards. This implies, that a single acos5_64.so can't simultaneously serve an ACOS5-64 V2.00 hardware and a ACOS5-64 V3.00 hardware set to an operation mode different from ACOSMODE_V2 !
+it will/is capable to serve afterwards. This implies, that a single acos5_64.so can't simultaneously serve an ACOS5-64 V2.00
+hardware and a ACOS5-64 V3.00 hardware set to an operation mode different from ACOSMODE_V2 !
+For several reasons the aforegoing currently is theoretical only:
 
-Different from the previous version identifiers, the following REINIT_ACOSMODE_* tell, to which operation mode a card/token shall be set when doing card-(re)-initialization.
+The driver currently supports ACOSMODE_V2 ONLY !!!
+
+Different from the previous version identifiers, the following REINIT_ACOSMODE_* - applicable only to ACOS5-64 V3.00 hardware!!! -
+tell, to which operation mode an ACOS5-64 V3.00 card/token shall be set when doing card-(re)-initialization.
 
 REINIT_ACOSMODE_V2
 REINIT_ACOSMODE_V3_FIPS_140_2L3
 REINIT_ACOSMODE_V3_NSH_1
 
-A driver binary compiled e.g. with -version=ACOSMODE_V3_FIPS_140_2L3 -version=REINIT_ACOSMODE_V2 and working for ACOS5-64 V3.00 hardware, will do a card-(re)-initialization with (new) operation mode byte set for 64K/Non-FIPS Mode as requested, but fail soon after completing that operation, because the binary isn't prepared to serve ACOSMODE_V2, thus it requires recompilation with -version=ACOSMODE_V2
+For several reasons the aforegoing currently is theoretical only too:
 
-There is checking code to make sure, the ACOSMODE_* was set in aaccordance with the hardware being served.
-This is the current state of affairs. 
+The driver currently supports REINIT_ACOSMODE_V2 ONLY and it MUST be set for ACOS5-64 V3.00 (only)!!!
+
+For V2.00 hardware there is "no" choice, thus use none of REINIT_ACOSMODE_* (even REINIT_ACOSMODE_V2 would be absolutely wrong; why? because for ACOSMODE_V2, the hardware V2 must set a byte to 0, whereas V3 must set it to 2)!!!
+
+A driver binary compiled e.g. with -version=ACOSMODE_V3_FIPS_140_2L3 -version=REINIT_ACOSMODE_V2 and working for ACOS5-64 V3.00 hardware, would (if supported) do a card-(re)-initialization with (new) operation mode byte set for 64K/Non-FIPS Mode as requested, but fail soon after completing that operation, because the binary isn't prepared to serve ACOSMODE_V2, thus it requires recompilation with -version=ACOSMODE_V2
+
+There is checking code to make sure, the ACOSMODE_* was set in accordance with the hardware and it's operation mode being served, same for REINIT_ACOSMODE_*.
+This is the current state of affairs. No wonder if there is confusion in the first place, as things are getting complex to handle; the more options, the more complexity rises (exponentially), but I'm not yet willing to split the codebase
 
 
 SESSIONKEYSIZE24
@@ -58,9 +79,9 @@ TRY_SM_MORE
 TRY_SM
 ENABLE_SM
 There are currently 3 "levels" (later on both TRY_SM* will vanish and ENFORCE_SM be added) refering to Secure Messaging, each depending on the lower ones, ENABLE_SM being the lowest, refer to the end of this document. Without ENABLE_SM, Secure Messaging won't work !
-TRY_SM is just an intermediate level intended to check, if configuration of opensc.conf and card/token (i.e. essentially the keyset) is well prepared for Secure messaging (more infos in file info/secure_messaging_configure; later, when a function token_initialization is available and used, this won't be neccessary any more as initial keys will be set in accordance with opensc.conf).
+TRY_SM is just an intermediate level intended to check, if configuration of opensc.conf and card/token (i.e. essentially the keyset) is well prepared for Secure Messaging (more infos in file info/secure_messaging_configure; later, when a function token_initialization is available and used, this won't be neccessary any more as initial keys will be set in accordance with opensc.conf).
 With version identifier set, the card/token shall be still usable without SM, if SM is not configured as required.
-TRY_SM_MORE goes one step further in that it trys to emit a SM command (erase some content of a specific file 3F00 4100 3901) for a test-purpuse file which must exist and it's SC bytes set to allow SM'ed Erase command. 
+TRY_SM_MORE goes one step further in that it trys to emit a SM command (erase some content of a specific file 3F00 4100 3901) for a test-purpose file which must exist and it's SC bytes set to force SM'ed Erase command.
 ENFORCE_SM is intended to:
 1. Unload the driver if configuration doesn't match requirements for SM.
 2. issue only SM protected communication with the token for all files/commands that require this. Commands that are supported by the acos to be SM protected are these (in PKCS#11/cos naming):
@@ -103,7 +124,7 @@ ENABLE_ACOS5_64_UI (implemented for Linux only)
 Set version=ENABLE_ACOS5_64_UI, if You want to enable being notified and asked each time for consent, when a private RSA key shall be used for Signing data (this is not necessary for Decryption, I believe, except it's for a Signing operation:
 the results of a Decryption are not externally exposed  TODO check that).
 The settings for that are done in opensc.conf. No entry for user_consent_enabled defaults to true, which then requires an entry for the application to launch (and have installed; typically pinentry-qt, which has the alias pinentry for me).
-This way, a window will pop up before signing is done or canceled, whatever the decision will be. The opensc.conf entry for that is this:
+This way, a window will pop up before signing is done or cancelled, whatever the decision will be. The opensc.conf entry for that is this:
 
 card_driver acos5_64 {
     # The name (+location) of the driver library; specify /path/to/ if it's
@@ -132,7 +153,46 @@ From a security perspective, I consider using this version identifier as UNSAFE,
 
 REINITIALIZE
 not yet implemented publicly
-will vanish, once it's code is integrated;
+Card (re-)initialization currently is "protected" by this version identifier. Without specifying this, the following is unsupported:  pkcs11-tool --so-pin 87654321 --label thistoken --init-token
+Why this intricateness?
+IMHO card (re-)initialization is the most critical operation due to it's consequences You should be fully aware of and don't do it by accident:
+IT WILL ERASE ALL CONTENT FROM CARD, thus if You have keys You depend on, they are gone forever if You have no backup.
+If You want to do any revocation and might need the old status, do it before ERASE.
+This driver intentionally doesn't support importing RSA keys. If You absolutely want to do this, You are left with the reference manual's command for that.
+Also, RSA private key is never extractable from card/token except You did manipulate access rights on Your own risk.
+Thus if You want to save some RSA content across the erasing step, You will depend on backups and maybe tedious rewriting files.
+
+Next is, the steps to do erase card are not fully documented/disclosed in reference manuals and are known for sure only based on what client kit for ACOS5-64 V2.00 does.
+The following steps, i.e. populating the card with content are not critical in that it is known what shall be done, but may be different from what Your preferences are.
+I decided for contents, that try to
+1. be backward-compatible with ACS software
+2. be secure but leave more flexibility to the user
+3. last but not least are imposed by compliance with PKCS#15, opensc, and some rules, the driver adheres to (e.g. fixed file locations for RSA files etc.)
+4. The byte deciding, whether re-initialization is allowed at all, will be set to: allow.
+5. You should change source contents of all the stuff comprising re-initialization only, if You are fully aware of all implications !
+Otherwise it may happen, that You lock out Yourself from the token or can't ever re-initialize again.
+The FIPS operation mode introduced by ACOS5-64 V3.00 even complicates that, and that's why it is currently not supported. Neither, to set a card to mode FIPS during re-initialization,
+nor operate a card in mode FIPS.
+
+
+The undocumented/undisclosed erasing command sequences may have changed for ACOS5-64 V3.00 (to be shure about that, I would need a PC/SC-based debug logfile from a successfull card re-initialization.
+I.e., in the worst case, the operation may fail in bad circumstances, leaving the card in some uncomfortable state.
+I highly recommend to turn on debug logging before doing re-initialization, thus You can catch up from the point of failure.
+In summary, the re-initialization is a batch job of totally about 130 commands in different categories: Zeroing the card (incl. setting operation mode), creating the new file structure, writing contents to some files and activating files.
+Same as what client kit for ACOS5-64 V2.00 does, it creates (within MF) a single application directory DF, file ID 4100, but different now, it also cares for all essential PKCS#15 files and contents, required by OpenSC.
+There will be a Security Officer pin in File 3F00 0001 with a PUK for the SO PIN
+There will be a User pin in File 3F00 4100 4101 with a PUK for the User PIN
+All PIN/PUK will be set to default values that should be changed soon after re-initialization or already set in the source code, including 8 retries each, All that may be customized according to ref. manual in source code, not all can be changed later on.
+There will be keys set in records #1 and #2 of file 3F00 4100 4102 as keyCard and keyHost, matching those of opensc.conf as preliminary keys, that should also be changed later or in source code.
+These keys are essential to initiate the Secure Messaging (SM). From those keys mentioned and random data, External Authentication and Internal Authentication will be done authenticating the keyHost,
+and new Session Keys will be generated for SM.
+There will be entries in the SE-file 3F00 4100 4103, that make use of pins or of authenticated keyHost (as legitimation) or Session Keys for MACing and ENCrypting in SM.
+The FIPS mode to be implemented later, does prescribe a lot of these security related details and therefore a lot will be already similar to FIPS in Non-FIPS mode, but not matching exactly.
+Note, that switching operation mode is possible only as step within a re-initialization !
+The funny thing is, the client kit of ACOS5-64 V2.00 disallowed use of SM, while the new hardware ACOS5-64 V3.00 by default is in FIPS operation mode, which permits some critical commands only when using SM,
+thus someone changed his mind or was pushed by requirements of FIPS 140-2 Level 3 Certification.
+
+This just as a general outline.
 
 
 Not yet implemented:
@@ -145,7 +205,7 @@ UPDATE_CARDKEYSET_INITIAL_SM : set once und unset immediately after compilation:
 UPDATE_CARDKEYSET_SM         : set once und unset immediately after compilation: serves to update keys (to be introduced in source code) required for Mutual Authentication via SM protected, confidential APDU commands.
 intended to be set only once in order to write individual sym. keys to the token.
 Backup the source code before doing following changes:
-Include Your keys hexadecimal values in the source code, save acos5_64.d, set version identifier SETINDIVIDUALKEYS_SM in dub.json, do the same key setting in opensc.conf, compile the driver and run an application that loads the driver acos5_64, e.g. opensc-tool -f. Afterwards restore the backup, compile the driver finally again WITHOUT settting SETINDIVIDUALKEYS_SM. Your new keys will have been written to the token. Test, withat least TRY_SM, or better ENFORCE_SM set, that the driver is working in SM mode.
+Include Your keys hexadecimal values in the source code, save acos5_64.d, set version identifier SETINDIVIDUALKEYS_SM in dub.json, do the same key setting in opensc.conf, compile the driver and run an application that loads the driver acos5_64, e.g. opensc-tool -f. Afterwards restore the backup, compile the driver finally again WITHOUT settting SETINDIVIDUALKEYS_SM. Your new keys will have been written to the token. Test, with at least TRY_SM, or better ENFORCE_SM set, that the driver is working in SM mode.
 
 
 USE_SODIUM, RSA_PKCS_PSS, RESTRICTED_SN_TOKEN, SEALED_BINARY  will come later:
@@ -180,19 +240,19 @@ Implemented:
 The following is a copy of version identifiers from package libopensc ! They are essential for this package too.
 ================================================================================================================
 This binding supports some version identifiers, some of which are essential to know about when compiling/linking against a binary libopensc.so/dll.
-Except SIMCLIST_WITH_THREADS and ENABLE_SM which stem from Opensc source code, they are introduced by this binding:
+Except SIMCLIST_WITH_THREADS (,SIMCLIST_DUMPRESTORE) and ENABLE_SM which stem from Opensc source code, they are introduced by this binding:
 
-When I talk about versions here, the version of OpenSC, especially it's binary libopensc.so/.dll is meant, not that of this package ('opensc'), which is arbitrary (except the statement, that this binding opensc' supports OpenSC's API versions 0.15.0 and 0.16.0) !
+When I talk about versions here, the version of OpenSC, especially it's binary libopensc.so/.dll is referred to, not that of this package ('opensc'), which is arbitrary in this context (except the statement, that this binding supports OpenSC's API versions 0.15.0 and 0.16.0) !
 Let's assume a project called "carddriver", that depends on this package.
 
 There are then - whith regard to DUB - 2 dub.json files to be considered for specification of version identifiers.
-In either case the carddriver's dub.json is a suitable choice, as DUB "passes" version identifiers to it's dependencies, overriding possibly conflicting settings.
+Both are suitable choices: DUB "passes" version identifiers "down" to it's dependencies, overriding possibly conflicting settings and also "up" to the card-driver's dub.json for a common set of version identifiers.
 
-But some version identifiers can be thougth of as rarely changing, making this package's dub.json fit equally or better.
+Some version identifiers can be thougth of as rarely changing, making this package's dub.json a good choice.
 I consider this to be true for the next (libopensc related version identifiers), thus taken care for in this package's dub.json according to defaults of a Linux build of latest opensc version.
 
-Compiling-and-Installing-OpenSC-on-Unix-flavors (if the distribution doesn't provide one of the two latest OpenSC package) is easy/straightforward:
-I prefer to git clone (or download)  0.16.0 tagged (or whatever is the latest) from https://github.com/OpenSC/OpenSC.git.
+Compiling-and-Installing-OpenSC-on-Unix-flavors (if the distribution doesn't provide one of the two latest OpenSC packages, and this is no option: https://launchpad.net/~gertvdijk/+archive/ubuntu/opensc-backports) is easy/straightforward:
+I prefer to git clone (or download)  0.16.0 tagged (or whatever is the latest) from https://github.com/OpenSC/OpenSC.git over tarballs from sourceforge (there was/is an issue with sourceforge ref. 0.15.0 ref. Linux).
 
 https://github.com/OpenSC/OpenSC/wiki/Compiling-and-Installing-OpenSC-on-Unix-flavors <br>
 In order to easily undo an installation as well (e.g. when the distribution later includes the latest OpenSC version), I prefer (on Debian/Ubuntu) sudo checkinstall instead of sudo make install.
@@ -222,15 +282,20 @@ by default, OpenSC get's build without  SIMCLIST_WITH_THREADS  being defined, an
 Otherwise, being defined for the OpenSC build, version=SIMCLIST_WITH_THREADS   ***MUST***  be used in order to match list_t.sizeof and all .sizeof of types that depend on list_t !
 
 
+SIMCLIST_DUMPRESTORE  [default: not set]
+by default, OpenSC get's build without  SIMCLIST_DUMPRESTORE  being defined, and in this case there is no need to care about this version identifier (just don't use it).
+Otherwise, being defined for the OpenSC build, version=SIMCLIST_DUMPRESTORE   is up to You to set or not.
+
+
 ENABLE_SM  [default: set]
 Same as with all version identifiers in this libopensc related section, this has to match how libopensc was build. The default is with SM enabled !
 Depending what is used by "carddriver", it may be required to link to libsmm-local.so/.dll as well (but in my acos5_64 driver I provide all SM functionality independently from libsmm-local.so and thus must inhibit loading of libsmm-local.so for name clashing reason).
 
 
-Any mismatch in this section will sooner or later inevitably cause a SIGSEGV.
+Except ref. SIMCLIST_DUMPRESTORE, any mismatch in this section will sooner or later inevitably cause a SIGSEGV.
 
 
-Other version identifiers, intended for development/debugging only 
+Other version identifiers, intended for development/debugging only
 ==================================================================
 
 ENABLE_TOSTRING  [default: not set]
@@ -240,4 +305,4 @@ Without version=ENABLE_TOSTRING, this binding doesn't need compilation and dub.j
 ENABLE_TOSTRING_SM_GP   [default: not set]
 ENABLE_TOSTRING_SM_CWA  [default: not set]
 ENABLE_TOSTRING_SM_DH   [default: not set]
-There is a union holding either GlobalPlatform or CWA-14890 or Diffie-Hellman data for secure channel establishment. Only with version=ENABLE_SM and version=ENABLE_TOSTRING, and only one of these ENABLE_TOSTRING_SM_* set, it controls, which part of the union to be considered in function toString.
+There is a union within struct sm_info, holding either GlobalPlatform or CWA-14890 or Diffie-Hellman data for secure channel establishment. Only with version=ENABLE_SM and version=ENABLE_TOSTRING, and only one of these ENABLE_TOSTRING_SM_* set, it controls, which part of the union to be considered in function toString.

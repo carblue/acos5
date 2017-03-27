@@ -22,11 +22,11 @@
 	"configurations": [
 		{
 			"name": "library",
-			"versions": ["ACOSMODE_V2", "SESSIONKEYSIZE24"]
+			"versions": ["ACOSMODE_V2", "REINIT_ACOSMODE_V2", "SESSIONKEYSIZE24", "ENABLE_ACOS5_64_UI"]
 		},
 		{
 			"name": "unittest",
-			"versions": ["ACOSMODE_V2", "SESSIONKEYSIZE24", "ENABLED_DEBUG_FILE"],
+			"versions": ["ACOSMODE_V2", "REINIT_ACOSMODE_V2", "SESSIONKEYSIZE24", "ENABLE_ACOS5_64_UI", "ENABLED_DEBUG_FILE"],
 			"dependencies": {
 				"pkcs11": "*"
 			},
