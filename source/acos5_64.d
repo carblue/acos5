@@ -2709,7 +2709,8 @@ private extern(C) int acos5_64_decipher(sc_card* card, const(ubyte)* in_, /*in*/
 		return rv=SC_ERROR_NOT_SUPPORTED;
 	// TODO check for "the in_len must match the keyModulus_length"
 
-version(ENABLE_ACOS5_64_UI) {
+version(Posix) {
+version(ENABLE_ACOS5_64_UI)
 	/* (Requested by DGP): on signature operation, ask user consent */
 	if (call_to_compute_signature_in_progress && (rv=acos5_64_ask_user_consent(card, user_consent_title, user_consent_message)) < 0) {
 		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_decipher", "User consent denied\n");
@@ -3190,12 +3191,13 @@ else {
 
 matched_SHA1_or_SHA256: // or everything unknown is mapped to zero length, which entails, that acos will try to use an existing internal hash
 
+version(Posix) {
 version(ENABLE_ACOS5_64_UI)  /* (Requested by DGP): on signature operation, ask user consent */
 	if ((rv=acos5_64_ask_user_consent(card, user_consent_title, user_consent_message)) < 0) {
 		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_compute_signature", "User consent denied\n");
 		return rv;
 	}
-
+}
 	 //                          CLAINSP1 P2               lc            apdu.data
 	bytes2apdu(ctx, cast(immutable(ubyte)[])x"00 2A 9E 9A" ~ cast(ubyte)tmp_arr.length ~ tmp_arr,     apdu);
 	apdu.flags = SC_APDU_FLAGS_NO_GET_RESP | (tmp_arr.length > 0xFF ? SC_APDU_FLAGS_CHAINING : 0LU);
