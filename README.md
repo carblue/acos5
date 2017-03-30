@@ -12,7 +12,7 @@ Driver `acos5_64`, an external modul .so/.dll for the PKCS#11,15 OpenSC framewor
 Compiles with DMD, LDC, GDC; shared phobos/druntime must be provided, which currently aren't included in released binaries of LDC and GDC.
 
 Sorry, if anybody got trouble using RSA keys greater than 2048 bits with this driver; I forgot that OpenSC issue, it just hit me again when switching OpenSC releases:
-  Current OpenSC releases are not prepared to use RSA keys greater than 2048 bit ! It's required to clone from git or patch a release and build OpenSC from source: The patch is the closed/merged Pull Request #814  https://github.com/OpenSC/OpenSC/pull/814, also as .diff files 'framework-pkcs15_c.diff' and 'pkcs11-tool_c.diff' in folder patch_diff_for_OpenSC_upto_0.16.0.
+  Current OpenSC releases are not prepared to use RSA keys greater than 2048 bit ! It's required to patch a release and build OpenSC from source: The patch is the closed/merged Pull Request #814  https://github.com/OpenSC/OpenSC/pull/814, also as .diff files 'framework-pkcs15_c.diff' and 'pkcs11-tool_c.diff' in folder patch_diff_for_OpenSC_upto_0.16.0.
 
 The driver is suitable for<br>
 ACS ACOS5-64 v2.00 Smart Card/CryptoMate64 USB token, and also since v0.0.5 for<br>
