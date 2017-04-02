@@ -1,6 +1,6 @@
 {
 	"name" : "acos5_64",
-	"description" : "ACS ACOS5-64/CryptoMate64 driver and SM external module for the OpenSC framework",
+	"description" : "ACS ACOS5-64/CryptoMate64/Nano driver/SM/PKCS#15 external module for the OpenSC framework",
 	"license": "LGPL-2.1",
 	"copyright": "Copyright © 2017, Carsten Blüggel",
 	"authors": ["Carsten Blüggel"],
@@ -22,11 +22,11 @@
 	"configurations": [
 		{
 			"name": "library",
-			"versions": ["ACOSMODE_V2", "REINIT_ACOSMODE_V2", "SESSIONKEYSIZE24", "ENABLE_ACOS5_64_UI"]
+			"versions": ["ACOSMODE_V2", "SESSIONKEYSIZE24"]
 		},
 		{
 			"name": "unittest",
-			"versions": ["ACOSMODE_V2", "REINIT_ACOSMODE_V2", "SESSIONKEYSIZE24", "ENABLE_ACOS5_64_UI", "ENABLED_DEBUG_FILE"],
+			"versions": ["ACOSMODE_V2", "SESSIONKEYSIZE24", "ENABLED_DEBUG_FILE"],
 			"dependencies": {
 				"pkcs11": "*"
 			},
