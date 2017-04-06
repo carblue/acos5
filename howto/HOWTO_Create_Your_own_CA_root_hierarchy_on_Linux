@@ -1,0 +1,58 @@
+Base of this HOWTO is the excellent guide of Jamie Nguyen, https://jamielinux.com/docs/openssl-certificate-authority/index.html
+
+I'm describing here, where and how to deviate from this guide (which relies on file based RSA private keys) by using existing RSA private keys residing in a smart card (necessary only where the private keys ca.key.pem and intermediate.key.pem come into play):
+
+The commands following ultimately have in mind to authenticate clients connecting to a service, or for e.g. signing emails (not for server certificates); deviate, if that is Your goal): This certificate (being signed by YOUR CA intermediate) confirms, that You realy are, who You claim to be when offering Your public key to someone, who also trusts YOUR CA intermediate and YOUR CA root. Thus if You want to achieve more than trusting Yourself, others will have to import YOUR CA intermediate and YOUR CA root certificates once as well and give trust to them, to establish Your "web of trust". 
+
+I assume, the RSA private key for the CA root is labeled 'MyRootCAKey' on the token (replace it by Your actual label in the following commands).
+I assume, the RSA private key for the CA intermediate is labeled 'MyIntermediateCAKey' on the token (replace it by Your actual label in the following commands).
+I assume, the RSA private key of the users Certificate signing reqest (CSR) is labeled 'MySignAndDecryptEmailKey' on a token (replace it by Your actual label in the following commands).
+
+I used the PKCS#11 module from the OpenSC project, as well as p11-kit configured properly for opensc-pkcs11.so with it's module having highest priority.
+As gateway to openssl I installed libp11 from https://github.com/OpenSC/libp11.
+
+I encountered crashes when using these tools with openssl, but these crashes always occured after the files in question got written to the filesystem already, thus no problem here.
+
+The openssl commands will be long, mutch longer than a terminal line. As does Jamie, I use trailing backslashes here to denote continuing commands in the next line.
+
+Now, going through Jamies guide:
+
+
+* Dont create ca.key.pem, You already have the key on token, labeled 'MyRootCAKey'
+
+* Create the root certificate (ca.cert.pem): Take this command (likely You will be asked for Your PIN to access the private key on token):
+user@host:/root/ca# openssl req -config openssl.cnf \
+-engine pkcs11 -key label_MyRootCAKey -keyform engine \
+-new -x509 -days 7300 -sha256 -extensions v3_ca \
+-out certs/ca.cert.pem
+
+* Dont create intermediate.key.pem, You already have the key on token, labeled 'MyIntermediateCAKey'
+
+* Create the intermediate certificate signing request (CSR): Take this command:
+user@host:/root/ca# openssl req -config intermediate/openssl.cnf -new -sha256 \
+-engine pkcs11 -key label_MyIntermediateCAKey -keyform engine \
+-out intermediate/csr/intermediate.csr.pem
+
+* Create the intermediate certificate (intermediate.cert.pem): Take this command:
+user@host:/root/ca# openssl ca -config openssl.cnf -extensions v3_intermediate_ca \
+-days 3650 -notext -md sha256 \
+-engine pkcs11 -keyfile label_MyRootCAKey -keyform engine \
+-in intermediate/csr/intermediate.csr.pem -out intermediate/certs/intermediate.cert.pem
+
+* Now for the user's eMail-Certificate
+user@host:/root/ca# openssl req -config intermediate/openssl.cnf -new -sha256 \
+-engine pkcs11 -key label_MySignAndDecryptEmailKey -keyform engine \
+-out intermediate/csr/MySignAndDecryptEmailKey.csr.pem
+
+
+To create a (user) certificate, use the intermediate CA to sign the CSR.
+user@host:/root/ca# openssl ca -config intermediate/openssl.cnf \
+-extensions usr_cert -days 375 -notext -md sha256 \
+-engine pkcs11 -keyfile label_MyIntermediateCAKey -keyform engine \
+-in intermediate/csr/MySignAndDecryptEmailKey.csr.pem \
+-out intermediate/certs/MySignAndDecryptEmailKey.cert.pem
+
+
+* Watch out for this subtleness:
+openssl req  uses the option -key
+openssl ca   uses the option -keyfile
