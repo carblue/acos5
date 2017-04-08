@@ -6,7 +6,7 @@
 	"authors": ["Carsten Blüggel"],
 	"homepage": "https://github.com/carblue/acos5_64",
 	"dependencies" : {
-		"opensc": "==0.15.12"
+		"opensc": "==0.15.13"
 	},
 	"subConfigurations": {
 		"opensc": "deimos"
@@ -15,18 +15,21 @@
 	"targetPath": "lib",
 	"targetType": "dynamicLibrary",
 	"buildRequirements" : ["disallowDeprecations"],
-	"dflags-posix-dmd": ["-defaultlib=libphobos2.so"],
+
+	"dflags-posix-dmd": ["-defaultlib=libphobos2.so", "-mcpu=native"],
 	"dflags-posix-ldc": ["-defaultlib=:libphobos2-ldc.so,:libdruntime-ldc.so"],
 	"dflags-posix-gdc": ["-shared-libphobos"],
+
 	"lflags-posix" : ["--no-undefined", "--version-script=lib/libacos5_64.ver"],
+	"flags-posix-concerning_ldc_gdc" : ["ldc built with cmake -DBUILD_SHARED_LIBS=ON; gdc build with --enable-shared"],
 	"configurations": [
 		{
 			"name": "library",
-			"versions": ["ACOSMODE_V2", "SESSIONKEYSIZE24"]
+			"versions": ["ACOSMODE_V2", "REINIT_ACOSMODE_V2", "SESSIONKEYSIZE24"]
 		},
 		{
 			"name": "unittest",
-			"versions": ["ACOSMODE_V2", "SESSIONKEYSIZE24", "ENABLED_DEBUG_FILE"],
+			"versions": ["ACOSMODE_V2", "REINIT_ACOSMODE_V2", "SESSIONKEYSIZE24", "ENABLED_DEBUG_FILE"],
 			"dependencies": {
 				"pkcs11": "*"
 			},

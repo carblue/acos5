@@ -1,35 +1,33 @@
 /*
- * acos5_64.d Support for ACOS5-64 smart cards
+ *   acos5_64.d  OpenSC support for ACOS5-64 smart cards/USB token.
  *
- * Copyright (C) 2017  Carsten Blüggel <carblue@geekmail.de>
+ *   Copyright (C) 2017  Carsten Blüggel <carblue@geekmail.de>
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
+ *   This library is free software; you can redistribute it and/or
+ *   modify it under the terms of the GNU Lesser General Public
+ *   License as published by the Free Software Foundation,
+ *   version 2.1 of the License.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *   This library is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *   Lesser General Public License for more details.
+
+ *   You should have received a copy of the GNU Lesser General Public
+ *   License along with this library; if not, write to the Free Software
+ *   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335
+ *   USA
  */
 
 
 module acos5_64;
 
-version(ACOSMODE_V3_FIPS_140_2L3) {
-	version=SESSIONKEYSIZE24;
-}
-
-
 import core.stdc.config : c_ulong;
 import core.stdc.locale : setlocale, LC_ALL;
 import core.stdc.string : memset, memcpy, memcmp, memmove, strlen/*, strcasecmp*/;
-import core.stdc.stdlib : realloc, free, malloc, calloc, strtol;
+import core.stdc.stdlib : realloc, free, malloc, calloc;//, strtol;
+
+import std.conv : to;
 import core.exception : AssertError;
 import std.exception : enforce, assumeUnique, assertNotThrown, assertThrown;
 import std.stdio : stdout, stderr, writeln, writefln, File, snprintf, fprintf, printf;
@@ -78,14 +76,17 @@ import libopensc.opensc; // sc_format_path, SC_ALGORITHM_RSA, sc_print_path, sc_
 import libopensc.types; // : sc_path, sc_atr, sc_file, sc_serial_number, SC_MAX_PATH_SIZE, SC_PATH_TYPE_PATH, sc_apdu, SC_AC_OP_GENERATE;
 import libopensc.errors;
 import scconf.scconf : scconf_block, scconf_find_blocks, scconf_get_str, scconf_get_bool;
-import libopensc.cards : SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3;
-import libopensc.sm;
 import libopensc.iso7816;
 
+import libopensc.cards : SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3;
+import libopensc.sm;
+
 import libopensc.pkcs15 : sc_pkcs15_card, sc_pkcs15_object, sc_pkcs15_pubkey, SC_PKCS15_TOKEN_PRN_GENERATION, sc_pkcs15_prkey_info, sc_pkcs15_print_id, SC_PKCS15_TYPE_PRKEY_RSA, SC_PKCS15_TYPE_PUBKEY_RSA,
-	sc_pkcs15_prkey, sc_pkcs15_der, sc_pkcs15_auth_info, SC_PKCS15_PRKEY_USAGE_SIGN, SC_PKCS15_TYPE_CLASS_MASK, sc_pkcs15_prkey_rsa;
+	sc_pkcs15_prkey, sc_pkcs15_der, sc_pkcs15_auth_info, SC_PKCS15_PRKEY_USAGE, SC_PKCS15_TYPE_CLASS_MASK, sc_pkcs15_prkey_rsa, sc_pkcs15_pubkey_rsa,
+	sc_pkcs15_bignum, sc_pkcs15_encode_pubkey_rsa;
 import pkcs15init.pkcs15init : /*sc_profile,*/ sc_pkcs15init_operations, sc_pkcs15init_authenticate, sc_pkcs15init_delete_by_path, sc_pkcs15init_create_file, SC_PKCS15INIT_SO_PIN, SC_PKCS15INIT_USER_PIN;
 import pkcs15init.profile : file_info, sc_profile/*, sc_profile_get_file*/;
+
 
 import deimos.openssl.des : DES_cblock, const_DES_cblock, DES_KEY_SZ; //, DES_key_schedule, DES_SCHEDULE_SZ /* is not fixed length, as dep. on DES_LONG */, DES_LONG /*c_ulong*/;
 import deimos.openssl.bn;
@@ -94,26 +95,38 @@ import deimos.openssl.evp;
 import deimos.openssl.err : ERR_free_strings;
 import deimos.openssl.rand : RAND_bytes;
 
-enum EACOSMODE : uint {      // see Reference Manual
-	eACOSMODE_V3_FIPS_140_2L3, // = 0  V3: FIPS 140-2 Level 3–Compliant Mode
-	eACOSMODE_V1_Emulated_32K, // = 1, V3: Emulated 32K Mode is very similar to the ACOS5 (V1?); just for completeness, not supported here
-	eACOSMODE_V2,              // = 2, V3: Non-FIPS 64K Mode is very similar to the Version 2 ACOS5-64 default mode; card.type and mode together determine cos's capabilities, e.g. SC_CARD_TYPE_ACOS5_64_V3 can SM pin_verify, SC_CARD_TYPE_ACOS5_64_V2 can't
-	eACOSMODE_V3_NSH_1 = 16,   //      V3: NSH-1 Mode
+
+//from acos5_64_h
+// default/factory setting values are 0, i.e. eACOSV2MODE_V2 for card.type==SC_CARD_TYPE_ACOS5_64_V2; eACOSV3MODE_V3_FIPS_140_2L3 for card.type==SC_CARD_TYPE_ACOS5_64_V3
+enum EACOSV2MODE : ubyte {      // see Reference Manual
+		 eACOSV2MODE_V2,              // = 0, V2: 64K Mode is the Version 2 ACOS5-64 default mode; card.type and mode together determine cos's capabilities, e.g. SC_CARD_TYPE_ACOS5_64_V3 can SM pin_verify, SC_CARD_TYPE_ACOS5_64_V2 can't
+		 eACOSV2MODE_V1_Emulated_32K, // = 1, V2: 32K Mode is very similar to the ACOS5 (V1?); just for completeness, not supported here
 }
-mixin FreeEnumMembers!EACOSMODE;
+mixin FreeEnumMembers!EACOSV2MODE;
+
+enum EACOSV3MODE : ubyte {      // see Reference Manual
+		 eACOSV3MODE_V3_FIPS_140_2L3, // = 0  V3: FIPS 140-2 Level 3–Compliant Mode
+		 eACOSV3MODE_V1_Emulated_32K, // = 1, V3: Emulated 32K Mode is very similar to the ACOS5 (V1?); just for completeness, not supported here
+		 eACOSV3MODE_V2,              // = 2, V3: Non-FIPS 64K Mode is very similar to the Version 2 ACOS5-64 default mode; card.type and mode together determine cos's capabilities, e.g. SC_CARD_TYPE_ACOS5_64_V3 can SM pin_verify, SC_CARD_TYPE_ACOS5_64_V2 can't
+		 eACOSV3MODE_V3_NSH_1 = 16,   //      V3: NSH-1 Mode
+}
+mixin FreeEnumMembers!EACOSV3MODE;
 
 
-enum ACOS5_64_OBJECT_REF_FLAG_LOCAL = 0x80; // von authentic.h
+enum ACOS5_64_OBJECT_REF_FLAG_LOCAL = 0x80; // from authentic.h
 enum ACOS5_64_CRYPTO_OBJECT_REF_MIN	= 0x01; // 0x81;
 enum ACOS5_64_CRYPTO_OBJECT_REF_MAX	= 0x0F; // 0xFF;
 
 enum ERSA_Key_type : ubyte {
 	Public_Key                          = 0, // Public Key
 
-	Standard_for_Signing_and_Decrypting = 1, // Private non-CRT key capable of RSA Private Key Sign and Decrypt
-	Standard_for_Decrypting             = 2, // Private non-CRT key capable of RSA Private Key Decrypt (only)
-	CRT_for_Signing_and_Decrypting      = 4, // Private     CRT key capable of RSA Private Key Sign and Decrypt
+	Standard_for_Signing_only           = 1, // Private non-CRT key capable of RSA Private Key Sign (only)       // not for FIPS
+	Standard_for_Decrypting_only        = 2, // Private non-CRT key capable of RSA Private Key Decrypt (only)    // not for FIPS
+	Standard_for_Signing_and_Decrypting = 3, // Private non-CRT key capable of RSA Private Key Sign and Decrypt  // not for FIPS
+
+	CRT_for_Signing_only                = 4, // Private     CRT key capable of RSA Private Key Sign (only)
 	CRT_for_Decrypting_only             = 5, // Private     CRT key capable of RSA Private Key Decrypt (only)
+	CRT_for_Signing_and_Decrypting      = 6, // Private     CRT key capable of RSA Private Key Sign and Decrypt
 }
 
 enum EFDB : ubyte {
@@ -127,6 +140,7 @@ enum EFDB : ubyte {
 	// There can be a maximum of 0x1F Global PINs, 0x1F Local PINs, 0x1F Global Keys, and 0x1F Local Keys at a given time. (1Fh==31)
 	CHV_EF             = 0x0A,  // ==  8+Linear_Fixed_EF,     record based ( Update Record ) DF or MF shall contain only one CHV file. Every record in the CHV file will have a fixed length of 21 bytes each
 	Sym_Key_EF         = 0x0C,  // ==  8+Linear_Variable_EF,  record based ( Update Record ) DF or MF shall contain only one sym file. Every record in the symmetric key file shall have a maximum of 37 bytes
+	Purse_EF           = 0x0E,
 	// Proprietary EF:
 	SE_EF    	         = 0x1C,  // ==18h+Linear_Variable_EF,  record based ( Update Record ) DF or MF shall use only one SE File. An SE file can have up to 0x0F identifiable records. (0Fh==15)
 	// DF types:
@@ -137,6 +151,13 @@ mixin FreeEnumMembers!EFDB;
 
 ubyte iEF_FDB_to_structure(EFDB FDB) { auto result = cast(ubyte)(FDB & 7); if (result>0 && result<7) return result; else return 0; }
 
+/*
+   DigestInfo ::= SEQUENCE {
+     digestAlgorithm DigestAlgorithmIdentifier,
+     digest Digest
+   }
+In the following naming, digestInfoPrefix is everything from the ASN1 representaion of DigestInfo, except the trailing digest bytes
+*/
 enum DigestInfo_Algo_RSASSA_PKCS1_v1_5 : ubyte  { // contents from RFC 8017 are examples, some not recommended for new apps, some in specific schemes; SHA3 not yet mentioned in RFC 8017
 /*
 	id_rsassa_pkcs1_v1_5_with_md2,        // md2WithRSAEncryption, // id_md2, not recommended
@@ -194,6 +215,7 @@ enum Usage {
 	Encrypt_PSO_SMcommand_pub,
 	Encrypt_PSO_SMresponse_pub,
 	Encrypt_PSO_SMcommandResponse_pub,
+//		CT_asym: UQB_Possible(0xFF, [0x40/*PSO*/, 0x50/*PSO+SM in Command Data*/, 0x60/*PSO+SM in Response Data*/, 0x70/*PSO+SM in Command and Response Data*/]),
 	/* CT_sym */
 
 	/* CCT 16*/
@@ -208,15 +230,15 @@ struct cache_current_df_se_info {
 	ub8       sac;     /* SAC as preprocessed by read_8C_SAC_Bytes_to_ub8SC, always 8 bytes sac_len */
 	ubyte[32] sae;     /* SAE Security Attributes Expanded */
 	uint      sae_len; /* sae length used */
-	int       fdb;     /* FileDescriptorByte: either ISO7816_FILE_TYPE_DF==0x38==DF, 0x3F==MF or 0 */
+	int       fdb;     /* FileDescriptorByte */
 	ub2       fid;
 	ub2       seid;
-	ubyte     NOR;
-	ubyte     MRL;
+	ubyte     NOR; /* if applicable: Number Of Records */
+	ubyte     MRL; /* if applicable: Max. Record Length */
 }
 
 struct acos5_64_private_data {
-	acos5_64_se_info*  pse_info;      // gesetzt in int acos5_64_se_set_cached_info/iasecc_se_cache_info(sc_card* card, acos5_64_se_info* se)
+	acos5_64_se_info*   pse_info;      // gesetzt in int acos5_64_se_set_cached_info/iasecc_se_cache_info(sc_card* card, acos5_64_se_info* se)
 	ubyte[2*DES_KEY_SZ] card_key2;
 	ubyte[2*DES_KEY_SZ] host_key1;
 //	sm_cwa_token_data		ifd;
@@ -324,20 +346,21 @@ enum {
 	ATR_maxcount_unused,
 }
 
-
 alias  uba        = ubyte[];
 alias  ub2        = ubyte[2];
 alias  ub4        = ubyte[4];
 alias  ub8        = ubyte[8];
 alias  ub16       = ubyte[16];
 alias  ub24       = ubyte[24];
+//ias iub8        = immutable(ubyte)[8];
 alias iuba        = immutable(ubyte)[];
 
 alias TSMarguments = Tuple!(
 	 int,       "cse_plain"     /* APDU case before wrapping*/
 	,SM_Extend, "sm_extend"     /*  */
 	,uba,       "cla_ins_p1_p2" /*  */
-	,ubyte*,    "key"
+	,ubyte*,    "key_enc"
+	,ubyte*,    "key_mac"
 	,ub8,       "ssc_iv"
 	,ubyte,     "p3"
 	,uba,       "cmdData"
@@ -426,7 +449,7 @@ mixin template file_add_acl_entry() {
 			}
 			version(none /*ENABLE_TOSTRING*/) {
 				sc_acl_entry* e = cast(sc_acl_entry*)sc_file_get_acl_entry(file, op);
-				e.crts = e.crts.init; // there seems to be garbage in crts
+				e.crts = /*(sc_crt[SC_MAX_CRTS_IN_SE])*/ e.crts.init; // there seems to be garbage in crts
 				while (e.next) {
 					e = e.next;
 					e.crts = e.crts.init;
@@ -444,45 +467,45 @@ mixin template file_add_acl_entry() {
 //////////////////////////////////////////////////
 
 struct DI_data { // DigestInfo_data
-	string             hashAlgorithmOID;
-	ubyte              hashAlgorithmName; // it's enum value is the index in DI_table
-	ubyte              hashLength;
-	ubyte              digestInfoLength;
-	bool               allow;
-	bool               compute_signature_possible_without_rawRSA;
-	immutable(ubyte)[] digestInfoPrefix;
+	string  hashAlgorithmOID;
+	ubyte   hashAlgorithmName; // it's enum value is the index in DI_table
+	ubyte   hashLength;
+	ubyte   digestInfoLength;
+	bool    allow;
+	bool    compute_signature_possible_without_rawRSA;
+	iuba    digestInfoPrefix;
 }
 
 immutable(DI_data[]) DI_table = [ // DigestInfo_table
 /*
-	{ "1.2.840.113549.2.2",      id_rsassa_pkcs1_v1_5_with_md2,        16, 34, false, false, cast(immutable(ubyte)[]) x"30 20 30 0c 06 08 2a 86 48 86 f7 0d 02 02 05 00 04 10"},
-	{ "1.2.840.113549.2.5",      id_rsassa_pkcs1_v1_5_with_md5,        16, 34, false, false, cast(immutable(ubyte)[]) x"30 20 30 0c 06 08 2a 86 48 86 f7 0d 02 05 05 00 04 10"},
+	{ "1.2.840.113549.2.2",      id_rsassa_pkcs1_v1_5_with_md2,        16, 34, false, false, representation(x"30 20 30 0c 06 08 2a 86 48 86 f7 0d 02 02 05 00 04 10")},
+	{ "1.2.840.113549.2.5",      id_rsassa_pkcs1_v1_5_with_md5,        16, 34, false, false, representation(x"30 20 30 0c 06 08 2a 86 48 86 f7 0d 02 05 05 00 04 10")},
 */
-	{ "1.3.14.3.2.26",           id_rsassa_pkcs1_v1_5_with_sha1,       20, 35, true,  true,  cast(immutable(ubyte)[]) x"30 21 30 09 06 05 2b 0e 03 02 1a 05 00 04 14"},
+	{ "1.3.14.3.2.26",           id_rsassa_pkcs1_v1_5_with_sha1,       20, 35, true,  true,  representation(x"30 21 30 09 06 05 2b 0e 03 02 1a 05 00 04 14")},
 
-	{ "2.16.840.1.101.3.4.2.4",  id_rsassa_pkcs1_v1_5_with_sha224,     28, 47, true,  false, cast(immutable(ubyte)[]) x"30 2d 30 0d 06 09 60 86 48 01 65 03 04 02 04 05 00 04 1c"},
-	{ "2.16.840.1.101.3.4.2.1",  id_rsassa_pkcs1_v1_5_with_sha256,     32, 51, true,  true,  cast(immutable(ubyte)[]) x"30 31 30 0d 06 09 60 86 48 01 65 03 04 02 01 05 00 04 20"},
-	{ "2.16.840.1.101.3.4.2.2",  id_rsassa_pkcs1_v1_5_with_sha384,     48, 67, true,  false, cast(immutable(ubyte)[]) x"30 41 30 0d 06 09 60 86 48 01 65 03 04 02 02 05 00 04 30"},
-	{ "2.16.840.1.101.3.4.2.3",  id_rsassa_pkcs1_v1_5_with_sha512,     64, 83, true,  false, cast(immutable(ubyte)[]) x"30 51 30 0d 06 09 60 86 48 01 65 03 04 02 03 05 00 04 40"},
-	{ "2.16.840.1.101.3.4.2.5",  id_rsassa_pkcs1_v1_5_with_sha512_224, 28, 47, true,  false, cast(immutable(ubyte)[]) x"30 2d 30 0d 06 09 60 86 48 01 65 03 04 02 05 05 00 04 1c"},
-	{ "2.16.840.1.101.3.4.2.6",  id_rsassa_pkcs1_v1_5_with_sha512_256, 32, 51, true,  false, cast(immutable(ubyte)[]) x"30 31 30 0d 06 09 60 86 48 01 65 03 04 02 06 05 00 04 20"},
+	{ "2.16.840.1.101.3.4.2.4",  id_rsassa_pkcs1_v1_5_with_sha224,     28, 47, true,  false, representation(x"30 2d 30 0d 06 09 60 86 48 01 65 03 04 02 04 05 00 04 1c")},
+	{ "2.16.840.1.101.3.4.2.1",  id_rsassa_pkcs1_v1_5_with_sha256,     32, 51, true,  true,  representation(x"30 31 30 0d 06 09 60 86 48 01 65 03 04 02 01 05 00 04 20")},
+	{ "2.16.840.1.101.3.4.2.2",  id_rsassa_pkcs1_v1_5_with_sha384,     48, 67, true,  false, representation(x"30 41 30 0d 06 09 60 86 48 01 65 03 04 02 02 05 00 04 30")},
+	{ "2.16.840.1.101.3.4.2.3",  id_rsassa_pkcs1_v1_5_with_sha512,     64, 83, true,  false, representation(x"30 51 30 0d 06 09 60 86 48 01 65 03 04 02 03 05 00 04 40")},
+	{ "2.16.840.1.101.3.4.2.5",  id_rsassa_pkcs1_v1_5_with_sha512_224, 28, 47, true,  false, representation(x"30 2d 30 0d 06 09 60 86 48 01 65 03 04 02 05 05 00 04 1c")},
+	{ "2.16.840.1.101.3.4.2.6",  id_rsassa_pkcs1_v1_5_with_sha512_256, 32, 51, true,  false, representation(x"30 31 30 0d 06 09 60 86 48 01 65 03 04 02 06 05 00 04 20")},
 
-	{ "2.16.840.1.101.3.4.2.7",  id_rsassa_pkcs1_v1_5_with_sha3_224,   28, 47, true,  false, cast(immutable(ubyte)[]) x"30 2d 30 0d 06 09 60 86 48 01 65 03 04 02 07 05 00 04 1c"},
-	{ "2.16.840.1.101.3.4.2.8",  id_rsassa_pkcs1_v1_5_with_sha3_256,   32, 51, true,  false, cast(immutable(ubyte)[]) x"30 31 30 0d 06 09 60 86 48 01 65 03 04 02 08 05 00 04 20"},
-	{ "2.16.840.1.101.3.4.2.9",  id_rsassa_pkcs1_v1_5_with_sha3_384,   48, 67, true,  false, cast(immutable(ubyte)[]) x"30 41 30 0d 06 09 60 86 48 01 65 03 04 02 09 05 00 04 30"},
-	{ "2.16.840.1.101.3.4.2.10", id_rsassa_pkcs1_v1_5_with_sha3_512,   64, 83, true,  false, cast(immutable(ubyte)[]) x"30 51 30 0d 06 09 60 86 48 01 65 03 04 02 0a 05 00 04 40"},
+	{ "2.16.840.1.101.3.4.2.7",  id_rsassa_pkcs1_v1_5_with_sha3_224,   28, 47, true,  false, representation(x"30 2d 30 0d 06 09 60 86 48 01 65 03 04 02 07 05 00 04 1c")},
+	{ "2.16.840.1.101.3.4.2.8",  id_rsassa_pkcs1_v1_5_with_sha3_256,   32, 51, true,  false, representation(x"30 31 30 0d 06 09 60 86 48 01 65 03 04 02 08 05 00 04 20")},
+	{ "2.16.840.1.101.3.4.2.9",  id_rsassa_pkcs1_v1_5_with_sha3_384,   48, 67, true,  false, representation(x"30 41 30 0d 06 09 60 86 48 01 65 03 04 02 09 05 00 04 30")},
+	{ "2.16.840.1.101.3.4.2.10", id_rsassa_pkcs1_v1_5_with_sha3_512,   64, 83, true,  false, representation(x"30 51 30 0d 06 09 60 86 48 01 65 03 04 02 0a 05 00 04 40")},
 /*
 version(X86_64) { //Blak2s is not mentioned in PKCS#2.2
-	{ "1.3.6.1.4.1.1722.12.2.1.5",  id_rsassa_pkcs1_v1_5_with_blake2b160, 20, 41, true,  false, cast(immutable(ubyte)[]) x"30 27 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 01 05 05 00 04 14"},
-	{ "1.3.6.1.4.1.1722.12.2.1.8",  id_rsassa_pkcs1_v1_5_with_blake2b256, 32, 53, true,  false, cast(immutable(ubyte)[]) x"30 33 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 01 08 05 00 04 20"},
-	{ "1.3.6.1.4.1.1722.12.2.1.12", id_rsassa_pkcs1_v1_5_with_blake2b384, 48, 69, true,  false, cast(immutable(ubyte)[]) x"30 43 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 01 0c 05 00 04 30"},
-	{ "1.3.6.1.4.1.1722.12.2.1.16", id_rsassa_pkcs1_v1_5_with_blake2b512, 64, 85, true,  false, cast(immutable(ubyte)[]) x"30 53 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 01 10 05 00 04 40"},
+	{ "1.3.6.1.4.1.1722.12.2.1.5",  id_rsassa_pkcs1_v1_5_with_blake2b160, 20, 41, true,  false, representation(x"30 27 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 01 05 05 00 04 14")},
+	{ "1.3.6.1.4.1.1722.12.2.1.8",  id_rsassa_pkcs1_v1_5_with_blake2b256, 32, 53, true,  false, representation(x"30 33 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 01 08 05 00 04 20")},
+	{ "1.3.6.1.4.1.1722.12.2.1.12", id_rsassa_pkcs1_v1_5_with_blake2b384, 48, 69, true,  false, representation(x"30 43 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 01 0c 05 00 04 30")},
+	{ "1.3.6.1.4.1.1722.12.2.1.16", id_rsassa_pkcs1_v1_5_with_blake2b512, 64, 85, true,  false, representation(x"30 53 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 01 10 05 00 04 40")},
 }
 else {
-	{ "1.3.6.1.4.1.1722.12.2.2.4",  id_rsassa_pkcs1_v1_5_with_blake2s128, 16, 41, true,  false, cast(immutable(ubyte)[]) x"30 23 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 02 04 05 00 04 10"},
-	{ "1.3.6.1.4.1.1722.12.2.2.5",  id_rsassa_pkcs1_v1_5_with_blake2s160, 20, 41, true,  false, cast(immutable(ubyte)[]) x"30 27 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 02 05 05 00 04 14"},
-	{ "1.3.6.1.4.1.1722.12.2.2.7",  id_rsassa_pkcs1_v1_5_with_blake2s224, 28, 41, true,  false, cast(immutable(ubyte)[]) x"30 2F 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 02 07 05 00 04 1c"},
-	{ "1.3.6.1.4.1.1722.12.2.2.8",  id_rsassa_pkcs1_v1_5_with_blake2s256, 32, 41, true,  false, cast(immutable(ubyte)[]) x"30 33 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 02 08 05 00 04 20"},
+	{ "1.3.6.1.4.1.1722.12.2.2.4",  id_rsassa_pkcs1_v1_5_with_blake2s128, 16, 41, true,  false, representation(x"30 23 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 02 04 05 00 04 10")},
+	{ "1.3.6.1.4.1.1722.12.2.2.5",  id_rsassa_pkcs1_v1_5_with_blake2s160, 20, 41, true,  false, representation(x"30 27 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 02 05 05 00 04 14")},
+	{ "1.3.6.1.4.1.1722.12.2.2.7",  id_rsassa_pkcs1_v1_5_with_blake2s224, 28, 41, true,  false, representation(x"30 2F 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 02 07 05 00 04 1c")},
+	{ "1.3.6.1.4.1.1722.12.2.2.8",  id_rsassa_pkcs1_v1_5_with_blake2s256, 32, 41, true,  false, representation(x"30 33 30 0F 06 0B 2b 06 01 04 01 8D 3A 0c 02 02 08 05 00 04 20")},
 }
 */
 ];
@@ -497,27 +520,22 @@ immutable(const(EVP_CIPHER)*[blockCipherModeOfOperation_maxcount_unused]) cipher
 immutable enum MAX_FCI_GET_RESPONSE_LEN = 86; //[EnumMembers!ISO7816_TAG_FCP_    ].fold!((a, b) => a + 2+TAG_FCP_len(b))(-12) +
 																							//[EnumMembers!ISO7816_RFU_TAG_FCP_].fold!((a, b) => a + 2+TAG_FCP_len(b))(0); // Σ:86 //2(6F) [+4(80)] +8(82)+4(83) [+18(84)]+3(88)+3(8A)+10(8C)  [+4(8D) +34(AB)]
 //pragma(msg, "compiling...MAX_FCI_GET_RESPONSE_LEN is: ", MAX_FCI_GET_RESPONSE_LEN);
-
-immutable sc_path MF_path   = { [0x3F, 0], 2,  0, -1,  SC_PATH_TYPE.SC_PATH_TYPE_PATH };
+immutable sc_path MF_path   = { [0x3F, 0], 2,  0, -1,  SC_PATH_TYPE_PATH }; // all following bytes of aid: zero
 
 version(ACOSMODE_V2)
-	private immutable(char)[46]  chip_name  = "ACS ACOS5-64 (v2.00: Smart Card/CryptoMate64)"; // C-style null-terminated string equivalent, +1 for literal-implicit \0
+	private immutable(char)[98]  chip_name  = "ACS ACOS5-64 (v2: Smart Card/CryptoMate64 or v3: Smart Card/CryptoMate Nano in mode Non-FIPS/64K)"; // C-style null-terminated string equivalent, +1 for literal-implicit \0
 else
-	private immutable(char)[49]  chip_name  = "ACS ACOS5-64 (v3.00: Smart Card/CryptoMate Nano)";
-//name = "ACS ACOS5-64 (v2.00, Smart Card / CryptoMate64)";
-//name = "ACS ACOS5-64 (v3.00, Smart Card / CryptoMate Nano)";
+	private immutable(char)[49]  chip_name  = "ACS ACOS5-64 (v3: Smart Card/CryptoMate Nano)";
 
-private immutable(char)[10]  chip_shortname = "acos5_64\0";
-//private immutable(char)[57][2] ATR_colon        = [ "3B:BE:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00",
-//                                                    "3B:BE:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00"];
+private immutable(char)[9]  chip_shortname = "acos5_64";
 
-private immutable(char)[57] ATR_V2_colon =          "3B:BE:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00";
-private immutable(char)[57] ATR_V3_colon =          "3B:BE:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00";
+private immutable(char)[57]  ATR_V2_colon =          "3B:BE:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00";
+private immutable(char)[57]  ATR_V3_colon =          "3B:BE:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00";
 
-private immutable(char)[57]  ATR_mask  =    "FF:FF:FF:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:FF:FF:FF";
+private immutable(char)[57]  ATR_mask  =    "FF:FF:FF:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:FF:00:00";
 
 /* ATR Table list. */
-__gshared sc_atr_table[2]/*[ATR_maxcount_unused]*/ acos5_64_atrs = [ // immutable(sc_atr_table)[3]
+__gshared sc_atr_table[3]  acos5_64_atrs = [
 	{
 		ATR_V2_colon.ptr,               // atr
 		ATR_mask.ptr,                   // atrmask "FF:FF:FF:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF",
@@ -526,10 +544,18 @@ __gshared sc_atr_table[2]/*[ATR_maxcount_unused]*/ acos5_64_atrs = [ // immutabl
 		SC_CARD_FLAG_RNG,               // flags
 		null                            // card_atr  scconf_block*  fill this in acos5_64_init, or done by opensc d?
 	},
+	{
+		ATR_V3_colon.ptr,               // atr
+		ATR_mask.ptr,                   // atrmask "FF:FF:FF:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF",
+		chip_shortname.ptr,             // name
+		SC_CARD_TYPE_ACOS5_64_V3,       // type
+		SC_CARD_FLAG_RNG,               // flags
+		null                            // card_atr  scconf_block*  fill this in acos5_64_init, or done by opensc d?
+	},
 	{ } //null, null, null, 0, 0, null) // list end marker all zero
 ];
 
-__gshared sc_card_operations*  iso_ops_ptr;
+__gshared         sc_card_operations*       iso_ops_ptr;
 private __gshared sc_card_operations        acos5_64_ops;
 private __gshared sc_pkcs15init_operations  acos5_64_pkcs15init_ops;
 
@@ -539,7 +565,7 @@ private __gshared sc_card_driver  acos5_64_drv = sc_card_driver(
 	chip_shortname.ptr, /**< (short_name): Short name for acos5_64 card driver */
 	null,               /**< (ops):        Pointer to acos5_64_ops (acos5_64 card driver operations), assigned later by sc_get_acos5_64_driver */
 	acos5_64_atrs.ptr,  /**< (atr_map):    Pointer to list of card ATR's handled by this driver */
-	1,                  /**< (natrs):      Number of atr's to check for this driver */
+	2,                  /**< (natrs):      Number of atr's to check for this driver */
 	null                /**< (dll):        Card driver module  (seems to be unused) */
 );
 
@@ -549,7 +575,11 @@ private __gshared const(char[7]) module_version = "0.16.0";  // uint major = 0, 
 version(ENABLE_TOSTRING)
 auto writer = appender!string();
 
-BN_CTX* bn_ctx;
+BN_CTX*  bn_ctx;
+
+bool do_zeroize_token;    // = false;
+bool do_initialize_token; // = false;
+//bool do_re_initialize_token; // = false;  the same as do_zeroize_token && do_initialize_token
 
 
 /* Information Structures for Building CRT Templates (which Tags for what type of Template; for SE-File, ManageSecurityEnvironment MSE and acos5_64_set_security_env) */
@@ -561,9 +591,12 @@ immutable(ID_Pin_Key_Local_Global_Possible[CRT_TAG]) aa_idpk_poss;
 //////////////////////////////////////////////////
 
 
-private uba construct_SMcommand(int SC_APDU_CASE, SM_Extend sm_extend, in uba CLA_INS_P1_P2, in ubyte* key, ref ubyte[8] ssc_iv,  ubyte P3=0, uba cmdData=null)
+private uba construct_SMcommand(int SC_APDU_CASE, SM_Extend sm_extend, in uba CLA_INS_P1_P2, in ubyte* key_enc, in ubyte* key_mac, ref ubyte[8] ssc_iv,  ubyte P3=0, uba cmdData=null)
 {
 	uba result; // = new ubyte[0];
+	uba cmdDataNew;
+	uba cmdDataEncrypted;
+
 	assert(4==CLA_INS_P1_P2.length);
 	assert(P3<=240);
 	assert(canFind([SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT], SC_APDU_CASE));
@@ -573,14 +606,35 @@ private uba construct_SMcommand(int SC_APDU_CASE, SM_Extend sm_extend, in uba CL
 	result = SMCLA_INS_P1_P2 ~ ubZero;
 
 	uba mac_indataPadded = [ubyte(SMDO_Tag.Command_header_SMCLA_INS_P1_P2), ubyte(4)] ~ SMCLA_INS_P1_P2;
+
+	sm_incr_ssc(ssc_iv); // ready for SM-mac'ing // The sequence number (seq#) n is used as the initial vector in the CBC calculation
+
 	switch (SC_APDU_CASE) {
 		case SC_APDU_CASE_2_SHORT:
 			result           ~= [ubyte(SMDO_Tag.Original_P3_in_an_ISO_OUT_command), ubyte(1) , P3];
 			mac_indataPadded ~= [ubyte(SMDO_Tag.Original_P3_in_an_ISO_OUT_command), ubyte(1) , P3];
 			break;
 		case SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT:
-			result           ~= [ubyte(SMDO_Tag.Plain_Value), P3] ~ cmdData;
-			mac_indataPadded ~= [ubyte(SMDO_Tag.Plain_Value), P3] ~ cmdData;
+			if (sm_extend==SM_CCT_AND_CT_sym) {
+				cmdDataNew = cmdData.dup;
+				cmdDataEncrypted = new ubyte[cmdData.length];
+				ubyte padByte = (cmdDataNew.length%8? 1 : 0);
+				if (padByte) {
+					cmdDataNew ~= ubyte(0x80);
+					while (cmdDataNew.length%8)
+						cmdDataNew ~= ubyte(0x00);
+					cmdDataEncrypted.length = cmdDataNew.length;
+				}
+
+				if (cmdDataEncrypted.length!=encrypt_algo(cmdDataNew, key_enc, ssc_iv.ptr, cmdDataEncrypted.ptr, cipher_TDES[CBC], false) )
+					return null;
+				result           ~= [ubyte(SMDO_Tag.Padding_content_indicator_byte_followed_by_cryptogram), cast(ubyte)(cmdDataEncrypted.length+1), padByte] ~ cmdDataEncrypted;
+				mac_indataPadded ~= [ubyte(SMDO_Tag.Padding_content_indicator_byte_followed_by_cryptogram), cast(ubyte)(cmdDataEncrypted.length+1), padByte] ~ cmdDataEncrypted;
+			}
+			else {
+				result           ~= [ubyte(SMDO_Tag.Plain_Value), P3] ~ cmdData;
+				mac_indataPadded ~= [ubyte(SMDO_Tag.Plain_Value), P3] ~ cmdData;
+			}
 			break;
 		default:
 			break;
@@ -590,28 +644,25 @@ private uba construct_SMcommand(int SC_APDU_CASE, SM_Extend sm_extend, in uba CL
 	if (mac_indataPadded.length%8)
 		mac_indataPadded ~= ubyte(0x80);
 	while (mac_indataPadded.length%8)
-		mac_indataPadded ~= ubyte(0x00);
+		mac_indataPadded ~= ubyte(0x00);// assert(equal(5.repeat().take(4), [ 5, 5, 5, 5 ]));
 
-	sm_incr_ssc(ssc_iv); // ready for SM-mac'ing // The sequence number (seq#) n is used as the initial vector in the CBC calculation
-	if (8!=encrypt_algo_cbc_mac(mac_indataPadded, key, ssc_iv.ptr, mac_outdataPadded.ptr, cipher_TDES[DAC], false))
+	if (8!=encrypt_algo_cbc_mac(mac_indataPadded, key_mac, ssc_iv.ptr, mac_outdataPadded.ptr, cipher_TDES[DAC], false))
 		return null;
 
 	result ~= [ubyte(SMDO_Tag.Cryptographic_Checksum), ubyte(4)] ~ mac_outdataPadded[0..4];
 	result[4] = cast(ubyte)(result.length-5);
+
 	return result;
 }
 
 
-private int check_SMresponse(sc_apdu* apdu, sm_card_response* sm_resp, in ubyte* key_enc, int SC_APDU_CASE, SM_Extend sm_extend, in uba CLA_INS_P1_P2, in ubyte* key_mac, ref ubyte[8] ssc_iv,  ubyte P3=0) {
+private int check_SMresponse(sc_apdu* apdu, sm_card_response* sm_resp, int SC_APDU_CASE, SM_Extend sm_extend,
+	in uba CLA_INS_P1_P2, in ubyte* key_enc, in ubyte* key_mac, ref ubyte[8] ssc_iv,  ubyte P3=0) {
 	assert(4==CLA_INS_P1_P2.length);
 	int   rv;
 	bool  sm_resp_usable;
 	if (sm_resp && sm_resp.sw1 && sm_resp.mac_len && sm_resp.data_len) {
 			sm_resp_usable = true;
-			writefln("sm_resp.mac             (%s): 0x [%(%02X %)]", sm_resp.mac_len,  sm_resp.mac [0..sm_resp.mac_len]);
-			writefln("sm_resp.sw1, sm_resp.sw2   : 0x [%(%02X %)]", [sm_resp.sw1, sm_resp.sw2]);
-			writefln("sm_resp.data (encrypted, %s): 0x [%(%02X %)]", sm_resp.data_len, sm_resp.data[0..sm_resp.data_len]);
-			stdout.flush();
 	}
 	uba mac_indataPadded = [ubyte(SMDO_Tag.Command_header_SMCLA_INS_P1_P2), ubyte(4)] ~ CLA_INS_P1_P2 ~
 		[ubyte(SMDO_Tag.Processing_status_word_SW1SW2_of_the_command), ubyte(2), cast(ubyte)apdu.sw1, cast(ubyte)apdu.sw2];
@@ -638,14 +689,11 @@ private int check_SMresponse(sc_apdu* apdu, sm_card_response* sm_resp, in ubyte*
 	if (sm_extend==SM_Extend.SM_CCT_AND_CT_sym && sm_resp_usable && key_enc && canFind([SC_APDU_CASE_2_SHORT, SC_APDU_CASE_4_SHORT], SC_APDU_CASE)) {
 		ubyte PI      = sm_resp.data[0];
 		uba encrypted = sm_resp.data[1..sm_resp.data_len].dup;
-		writeln("encrypted.length: ", encrypted.length);
 		if (encrypted.length>8 && (encrypted.length%8)==0 && PI==0 && equal(encrypted[$-8..$],[0,0,0,0,0,0,0,0][]))
 			encrypted = encrypted[0..$-8];
 		sm_resp.data = sm_resp.data.init;
-		writeln("encrypted.length: ", encrypted.length);
 		assert((encrypted.length%8)==0);
 		assert(encrypted.length==decrypt_algo(encrypted, key_enc, ssc_iv.ptr, sm_resp.data.ptr, cipher_TDES[CBC], false));
-		writefln("sm_resp.data[0..encrypted.length]: %s", sm_resp.data[0..encrypted.length]);
 		sm_resp.data_len = encrypted.length;
 		if (PI==1)
 			while (sm_resp.data[sm_resp.data_len-- -1] != 0x80) {}
@@ -667,80 +715,60 @@ unittest {
 
 	ub4  CLA_INS_P1_P2 = [0x00, 0x0E, 0x00, 0x00];
 	TSMarguments smArguments;
-	// SC_APDU_CASE_1 no cmd_data, no resp_data, erase from begin to end
-	smArguments = TSMarguments(SC_APDU_CASE_1, SM_Extend.SM_CCT, CLA_INS_P1_P2, random_key.ptr, random_iv, 0, null);
+	smArguments = TSMarguments(SC_APDU_CASE_1, SM_Extend.SM_CCT, CLA_INS_P1_P2, random_key.ptr, random_key.ptr, random_iv, 0, null);
 
 	uba  SMcommand = construct_SMcommand(smArguments[]);
-//	writefln("random_key    (%s); 0x [%(%02X %)]", random_key.length, random_key);
-//	writefln("random_iv     ( %s); 0x [%(%02X %)]", random_iv.length, random_iv);
-//	writefln("CLA_INS_P1_P2 ( %s); 0x [%(%02X %)]", CLA_INS_P1_P2.length, CLA_INS_P1_P2);
-//	writefln("SMcommand     (%s); 0x [%(%02X %)]", SMcommand.length, SMcommand);
 	assert(equal(SMcommand[0..7], [0x0C, 0x0E, 0x00, 0x00, 0x06, 0x8E, 0x04][0..7]));
 
 	ubyte P3 = 2;
 	ubyte[2] offset = [0, 5];
-	// SC_APDU_CASE_3_SHORT cmd_data, no resp_data, erase from begin to offset
-	SMcommand = construct_SMcommand(SC_APDU_CASE_3_SHORT, SM_Extend.SM_CCT, CLA_INS_P1_P2, random_key.ptr, random_iv, P3, offset);
-//	writefln("SMcommand     (%s); 0x [%(%02X %)]", SMcommand.length, SMcommand);
+	SMcommand = construct_SMcommand(SC_APDU_CASE_3_SHORT, SM_Extend.SM_CCT, CLA_INS_P1_P2, random_key.ptr, random_key.ptr, random_iv, P3, offset);
 	assert(equal(SMcommand[0..11], [0x0C, 0x0E, 0x00, 0x00, 0x0A, 0x81, P3, 0x00, 0x05, 0x8E, 0x04][0..11]));
 
-	// SC_APDU_CASE_2_SHORT no cmd_data, resp_data, Get Challenge is not SMable, but won't be executed anyway
 	CLA_INS_P1_P2 = [0x00, 0x84, 0x00, 0x00];
 	P3 = 8;
-	SMcommand = construct_SMcommand(SC_APDU_CASE_2_SHORT, SM_Extend.SM_CCT, CLA_INS_P1_P2, random_key.ptr, random_iv, P3);
-//	writefln("SMcommand     (%s); 0x [%(%02X %)]", SMcommand.length, SMcommand);
+	SMcommand = construct_SMcommand(SC_APDU_CASE_2_SHORT, SM_Extend.SM_CCT, CLA_INS_P1_P2, random_key.ptr, random_key.ptr, random_iv, P3);
 	assert(equal(SMcommand[0..10], [0x0C, 0x84, 0x00, 0x00, 0x09, 0x97, 0x01, P3, 0x8E, 0x04][0..10]));
 
-	// SC_APDU_CASE_4_SHORT cmd_data, resp_data, Get Challenge is not SMable, but won't be executed anyway
 	CLA_INS_P1_P2 = [0x00, 0x2A, 0x9E, 0x9A];
 	P3 = 20;
 	ubyte[20] hash = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20];
-	SMcommand = construct_SMcommand(SC_APDU_CASE_4_SHORT, SM_Extend.SM_CCT, CLA_INS_P1_P2, random_key.ptr, random_iv, P3, hash);
-//	writefln("SMcommand     (%s); 0x [%(%02X %)]", SMcommand.length, SMcommand);
+	SMcommand = construct_SMcommand(SC_APDU_CASE_4_SHORT, SM_Extend.SM_CCT, CLA_INS_P1_P2, random_key.ptr, random_key.ptr, random_iv, P3, hash);
 	assert(equal(SMcommand[0..29], [0x0C, 0x2A, 0x9E, 0x9A, 0x1C, 0x81, P3, 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20, 0x8E, 0x04][0..29]));
-/*
-SMcommand     (11); 0x [0C 0E 00 00 06 8E 04 CD 08 70 2B]
-SMcommand     (15); 0x [0C 0E 00 00 0A 81 02 00 05 8E 04 B4 30 B5 AD]
-SMcommand     (14); 0x [0C 84 00 00 09 97 01 08 8E 04 48 0E 1D EC]
-SMcommand     (33); 0x [0C 2A 9E 9A 1C 81 14 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 8E 04 DA 01 F2 70]
-*/
+
 	CLA_INS_P1_P2 = [0x00, 0xB0, 0x00, 0x00];
-	// SC_APDU_CASE_2 read_binary
 	random_iv[6] = 0xFF;
 	random_iv[7] = 0xFF;
-	smArguments = TSMarguments(SC_APDU_CASE_2_SHORT, SM_Extend.SM_CCT, CLA_INS_P1_P2, random_key.ptr, random_iv, 16, null);
+	smArguments = TSMarguments(SC_APDU_CASE_2_SHORT, SM_Extend.SM_CCT, CLA_INS_P1_P2, random_key.ptr, random_key.ptr, random_iv, 16, null);
 	ushort ssc0 = ub22integral(smArguments.ssc_iv[$-2..$]);
 	SMcommand = construct_SMcommand(smArguments[]);
 	ushort ssc1 = ub22integral(smArguments.ssc_iv[$-2..$]);
 	assert(ssc0+1==ssc1 || (ssc0==0xFFFF && ssc1==0x0000));
-//	writefln("random_key    (%s); 0x [%(%02X %)]", random_key.length, random_key);
-//	writefln("random_iv     ( %s); 0x [%(%02X %)]", random_iv.length, random_iv);
-//	writefln("CLA_INS_P1_P2 ( %s); 0x [%(%02X %)]", CLA_INS_P1_P2.length, CLA_INS_P1_P2);
-//	writefln("SMcommand     (%s); 0x [%(%02X %)]", SMcommand.length, SMcommand);
 	assert(equal(SMcommand[0..10], [0x0C, 0xB0, 0x00, 0x00, 0x09, 0x97, 0x01, 0x10, 0x8E, 0x04][0..10]));
-//                                  0C    B0    00    00    09    97    01    10    8E    04
 
 	CLA_INS_P1_P2 = [0x00, 0xD6, 0x00, 0x00];
 	ub16 ubin = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
-	smArguments = TSMarguments(SC_APDU_CASE_3_SHORT, SM_Extend.SM_CCT, CLA_INS_P1_P2, random_key.ptr, random_iv, 16, ubin);
+	smArguments = TSMarguments(SC_APDU_CASE_3_SHORT, SM_Extend.SM_CCT, CLA_INS_P1_P2, random_key.ptr, random_key.ptr, random_iv, 16, ubin);
 	SMcommand = construct_SMcommand(smArguments[]);
-//	writefln("SMcommand Update: 0x [%(%02X %)]", SMcommand);
 	assert(equal(SMcommand[0..25], [0x0C, 0xD6, 0x00, 0x00, 0x18, 0x81, 0x10,  1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,  0x8E, 0x04][]));
 
-	smArguments = TSMarguments(SC_APDU_CASE_1, SM_CCT, [0x00, 0x44, 0x00, 0x00], random_key.ptr, random_iv, 0, null);
+	smArguments = TSMarguments(SC_APDU_CASE_1, SM_CCT, [0x00, 0x44, 0x00, 0x00], random_key.ptr, random_key.ptr, random_iv, 0, null);
 	SMcommand = construct_SMcommand(smArguments[]);
-//	writefln("SMcommand Update: 0x [%(%02X %)]", SMcommand);
 	assert(equal(SMcommand[0..7], [0x0C, 0x44, 0x00, 0x00, 0x06, 0x8E, 0x04][]));
 
+	smArguments = TSMarguments(SC_APDU_CASE_3_SHORT, SM_CCT_AND_CT_sym, [0x00, 0xD6, 0x00, 0x00], random_key.ptr, random_key.ptr, random_iv, 16, [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]);
+	SMcommand = construct_SMcommand(smArguments[]);
+	assert(equal(SMcommand[0..8], [0x0C, 0xD6, 0x00, 0x00, 0x19, 0x87, 0x11, 0x00][]));
 
-	smArguments = TSMarguments(SC_APDU_CASE_3_SHORT, SM_CCT, [0x00, 0x0E, 0x00, 0x00], random_key.ptr, random_iv, 2, [0,5]);
+	smArguments = TSMarguments(SC_APDU_CASE_3_SHORT, SM_CCT, [0x00, 0x0E, 0x00, 0x00], random_key.ptr, random_key.ptr, random_iv, 2, [0,5]);
 	SMcommand = construct_SMcommand(smArguments[]);
 	assert(equal(SMcommand[0..11], [0x0C, 0x0E, 0x00, 0x00, 0x0A, 0x81, 0x02, 0x00, 0x05, 0x8E, 0x04][]));
 	writeln("PASSED: construct_SMcommand");
 	sc_apdu apdu;
-	assert(SC_ERROR_SM_INVALID_CHECKSUM == check_SMresponse(&apdu, null, null, smArguments[0..$-2]));
+	assert(SC_ERROR_SM_INVALID_CHECKSUM == check_SMresponse(&apdu, null, smArguments[0..$-2]));
 
-	smArguments = TSMarguments(SC_APDU_CASE_2_SHORT, SM_Extend.SM_CCT, [0x00, 0xB0, 0x00, 0x00], random_key.ptr, random_iv, ubyte(16), null);
+	sm_cwa_session cwa;
+	smArguments = TSMarguments(SC_APDU_CASE_2_SHORT, SM_Extend.SM_CCT, [0x00, 0xB0, 0x00, 0x00], get_cwa_session_enc(cwa).ptr, random_key.ptr, random_iv, ubyte(16), null);
 	SMcommand = construct_SMcommand(smArguments[]);
 	assert(equal(SMcommand[0..10], [0x0C, 0xB0, 0x00, 0x00, 0x09, 0x97, 0x01, 0x10, 0x8E, 0x04][]));
 	smArguments.sm_extend = SM_Extend.SM_CCT_AND_CT_sym;
@@ -752,8 +780,7 @@ SMcommand     (33); 0x [0C 2A 9E 9A 1C 81 14 01 02 03 04 05 06 07 08 09 0A 0B 0C
 	sm_resp.mac         = [7,8,9,10,11,12,13,14];
 	sm_resp.mac_len     = 8;
 	sm_resp.sw1         = 0x90;
-	sm_cwa_session cwa;
-	assert(SC_ERROR_SM_INVALID_CHECKSUM == check_SMresponse(&apdu, &sm_resp, get_cwa_session_enc(cwa).ptr, smArguments[0..$-2]));
+	assert(SC_ERROR_SM_INVALID_CHECKSUM == check_SMresponse(&apdu, &sm_resp, smArguments[0..$-2]));
 	writeln("PASSED: check_SMresponse");
 	get_cwa_session_enc(cwa);
 	set_cwa_session_enc(cwa, random_key);
@@ -827,8 +854,12 @@ version(SESSIONKEYSIZE24)
 extern(C) int rt_init(); // in Windows, a DLL_PROCESS_ATTACH calls rt_init(); what is the equivalent in Linux?
 extern(C) int rt_term(); // in Windows, a DLL_PROCESS_DETACH calls rt_term(); what is the equivalent in Linux?
 
+// http://stackoverflow.com/questions/12463718/linux-equivalent-of-dllmain
+// the contract is that functions with __attribute__((constructor)) will execute before dlopen() returns.
+// presumably shared static this() will run after rt_init() is called ! This is invoked by sc_module_init
+//version(all/*Posix*/) { }
 shared static this() {
-	setlocale (LC_ALL, "C");
+	setlocale (LC_ALL, "C"); // char* currentlocale =
 	/* Initialize the openssl library */
 	ERR_load_CRYPTO_strings();
 	OpenSSL_add_all_algorithms();
@@ -876,6 +907,7 @@ shared static this() {
 	aa_uqb_poss = assumeUnique(local_aa_uqb_poss);
 
 
+//immutable(ID_Pin_Key_Local_Global_Possible[CRT_TAG]) aa_idpk_poss;
 	ID_Pin_Key_Local_Global_Possible[CRT_TAG] local_aa_idpk_poss = [
 		HT     : ID_Pin_Key_Local_Global_Possible(0xFF, []),
 		// not all possible keys/pins may exist and files holding keys and pins can't be queried, thus always obey this rule: Assign a key/pin with ID #x to exactly a record No.#x;
@@ -1004,7 +1036,7 @@ private sc_card_driver* sc_get_acos5_64_driver() {
 
 			/* ISO 7816-9 functions */
 ////	iso7816_create_file		create_file       = &acos5_64_create_file; // SC_AC_OP_CREATE, applied in DF/MF
-////	iso7816_delete_file		delete_file       = &acos5_64_delete_file; // SC_AC_OP_DELETE, applied for file/path in ParenDF: sc_delete_file(sc_card_t *card, const sc_path_t *path)
+/* iso7816_delete_file */		delete_file       = &acos5_64_delete_file; // SC_AC_OP_DELETE, applied for file/path in ParenDF: sc_delete_file(sc_card_t *card, const sc_path_t *path)
 			/* list_files:  Enumerates all the files in the current DF, and
 			 *   writes the corresponding file identifiers to <buf>.  Returns
 			 *   the number of bytes stored. */
@@ -1012,7 +1044,7 @@ private sc_card_driver* sc_get_acos5_64_driver() {
 		check_sw          = &acos5_64_check_sw; // NO external use; not true: sc_check_sw calls this
 			card_ctl          = &acos5_64_card_ctl;
 			process_fci       = &acos5_64_process_fci;
-//			construct_fci     = &acos5_64_construct_fci;
+			construct_fci     = &acos5_64_construct_fci;
 			/* pin_cmd: verify/change/unblock command; optionally using the
 			 * card's pin pad if supported.
 			 */
@@ -1111,10 +1143,13 @@ private sc_pkcs15init_operations* sc_get_acos5_64_pkcs15init_ops() {
 }
 
 /**
- * Retrieve hardware identifying serial number (6 bytes) from card and cache it
+ * Retrieve hardware identifying serial number (cardType_serial_len bytes) from card and cache it
+ * The serial no. retrieved from card will be cached in any case, even if the regular
+ * variable to receive the result (serial) is null
+ * For ACOS5-64 V2.00, only the first 6 bytes are meaningful
  *
  * @param card pointer to card description
- * @param serial where to store data retrieved
+ * @param serial where to store data retrieved, may be null
  * @return SC_SUCCESS if ok; else error code
  */
 private int acos5_64_get_serialnr(sc_card* card, sc_serial_number* serial) {
@@ -1127,145 +1162,40 @@ private int acos5_64_get_serialnr(sc_card* card, sc_serial_number* serial) {
 	mixin transmit_apdu_strerror!("acos5_64_get_serialnr");
 	mixin log_scope_exit!("acos5_64_get_serialnr");
 	scope(exit) {
-		if (serial) {
-			serial.value                = serial.value.init;
+		if (serial !is null) {
+			serial.value                = 0;
 			serial.len                  = clamp(card.serialnr.len, 0, SC_MAX_SERIALNR);
 			serial.value[0..serial.len] = card.serialnr.value[0..serial.len];
 		}
 		log_scope_exit_do(__LINE__);
 	}
 	try {
-		if (card.type != SC_CARD_TYPE_ACOS5_64_V2 && card.type != SC_CARD_TYPE_ACOS5_64_V3)
-			return rv=SC_ERROR_INS_NOT_SUPPORTED;
+		ubyte cardType_serial_len = (card.type==SC_CARD_TYPE_ACOS5_64_V2? 6 : 8);
 		/* if serial number is cached, use it */
 		with (card.serialnr) {
-			if (value.ptr && len==6/*6 8*/)
+			if (len)
 				return rv=SC_SUCCESS;
 		/* not cached, retrieve serial number using GET CARD INFO, and cache serial number */
-			len   = 0;
-			value = value.init;
-			/* Case 2 short APDU, 5 bytes: lc=0000     CLAINSP1 P2  le      ubyte[SC_MAX_APDU_BUFFER_SIZE] rbuf;*/
-			bytes2apdu(ctx, representation(x"80 14 00 00  06"), apdu);
+			value = 0;
+			bytes2apdu(ctx, representation(x"80 14 00 00")~cardType_serial_len, apdu);
 			apdu.resp    = value.ptr;
 			apdu.resplen = value.length;
 			if ((rv=transmit_apdu_strerror_do(__LINE__))<0) return rv;
-			if (sc_check_sw(card, apdu.sw1, apdu.sw2) || apdu.resplen!=6/*6; first 6 bytes only are different in V2; using 8 because of icc.sn.length and V3*/)
+			if (sc_check_sw(card, apdu.sw1, apdu.sw2) || apdu.resplen!=cardType_serial_len)
 				return rv=SC_ERROR_INTERNAL;
+			len = cardType_serial_len;
 
-			len = 6/*6 8*/;
-version(ENABLE_SM) {
-			card.sm_ctx.info.session.cwa.icc.sn = ub8.init;
-			card.sm_ctx.info.session.cwa.icc.sn[0..len] = apdu.resp[0..len];
-}
-			mixin (log!(`"acos5_64_get_serialnr"`, `"Serial Number of Card (EEPROM): '%s'"`, "sc_dump_hex(value.ptr, len)"));
-		}
+version(ENABLE_SM)
+			card.sm_ctx.info.session.cwa.icc.sn = value[0..8];
+
+			mixin (log!(`"acos5_64_get_serialnr"`, `"Serial Number of Card (EEPROM): '%s'"`, "sc_dump_hex(value.ptr, cardType_serial_len)"));
+		} // with (card.serialnr)
 		return rv=SC_SUCCESS;
 	}
 	catch(Throwable)
 		return rv=SC_ERROR_CARD_UNRESPONSIVE;
 }
 
-
-/* a workaround, opensc doesn't handle ACOS keys > 2048 bit properly, so far */
-private int acos5_64_get_response_large(sc_card* card, sc_apdu* apdu, size_t outlen, size_t minlen)
-{
-	sc_context* ctx = card.ctx;
-	int rv = SC_ERROR_UNKNOWN;
-	mixin (log!(q{"acos5_64_get_response_large"}, q{"called"}));
-	mixin log_scope_exit!("acos5_64_get_response_large");
-	scope(exit)
-		log_scope_exit_do(__LINE__);
-
-	/* this should _never_ happen */
-	if (!card.ops.get_response)
-		return rv=SC_ERROR_NOT_SUPPORTED;
-//		LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "no GET RESPONSE command");
-
-	/* call GET RESPONSE until we have read all data requested or until the card retuns 0x9000,
-	 * whatever happens first. */
-
-	/* if there are already data in response append new data to the end of the buffer */
-	ubyte* buf = apdu.resp + apdu.resplen;
-
-	/* read as much data as fits in apdu.resp (i.e. min(apdu.resplen, amount of data available)). */
-	size_t buflen = outlen - apdu.resplen;
-
-	/* 0x6100 means at least 256 more bytes to read */
-	size_t le = apdu.sw2 != 0 ? apdu.sw2 : 256;
-	/* we try to read at least as much as bytes as promised in the response bytes */
-//	minlen = crgram_len;
-
-	sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_get_response_large",
-		"buflen: %lu\n", buflen);
-	do {
-		ubyte[256] resp;
-		size_t     resp_len = le;
-
-		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_get_response_large",
-			"le: %lu\n", le);
-		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_get_response_large",
-			"minlen: %lu\n", minlen);
-		/* call GET RESPONSE to get more date from the card;
-		 * note: GET RESPONSE returns the left amount of data (== SW2) */
-		resp = resp.init;//memset(resp, 0, resp.length);
-		rv = card.ops.get_response(card, &resp_len, resp.ptr);
-		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_get_response_large",
-			"result from card.ops.get_response(card, &resp_len, resp): %i\n", rv);
-		if (rv < 0)   {
-version(ENABLE_SM)
-{
-			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_get_response_large",
-				"Here I am");
-			if (resp_len)   {
-				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_get_response_large",
-					"SM response data %s", sc_dump_hex(resp.ptr, resp_len));
-				changedExport_sc_sm_update_apdu_response(card, resp.ptr, resp_len, rv, apdu);
-			}
-}
-			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_get_response_large",
-				"GET RESPONSE error");
-			return rv;
-		}
-
-		le = resp_len;
-		/* copy as much as will fit in requested buffer */
-		if (buflen < le)
-			le = buflen;
-
-		memcpy(buf, resp.ptr, le);
-		buf    += le;
-		buflen -= le;
-		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_get_response_large",
-			"buflen: %lu\n", buflen);
-
-		/* we have all the data the caller requested even if the card has more data */
-		if (buflen == 0)
-			break;
-
-		minlen = (minlen>le ? minlen - le :  0);
-		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_get_response_large",
-			"minlen: %lu\n", minlen);
-		if (rv != 0)
-			le = minlen = rv;
-		else
-			/* if the card has returned 0x9000 but we still expect data ask for more
-			 * until we have read enough bytes */
-			le = minlen;
-	} while (rv != 0 || minlen != 0);
-	if (rv < 0) {
-		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_get_response_large",
-			"cannot get all data with 'GET RESPONSE'");
-		return rv;
-	}
-//		LOG_TEST_RET(ctx, rv, "cannot get all data with 'GET RESPONSE'");
-
-	/* we've read all data, let's return 0x9000 */
-	apdu.resplen = buf - apdu.resp;
-	apdu.sw1 = 0x90;
-	apdu.sw2 = 0x00;
-
-	return rv=SC_SUCCESS;
-}
 
 // for some reason, this usefull function is not exported from libopensc's version 0.15.0
 private int missingExport_match_atr_table(sc_context* ctx, sc_atr_table* table, sc_atr* atr)
@@ -1331,7 +1261,7 @@ private int missingExport_match_atr_table(sc_context* ctx, sc_atr_table* table, 
 }
 
 
-private int acos5_64_match_card_checks(sc_card *card) { // regular return value: 0==SUCCESS
+private int acos5_64_match_card_checks(sc_card* card) { // regular return value: 0==SUCCESS
 	sc_context* ctx = card.ctx;
 	int rv = SC_ERROR_INVALID_CARD;
 	sc_apdu apdu;
@@ -1341,18 +1271,7 @@ private int acos5_64_match_card_checks(sc_card *card) { // regular return value:
 	scope(exit)
 		log_scope_exit_do(__LINE__);
 
-	/* call 7.3.1. Get Card Info Identify Self. SW1 SW2 = 95 40h for ACOS5-64 ; make shure we really deal with a ACOS5-64 card */
-	/* brand-new ACS ACOS5-64 V3.00 check: send the following sequence of bytes (APDU command as hex) to Your token with a tool like gscriptor (in window "Script") and run:
-80140500
-
-Probably the answer is: Received: 95 40, which is expected and okay (though gscriptor believes it is an error)
-If the answer is different, You will have to add an "else if" in function acos5_64_check_sw too:
-	else if (sw1 == 0x??U && sw2 == 0x??U) // this is a response to "Identify Self" and is okay for Version ACS ACOS5-64 v3.00/no error
-		return rv=SC_SUCCESS;
-	*/
-	sc_format_apdu(card, &apdu, SC_APDU_CASE_1, 0x14, 0x05, 0x00);
-	apdu.cla = 0x80;
-
+	bytes2apdu(ctx, representation(x"80 14 05 00"), apdu);
 	if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0) return rv;
 	if ((rv=acos5_64_check_sw(card, apdu.sw1, apdu.sw2)) < 0) {
 		mixin (log!(`"acos5_64_match_card_checks"`, `"SW1SW2 doesn't match 0x9540: %i (%s)\n"`, "rv", "sc_strerror(rv)"));
@@ -1360,35 +1279,57 @@ If the answer is different, You will have to add an "else if" in function acos5_
 	}
 
 	/* call 7.3.1. Get Card Info Card OS Version */
-	/* brand-new ACS ACOS5-64 V3.00 check: send the following sequence of bytes (APDU command as hex) to Your token with a tool like gscriptor (in window "Script") and run:
-8014060008
-
-"41434F5305 02 00 40"
-Probably the answer is: Received: 41 43 4F 53 05 02 00 40 90 00, which is expected and okay (though gscriptor believes it is an error)
-If the answer is different, You will have to add an "else if" in function acos5_64_check_sw too:
-	else if (sw1 == 0x??U && sw2 == 0x??U) // this is a response to "Identify Self" and is okay for Version ACS ACOS5-64 v3.00/no error
-		return rv=SC_SUCCESS;
-	*/
-	immutable(ubyte)[8][2] vbuf = [ cast(immutable(ubyte)[8]) x"41434F5305 02 00 40",  // "ACOS 0x05 ...", major vers.=2,   minor=0,   0x40 kBytes user EEPROM capacity
-	                                cast(immutable(ubyte)[8]) x"41434F5305 03 00 40"]; // "ACOS 0x05 ...", major vers.=3,   minor=0,   0x40 kBytes user EEPROM capacity
+	immutable(ubyte)[8][3] vbuf = [ cast(immutable(ubyte)[8]) x"41434F5305 02 00 40",  // "ACOS 0x05 ...", major vers.=2,   minor=0,   0x40 kBytes user EEPROM capacity
+	                                cast(immutable(ubyte)[8]) x"41434F5305 03 00 40",  // "ACOS 0x05 ...", major vers.=3,   minor=0,   0x40 kBytes user EEPROM capacity
+	                                cast(immutable(ubyte)[8]) x"41434F5305 03 01 40"]; // "ACOS 0x05 ...", major vers.=3,   minor=1,   0x40 kBytes user EEPROM capacity
+	bytes2apdu(ctx, representation(x"80 14 06 00 08"), apdu);
 	ub8 rbuf;
-	apdu = sc_apdu(); // apdu = apdu.init;
-	sc_format_apdu(card, &apdu, SC_APDU_CASE_2, 0x14, 0x06, 0x00);
-	with (apdu) {
-		cla          = 0x80;
-		le = resplen = rbuf.sizeof;
-		resp         = rbuf.ptr;
-	}
+	apdu.resp    = rbuf.ptr;
+	apdu.resplen = rbuf.length;
 
 	if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0) return rv;
 	if (apdu.sw1 != 0x90 || apdu.sw2 != 0x00)
 		return rv=SC_ERROR_INTERNAL;
 
+	assert(card.type>=SC_CARD_TYPE_ACOS5_64_V2 && card.type<=SC_CARD_TYPE_ACOS5_64_V3);
+	size_t x;
+version(ACOSMODE_V2) {
+	if (card.type==SC_CARD_TYPE_ACOS5_64_V3)
+		x = 1;
+}
+else {
+	card.type = -1;
+	return rv=SC_ERROR_INVALID_CARD; // ACOSMODE_V3_FIPS_140_2L3  ACOSMODE_V3_NSH_1
+}
 	// equality of vbuf_2 and rbuf ==> 0==SC_SUCCESS, 	inequality==> 1*SC_ERROR_NO_CARD_SUPPORT
-	if ((rv=SC_ERROR_INVALID_CARD* !equal(rbuf[], vbuf[card.type-SC_CARD_TYPE_ACOS5_64_V2][])) < 0) { // equal(rbuf[], vbuf_2[])
+	if ((rv=SC_ERROR_INVALID_CARD* !equal(rbuf[], vbuf[x+card.type-SC_CARD_TYPE_ACOS5_64_V2][])) < 0) {
 		mixin (log!(`"acos5_64_match_card_checks"`,
-			`"Card OS Version doesn't match: major(%i), minor(%i), EEPROM user capacity in kilobytes (0x%02X)\n"`, "rbuf[5]", "rbuf[6]", "rbuf[7]"));
-		return rv;
+			`"Card OS Version doesn't match expected data! Current data: major(%i), minor(%i), EEPROM user capacity in kilobytes (0x%02X)\n"`, "rbuf[5]", "rbuf[6]", "rbuf[7]"));
+		mixin (log!(`"acos5_64_match_card_checks"`,
+			`"For ACOS5-64 V3.00 card/token, a possible reason is: It's set to an unsupportrd operation mode (unsupported FIPS is the default setting by ACS)"`));
+		mixin (log!(`"acos5_64_match_card_checks"`,
+			`"If the card/token is virgin (no MF), this will be corrected by (1) switching to non-FIPS/64K here and (2) an initialization with operation mode non-FIPS/64K in acos5_64_init"`));
+		mixin (log!(`"acos5_64_match_card_checks"`,
+			`"If the card/token is not virgin (MF exists), then nothing will be done at the moment"`));
+		if (card.type==SC_CARD_TYPE_ACOS5_64_V3 && equal(rbuf[], vbuf[card.type-SC_CARD_TYPE_ACOS5_64_V2][])) {
+			bytes2apdu(ctx, representation(x"80 14 09 00"), apdu);
+			if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0)  return rv;
+			if (apdu.sw1 != 0x90)  return rv;
+			if (apdu.sw2 == 0x02)  return rv;
+			bytes2apdu(ctx, representation(x"00 A4 00 00"), apdu);
+			apdu.flags = SC_APDU_FLAGS_NO_GET_RESP;
+			if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0)  return rv;
+			if (apdu.sw1 != 0x69 || apdu.sw2 != 0x86)  return rv;
+			/* okay, card is virgin: Set operation mode Non-FIPS/64K now, and acos5_64_init will invoke card/token initialization */
+			bytes2apdu(ctx, representation(x"00 D6  C191  01 02"), apdu);
+			if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0)  return rv;
+			bytes2apdu(ctx, representation(x"80 14 09 00"), apdu);
+			if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0)  return rv;
+			if (apdu.sw1 != 0x90 || apdu.sw2 != 0x02)  return rv;
+			return rv=SC_SUCCESS;
+		}
+		else
+			return rv;
 	}
 	card.version_.hw_major = rbuf[5];
 	card.version_.hw_minor = rbuf[6];
@@ -1441,7 +1382,7 @@ private extern(C) int acos5_64_match_card(sc_card* card) { // irregular/special 
 	if ((rv=missingExport_sc_match_atr(card, acos5_64_atrs.ptr, &card.type)) < 0)
 		return rv=0;
 
-	return rv=!cast(bool)acos5_64_match_card_checks(card);
+	return rv=!/*cast(bool)*/acos5_64_match_card_checks(card);
 }
 
 
@@ -1496,6 +1437,7 @@ int encrypt_algo(in uba plaintext,  in ubyte* key, in ubyte* iv, ubyte* cipherte
 
 	return ciphertext_len;
 }
+
 
 int decrypt_algo(in uba ciphertext, in ubyte* key, in ubyte* iv, ubyte* plaintext,  const(EVP_CIPHER)* algo, bool pad=true) {
 	EVP_CIPHER_CTX* evp_ctx;
@@ -1559,9 +1501,7 @@ int encrypt_algo_cbc_mac(in uba plaintext, in ubyte* key, in ubyte* iv, ubyte* c
 	while (in_len>0) {
 		iv2 = ub24.init;
 		iv2[0..8] = res[];
-		if ((rv=
-			encrypt_algo(in_p[0..8], key, iv2.ptr, res.ptr, algo, false))
-			!= DES_KEY_SZ)
+		if ((rv=encrypt_algo(in_p[0..8], key, iv2.ptr, res.ptr, algo, false)) != DES_KEY_SZ)
 			return rv;
 		in_p   += DES_KEY_SZ;
 		in_len -= DES_KEY_SZ;
@@ -1574,12 +1514,12 @@ unittest {
 	version(SESSIONKEYSIZE24) {
 		ub24 random_bytes;
 		assert(1==RAND_bytes(random_bytes.ptr, random_bytes.length));
-		immutable(ub24) key = random_bytes[];//(cast(immutable(ubyte)[])x"0102030405060708090A0B0C0D0E0F101112131415161718")[];
+		immutable(ub24) key = random_bytes[];//(representation(x"0102030405060708090A0B0C0D0E0F101112131415161718"))[];
 	}
 	else {
 		ub16 random_bytes;
 		assert(1==RAND_bytes(random_bytes.ptr, random_bytes.length));
-		immutable(ub16) key = random_bytes[];//(cast(immutable(ubyte)[])x"0102030405060708090A0B0C0D0E0F10")[];
+		immutable(ub16) key = random_bytes[];//(representation(x"0102030405060708090A0B0C0D0E0F10"))[];
 	}
 
 	immutable(ubyte[72]) plaintext_pre = representation("###Victor jagt zwölf Boxkämpfer quer über den großen Sylter Deich###")[]; // includes 4 2-byte german unicode code points
@@ -1593,7 +1533,6 @@ unittest {
 	assert(plaintext_pre.length==decrypt_algo(ciphertext,     key.ptr, iv.ptr, plaintext_post.ptr, cipher_TDES[CBC], false));
 	assert(equal(plaintext_pre[], plaintext_post[]));
 	writefln("plaintext_post: 0x [%(%02x %)]", plaintext_post);
-//	iv = [1,2,3,4,5,6,7,8];
 	assert(  mac.length==encrypt_algo_cbc_mac(plaintext_pre,  key.ptr, iv.ptr, mac.ptr,            cipher_TDES[DAC], false, DAC));
 	writefln("ciphertext:     0x [%(%02x %)]", ciphertext);
 	writefln("mac:            0x [                                                                                                                                                                                                %(%02x %)]", mac);
@@ -1632,38 +1571,63 @@ private extern(C) int acos5_64_init(sc_card* card) {
 		}
 	}
 
-	if (card.type==SC_CARD_TYPE_ACOS5_64_V2) {
-version(ACOSMODE_V2) {} // even if set to eACOSMODE_V1_Emulated_32K, this is not detectable
-else { return rv=SC_ERROR_INVALID_CARD; }
-	}
-	else {  // (card.type==SC_CARD_TYPE_ACOS5_64_V3)
-		// the Operation Mode Byte Setting retrievable from card and the dlang version specifier must match
-		bytes2apdu(ctx, cast(immutable(ubyte)[4])x"80 14 09 00", apdu);
-		if ((rv=transmit_apdu_strerror_do(__LINE__))<0) return rv;
-		if (apdu.sw1 != 0x90 || !canFind([ EnumMembers!EACOSMODE ], apdu.sw2))
-			return rv=SC_ERROR_INVALID_CARD;
-		mixin (log!(`"acos5_64_init"`, `"Operation Mode Byte is set to: %i (ACOSMODE_V3_FIPS_140_2L3(0),'Emulated 32K Mode'(1), ACOSMODE_V2(2), ACOSMODE_V3_NSH_1(16))"`,"apdu.sw2"));
-version( ACOSMODE_V3_FIPS_140_2L3) {
-		if (EACOSMODE.eACOSMODE_V3_FIPS_140_2L3 != apdu.sw2) {
-			mixin (log!(`"acos5_64_init"`, `"Operation Mode Byte set doesn't match %u (version identifier ACOSMODE_V3_FIPS_140_2L3, this code was compiled with)"`, "EACOSMODE.eACOSMODE_V3_FIPS_140_2L3"));
+
+	static int once;
+	bytes2apdu(ctx, representation(x"00 A4 00 00"), apdu);
+	apdu.flags = SC_APDU_FLAGS_NO_GET_RESP;
+	if ((rv=transmit_apdu_strerror_do(__LINE__))<0)  return rv;
+	if ( !(apdu.sw1 == 0x69 && apdu.sw2 == 0x86)) {
+//		do_zeroize_token = true; // CHANGE_HERE_FOR_ZEROIZE : remove leading //
+		if (do_zeroize_token) {
+			re_initialize_token(card, representation(x"38 37 36 35 34 33 32 31" /* SO_PIN */), null);
 			return rv=SC_ERROR_INVALID_CARD;
 		}
-		apdu = sc_apdu(); // check FIPS 140_2L3 compliance: card file system and settings
-		bytes2apdu(ctx, cast(immutable(ubyte)[4])x"80 14 0A 00", apdu);
+	}
+	else {
+		++once;
+		if (once==1) {
+			do_initialize_token = true; // CHANGE_HERE_FOR_INIT : remove leading //
+			if ((rv=re_initialize_token(card, representation(x"38 37 36 35 34 33 32 31" /* SO_PIN */), null)) < 0)
+				return rv;
+			bytes2apdu(ctx, representation(x"00 A4 00 00"), apdu);
+			apdu.flags = SC_APDU_FLAGS_NO_GET_RESP;
+			if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0)  return rv;
+			if (apdu.sw1 == 0x69 && apdu.sw2 == 0x86)  return rv=SC_ERROR_INVALID_CARD; // MF still doesn't exist
+		}
+	}
+
+	if (card.type==SC_CARD_TYPE_ACOS5_64_V2)  { // the Operation Mode Byte Setting cab't be retrieved from card; it must be assumed that the card is set to ACOSMODE_V2
+	}
+	else { // (card.type==SC_CARD_TYPE_ACOS5_64_V3)
+		// the Operation Mode Byte Setting retrievable from card and the dlang version specifier must match
+		bytes2apdu(ctx, representation(x"80 14 09 00"), apdu);
+		if ((rv=transmit_apdu_strerror_do(__LINE__))<0) return rv;
+		if (apdu.sw1 != 0x90 || !canFind([ EnumMembers!EACOSV3MODE ], apdu.sw2))
+			return rv=SC_ERROR_INVALID_CARD;
+		mixin (log!(`"acos5_64_init"`, `"Operation Mode Byte is set to: %i (ACOSMODE_V3_FIPS_140_2L3(0),'Emulated 32K Mode'(1), ACOSMODE_V2(2), ACOSMODE_V3_NSH_1(16))"`,"apdu.sw2"));
+version (ACOSMODE_V3_FIPS_140_2L3) {
+		if (EACOSV3MODE.eACOSV3MODE_V3_FIPS_140_2L3 != apdu.sw2) {
+			mixin (log!(`"acos5_64_init"`, `"Operation Mode Byte set doesn't match %u (version identifier ACOSMODE_V3_FIPS_140_2L3, this code was compiled with)"`, "EACOSV3MODE.eACOSV3MODE_V3_FIPS_140_2L3"));
+			return rv=SC_ERROR_INVALID_CARD;
+		}
+		// check FIPS 140_2L3 compliance: card file system and settings
+		bytes2apdu(ctx, representation(x"80 14 0A 00"), apdu);
 		if ((rv=transmit_apdu_strerror_do(__LINE__))<0) return rv;
 		if ((rv=sc_check_sw(card, apdu.sw1, apdu.sw2))<0) return rv;
+		return rv=SC_ERROR_INVALID_CARD;
 }
 else version (ACOSMODE_V2) {
-		if (     EACOSMODE.eACOSMODE_V2 != apdu.sw2) {
-			mixin (log!(`"acos5_64_init"`, `"Operation Mode Byte set doesn't match %u (version identifier ACOSMODE_V2, this code was compiled with)"`, "EACOSMODE.eACOSMODE_V2"));
+		if (     EACOSV3MODE.eACOSV3MODE_V2 != apdu.sw2) {
+			mixin (log!(`"acos5_64_init"`, `"Operation Mode Byte set doesn't match %u (version identifier ACOSMODE_V2, this code was compiled with)"`, "EACOSV3MODE.eACOSV3MODE_V2"));
 			return rv=SC_ERROR_INVALID_CARD;
 		}
 }
 else version(ACOSMODE_V3_NSH_1) {
-		if (    EACOSMODE.eACOSMODE_V3_NSH_1 != apdu.sw2) {
-			mixin (log!(`"acos5_64_init"`, `"Operation Mode Byte set doesn't match %u (version identifier ACOSMODE_V3_NSH_1, this code was compiled with)"`, "EACOSMODE.eACOSMODE_V3_NSH_1"));
+		if (    EACOSV3MODE.eACOSV3MODE_V3_NSH_1 != apdu.sw2) {
+			mixin (log!(`"acos5_64_init"`, `"Operation Mode Byte set doesn't match %u (version identifier ACOSMODE_V3_NSH_1, this code was compiled with)"`, "EACOSV3MODE.eACOSV3MODE_V3_NSH_1"));
 			return rv=SC_ERROR_INVALID_CARD;
 		}
+		return rv=SC_ERROR_INVALID_CARD;
 }
 else
 		static assert(0); // exactly one of ACOSMODE_V2, ACOSMODE_V3_FIPS_140_2L3, ACOSMODE_V3_NSH_1 must be used
@@ -1704,6 +1668,7 @@ version(Posix)
 		info.key_length = key_length;
 		info.flags = cast(uint)flags;
 		info.u._rsa.exponent = exponent;
+
 		sc_algorithm_info* p = cast(sc_algorithm_info*) realloc(card.algorithms, (card.algorithm_count + 1) * info.sizeof);
 		if (!p) {
 			if (card.algorithms)
@@ -1741,7 +1706,7 @@ else
 		card.cache.valid = 1;
 		card.cache.current_df = df_dummy;
 
-		auto  private_data = cast(acos5_64_private_data*) calloc(1, acos5_64_private_data.sizeof);
+		acos5_64_private_data*  private_data = cast(acos5_64_private_data*) calloc(1, acos5_64_private_data.sizeof);
 		if (private_data == null)
 			return rv=SC_ERROR_MEMORY_FAILURE;
 
@@ -1774,7 +1739,7 @@ else
 		}
 version(ENABLE_SM)
 {
-		with (sm_ctx) {
+		with (sm_ctx) { // sm_context
 			info.serialnr                       = card.serialnr;
 			with (card.sm_ctx.info) {
 				config_section                    = "acos5_64_sm";
@@ -1842,7 +1807,7 @@ private extern(C) int acos5_64_erase_binary(sc_card* card, uint idx, size_t coun
 {
 	sc_context* ctx = card.ctx;
 	int rv = SC_ERROR_NOT_SUPPORTED;
-	mixin (log!(q{"acos5_64_erase_binary"}, q{"called"}));
+	mixin (log!(`"acos5_64_erase_binary"`, `"called"`));
 	mixin log_scope_exit!("acos5_64_erase_binary");
 	scope(exit)
 		log_scope_exit_do(__LINE__);
@@ -1860,23 +1825,19 @@ private extern(C) int acos5_64_read_record(sc_card* card, uint rec_nr,
 	sc_context* ctx = card.ctx;
 	int rv = SC_ERROR_UNKNOWN;
 	sc_apdu apdu;
-	mixin (log!(q{"acos5_64_read_record"}, q{"called"}));
+	mixin (log!(`"acos5_64_read_record"`, `"called"`));
 	mixin transmit_apdu!("acos5_64_read_record");
 	mixin log_scope_exit!("acos5_64_read_record");
 	scope(exit)
 		log_scope_exit_do(__LINE__);
 
-	sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_read_record",
-		"called with rec_nr(%u), buf_len(%lu), flags(%lu)\n", rec_nr, buf_len, flags);
+	mixin (log!(`"acos5_64_read_record"`, `"called with rec_nr(%u), buf_len(%lu), flags(%lu)"`,"rec_nr","buf_len","flags"));
 
-	sc_format_apdu(card, &apdu, SC_APDU_CASE_2, 0xB2, 1+rec_nr, 0x04); // opensc/acos indexing differ by 1
+	bytes2apdu(ctx, representation(x"00 B2 00 04 FF"), apdu); // opensc/acos indexing differ by 1
+	apdu.p1 = cast(ubyte)(1+rec_nr);
+	apdu.resp    = buf;
+	apdu.resplen = buf_len;
 
-	with (apdu) {
-		le = 0xFF;
-		resplen = buf_len;
-		resp = buf;
-	}
-/*	fixup_transceive_length(card, &apdu); */
 	if ((rv=transmit_apdu_do(__LINE__)) < 0) return rv;
 	if (apdu.resplen == 0)
 		return rv=sc_check_sw(card, apdu.sw1, apdu.sw2);
@@ -1884,16 +1845,13 @@ private extern(C) int acos5_64_read_record(sc_card* card, uint rec_nr,
 	return rv=cast(int)apdu.resplen;
 }
 
-
 /** Helps manipulating arrays of ubyte with a subrange used/valid; implicitely converts to ubyte[]
 	it's usefull especially for path changing operations */
 struct UByteArray(size_t granularity=1) {
 	private uba    rep;
 	private size_t rep_len_valid;
 	private size_t ever_dropped;
-//	private uba    leftShift_dropped; /* usefull with regard to the last << operation; saves the dropped bytes not being part of rep any more */
 
-//	@property uba LSdropped()    { return leftShift_dropped; }
 	@property size_t len_valid() { return rep_len_valid; }
 
 	invariant() {
@@ -1904,12 +1862,10 @@ struct UByteArray(size_t granularity=1) {
 
 
 	this(uba val) {
-//		writefln("rep is being constructed from 0x [%(%02X %)]", val);
 		rep           = val.dup;
 		rep_len_valid = val.length;
 	}
 	this(uba val, size_t len_valid) {
-//		writefln("rep is being constructed from 0x [%(%02X %)] and len_valid: %s", val, len_valid);
 		rep           = val.dup;
 		rep_len_valid = clamp(len_valid, 0, val.length);
 		ever_dropped  = rep.length - rep_len_valid;
@@ -1917,7 +1873,6 @@ struct UByteArray(size_t granularity=1) {
 	this(this) {
 		writefln("rep has been copy-constructed. postblitting now");
 		rep           = rep.dup;
-//		leftShift_dropped.length = 0;
 	}
 
 	UByteArray opAssign(UByteArray rhs) {
@@ -1925,7 +1880,6 @@ struct UByteArray(size_t granularity=1) {
 		this.rep           = rhs.rep.dup;
 		this.rep_len_valid = rhs.rep_len_valid;
 		this.ever_dropped  = rhs.ever_dropped;
-//		this.leftShift_dropped.length = 0;
 		return this;
 	}
 
@@ -1934,7 +1888,6 @@ struct UByteArray(size_t granularity=1) {
 		this.rep           = rhs.dup;
 		this.rep_len_valid = rhs.length;
 		this.ever_dropped  = 0;
-//		this.leftShift_dropped.length = 0;
 		return this;
 	}
 
@@ -1953,7 +1906,6 @@ struct UByteArray(size_t granularity=1) {
 		UByteArray  new_one = this;
 		size_t cutLen = clamp(rhs*granularity, 0, new_one.rep_len_valid);
 
-//		leftShift_dropped = rep[0..cutLen].dup;
 		new_one.rep_len_valid -= cutLen;
 		new_one.ever_dropped  += cutLen;
 		new_one.rep = dropExactly(new_one.rep, cutLen) ~ repeat(ubyte(0)).take(cutLen).array; // cutLen bytes to shift left and append cutLen bytes of zero-valued bytes
@@ -1964,7 +1916,6 @@ struct UByteArray(size_t granularity=1) {
 		if (op == "<<")
 	{
 		size_t cutLen = clamp(rhs*granularity, 0, rep_len_valid);
-//		leftShift_dropped = rep[0..cutLen].dup;
 		rep_len_valid -= cutLen;
 		ever_dropped  += cutLen;
 		rep = dropExactly(rep, cutLen) ~ repeat(ubyte(0)).take(cutLen).array; // a new rep array
@@ -2003,58 +1954,32 @@ struct SelectSupport {
 	sc_card*      card;
 	sc_path*      path;
 	const size_t  plen;
-//	uba           current_df_path_value;
 	size_t*       pclen;
-
 	this(sc_card* in_card, sc_path* in_path) {
 		card  = in_card;
 		path  = in_path;
 		plen  = in_path.len;
-		if (in_card.cache.valid && in_card.cache.current_df) {
-			pclen                 = &in_card.cache.current_df.path.len;
-//			current_df_path_value =  in_card.cache.current_df.path.value[0..*pclen];
-		}
+		if (in_card.cache.valid && in_card.cache.current_df)
+			pclen = &in_card.cache.current_df.path.len;
 	}
 
-	int run(bool force_select_prefix=false) {
+	int run(bool* prestore_cache_current_df, bool force_select_prefix=false) {
 		sc_context*      ctx = card.ctx;
 		int              rv;
 		bool             seid_changed;
 		bool             skip_some_seid_retrieval;
-/*
-		if (card.cache.current_df) {
-			mixin (log!(`"struct SelectSupport:run"`, `"called with card.cache.current_df.path: %s"`,
-				"sc_dump_hex(card.cache.current_df.path.value.ptr, card.cache.current_df.path.len)"));
-			mixin (log!(`"struct SelectSupport:run"`, `"called with in_path:                    %s"`,
-				"sc_dump_hex(path.value.ptr,  path.len)"));
-		}
-		else {
-			mixin (log!(`"struct SelectSupport:run"`, `"called with card.cache.valid: %i"`,
-				"card.cache.valid"));
-			mixin (log!(`"struct SelectSupport:run"`, `"called with in_path:                    %s"`,
-				"sc_dump_hex(path.value.ptr,  path.len)"));
-		}
-*/
 
 // First cut
-
 		assert(plen>=2);
 		if (!card.cache.valid) {
 			skip_some_seid_retrieval = false;
 		}
 		else {
 			auto  m = mismatch    (card.cache.current_df.path.value[0..*pclen], path.value[0..plen]);
-			auto CP = commonPrefix(card.cache.current_df.path.value[0..*pclen], path.value[0..plen]);
-//			assert(equal(CP~m[0], card.cache.current_df.path.value[0..*pclen]));
-//			assert(equal(CP~m[1], path.value[0..plen]));
-/* * /
-			writefln("current_df_path_value: [%(%02X %)]", card.cache.current_df.path.value[0..*pclen]);
-			writefln("path.value[0..plen]:   [%(%02X %)]", path.value[0..plen]);
-			writefln("CP m[0]:                %(%02X %)[%(%02X %)]", CP, m[0]);
-			writefln("CP m[1]:                %(%02X %)[%(%02X %)]", CP, m[1]);
-//			writefln("CP:                    [%(%02X %)]", CP);
-			writeln;
-/ * */
+			auto CP = commonPrefix(card.cache.current_df.path.value[0..*pclen], path.value[0..plen]); // 3F00
+			assert(equal(CP~m[0],  card.cache.current_df.path.value[0..*pclen]));                     // 4100
+			assert(equal(CP~m[1],  path.value[0..plen]));                                             // 50154946
+
 			if (force_select_prefix || plen==2 || CP.length==0) {
 				if (!sc_compare_path(&MF_path, path))
 					return -1;
@@ -2072,7 +1997,7 @@ struct SelectSupport {
 				else { // plen>CP.length
 					*pclen = CP.length;
 					seid_changed =             (empty(m[0])? true /*don't know*/ : true);
-					skip_some_seid_retrieval =                       *pclen>2;
+					skip_some_seid_retrieval =                       m[1].length>4; // CHANGED from *pclen>2
 				}
 
 				with (path) {
@@ -2082,28 +2007,12 @@ struct SelectSupport {
 			}
 		}
 
-/* * /
-		if (card.cache.current_df) {
-//			current_df_path_value =  card.cache.current_df.path.value[0..*pclen];
-			writefln("current_df_path_value: [%(%02X %)]", card.cache.current_df.path.value[0..*pclen]);
-			writefln("path.value[0..plen]:   [%(%02X %)]", path.value[0..plen]);
-			writeln;
-		}
-/ * */
-
-// Second cut ("cut" in the sense what needn't be left for a final iso_ops_ptr.select_file);
-		// we actually will eventually select here without querying FCI with file allocation, but in a simpler way
-//		if (card.cache.current_df)
-//		mixin (log!(`"struct SelectSupport:run"`, `"past 1. cut: card.cache.current_df.path: %s"`,
-//			"sc_dump_hex(card.cache.current_df.path.value.ptr, card.cache.current_df.path.len)"));
-//		mixin (log!(`"struct SelectSupport:run"`, `"past 1. cut:                       path: %s"`,
-//			"sc_dump_hex(path.value.ptr, path.len)"));
 		size_t  cutLen = path.len - 2;
 		if (cutLen)   {
 			sc_apdu  apdu;
 			mixin transmit_apdu_strerror!("struct SelectSupport:run");
 			scope(exit)
-				card.cache.valid = rv<0? 0 : 1;
+				card.cache.valid = rv<0 && !*prestore_cache_current_df? 0 : card.cache.valid;
 			foreach (j; 0..cutLen/2) {
 				assert(path.len>=2);
 				ubyte[MAX_FCI_GET_RESPONSE_LEN]  rbuf;
@@ -2111,7 +2020,11 @@ struct SelectSupport {
 				apdu.resp    = rbuf.ptr;
 				apdu.resplen = rbuf.length;
 				if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0)  return rv;
-				if ((rv=sc_check_sw(card, apdu.sw1, apdu.sw2)) < 0)  return rv;
+				if ((rv=sc_check_sw(card, apdu.sw1, apdu.sw2)) < 0) {
+					if (j==0)
+						*prestore_cache_current_df = true;
+					return rv;
+				}
 				card.cache.valid = 1;
 				if (!skip_some_seid_retrieval || j+1>=cutLen/2)
 					if ((rv=process_fci_sac_se(card, rbuf[0..apdu.resplen],null,/*enveloped=*/true,/*skip_seid_retrieval=*/false,/*sacNONE=*/false)) < 0)  return rv; // communicate potential change of Security Environment
@@ -2121,18 +2034,8 @@ struct SelectSupport {
 					value[0..plen] = (UBA <<= 2)[];
 					len           -= 2;
 				}
-/* * /
-		if (card.cache.current_df)
-//			current_df_path_value =  card.cache.current_df.path.value[0..*pclen];
-			writefln("current_df_path_value: [%(%02X %)]", card.cache.current_df.path.value[0..*pclen]);
-			writefln("path.value[0..plen]:   [%(%02X %)]", path.value[0..plen]);
-			writeln;
-/ * */
 			}
 		} // if (cutLen)
-//		if (card.cache.current_df)
-//		mixin (log!(`"struct SelectSupport:run"`, `"past 2. cut: card.cache.current_df.path: %s"`,
-//			"sc_dump_hex(card.cache.current_df.path.value.ptr, card.cache.current_df.path.len)"));
 		return rv= SC_SUCCESS;
 	} // run
 } // struct SelectSupport
@@ -2146,6 +2049,7 @@ private int acos5_64_select_file_by_path(sc_card* card, const(sc_path)* in_path,
 	sc_path      path = *in_path;
 	acos5_64_private_data* private_data = cast(acos5_64_private_data*) card.drv_data;
 	auto  info = &private_data.current_df_se_info;
+	bool restore_cache_current_df;
 /* */
 	if (!card.cache.current_df)
 		mixin (log!(`"acos5_64_select_file_by_path"`, `"called with card.cache.valid: %i, force: %i"`, "card.cache.valid", "force_select_prefix"));
@@ -2161,8 +2065,8 @@ private int acos5_64_select_file_by_path(sc_card* card, const(sc_path)* in_path,
 		"sc_dump_hex(in_path.value.ptr, in_path.len)", "file_out"));
 	mixin log_scope_exit!("acos5_64_select_file_by_path");
 	scope(exit) {
-		card.cache.valid = rv<0 || (card.cache.current_df && card.cache.current_df.path.len==0)? 0 : 1; // refers only to card.cache.current_df
-/* */
+		card.cache.valid = ((rv<0 && !restore_cache_current_df)  || (card.cache.current_df && card.cache.current_df.path.len==0)) ?
+			0 : card.cache.valid; // refers only to card.cache.current_df
 		if (card.cache.current_df) {
 			mixin (log!(`"acos5_64_select_file_by_path"`, `"returning card.cache.current_df.path.value: %s, valid: %i"`,
 				"sc_dump_hex(card.cache.current_df.path.value.ptr, card.cache.current_df.path.len)", "card.cache.valid"));
@@ -2174,13 +2078,22 @@ private int acos5_64_select_file_by_path(sc_card* card, const(sc_path)* in_path,
 		log_scope_exit_do(__LINE__);
 	}
 
-	if ((rv=  SelectSupport(card, &path).run(force_select_prefix)) < 0) { // run: maybe does nothing or path gets shortened, prefix selections done, cache.current_df adapted
+	sc_path  cccdf_path_saved = card.cache.current_df.path;
+	int      ccv_saved        = card.cache.valid;
+
+	if ((!file_out) && (!force_select_prefix && ccv_saved && cccdf_path_saved.len==in_path.len && cccdf_path_saved.value==in_path.value))  return rv=SC_SUCCESS;
+	if ((rv=  SelectSupport(card, &path).run(&restore_cache_current_df, force_select_prefix)) < 0) { // run: maybe does nothing or path gets shortened, prefix selections done, cache.current_df adapted
 		mixin (log!(`"acos5_64_select_file_by_path"`, `"selecting/discarding prefix path components returned an error"`));
+		if (restore_cache_current_df) {
+			card.cache.current_df.path = cccdf_path_saved;
+			card.cache.valid           = ccv_saved;
+		}
 		return rv;
 	}
 
 	path.type = SC_PATH_TYPE_FILE_ID;
 	if ((rv=  iso_ops_ptr.select_file(card, &path, file_out)) == SC_SUCCESS)   {
+		card.cache.valid = 1;
 		if (!file_out) {
 			ubyte[MAX_FCI_GET_RESPONSE_LEN] arr;
 			size_t count = MAX_FCI_GET_RESPONSE_LEN;
@@ -2189,20 +2102,12 @@ private int acos5_64_select_file_by_path(sc_card* card, const(sc_path)* in_path,
 				return rv;
 		}
 	}
-//		if (card.cache.current_df)
-//		mixin (log!(`"struct SelectSupport:run"`, `"past 3. cut: card.cache.current_df.path: %s"`,
-//			"sc_dump_hex(card.cache.current_df.path.value.ptr, card.cache.current_df.path.len)"));
 	return rv;
 }
 
 
 private extern(C) int acos5_64_select_file(sc_card* card, const(sc_path)* path, sc_file** file_out)
 {
-/* acos can handle path->type SC_PATH_TYPE_FILE_ID (P1=0) and SC_PATH_TYPE_DF_NAME (P1=4) only.
-Other values for P1 are not supported.
-We have to take care for SC_PATH_TYPE_PATH and (maybe those are used too)
-SC_PATH_TYPE_FROM_CURRENT as well as SC_PATH_TYPE_PARENT */
-/* FIXME if path is SC_PATH_TYPE_DF_NAME, card->cache.current_df->path is not adapted */
 	sc_context* ctx = card.ctx;
 	int rv = SC_ERROR_INS_NOT_SUPPORTED;
 	mixin (log!(`"acos5_64_select_file"`, `"called"`));
@@ -2282,18 +2187,8 @@ version(ENABLE_SM)
 	return rv;
 }
 
-private extern(C) int acos5_64_logout(sc_card *card)
+private extern(C) int acos5_64_logout(sc_card* card)
 {
-/* ref. manual:  7.2.2. Logout
-Logout command is used to de-authenticate the user's global or local PIN access condition status.
-The user controls PIN rights without resetting the card and interrupting the flow of events.
-[The same may be achieved simply be selecting a different DF(/MF)]
-7.2.7.
- De-authenticate
-This command allows ACOS5-64 to de-authenticate the authenticated key without resetting the card.
-
-TODO Check if 'Logout' does all we want or if/when we need 'De-authenticate' too
- */
 	sc_context* ctx = card.ctx;
 	int rv;
 	sc_apdu apdu;
@@ -2303,7 +2198,7 @@ TODO Check if 'Logout' does all we want or if/when we need 'De-authenticate' too
 	scope(exit)
 		log_scope_exit_do(__LINE__);
 
-	bytes2apdu(ctx, cast(immutable(ubyte)[4])x"80 2E 00 81", apdu);
+	bytes2apdu(ctx, representation(x"80 2E 00 81"), apdu);
 	if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0) return rv;
 
 	return rv=sc_check_sw(card, apdu.sw1, apdu.sw2);
@@ -2313,6 +2208,7 @@ enum {
 	from_env,   //0
 	from_usage, //1
 }
+
 
 /** constructs the "ubyte-string" for set security environment beginning with CRT template tag
  *  2 modes: 'from_env' taking input from sc_security_env or 'from_usage' taking input from the other parameters */
@@ -2396,8 +2292,6 @@ uba construct_sc_security_env (int mode, const(sc_security_env)* psec_env, CRT_T
 		if (keyFile_RSA.length<2)
 			keyFile_RSA = [ubyte(0),ubyte(0)];
 		result ~= [cast(ubyte)SubDO_Tag.KeyFile_RSA, ubyte(2)] ~ keyFile_RSA;
-//		if (aa_keyFile_RSA_poss[crtt].list !is null) {
-//		}
 	}
 
 	// has crtt an ID_Pin_Key_Local_Global requirement in .mandatory_And? must be AT
@@ -2426,7 +2320,6 @@ uba construct_sc_security_env (int mode, const(sc_security_env)* psec_env, CRT_T
 
 	if (result.length>1)
 		result[1] = cast(ubyte)(result.length-2);
-//	}
 	return result;
 }
 
@@ -2438,7 +2331,6 @@ unittest {
 	assert(equal(construct_sc_security_env(1, null,     AT, SymKey_Authenticate),                [AT, 0x06, 0x95, 0x01, 0x80, 0x83, 0x01, 0x81][]));
 	assert(equal(construct_sc_security_env(1, null,     AT, Pin_Verify),                         [AT, 0x06, 0x95, 0x01, 0x08, 0x83, 0x01, 0x81][]));
 	assert(equal(construct_sc_security_env(1, null,     AT, Pin_Verify, 0x82),                   [AT, 0x06, 0x95, 0x01, 0x08, 0x83, 0x01, 0x82][]));
-//       A406 830182 950180  This is in SE#5:
 	assert(equal(construct_sc_security_env(1, null,     AT, SymKey_Authenticate, 0x82),          [AT, 0x06, 0x95, 0x01, 0x80, 0x83, 0x01, 0x82][]));
 	assert(equal(construct_sc_security_env(1, null,DST,Sign_PKCS1_priv, 0xFF,0xFF,[ubyte(0x41), ubyte(0xF1)]), [0xB6, 0x0A, 0x95, 0x01, 0x40, 0x80, 0x01, 0x10, 0x81, 0x02, 0x41, 0xF1][]));
 	assert(equal(construct_sc_security_env(1, null,DST,Verify_PKCS1_pub,0xFF,0xFF,[ubyte(0x41), ubyte(0x31)]), [0xB6, 0x0A, 0x95, 0x01, 0x80, 0x80, 0x01, 0x10, 0x81, 0x02, 0x41, 0x31][]));
@@ -2464,6 +2356,7 @@ unittest {
 		key_ref_len     = 1;
 	}
 	assert(equal(construct_sc_security_env(0, &sec_enc, CRT_TAG.HT, Usage.None), [CT_sym, 0x0A, 0x95, 0x01, 0x40, 0x80, 0x01, 0x13, 0x81, 0x02, 0x41, 0xF3][]));
+
 	writeln("PASSED: construct_sc_security_env"); // Decrypt_RSA_priv
 }
 
@@ -2486,6 +2379,10 @@ we will prepare a CT template as well, as it may be necessary to switch from SC_
 		acos5_64_private_data* private_data = cast(acos5_64_private_data*) card.drv_data;
 		private_data.security_env = *env;
 		log_scope_exit_do(__LINE__);
+//		version(ENABLE_TOSTRING) {
+//			writer.put("int acos5_64_set_security_env(sc_card* card, const(sc_security_env)* env, int se_num) is returning with argument *env:\n");
+//			writer.formattedWrite("%s", *env);
+//		}
 	}
 /* */
 	version(ENABLE_TOSTRING) {
@@ -2550,9 +2447,19 @@ we will prepare a CT template as well, as it may be necessary to switch from SC_
 		return SC_ERROR_INVALID_ARGUMENTS;
 	}
 
+/+
+	if (env.flags & SC_SEC_ENV_ALG_REF_PRESENT) {
+		*p++ = 0x80;	 algorithm reference
+		*p++ = 0x01;
+		*p++ = env.algorithm_ref & 0xFF;
+	}
++/
 /* page 47 */
 	if (env.operation!=SC_SEC_OPERATION_SIGN && (env.flags & SC_SEC_ENV_KEY_REF_PRESENT)) {
+//		if (env.flags & SC_SEC_ENV_KEY_REF_ASYMMETRIC)
 			*p++ = 0x83;
+//		else
+//			*p++ = 0x84;
 		*p++ = cast(ubyte)env.key_ref_len;
 		assert(sbuf.sizeof - (p - sbuf.ptr) >= env.key_ref_len);
 		memcpy(p, env.key_ref.ptr, env.key_ref_len);
@@ -2585,8 +2492,7 @@ we will prepare a CT template as well, as it may be necessary to switch from SC_
 //			sc_apdu apdu2 = apdu;
 			sc_apdu apdu2;
 			with (env.file_ref)
-			bytes2apdu(card.ctx, cast(immutable(ubyte)[3])x"00 22 01"~construct_sc_security_env(1, null, CT_asym, Usage.Decrypt_PSO_priv, 0xFF, 0xFF, value[len-2..len].dup), apdu2);
-
+			bytes2apdu(card.ctx, representation(x"00 22 01")~construct_sc_security_env(1, null, CT_asym, Usage.Decrypt_PSO_priv, 0xFF, 0xFF, value[len-2..len].dup), apdu2);
 			rv = sc_transmit_apdu(card, &apdu2);
 			if (rv) {
 				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_set_security_env",
@@ -2617,51 +2523,9 @@ err:
 	return rv;
 }
 
-/+
-int pkcs1_check_01_padding(const(ubyte)* in_dat, size_t in_len,
-		ubyte* out_, size_t* out_len)
-{ // based on padding.c:sc_pkcs1_strip_01_padding
-// no stripping, just checking if padding is conformant to PKCS#1v1.15; block type 01
-	const(ubyte)* tmp = in_dat;
-	size_t        len;
 
-	if (in_dat == null || in_len < 10 || *tmp != 0x00) // FIXME
-		return SC_ERROR_INTERNAL;
-	/* skip leading zero byte */
-	tmp++;
-	in_len--;
-	len = in_len;
-	if (*tmp != 0x01)
-		return SC_ERROR_WRONG_PADDING;
-	tmp++;
-	len--;
-	for (; *tmp == 0xff && len != 0; tmp++, len--)
-		;
-	if (!len || (in_len - len) < 9 || *tmp++ != 0x00)
-		return SC_ERROR_WRONG_PADDING;
-	len--;
-	if (out == NULL)
-		/* just check the padding */
-		return SC_SUCCESS;
-	if (*out_len < len)
-		return SC_ERROR_INTERNAL;
-	memmove(out, tmp, len);
-	*out_len = len;
-	return SC_SUCCESS;
-}
-+/
-
-
-/** This function doesn't slavishly perform Decipher (RSA public key encrypted) content: Some conditions must be fulfilled:
-    Of course, the in_len must match the keyModulus_length.
-    Also, the padding must be according to PKCS#1v1.5 for Decryption (BT=01), except it is a delegate call from compute_signature.
-    TODO include symKey Decryption?
- */
 private extern(C) int acos5_64_decipher(sc_card* card, const(ubyte)* in_, /*in*/ size_t in_len, ubyte* out_, /*in*/ size_t out_len)
 { // check in_len, out_len, they aren't constant any more, but treat them as if they are constant
-// For RSA, it's an error, if the in_len is not modulusbits/8 (multiples of 32 bytes), for symetric: multiples of 8 (for DES) or 16 (for AES)
-// how to know, whether symetric or asymetric key involved?
-//Fixme currently it is for RSA only, but must take care of symkey decrypt as well
 	assert(card != null && in_ != null && out_ != null);
 	sc_context* ctx = card.ctx;
 	int rv = SC_ERROR_UNKNOWN;
@@ -2709,8 +2573,8 @@ private extern(C) int acos5_64_decipher(sc_card* card, const(ubyte)* in_, /*in*/
 		return rv=SC_ERROR_NOT_SUPPORTED;
 	// TODO check for "the in_len must match the keyModulus_length"
 
-version(Posix) {
 version(ENABLE_ACOS5_64_UI)
+version(Posix) {
 	/* (Requested by DGP): on signature operation, ask user consent */
 	if (call_to_compute_signature_in_progress && (rv=acos5_64_ask_user_consent(card, user_consent_title, user_consent_message)) < 0) {
 		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_decipher", "User consent denied\n");
@@ -2722,12 +2586,15 @@ version(ENABLE_ACOS5_64_UI)
 	apdu.flags = SC_APDU_FLAGS_NO_GET_RESP;
 	apdu.data  = in_;
 	apdu.lc    = apdu.datalen = in_len;
+//	apdu.resp    = out_;
+//	apdu.resplen = out_len;
 
 	if (in_len > 0xFF)
 		apdu.flags  |= SC_APDU_FLAGS_CHAINING;
 
 	if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0) return rv;
 
+//	if ((in_len > 0xFF && !(apdu.sw1 == 0x61 && apdu.sw2 == 0x00)) || (in_len <= 0xFF && !(apdu.sw1 == 0x90 && apdu.sw2 == 0x00))) {
 	if (!(apdu.sw1 == 0x61 && apdu.sw2 == (in_len>0xFF? 0x00 : in_len & 0x00FF))) {
 		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_decipher",
 			"Didn't get clearance to call get_response: sw1: %X, sw2: %X\n", apdu.sw1, apdu.sw2);
@@ -2750,7 +2617,6 @@ version(ENABLE_ACOS5_64_UI)
 			p        += count;
 		} while (in_len > received && count>0);
 
-/* */
 	sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_decipher",
 		"Output from decipher len: '%i' bytes:\n%s\n============================================================",
 			received, sc_dump_hex(parr.ptr, received));
@@ -2787,6 +2653,7 @@ else {
 				return rv;
 			}
 		}
+//		if (in_len > 0xFF) memcpy(out_, parr.ptr, out_len_new);
 		out_[0..out_len_new] = parr[0..out_len_new];
 	}
 	else
@@ -2801,12 +2668,6 @@ else {
 version(RSA_PKCS_PSS) {
 import pkcs11.types;
 
-/+
-as long as PSS support for RSA-SSA-PKCS is missing in opensc, required parameters are based on PKCS#11 header's structs, constants (import pkcs11.types)
-
-mechanism: CKM_RSA_PKCS_PSS is generic, there are more specific ones that include digesting with a denoted digest algorithm
-CK_RSA_PKCS_PSS_PARAMS pss_params = e.g. CK_RSA_PKCS_PSS_PARAMS(CKM_SHA256, CKG_MGF1_SHA256, 32 sLen==hLen);
-+/
 private extern(C) int pkcs1_add_PSS_padding(const(ubyte)*in_/* data_hashed */, size_t in_len /* data_hashedLen*/,
 	ubyte* out_/*EM*/, size_t* out_len/* in: *out_len>=rsa_size_bytes_modulus; out: rsa_size_bytes_modulus==emLen*/,
 	size_t	rsa_size_bytes_modulus, size_t	bn_num_bits_modulus, CK_RSA_PKCS_PSS_PARAMS_PTR pss_params) {
@@ -2863,20 +2724,9 @@ private extern(C) int pkcs1_add_PSS_padding(const(ubyte)*in_/* data_hashed */, s
 //      3.   If emLen < hLen + sLen + 2, output "encoding error" and stop.
 	if (emLen < hLen + sLen + 2)
 		return SC_ERROR_INTERNAL; // output "encoding error" and stop.
-/+
+
 //      2.   Let mHash = Hash(M), an octet string of length hLen.
-	uba  mHash;
-	switch (pss_params.hashAlg) {
-		case CKM_SHA_1:  mHash = digest!SHA1  (in_[0..in_len]); break;
-		case CKM_SHA256: mHash = digest!SHA256(in_[0..in_len]); break;
-		case CKM_SHA384: mHash = digest!SHA384(in_[0..in_len]); break;
-		case CKM_SHA512: mHash = digest!SHA512(in_[0..in_len]); break;
-		case CKM_SHA224: mHash = digest!SHA224(in_[0..in_len]); break;
-		default:
-			return SC_ERROR_INTERNAL;
-	}
-	assert(mHash.length==hLen);
-+/
+
 //      4.   Generate a random octet string salt of length sLen; if sLen = 0, then salt is the empty string.
 	uba salt  = new ubyte[sLen];
 	if (sLen>0 && RAND_bytes(salt.ptr, sLen) != 1)
@@ -2948,11 +2798,9 @@ unittest {
 	immutable(ubyte)[16] Message = cast(immutable(ubyte)[16])x"0f0e0d0c0b0a09080706050403020100";
 	uba     EM = new ubyte[128];
 	size_t  EMLen = EM.length;
-//	RSA* rsa;
 	CK_RSA_PKCS_PSS_PARAMS pss_params = CK_RSA_PKCS_PSS_PARAMS(CKM_SHA256, CKG_MGF1_SHA256, 32);
 
 	assert(pkcs1_add_PSS_padding(Message.ptr, Message.length, EM.ptr, &EMLen, EMLen, 8*EMLen-(1), &pss_params) == 0);
-
 	assert(EMLen == EM.length);
 	writefln("EM: 0x [%(%02x %)]", EM);
 	writeln("PASSED: pkcs1_add_PSS_padding");
@@ -2962,50 +2810,11 @@ unittest {
 
 
 
-/** This function doesn't slavishly perform Computing RSA Signature: Some conditions must be fulfilled, except,
- * it gets either 20 or 32 (, or 0) bytes which are assumed to be a hash from sha1 or sha256 (or a pkcs11-tool test case), but this may result in a verification error due to false assumption.
-
- * The ACOS function for computing a signature is somewhat special/recuded in capabilitiy:
- * It doesn't accept data well-prepared for signing (padding, digestinfo including hash),
- * but accepts only a hash value (20 bytes=SHA-1 or 32 bytes=SHA-256 or 0 bytes for a hash value
- * already present by an immediate preceding hash calculation by the token; nothing else).
- * The digestInfo and padding (BT=01) is generated by acos before signing automatically, depending on hashLength (20/32 bytes).
- * In order to mitigate the shortcoming, this function will try (if it can detect {also: does accept} the hash algorithm used)
- * to delegate to raw hash computation,
- * which is possible only, if the RSA key is capabale for decrypting, additional to signing as well!
- * Though this dual key capability is not recommended.
- * THUS ALL HASH ALGORITHMS OTHER THAN SHA1 AND SHA256 MAY CAUSE AN ERROR CONDITION !!!
- * The aforesaid raw hash computation is available as ACOS's RSA Private Key Decrypt operation, which shall be
- * given a padding different from padding for signing. Correctness of padding is always checked (except for 20/32 byte input), thus
- * "decipher" also has to know about if it is a delegate call from "compute_signature", in order to allow the "unexpected" padding for signing in this case.
- * If enabled, also a user_consent must be answered affirmatively.
- * In corner cases, this complicated procedure may fail.
-
-This function serves RSA_PKCS_PSS only. RSA_PKCS_PSS isn't supportrd yet by opensc
-TODO record and update the current state of SecEnv to know about prKey about to be used: (FID,) KeyModulusLength, capability (Sign/Decipher)
-Knowing that, no need to try raw RSA if it's know, the key is not capable of
-
- https://msdn.microsoft.com/en-us/library/ff635603.aspx
- https://msdn.microsoft.com/en-us/library/aa375534(VS.85).aspx
-
-If SC_ALGORITHM_RSA_PAD_PKCS1 is used as alterative to SC_ALGORITHM_RSA_PAD_NONE, the difference is then:
-in_len no more reflects the modulus_len, but the len of digestInfo (no padding), which is the input then; opposed to in_len=modulusByteLen and padded input including digestInfo
-
-The setting of SC_ALGORITHM_RSA_HASH_NONE doesn't seem to make a difference for sign/verify
-
-This function will benefit from knowledge about:
-keyModulusBytesLength (in order to allow SC_ALGORITHM_RSA_PAD_PKCS1)
-RSA file byte 1:       Key Type (whether decipher is allowed for private key: is unretrievable ! maintain a bookkeeping file or relay on settings in PrKDF?)
-RSA file byte 2:       Key Length encoded
-RSA file byte 3 and 4: Key partner File ID
-
-Task: make acos5_64_compute_signature ready to deal with PSS Signing Scheme
-How is this indicated <-> RSA_PKCS
- */
 private extern(C) int acos5_64_compute_signature(sc_card* card, const(ubyte)* in_, /*in*/ size_t in_len, ubyte* out_, /*in*/ size_t out_len)
 { // check in_len, out_len, they aren't constant any more, but treat them as if they are constant
 	// we got a SHA-512 hash value and this function can not deal with that. Hopefully, the prkey is allowed to decrypt as well, as we will delegate to acos5_64_decipher (raw RSA)
 	// There is a signing test, which pads properly, but has no digestinfo(no hash). If the key is capable to decipher as well, we can delegate to acos5_64_decipher. Let's try it.
+
 	if (card == null || in_ == null || out_ == null)
 		return SC_ERROR_INVALID_ARGUMENTS;
 	sc_context* ctx = card.ctx;
@@ -3019,6 +2828,7 @@ private extern(C) int acos5_64_compute_signature(sc_card* card, const(ubyte)* in
 		private_data.call_to_compute_signature_in_progress = false;
 		version(ENABLE_TOSTRING) {
 			writer.put("int acos5_64_compute_signature(sc_card* card, const(ubyte)* in_, in size_t in_len, ubyte* out_, in size_t out_len) is returnung with argument *card\n");
+//			writer.formattedWrite("%s", *card);
 		}
 		log_scope_exit_do(__LINE__);
 	}
@@ -3191,15 +3001,15 @@ else {
 
 matched_SHA1_or_SHA256: // or everything unknown is mapped to zero length, which entails, that acos will try to use an existing internal hash
 
-version(Posix) {
 version(ENABLE_ACOS5_64_UI)  /* (Requested by DGP): on signature operation, ask user consent */
+version(Posix) {
 	if ((rv=acos5_64_ask_user_consent(card, user_consent_title, user_consent_message)) < 0) {
 		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_compute_signature", "User consent denied\n");
 		return rv;
 	}
 }
-	 //                          CLAINSP1 P2               lc            apdu.data
-	bytes2apdu(ctx, cast(immutable(ubyte)[])x"00 2A 9E 9A" ~ cast(ubyte)tmp_arr.length ~ tmp_arr,     apdu);
+	 //                              CLAINSP1 P2                lc            apdu.data
+	bytes2apdu(ctx, representation(x"00 2A 9E 9A") ~ cast(ubyte)tmp_arr.length ~ tmp_arr,     apdu);
 	apdu.flags = SC_APDU_FLAGS_NO_GET_RESP | (tmp_arr.length > 0xFF ? SC_APDU_FLAGS_CHAINING : 0LU);
 	if ((rv=transmit_apdu_do(__LINE__))<0) return rv;
 
@@ -3292,74 +3102,57 @@ private extern(C) int acos5_64_list_files(sc_card* card, ubyte* buf, size_t bufl
 	return  rv=cast(int)(bufp - buf);
 }
 
-private extern(C) int acos5_64_check_sw(sc_card* card, uint sw1, uint sw2)
+private extern(C) int acos5_64_check_sw(sc_card *card, uint sw1, uint sw2)
 {
-	/* intercept SW of pin_cmd ? */
-	/* intercept SW 7.3.1. Get Card Info Identify Self? */
 	int rv = SC_ERROR_UNKNOWN;
 	sc_context* ctx = card.ctx;
 	sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_check_sw",
 		"called for: sw1 = 0x%02x, sw2 = 0x%02x\n", sw1, sw2);
-//	mixin (log!(q{"acos5_64_check_sw"}, q{"called"}));
 	mixin log_scope_exit!("acos5_64_check_sw");
 	scope(exit)
 		log_scope_exit_do(__LINE__);
 
 	if (sw1 == 0x90)
 		return rv= (sw2==0x00 ? SC_SUCCESS : SC_ERROR_CARD_CMD_FAILED);
-/*
-	else if (sw1 == 0x63 && (sw2 & 0xFFFFFFF0U) == 0xC0 ) {
-		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_check_sw",
-			"Verification failed (remaining tries: %i)\n", (sw2 & 0x0f));
-		return rv=SC_ERROR_PIN_CODE_INCORRECT;
-	}
-*/
 	else if (sw1 == 0x95U && sw2 == 0x40U) // this is a response to "Identify Self" and is okay for Version ACS ACOS5-64 v2.00/no error
 		return rv=SC_SUCCESS;
 	else if (sw1 == 0x61U /*&& sw2 == 0x40U*/)
 		return rv=SC_SUCCESS;
-//	else if (sw1 == 0x00U && sw2 == 0x00U)
-//		return rv=SC_SUCCESS;
 	/* iso error */
 	return rv=iso_ops_ptr.check_sw(card, sw1, sw2);
 }
 
+
 struct acos5_64_se_info {
 	int                        reference;
-
-	sc_crt[SC_MAX_CRTS_IN_SE]  crts;
-
-////	sc_file*                   df;
+	uint                       crts_len; /* what is used actually in crts */
 	acos5_64_se_info*          next;
+
+	sc_crt[SC_MAX_CRTS_IN_SE]  crts; // align(8)
 
 	uint                       magic;
 }
-
 
 private int acos5_64_se_set_cached_info(sc_card* card, acos5_64_se_info* se) {
 	sc_context* ctx = card.ctx;
 	int rv = SC_SUCCESS;
 	mixin (log!(`"acos5_64_se_set_cached_info"`, `"called"`));
-//	mixin log_scope_exit!("acos5_64_se_set_cached_info");
-//	scope(exit)
-//		log_scope_exit_do(__LINE__);
+	mixin log_scope_exit!("acos5_64_se_set_cached_info");
+	scope(exit)
+		log_scope_exit_do(__LINE__);
 
-//	acos5_64_se_info*  se_info = cast(acos5_64_se_info*)calloc(1, acos5_64_se_info.sizeof);
-	/*acos5_64_se_info* */ auto  se_info = cast(acos5_64_se_info*)calloc(1, acos5_64_se_info.sizeof); //malloc(acos5_64_se_info.sizeof);
-
+	acos5_64_se_info*  se_info = cast(acos5_64_se_info*)calloc(1, acos5_64_se_info.sizeof);
 	if (!se_info) {
 		mixin (log!(`"acos5_64_se_set_cached_info"`, `"SE info allocation error"`));
 		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_se_set_cached_info", "SE info allocation error");
 		return rv=SC_ERROR_OUT_OF_MEMORY;
 	}
-
 	memcpy(se_info, se, acos5_64_se_info.sizeof);
 
-
-	acos5_64_private_data* private_data = cast(acos5_64_private_data*) card.drv_data;
-	if (private_data.pse_info==null) {
+	acos5_64_private_data*  private_data = cast(acos5_64_private_data*) card.drv_data;
+	if (!private_data.pse_info) {
 		private_data.pse_info = se_info;
-//		mixin (log!(`"acos5_64_se_set_cached_info"`, `"SE info was empty"`));
+		mixin (log!(`"acos5_64_se_set_cached_info"`, `"SE info was empty"`));
 	}
 	else {
 		acos5_64_se_info* si;
@@ -3374,164 +3167,44 @@ private int acos5_64_se_set_cached_info(sc_card* card, acos5_64_se_info* se) {
 private int acos5_64_se_get_cached_info(sc_card* card, acos5_64_se_info* se) {
 	sc_context* ctx = card.ctx;
 	int rv = SC_SUCCESS;
-//	mixin (log!(`"acos5_64_se_get_cached_info"`, `"called"`));
-//	mixin log_scope_exit!("acos5_64_se_get_cached_info");
-//	scope(exit)
-//		log_scope_exit_do(__LINE__);
-
 	if (se==null)
 		return rv=SC_ERROR_OBJECT_NOT_FOUND;
 
-	acos5_64_private_data* private_data = cast(acos5_64_private_data*) card.drv_data;
-	if (!private_data)
+	acos5_64_private_data* private_data = cast(acos5_64_private_data*) (card.drv_data);
+	if (private_data is null)
 		return rv=SC_ERROR_OBJECT_NOT_FOUND;
 
-	acos5_64_se_info*       si;//  = private_data.pse_info;
-
-	for (si = private_data.pse_info; si!=null; si = si.next) {
+	acos5_64_se_info*  si;
+	for ( si = private_data.pse_info ; si !is null; si = si.next) {
 		if (si.reference != se.reference)
-			si = si.next;
+			continue;
 		else
 			break;
-/*
-		if (!(card.cache.valid && card.cache.current_df) && si.df)
-			continue;
-		if (card.cache.valid && card.cache.current_df && !si.df)
-			continue;
-		if (card.cache.valid && card.cache.current_df && si.df)
-			if (memcmp(&card.cache.current_df.path, &si.df.path, sc_path.sizeof))
-				continue;
-*/
 	}
 
-	if (!si)
+	if (!si) {
+		mixin (log!(`"acos5_64_se_get_cached_info"`, `"acos5_64_se_info* si  %p"`,"si"));
 		return rv=SC_ERROR_OBJECT_NOT_FOUND;
+	}
 
 	memcpy(se, si, acos5_64_se_info.sizeof);
-	//	*se = *si;
 	se.next = null;
 
-/*
-	if (si.df) {
-		sc_file_dup(&se.df, si.df);
-		if (se.df == null) {
-			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_se_get_cached_info", "Cannot duplicate current DF file");
-			return rv=SC_ERROR_OUT_OF_MEMORY;
-		}
-	}
-
-	if ((rv=acos5_64_docp_copy(ctx, &si.docp, &se.docp)) < 0) {
-		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_se_get_cached_info", "Cannot make copy of DOCP");
-		return rv;
-	}
-*/
 	return rv;
 }
 
 private int acos5_64_se_get_info(sc_card* card, acos5_64_se_info* se) {
 	sc_context* ctx = card.ctx;
 	int rv = SC_SUCCESS;//SC_ERROR_UNKNOWN;
-//	mixin (log!(`"acos5_64_se_get_info"`, `"called with se.reference: %i"`, "se.reference"));
-//	mixin log_scope_exit!("acos5_64_se_get_info");
-//	scope(exit)
-//		log_scope_exit_do(__LINE__);
-
 	if (!se || se.reference<=0 || se.reference > 0x0E )
 		return rv=SC_ERROR_INVALID_ARGUMENTS;
 
-	if ((rv=acos5_64_se_get_cached_info(card, se)) != SC_SUCCESS) //=SC_ERROR_OBJECT_NOT_FOUND;
+	if ((rv=acos5_64_se_get_cached_info(card, se)) != SC_SUCCESS)
 		mixin (log!(`"acos5_64_se_get_info"`, `"No SE#%X info in cache"`, "se.reference"));
-
-version(none) {
-	if ((rv=acos5_64_se_get_cached_info(card, se)) == SC_ERROR_OBJECT_NOT_FOUND)   {
-		mixin (log!(`"acos5_64_se_get_info"`, `"No SE#%X info in cache, now examine SE file"`, "se.reference"));
-		acos5_64_private_data* private_data = cast(acos5_64_private_data*) card.drv_data;
-		sc_path  path_seid;
-		if (card.cache.current_df) {
-			path_seid = card.cache.current_df.path; sc_append_path_id(&path_seid, private_data.current_df_se_info.seid.ptr, 2);
-		}
-		if (!path_seid.len)
-			return SC_ERROR_CARD_CMD_FAILED;
-		mixin (log!(`"acos5_64_se_get_info"`, `"path_seid.value: %s"`, "sc_dump_hex(path_seid.value.ptr, path_seid.len)"));
-		sc_apdu apdu;
-
-		sc_file* file;
-		if ((rv=  sc_select_file(card, pseid, &file)) < 0)
-			return rv;
-		mixin (log!(`"acos5_64_se_get_info"`, `"record_count:   %i"`, "file.record_count"));
-		mixin (log!(`"acos5_64_se_get_info"`, `"record_length:  %i"`, "file.record_length"));
-		ubyte[99] rbuf;
-		const(ubyte)*    tag;
-		size_t           taglen;
-		foreach (i; 0..file.record_count) {
-			apdu = sc_apdu();
-			bytes2apdu(ctx, cast(immutable(ubyte)[4])x"00 B2 00 04" ~ cast(ubyte)file.record_length, apdu);
-			apdu.p1 = cast(ubyte)(i+1);
-			apdu.resp    = rbuf.ptr;
-			apdu.resplen = rbuf.length;
-			if ((rv=transmit_apdu_strerror_do(__LINE__))<0) return rv;
-			if (sc_check_sw(card, apdu.sw1, apdu.sw2)) return rv=SC_ERROR_INTERNAL;
-			tag = sc_asn1_find_tag(ctx, rbuf.ptr, apdu.resplen, 0x80, &taglen);
-			if (!tag /*|| tag!=rbuf.ptr*/ || taglen!=1)
-				return SC_ERROR_ASN1_END_OF_CONTENTS;
-			if (tag[0]!=se.reference)
-				continue;
-
-			int parse_len = acos5_64_crt_parse(ctx, rbuf[3..apdu.resplen], se);
-			assert(!any(apdu.resp[3+parse_len..apdu.resplen]));
-			mixin (log!(`"acos5_64_se_get_info"`, `"se.crts[0].tag:     %X"`, "se.crts[0].tag"));
-			mixin (log!(`"acos5_64_se_get_info"`, `"se.crts[0].usage:   %X"`, "se.crts[0].usage"));
-			mixin (log!(`"acos5_64_se_get_info"`, `"se.crts[0].algo:    %X"`, "se.crts[0].algo"));
-			mixin (log!(`"acos5_64_se_get_info"`, `"se.crts[0].refs[0]: %X"`, "se.crts[0].refs[0]"));
-
-			if ((rv= acos5_64_se_set_cached_info(card, se)) < 0) {
-				mixin (log!(`"acos5_64_se_get_info"`, `"failed to put SE data into cache"`));
-				return rv;
-			}
-			break;
-		}
-//	} }
-	}
-} // version(none)
 	return rv;
 }
 
 
-private int acos5_64_se_get_crt(sc_card* card, acos5_64_se_info* se, sc_crt* crt_searched) {
-	sc_context* ctx = card.ctx;
-	int rv = SC_ERROR_UNKNOWN;
-//	mixin (log!(`"acos5_64_se_get_crt"`, `"called"`));
-//	mixin log_scope_exit!("acos5_64_se_get_crt");
-//	scope(exit)
-//		log_scope_exit_do(__LINE__);
-
-	if (!se || !crt_searched)
-		return rv=SC_ERROR_INVALID_ARGUMENTS;
-//	mixin (log!(`"acos5_64_se_get_crt"`, `"CRT search template (tag:usage:algo): %X:%X:%X, refs %X:%X:..."`,
-//		"crt_searched.tag","crt_searched.usage","crt_searched.algo","crt_searched.refs[0]","crt_searched.refs[1]"));
-
-	for (int ii=0; ii<SC_MAX_CRTS_IN_SE && se.crts[ii].tag; ii++)   {
-		if (crt_searched.tag != se.crts[ii].tag)
-			continue;
-		if (crt_searched.algo && crt_searched.algo != se.crts[ii].algo)
-			continue;
-		if (crt_searched.usage && ((crt_searched.usage & se.crts[ii].usage)!=crt_searched.usage) )
-			continue;
-		if (crt_searched.refs[0] && crt_searched.refs[0] != se.crts[ii].refs[0])
-			continue;
-
-		memcpy(crt_searched, &(se.crts[ii]), sc_crt.sizeof);
-//		mixin (log!(`"acos5_64_se_get_crt"`, `"found CRT with refs %X:%X:..."`,"se.crts[ii].refs[0]","se.crts[ii].refs[1]"));
-		return rv=SC_SUCCESS;
-	}
-
-	mixin (log!(`"acos5_64_se_get_crt"`, `"CRT is not found"`));
-	return rv=SC_ERROR_DATA_OBJECT_NOT_FOUND;
-}
-
-
-/*FIXME this currently dosn't model, that AT template might look like this: A4 09 83 01 81 83 01 82 95 01 08
-meaning, that both PIN 81 AND 82 must be verified */
 private int acos5_64_se_get_reference(sc_card* card, int se_reference, sc_crt search_template) {
 /*
 	search_template  = { CRT_TAG.AT, 0x08 }; // 'USER PASSWORD' authentication  search/result template
@@ -3541,43 +3214,57 @@ private int acos5_64_se_get_reference(sc_card* card, int se_reference, sc_crt se
 	sc_context*       ctx = card.ctx;
 	int               rv = SC_ERROR_UNKNOWN;
 	acos5_64_se_info  se;
-//	mixin (log!(`"acos5_64_se_get_reference"`, `"called to search for usage %i"`, "search_template.usage"));
-//	mixin log_scope_exit!("acos5_64_se_get_reference");
-//	scope(exit)
-//		log_scope_exit_do(__LINE__);
-
+	mixin (log!(`"acos5_64_se_get_reference"`, `""`));
+	mixin (log!(`"acos5_64_se_get_reference"`, `"called for se_reference %i"`, "se_reference"));
+	mixin log_scope_exit!("acos5_64_se_get_reference");
+	scope(exit) {
+		version(ENABLE_TOSTRING) {
+			if (se_reference==5) {
+				writer.put("acos5_64_se_get_reference with argument acos5_64_se_info se, sc_crt search_template:\n");
+				writer.formattedWrite("%s", se);
+				writer.formattedWrite("%s", search_template);
+			}
+		}
+		log_scope_exit_do(__LINE__);
+	}
 
 	if (se_reference<=0 || se_reference>0x0E)
 		return rv=SC_ERROR_INVALID_ARGUMENTS;
-	se.reference = se_reference;
 
+	se.reference = se_reference;
 	if ((rv=acos5_64_se_get_info(card, &se)) < SC_SUCCESS) {
 		mixin (log!(`"acos5_64_se_get_reference"`, `"get SE info error"`));
 		return rv;
 	}
 
-	if ((rv=acos5_64_se_get_crt(card, &se, &search_template)) < 0) {
+	mixin (log!(`"acos5_64_se_get_reference"`, `"CRT search_template (tag:usage:algo): %02X:%02X:%02X, refs %02X:%02X:..."`,
+		"search_template.tag","search_template.usage","search_template.algo","search_template.refs[0]","search_template.refs[1]"));
+
+	rv = SC_ERROR_DATA_OBJECT_NOT_FOUND;
+	for (int ii=0; (ii<SC_MAX_CRTS_IN_SE) && se.crts[ii].tag; ii++)   {
+		if (search_template.tag != se.crts[ii].tag)
+			continue;
+		if (search_template.tag != 0xA4 && search_template.algo && (search_template.algo != se.crts[ii].algo))
+			continue;
+		if (search_template.usage && ((search_template.usage & se.crts[ii].usage)!=search_template.usage) )
+			continue;
+
+		search_template = se.crts[ii];
+		mixin (log!(`"acos5_64_se_get_crt"`, `"found CRT with refs %X:%X:..."`,"se.crts[ii].refs[0]","se.crts[ii].refs[1]"));
+		rv=SC_SUCCESS;
+		break;
+	}
+
+	if (rv==SC_ERROR_DATA_OBJECT_NOT_FOUND) {
+		mixin (log!(`"acos5_64_se_get_crt"`, `"      CRT not found"`));
 		switch (search_template.usage) {
-			case 0x08:
-				mixin (log!(`"acos5_64_se_get_reference"`, `"Cannot get 'USER PASSWORD' authentication template"`));
-				break;
-			case 0x80:
-				mixin (log!(`"acos5_64_se_get_reference"`, `"Cannot get 'SYMMETRIC KEY' authentication template"`));
-				break;
-			case 0x88:
-				mixin (log!(`"acos5_64_se_get_reference"`, `"Cannot get both 'USER PASSWORD' and 'SYMMETRIC KEY' authentication template"`));
-				break;
-			default:
-				mixin (log!(`"acos5_64_se_get_reference"`, `"Cannot get 'DONT KNOW KIND' authentication template"`));
-				break;
+			case 0x08:  mixin (log!(`"acos5_64_se_get_reference"`, `"Cannot get 'USER PASSWORD' authentication template"`)); break;
+			case 0x80:  mixin (log!(`"acos5_64_se_get_reference"`, `"Cannot get 'SYMMETRIC KEY' authentication template"`)); break;
+			case 0x88:  mixin (log!(`"acos5_64_se_get_reference"`, `"Cannot get both 'USER PASSWORD' and 'SYMMETRIC KEY' authentication template"`)); break;
+			default:   	mixin (log!(`"acos5_64_se_get_reference"`, `"Cannot get 'DONT KNOW KIND' authentication template"`)); break;
 		}
 		return rv;
 	}
-
-////	if (se.df) {
-////		sc_file_free(se.df);
-////		se.df = null;
-////	}
 	return rv=search_template.refs[0];
 }
 
@@ -3619,47 +3306,39 @@ private extern(C) int acos5_64_card_ctl(sc_card* card, c_ulong request, void* da
 			return rv; // SC_ERROR_NOT_SUPPORTED
 
 		case SC_CARDCTL_PKCS11_INIT_TOKEN:
-/*
-			with (cast(sc_cardctl_pkcs11_init_token*)data)
-			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_card_ctl",
-				"so_pin (%s), label (%s)", sc_dump_hex(so_pin, so_pin_len), label);
-*/
-			return rv=SC_ERROR_NOT_SUPPORTED; // this is the entry point for "REINITIALIZE"
+			with (cast(sc_cardctl_pkcs11_init_token*)data) {
+				mixin (log!(`"acos5_64_card_ctl"`, `"so_pin (%s), label (%s)"`, "sc_dump_hex(so_pin, so_pin_len)", "label"));
+				if (so_pin_len!=8) {
+					mixin (log!(`"acos5_64_card_ctl"`, `"so_pin_len must be 8 !"`));
+					return  rv=SC_ERROR_NOT_SUPPORTED;
+				}
+//				do_zeroize_token       = true; // CHANGE_HERE_FOR_REINIT : remove leading //
+//				do____initialize_token = true; // CHANGE_HERE_FOR_REINIT : remove leading //
+				return rv=re_initialize_token(card, so_pin[0..so_pin_len], label);
+			}
 
 		case SC_CARDCTL_PKCS11_INIT_PIN:
-/*
-			with (cast(sc_cardctl_pkcs11_init_pin*)data)
-			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_card_ctl",
-				"pin (%s)", sc_dump_hex(pin, pin_len));
-*/
-			return rv=SC_ERROR_NOT_SUPPORTED;
+		{
+			sc_pin_cmd_pin   cmd_pin;
+			sc_pin_cmd_data  cmd_data;
+			int              tries_left;
+			with (cast(sc_cardctl_pkcs11_init_pin*)data) {
+				sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_card_ctl",
+					"pin (%s)", sc_dump_hex(pin, pin_len));
+				with (cmd_pin) {
+				}
+				with (cmd_data) {
 
+				}
+			} // with (cast(sc_cardctl_pkcs11_init_pin*)data)
+			return rv=SC_ERROR_NOT_SUPPORTED;//return rv=acos5_64_pin_change(card, &cmd_data, &tries_left);
+		}
 		case SC_CARDCTL_LIFECYCLE_SET:
 			SC_CARDCTRL_LIFECYCLE lcsi =  *cast(SC_CARDCTRL_LIFECYCLE*)data;
 			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_card_ctl",
 				"request=SC_CARDCTL_LIFECYCLE_SET with *data: %i\n", lcsi);
 			final switch (lcsi) {
-				case SC_CARDCTRL_LIFECYCLE_ADMIN:
-				{
-					sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_card_ctl",
-						"### FAKING SO LOGIN ### request=SC_CARDCTL_LIFECYCLE_SET with *data==SC_CARDCTRL_LIFECYCLE_ADMIN\n");
-					sc_pin_cmd_data  data_so;
-					with (data_so) {
-						cmd           = SC_PIN_CMD.SC_PIN_CMD_VERIFY;
-						flags         = SC_PIN_CMD_NEED_PADDING;
-						pin_type      = SC_AC_CHV;
-						pin_reference = 0x0333;
-/*
-						sc_pin_cmd_pin pin1;
-						sc_pin_cmd_pin pin2;
-						sc_apdu* apdu;
-*/
-					}
-					int tries_left;
-					rv=acos5_64_pin_cmd(card, &data_so, &tries_left);
-					return rv<SC_SUCCESS? rv : SC_ERROR_NOT_SUPPORTED;
-				}
-				case SC_CARDCTRL_LIFECYCLE_USER, SC_CARDCTRL_LIFECYCLE_OTHER:
+				case SC_CARDCTRL_LIFECYCLE_ADMIN,  SC_CARDCTRL_LIFECYCLE_USER, SC_CARDCTRL_LIFECYCLE_OTHER:
 					return rv; // SC_ERROR_NOT_SUPPORTED
 			}
 
@@ -3667,8 +3346,6 @@ private extern(C) int acos5_64_card_ctl(sc_card* card, c_ulong request, void* da
 			return rv=acos5_64_get_serialnr(card, cast(sc_serial_number*) data);
 
 		case SC_CARDCTL_GET_SE_INFO:
-//			sc_log(ctx, "CMD SC_CARDCTL_GET_SE_INFO: sdo_class %X", sdo->sdo_class);
-//			return iasecc_se_get_info(card, (struct iasecc_se_info *) ptr);
 			mixin (log!(`"acos5_64_card_ctl"`, `"CMD SC_CARDCTL_GET_SE_INFO: sdo_class prozentX"`/*, sdo.sdo_class*/));
 			if (!data)
 				return rv=SC_ERROR_CARD_CMD_FAILED;
@@ -3706,7 +3383,7 @@ int read_8C_SAC_Bytes_to_ub8SC(out ub8 SC, in uba _8C_SAC_Bytes) {
 		if (popcnt(AM) != _8C_SAC_Bytes.length-1) // the count of 1-valued bits of AM Byte must equal (taglen-1), the count of bytes following AM
 			return rv=SC_ERROR_INVALID_ASN1_OBJECT;
 		foreach (i, unused; SC)
-			if (AM & (0b1000_0000 >>> i)) // assert(i); // we should never get anything for SC[7], it's not used by ACOS
+			if (AM & (0b1000_0000 >>> i))
 				SC[7-i] = *p++;
 	}
 	catch(Throwable)
@@ -3790,36 +3467,20 @@ private int process_fci_sac_se(sc_card* card, in uba fci_carrier, cache_current_
 		if (!tag ||                taglen != TAG_FCP_len(ISO7816_RFU_TAG_FCP_SEID))
 			return SC_ERROR_ASN1_END_OF_CONTENTS;
 		info.seid      = tag[0..taglen];
-//		info.path_seid = card.cache.current_df.path; //cache_current_df_path;
-//		sc_append_path_id(&info.path_seid, info.seid.ptr, 2);
-//			path_seid = card.cache.current_df.path; sc_append_path_id(&path_seid, private_data.current_df_se_info.seid.ptr, 2);
 
 		private_data.current_df_se_info = info;
 
 		if (!skip_seid_retrieval) { // do cache the new SE-Files information, discarding previous content; possibly later switch to a on-demand solution
-		// Take mutch care here as it may result in "infinite" recursion if the cache.current_df-updating or something else related is buggy
 			if (equal(info.seid[], info.fid[])) {
 				mixin (log!(`"process_fci_sac_se"`, `"Something went wrong retrieving seid and fid: The values would incur 'infinite' recursion !!!"`));
 				return SC_ERROR_ASN1_END_OF_CONTENTS;
 			}
 
 			if (card.cache.current_df /*&& card.cache.valid && (append || card.cache.current_df.path.len==0 || !sc_compare_path(&card.cache.current_df.path, &MF_path) )*/ ) {
-//			mixin (log!(`"process_fci_sac_se"`, `"card.cache.current_df.path : %s"`, "sc_dump_hex(card.cache.current_df.path.value.ptr, card.cache.current_df.path.len)"));
-//			mixin (log!(`"process_fci_sac_se"`, `"card.cache.current_df.path : %s"`, "sc_dump_hex(card.cache.current_df.path.value.ptr, card.cache.current_df.path.len)"));
 				sc_append_path_id(&card.cache.current_df.path, info.fid.ptr, 2);
-//			mixin (log!(`"process_fci_sac_se"`, `"sc_append_path_id for cache.current_df.path resulted in: %s"`,
-//				"sc_dump_hex(card.cache.current_df.path.value.ptr, card.cache.current_df.path.len)"));
 			}
 
-//		sc_path  cache_current_df_path = card.cache.current_df.path; //card.cache.current_df? card.cache.current_df.path : MF_path;
-//		info.path_fid = cache_current_df_path;
 
-
-//		if (equal(info.seid[], [0,3][]))
-//			return SC_SUCCESS;
-//		mixin (log!(`"process_fci_sac_se"`, `"No SE info in cache or outdated, now examine SE file"`));
-//		mixin (log!(`"process_fci_sac_se"`, `"info.path_seid.value: %s"`, "sc_dump_hex(info.path_seid.value.ptr, info.path_seid.len)"));
-//		ubyte[MAX_FCI_GET_RESPONSE_LEN] rbuf;
 			ubyte[255] rbuf;
 			sc_apdu apdu;
 			int rv;
@@ -3831,8 +3492,6 @@ private int process_fci_sac_se(sc_card* card, in uba fci_carrier, cache_current_
 			if (sc_check_sw(card, apdu.sw1, apdu.sw2)) return SC_ERROR_INTERNAL;
 			cache_current_df_se_info  info_seid; // required for NOR and MRL
 			if ((rv= process_fci_sac_se(card, rbuf[0..apdu.resplen], &info_seid,/*enveloped=*/true,/*skip_seid_retrieval=*/false,/*sacNONE=*/true)) < 0) return rv;
-//		mixin (log!(`"process_fci_sac_se"`, `"record_count:   %i"`, "file.record_count"));
-//		mixin (log!(`"process_fci_sac_se"`, `"record_length:  %i"`, "file.record_length"));
 
 		version(all) {
 			acos5_64_se_info*  se_info = private_data.pse_info; // acos5_64_se_info*
@@ -3840,8 +3499,6 @@ private int process_fci_sac_se(sc_card* card, in uba fci_carrier, cache_current_
 
 			if (se_info) // delete private_data.se_info
 				while (se_info)   {
-//				if (se_info->df)
-//						sc_file_free(se_info->df);
 					next = se_info.next;
 					free(se_info);
 					se_info = next;
@@ -3861,6 +3518,7 @@ private int process_fci_sac_se(sc_card* card, in uba fci_carrier, cache_current_
 			foreach (rec_no; iota(ubyte(1), cast(ubyte)(1+info_seid.NOR))) {
 				bytes2apdu(ctx, representation(x"00 B2 00 04") ~ info_seid.MRL, apdu);
 				apdu.p1 = rec_no;
+				rbuf = rbuf.init;
 				apdu.resp    = rbuf.ptr;
 				apdu.resplen = rbuf.length;
 				if ((rv=transmit_apdu_strerror_do(__LINE__))<0) return rv;
@@ -3873,12 +3531,14 @@ private int process_fci_sac_se(sc_card* card, in uba fci_carrier, cache_current_
 
 				int parse_len = acos5_64_crt_parse(ctx, rbuf[3..apdu.resplen], &se);
 				assert(!any(apdu.resp[3+parse_len..apdu.resplen]));
-/*
-				mixin (log!(`"process_fci_sac_se"`, `"se.crts[0].tag:     %X"`, "se.crts[0].tag"));
-				mixin (log!(`"process_fci_sac_se"`, `"se.crts[0].usage:   %X"`, "se.crts[0].usage"));
-				mixin (log!(`"process_fci_sac_se"`, `"se.crts[0].algo:    %X"`, "se.crts[0].algo"));
-				mixin (log!(`"process_fci_sac_se"`, `"se.crts[0].refs[0]: %X"`, "se.crts[0].refs[0]"));
-*/
+/* * /
+				mixin (log!(`"process_fci_sac_se"`, `"se.reference:       %i"`,   "se.reference"));
+				mixin (log!(`"process_fci_sac_se"`, `"se.crts_len:        %u"`,   "se.crts_len"));
+				mixin (log!(`"process_fci_sac_se"`, `"se.crts[0].tag:     %02X"`, "se.crts[0].tag"));
+				mixin (log!(`"process_fci_sac_se"`, `"se.crts[0].usage:   %02X"`, "se.crts[0].usage"));
+				mixin (log!(`"process_fci_sac_se"`, `"se.crts[0].algo:    %02X"`, "se.crts[0].algo"));
+				mixin (log!(`"process_fci_sac_se"`, `"se.crts[0].refs[0]: %02X"`, "se.crts[0].refs[0]"));
+/ * */
 				if ((rv= acos5_64_se_set_cached_info(card, &se)) < 0) {
 					mixin (log!(`"acos5_64_se_get_info"`, `"failed to put SE data into cache"`));
 					return rv;
@@ -3912,13 +3572,13 @@ private extern(C) int acos5_64_process_fci(sc_card* card, sc_file* file, const(u
 
 	cache_current_df_se_info info; // tag 0x8C and maybe more
 	if ((rv=process_fci_sac_se(card, buf[0..buflen], &info,/*enveloped=*/false,/*skip_seid_retrieval=*/true,/*sacNONE=*/false)) < 0)  return rv; // communicate potential change of Security Environment
-//int process_fci_sac_se(sc_card* card, in uba fci_carrier, cache_current_df_se_info* info_out,/*enveloped=*/false,/*skip_seid_retrieval=*/false,/*sacNONE=*/false)
-////	ub2   arr = [ tag[0], 0 ]; // arr[1] used to distinguish RSA priv/pub
 	EFDB  FDB = cast(EFDB)info.fdb;
 	final switch (FDB) {
 		case RSA_Key_EF:
-////			if ((integral2ub!2(file.id)[1] & 0xF0) == 0xF0)
-////				arr[1] = ERSA_Key_type.CRT_for_Signing_and_Decrypting; // or CRT_for_Decrypting_only
+			break;
+		case Purse_EF:
+			file.type = SC_FILE_TYPE.SC_FILE_TYPE_INTERNAL_EF;
+			mixin (log!(`"acos5_64_process_fci"`, `"  type (corrected): proprietary EF SecurityEnvironment"`));
 			break;
 		case EFDB.SE_EF:
 			file.type = SC_FILE_TYPE.SC_FILE_TYPE_INTERNAL_EF; // refinement might be SC_FILE_TYPE_INTERNAL_SE_EF
@@ -3934,20 +3594,24 @@ private extern(C) int acos5_64_process_fci(sc_card* card, sc_file* file, const(u
 		case DF, MF,  Transparent_EF,  CHV_EF, Sym_Key_EF:
 			break;
 	}
-////	if ((rv=sc_file_set_type_attr(file, arr.ptr, arr.length)) < 0)
-////		return SC_ERROR_ASN1_END_OF_CONTENTS;
 
+	info = cache_current_df_se_info.init; // tag 0x8C and maybe more
 	if ((rv=process_fci_sac_se(card, buf[0..buflen], &info,/*enveloped=*/false,/*skip_seid_retrieval=*/false,/*sacNONE=*/false)) < 0)  return rv; // communicate potential change of Security Environment
 
+	if (equal(info.fid[], [0x39, 0x02])) {
+		mixin (log!(`"acos5_64_process_fci"`, `"sac:  %s"`, "sc_dump_hex(info.sac.ptr, info.sac.length)"));
+		mixin (log!(`"acos5_64_process_fci"`, `"fdb:  %i"`, "info.fdb"));
+		mixin (log!(`"acos5_64_process_fci"`, `"fid:  %s"`, "sc_dump_hex(info.fid.ptr, 2)"));
+		mixin (log!(`"acos5_64_process_fci"`, `"seid: %s"`, "sc_dump_hex(info.seid.ptr, 2)"));
+		mixin (log!(`"acos5_64_process_fci"`, `"NOR:  %i"`, "info.NOR"));
+	}
 	mixin (log!(`"acos5_64_process_fci"`, `"ACLs[0..7] '%s'"`, "sc_dump_hex(info.sac.ptr, info.sac.length)"));
-//private void decode_8C_SAC_Bytes(sc_card* card, in ub8 SC, sc_file* file);
 	ubyte[7] ops_DF_MF  = [ SC_AC_OP_DELETE_SELF, SC_AC_OP_CREATE_EF, SC_AC_OP_CREATE_DF, SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE ];
 	ubyte[7] ops_EF_CHV = [ SC_AC_OP_READ,        SC_AC_OP_UPDATE,    0xFF,               SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE ];
 	ubyte[7] ops_Key_SE = [ SC_AC_OP_READ,        SC_AC_OP_UPDATE,    SC_AC_OP_CRYPTO,    SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE ];
 
 	ubyte  op;
 	mixin file_add_acl_entry;
-
 	sc_file_add_acl_entry(  file, SC_AC_OP_SELECT,     SC_AC.SC_AC_NONE, 0);
 	if (canFind([DF,MF], FDB)) {
 		sc_file_add_acl_entry(file, SC_AC_OP_LIST_FILES, SC_AC.SC_AC_NONE, 0);
@@ -3970,15 +3634,14 @@ private extern(C) int acos5_64_process_fci(sc_card* card, sc_file* file, const(u
 		if (ii>0)
 			mixin (log!(`"acos5_64_process_fci"`, `"offs %i, op 0x%02X, SC 0x%02X"`, "ii", "op", "info.sac[ii]"));
 		else
-			mixin (log!(`"acos5_64_process_fci"`, `"offs %i, op 0x%02X, SC 0x%02X  [op 0x16==SC_AC_OP_READ/DF_MF(Delete Child)]"`, "ii", "op", "info.sac[ii]"));
+			mixin (log!(`"acos5_64_process_fci"`, `"offs %i, op 0x%02X, SC 0x%02X  [op 0x16==SC_AC_OP_READ/op 0x08==SC_AC_OP_DELETE_SELF for DF_MF(Delete Child)]"`, "ii", "op", "info.sac[ii]"));
 		file_add_acl_entry_do(ii, __LINE__);
 	}
 	return rv=SC_SUCCESS;
 } // acos5_64_process_fci
 
 
-
-private extern(C) int acos5_64_pin_cmd(sc_card* card, sc_pin_cmd_data* data, int* tries_left) {
+private extern(C) int acos5_64_pin_cmd(sc_card *card, sc_pin_cmd_data *data, int *tries_left) {
 	sc_context* ctx = card.ctx;
 	int rv;
 	sc_apdu apdu;
@@ -3988,44 +3651,20 @@ private extern(C) int acos5_64_pin_cmd(sc_card* card, sc_pin_cmd_data* data, int
 	scope(exit)
 		log_scope_exit_do(__LINE__);
 
-/* */
 	with (*data)
 		mixin (log!(`"acos5_64_pin_cmd"`, `"sc_pin_cmd_data 1-4: cmd(%u), flags(0x%X), pin_type(0x%02X), pin_reference(0x%02X)"`,"cmd","flags","pin_type","pin_reference"));
-//		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_pin_cmd",
-//			"sc_pin_cmd_data 1-4: cmd(%u), flags(%u), pin_type(%u), pin_reference(0x%02X)\n", cmd, flags, pin_type, pin_reference);
 	if (data.pin1.prompt && strlen(data.pin1.prompt))
 		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_pin_cmd",
 			"prompt: %s\n", data.pin1.prompt);
 	with (data.pin1)
 		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_pin_cmd",
 			"sc_pin_cmd_data.pin1: min_length(%lu), max_length(%lu), stored_length(%lu), encoding(%u)\n", min_length, max_length, stored_length, encoding);
-/* */
 
 	final switch (cast(SC_PIN_CMD)data.cmd) {
 	case SC_PIN_CMD_VERIFY: /*0*/
 		final switch (cast(SC_AC)data.pin_type) {
 		case SC_AC_CHV:
-			if (data.pin_reference == 0x0333 ) {
-				ubyte[8] dataX = [0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31];
-				sc_format_apdu(card, &apdu, SC_APDU_CASE_3_SHORT, 0x20, 0x00, 0x01);
-				apdu.datalen = apdu.lc = dataX.length;
-				apdu.data              = dataX.ptr;
-				if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0) return rv;
-				if ((rv = sc_check_sw(card, apdu.sw1, apdu.sw2)) < 0) {
-					sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_pin_cmd",
-						"PIN cmd failed: %i (%s)\n", rv, sc_strerror(rv));
-					return rv;
-				}
-			}
-			else {
-				sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_pin_cmd",
-					"Next:     Call   to   iso7816.c:iso7816_pin_cmd\n");
-				data.pin_reference |= 0x80;
-				/* ISO7816 implementation works */
-				rv = iso_ops_ptr.pin_cmd(card, data, tries_left);
-				sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_pin_cmd",
-					"Previous: Return from iso7816.c:iso7816_pin_cmd\n");
-			}
+			rv = iso_ops_ptr.pin_cmd(card, data, tries_left);
 			break;
 		case SC_AC_AUT:
 		/* 'AUT' key is the transport PIN and should have reference '0' */
@@ -4046,13 +3685,6 @@ private extern(C) int acos5_64_pin_cmd(sc_card* card, sc_pin_cmd_data* data, int
 		if (data.pin_type != SC_AC_CHV)
 			rv = SC_ERROR_INS_NOT_SUPPORTED;
 		else {
-			/* 1. step: verify the puk */
-			/* ISO7816 implementation works */
-//			if ((rv = iso_ops_ptr.pin_cmd(card, data, tries_left)) < 0)
-//				return rv;
-
-//			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_pin_cmd", "We are about to call acos5_64_pin_unblock_change\n");
-			/* 2, step: unblock and change the pin */
 			rv = acos5_64_pin_unblock_change(card, data, tries_left);
 		}
 		break;
@@ -4061,11 +3693,10 @@ private extern(C) int acos5_64_pin_cmd(sc_card* card, sc_pin_cmd_data* data, int
 		break;
 	}
 
-	return rv;//acos5_64_check_sw(card, apdu.sw1, apdu.sw2);
+	return rv;
 }
 
-
-private int acos5_64_pin_get_policy(sc_card* card, sc_pin_cmd_data* data)
+private int acos5_64_pin_get_policy(sc_card *card, sc_pin_cmd_data *data)
 {
 	sc_context* ctx = card.ctx;
 	int rv;
@@ -4102,7 +3733,7 @@ private int acos5_64_pin_get_policy(sc_card* card, sc_pin_cmd_data* data)
 	return rv;
 }
 
-private int acos5_64_pin_change(sc_card* card, sc_pin_cmd_data* data, int* tries_left)
+private int acos5_64_pin_change(sc_card *card, sc_pin_cmd_data *data, int *tries_left)
 {
 	sc_context* ctx = card.ctx;
 	sc_apdu apdu;
@@ -4171,7 +3802,6 @@ private int acos5_64_pin_unblock_change(sc_card *card, sc_pin_cmd_data *data, in
 	mixin transmit_apdu_strerror!("acos5_64_pin_unblock_change");
 
 	sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_pin_unblock_change", "called\n");
-
 	if (!data.pin1.data || data.pin1.len==0) { // no puk available or empty
 		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_pin_unblock_change",
 			"Invalid PUK arguments: %i (%s)\n", SC_ERROR_INVALID_ARGUMENTS, sc_strerror(SC_ERROR_INVALID_ARGUMENTS));
@@ -4192,7 +3822,6 @@ private int acos5_64_pin_unblock_change(sc_card *card, sc_pin_cmd_data *data, in
 		apdu.lc = data.pin1.len;
 	}
 	else { // do unblocking + changing pin (new-pin is in pin2)
-//	apdu.p1 = 0x00;
 		apdu.lc = data.pin1.len + data.pin2.len;
 		memcpy(pin_data.ptr+data.pin1.len, data.pin2.data, data.pin2.len);
 	}
@@ -4216,88 +3845,78 @@ private int acos5_64_pin_unblock_change(sc_card *card, sc_pin_cmd_data *data, in
 	return rv;
 }
 
-private extern(C) int acos5_64_read_public_key(sc_card* card, uint algorithm, sc_path* path, uint key_reference, uint modulus_length, ubyte** buf, size_t* buflen)
+
+private extern(C) int acos5_64_read_public_key(sc_card* card, uint algorithm, sc_path* path,
+	uint key_reference, uint modulus_length, ubyte** response, size_t* responselen)
 {
+	sc_pkcs15_pubkey_rsa  rsa_key;
+	sc_apdu               apdu;
+	immutable(uint) N            = modulus_length/8; /* key modulus_length in byte */
+	immutable(uint) le_accumul   =   N + 21;
+	immutable(uint) RSApubMaxLen = 512 + 21;
+	ubyte[RSApubMaxLen] buffer;
+	uint count = 0;
+
 	sc_context* ctx = card.ctx;
 	int rv = SC_ERROR_NOT_SUPPORTED;
-	sc_apdu      apdu;
-	mixin (log!(q{"acos5_64_read_public_key"}, q{"called"}));
+	mixin (log!(`"acos5_64_read_public_key"`, `"called"`));
 	mixin transmit_apdu_strerror!("acos5_64_read_public_key");
 	mixin log_scope_exit!("acos5_64_read_public_key");
 	scope(exit)
 		log_scope_exit_do(__LINE__);
 
-	immutable(uint)  N = modulus_length/8; /* key modulus_length in byte */
-	auto             MHB = immutable(ubyte) ((N>>>8) & 0xFF); /* with modulus length N as 2 byte value: Modulus High Byte of N, or its the zero byte for MLB with MSB set */
-	immutable(ubyte) MLB = N & 0xFF; /* with modulus length N as 2 byte value: Modulus Low Byte of N */
-	ubyte* key_in,  pkey_in;  /* key_in  keeps position; length of internal format:	 5 + 16(e) + N(n/8) */
-	ubyte* key_out, pkey_out; /* key_out keeps position; length of asn.1 format:		11 + 16(e) + N(n/8) */
-	immutable(uint) le_accumul = N + 21;
-	immutable(uint) len_out    = N + 27;
-	uint count = 0;
-
-
-	assert(path != null && buf != null);
+	assert(path != null && path.len>=2 && response != null);
+	mixin (log!(`"acos5_64_read_public_key"`, `"Got args: algorithm=%x, modulus_length=%x, key_reference=%x, response=%x, responselen=%d, path=%s"`,
+		"algorithm", "modulus_length", "key_reference","response","responselen ? *responselen : 0", "sc_dump_hex(path.value.ptr, path.len)"));
 	if (algorithm != SC_ALGORITHM_RSA)
 		return rv=SC_ERROR_NOT_SUPPORTED;
 
-	rv = sc_select_file(card, path, null);
+	if ((rv=sc_select_file(card, path, null))<0) {
+		mixin (log!(`"acos5_64_read_public_key"`, `"failed to select public key file"`));
+		return rv;
+	}
 
-	/* Case 2 short APDU, 5 bytes: ins=CA p1=xx p2=yy lc=0000 le=00zz */
-	sc_format_apdu(card, &apdu, SC_APDU_CASE_2_SHORT, 0xCA, 0x00, 0x00);
-	apdu.cla = 0x80;
-	apdu.resplen = le_accumul;
+	bytes2apdu(ctx, representation(x"80 CA 00 00 00"), apdu);
 	apdu.le = le_accumul>SC_READER_SHORT_APDU_MAX_SEND_SIZE ? SC_READER_SHORT_APDU_MAX_SEND_SIZE : le_accumul;
-	pkey_in = key_in = cast(ubyte*)malloc(le_accumul);
 
-	while (le_accumul > count && count <= 0xFFFF-apdu.le) {
-		apdu.p1   = cast(ubyte) (count>>>8 & 0xFF);
-		apdu.p2   = count & SC_READER_SHORT_APDU_MAX_SEND_SIZE;
-		apdu.resp = key_in + count;
-		/*sc_log(ctx, "apdu chunk count=%u, p1=%u, p2=%u, le=%lu, apdu.resplen=%lu", count, apdu.p1, apdu.p2, apdu.le, apdu.resplen);*/
-		if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0)  { free(key_in); return rv; }
-		if (apdu.sw1 != 0x90 || apdu.sw2 != 0x00) {
-			free(key_in);
-			return rv=SC_ERROR_INTERNAL;
-		}
-		count += apdu.le;
+	while (count < le_accumul && count <= 0xFFFF-apdu.le) {
+		apdu.p1      = cast(ubyte) (count>>>8 & 0xFF);
+		apdu.p2      = count & SC_READER_SHORT_APDU_MAX_SEND_SIZE;
+		apdu.resp    = buffer.ptr    + count;
+		apdu.resplen = buffer.length - count;
+		if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0)  return rv;
+		if (apdu.sw1 != 0x90 || apdu.sw2 != 0x00)  return rv=SC_ERROR_INTERNAL;
+
+		count += apdu.resplen;
 		if (le_accumul-count < SC_READER_SHORT_APDU_MAX_SEND_SIZE)
 			apdu.le = le_accumul-count;
 	}
 
-	pkey_out = key_out = cast(ubyte*) malloc(len_out);
-	if (key_out == null) {
-		free(key_in);
-		return rv=SC_ERROR_OUT_OF_MEMORY;
+	if (count!=le_accumul || buffer[0] || buffer[1]!=encodedRSAbitLen(modulus_length))
+		return rv=SC_ERROR_INCOMPATIBLE_KEY;
+	if (buffer[2] != path.value[path.len-2])
+		return rv=SC_ERROR_INCOMPATIBLE_KEY;
+	if (buffer[3] != path.value[path.len-1]+0xC0)
+		return rv=SC_ERROR_INCOMPATIBLE_KEY;
+	if ((buffer[4] & 3) != 3)
+		return rv=SC_ERROR_INCOMPATIBLE_KEY;
+
+	rsa_key.exponent = sc_pkcs15_bignum(buffer.ptr +  5, 16);
+	rsa_key.modulus  = sc_pkcs15_bignum(buffer.ptr + 21,  N);
+
+	if (rsa_key.exponent.len && rsa_key.modulus.len) {
+		if((rv=sc_pkcs15_encode_pubkey_rsa(ctx, &rsa_key, response, responselen)) < 0) {
+			mixin (log!(`"acos5_64_read_public_key"`, `"failed to read public key: cannot encode RSA public key"`));
+			return rv;
+		}
+	}
+	else {
+		mixin (log!(`"acos5_64_read_public_key"`, `"it's not a known public key"`));
+		return rv=SC_ERROR_INTERNAL;
 	}
 
-	/* 0x021B = 512+16 + "30 820217 02 820201 00" + "0210" for 4096 bit key */
-	*pkey_out++ = 0x30;
-	*pkey_out++ = 0x82;
-	*pkey_out++ = MHB;
-	*pkey_out++ = cast(ubyte) (MLB + 23); /*always is < 0xFF */
-
-	*pkey_out++ = 0x02;
-	*pkey_out++ = 0x82;
-	*pkey_out++ = MHB;
-	*pkey_out++ = cast(ubyte) (MLB + 1);
-	*pkey_out++ = 0x00; /* include zero byte */
-
-	pkey_in = key_in + 21;
-	memcpy(pkey_out, pkey_in, N);
-	pkey_out += N;
-	*pkey_out++ = 0x02;
-	*pkey_out++ = 0x10;
-	pkey_in = key_in + 5;
-	memcpy(pkey_out, pkey_in, 16);
-
-	*buflen = len_out;
-	*buf = key_out;
-	rv = SC_SUCCESS;
-
-	free(key_in);
-	return rv;
-}
+	return rv=SC_SUCCESS;
+} // acos5_64_read_public_key
 
 
 private int missingExport_sc_pkcs1_strip_01_padding(sc_context* ctx, const(ubyte)* in_dat, size_t in_len, ubyte* out_, size_t* out_len)
@@ -4332,15 +3951,13 @@ private int missingExport_sc_pkcs1_strip_01_padding(sc_context* ctx, const(ubyte
 }
 
 
-/* remove pkcs1 BT02 padding (adding BT02 padding is currently not
- * needed/implemented) */
+/* remove pkcs1 BT02 padding (adding BT02 padding is currently not needed/implemented) */
 private int missingExport_sc_pkcs1_strip_02_padding(sc_context* ctx, const(ubyte)* data, size_t len, ubyte* out_, size_t* out_len)
 {
 	uint	n = 0;
 
-//	LOG_FUNC_CALLED(ctx);
 	if (data == null || len < 3)
-		return SC_ERROR_INTERNAL; // LOG_FUNC_RETURN(ctx, SC_ERROR_INTERNAL);
+		return SC_ERROR_INTERNAL;
 
 	/* skip leading zero byte */
 	if (*data == 0) {
@@ -4348,27 +3965,27 @@ private int missingExport_sc_pkcs1_strip_02_padding(sc_context* ctx, const(ubyte
 		len--;
 	}
 	if (data[0] != 0x02)
-		return SC_ERROR_WRONG_PADDING; // LOG_FUNC_RETURN(ctx, SC_ERROR_WRONG_PADDING);
+		return SC_ERROR_WRONG_PADDING;
 	/* skip over padding bytes */
 	for (n = 1; n < len && data[n]; n++)
 	{}
 	/* Must be at least 8 pad bytes */
 	if (n >= len || n < 9)
-		return SC_ERROR_WRONG_PADDING; // LOG_FUNC_RETURN(ctx, SC_ERROR_WRONG_PADDING);
+		return SC_ERROR_WRONG_PADDING;
 	n++;
 	if (out_ == null)
 		/* just check the padding */
-		return SC_SUCCESS; // LOG_FUNC_RETURN(ctx, SC_SUCCESS);
+		return SC_SUCCESS;
 
 	/* Now move decrypted contents to head of buffer */
 	if (*out_len < len - n)
-		return SC_ERROR_INTERNAL; // LOG_FUNC_RETURN(ctx, SC_ERROR_INTERNAL);
+		return SC_ERROR_INTERNAL;
 	*out_len = len - n;
 	memmove(out_, data + n, *out_len);
 
 	sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sc_pkcs1_strip_02_padding",
 		"stripped output(%i): %s", len - n, sc_dump_hex(out_, len - n));
-	return cast(uint)len - n; // LOG_FUNC_RETURN(ctx, len - n);
+	return cast(uint)len - n;
 }
 
 
@@ -4385,10 +4002,9 @@ private extern(C) int acos5_64_pkcs15_init_card(sc_profile* profile, sc_pkcs15_c
 	sc_file*   file;
 	ubyte[256] rbuf;
 
-	p15card.tokeninfo.flags = SC_PKCS15_TOKEN_PRN_GENERATION /*0| SC_PKCS15_TOKEN_EID_COMPLIANT*/;
+	p15card.tokeninfo.flags = SC_PKCS15_TOKEN_PRN_GENERATION;
 
 	rv = sc_card_ctl(p15card.card, SC_CARDCTL_GET_SERIALNR, rbuf.ptr);
-//	LOG_TEST_RET(p15card->card->ctx, r,  "Get applet info failed");
 
 	sc_format_path("3F00", &path);
 	rv = sc_select_file(p15card.card, &path, &file);
@@ -4443,7 +4059,6 @@ private extern(C) int acos5_64_pkcs15_select_key_reference(sc_profile*, sc_pkcs1
 	return rv=SC_SUCCESS;
 }
 
-
 /* Generate the private key on card */
 private extern(C) int acos5_64_pkcs15_create_key(sc_profile*, sc_pkcs15_card* p15card, sc_pkcs15_object*)
 { // does nothing !!!
@@ -4457,7 +4072,6 @@ private extern(C) int acos5_64_pkcs15_create_key(sc_profile*, sc_pkcs15_card* p1
 		writer.put("int acos5_64_pkcs15_create_key(sc_profile*, sc_pkcs15_card* p15card, sc_pkcs15_object*) was called\n");
 	return rv;
 }
-
 
 private extern(C) int acos5_64_pkcs15_store_key(sc_profile*, sc_pkcs15_card* p15card,
 			sc_pkcs15_object*,
@@ -4474,12 +4088,9 @@ private extern(C) int acos5_64_pkcs15_store_key(sc_profile*, sc_pkcs15_card* p15
 	return rv;
 }
 
-
-//pragma(inline, true)
 private ubyte encodedRSAbitLen(const uint bitLenDec) pure nothrow @nogc @safe
 {
 	import std.algorithm.comparison : clamp;
-//	bitLenDec = cast(ubyte)((clamp(bitLenDec,512U,4096U)/256U)*2U);
 	return  cast(ubyte)((clamp(bitLenDec+8,512U,4096U)/256U)*2U);
 }
 
@@ -4491,7 +4102,7 @@ unittest {
 	assert(encodedRSAbitLen( 759) == 0x04);
 	assert(encodedRSAbitLen( 767) == 0x06);
 	assert(encodedRSAbitLen( 768) == 0x06); // defined
-// for each increment in by 256 -> increment by 0x02
+// for each increment of 256 -> increment by 0x02
 	assert(encodedRSAbitLen(3840) == 0x1E); // defined
 	assert(encodedRSAbitLen(4095) == 0x20);
 	assert(encodedRSAbitLen(4096) == 0x20); // defined, upperLimit
@@ -4513,25 +4124,13 @@ private extern(C) int acos5_64_pkcs15_generate_key(sc_profile* profile, sc_pkcs1
 	mixin transmit_apdu_strerror!("acos5_64_pkcs15_generate_key");
 	mixin log_scope_exit!("acos5_64_pkcs15_generate_key");
 	scope(exit) {
-/*
-		if (pukf) {
-			sc_file_free(pukf);
-			pukf = null;
-		}
-		if (file) {
-			sc_file_free(file);
-			file = null;
-		}
-		if (tfile) {
-			sc_file_free(tfile);
-			file = null;
-		}
-*/
-		version(ENABLE_TOSTRING)
+		version(ENABLE_TOSTRING) {
 			writer.put("int acos5_64_pkcs15_generate_key(sc_profile* profile, sc_pkcs15_card* p15card, sc_pkcs15_object* p15object, sc_pkcs15_pubkey* p15pubkey)  is returnung\n");
+//			writer.formattedWrite("%s", *profile);
+		}
 		log_scope_exit_do(__LINE__);
 	}
-//////////
+
 	sc_pkcs15_prkey_info* key_info = cast(sc_pkcs15_prkey_info*)p15object.data;
 	uint keybits = ((cast(uint)key_info.modulus_length+8U)/256)*256;
 
@@ -4554,19 +4153,19 @@ private extern(C) int acos5_64_pkcs15_generate_key(sc_profile* profile, sc_pkcs1
 /* TODO Think about other checks or possibly refuse to genearate keys if file access rights are wrong */
 
 	/* allocate key object */
-////	if ((rv=new_file(profile, p15card, p15object, SC_PKCS15_TYPE_PRKEY_RSA, &file)) < 0) {
-////		mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"create key: failed to allocate new key object"`));
-////		return rv;
-////	}
+	if ((rv=new_file(profile, p15card, p15object, SC_PKCS15_TYPE_PRKEY_RSA, &file)) < 0) {
+		mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"create key: failed to allocate new key object"`));
+		return rv;
+	}
 
-	mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"private key path:      %s"`, "sc_print_path(&file.path)"));
-	mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"private key_info path: %s"`, "sc_print_path(&key_info.path)"));
+	mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"private key path:       %s"`, "sc_print_path(&file.path)"));
+	mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"private key_info path:  %s"`, "sc_print_path(&key_info.path)"));
+	mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"private key_info usage: %u"`, "key_info.usage"));
 
 	/* delete, if existant */
 	if ((rv=sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_DELETE)) < 0) {
 		mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"generate key: pkcs15init_authenticate(SC_AC_OP_DELETE) failed (okay, if file didn't exist)"`));
-		if (rv == SC_ERROR_FILE_NOT_FOUND) {}
-		else
+		if (rv != SC_ERROR_FILE_NOT_FOUND)
 			return rv;
 	}
 	if (rv != SC_ERROR_FILE_NOT_FOUND)
@@ -4577,14 +4176,13 @@ private extern(C) int acos5_64_pkcs15_generate_key(sc_profile* profile, sc_pkcs1
 		mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"create key: failed to create private key file on card"`));
 		return rv;
 	}
-/* */
+
 	mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"Have to generate RSA key pair with keybits %i; ID: %s and path: %s"`,
 		"keybits", "sc_pkcs15_print_id(&key_info.id)", "sc_print_path(&key_info.path)"));
 
 	version(ENABLE_TOSTRING) {
 		writer.put("int acos5_64_pkcs15_generate_key(sc_profile* profile, sc_pkcs15_card* p15card, sc_pkcs15_object* p15object, sc_pkcs15_pubkey* p15pubkey)  with argument *file, *key_info\n");
-		if (file)
-			writer.formattedWrite("%s", *file);
+		writer.formattedWrite("%s", *file);
 		writer.formattedWrite("%s", *key_info);
 	}
 
@@ -4595,13 +4193,15 @@ private extern(C) int acos5_64_pkcs15_generate_key(sc_profile* profile, sc_pkcs1
 		mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"generate key: no private object DF"`));
 		return rv;
 	}
-////	if ((rv=new_file(profile, p15card, p15object, SC_PKCS15_TYPE_PUBKEY_RSA, &pukf)) < 0) {
-////		mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"pubkey: create temporary pukf failed"`));
-////		return rv;
-////	}
+
+	if ((rv=new_file(profile, p15card, p15object, SC_PKCS15_TYPE_PUBKEY_RSA, &pukf)) < 0) {
+		mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"pubkey: create temporary pukf failed"`));
+		return rv;
+	}
+
 	if (pukf)
-	mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"public key size %i; ef type %i/%i; id %04X; path: %s"`,
-		"pukf.size", "pukf.type", "pukf.ef_structure", "pukf.id", "sc_print_path(&pukf.path)"));
+		mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"public key size %i; ef type %i/%i; id %04X; path: %s"`,
+			"pukf.size", "pukf.type", "pukf.ef_structure", "pukf.id", "sc_print_path(&pukf.path)"));
 
 	/* if exist, delete */
 	if ((rv=sc_select_file(p15card.card, &pukf.path, null)) == SC_SUCCESS) {
@@ -4622,6 +4222,8 @@ private extern(C) int acos5_64_pkcs15_generate_key(sc_profile* profile, sc_pkcs1
 	}
 
 ///////////////////
+
+/* Do generate here */
 	{ // set SE for private key usage
 		sc_security_env env;
 		env.flags = SC_SEC_ENV_FILE_REF_PRESENT;
@@ -4649,9 +4251,8 @@ private extern(C) int acos5_64_pkcs15_generate_key(sc_profile* profile, sc_pkcs1
 		}
 	}
 
-	// 00 46 00 00  02 2004
-	ubyte[2] sbuf = [encodedRSAbitLen(keybits), ERSA_Key_type.CRT_for_Decrypting_only]; // always CRT
-	if (key_info.usage & SC_PKCS15_PRKEY_USAGE_SIGN)
+	ubyte[2] sbuf = [encodedRSAbitLen(keybits), ERSA_Key_type.CRT_for_Signing_only]; // always CRT
+	if (key_info.usage & SC_PKCS15_PRKEY_USAGE.SC_PKCS15_PRKEY_USAGE_DECRYPT)
 		sbuf[1] = ERSA_Key_type.CRT_for_Signing_and_Decrypting;
 
 	sc_format_apdu(card, &apdu, SC_APDU_CASE_3_SHORT, 0x46, 0, 0);
@@ -4664,12 +4265,6 @@ private extern(C) int acos5_64_pkcs15_generate_key(sc_profile* profile, sc_pkcs1
 		return rv;
 	}
 
-/*
-		mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"profile:   %s"`, `format("%s", *profile).toStringz`));
-		mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"p15card:   %s"`, `format("%s", *p15card).toStringz`));
-		mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"p15object: %s"`, `format("%s", *p15object).toStringz`));
-		p15pubkey = cast(sc_pkcs15_pubkey*) malloc(sc_pkcs15_pubkey.sizeof);
-*/
 	mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"p15object.type:  %04x"`, "p15object.type"));
 	mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"p15object.label: %s"`, "p15object.label.ptr"));
 	mixin (log!(`"acos5_64_pkcs15_generate_key"`, `"p15object.flags: %08x"`, "p15object.flags"));
@@ -4711,7 +4306,6 @@ private extern(C) int acos5_64_pkcs15_encode_private_key(sc_profile* profile, sc
 	return rv;
 }
 
-
 private extern(C) int acos5_64_pkcs15_encode_public_key(sc_profile* profile, sc_card* card,
 				sc_pkcs15_prkey_rsa*,
 				ubyte* , size_t*, int) {
@@ -4726,7 +4320,6 @@ private extern(C) int acos5_64_pkcs15_encode_public_key(sc_profile* profile, sc_
 	return rv;
 }
 
-
 private extern(C) int acos5_64_pkcs15_delete_object(sc_profile* profile, sc_pkcs15_card* p15card,
 			sc_pkcs15_object*, const(sc_path)* path) {
 	sc_context* ctx = p15card.card.ctx;
@@ -4738,12 +4331,11 @@ private extern(C) int acos5_64_pkcs15_delete_object(sc_profile* profile, sc_pkcs
 	return rv=sc_pkcs15init_delete_by_path(profile, p15card, path);
 }
 
-
 private extern(C) int acos5_64_pkcs15_emu_store_data(sc_pkcs15_card* p15card, sc_profile* profile, sc_pkcs15_object*,
 				sc_pkcs15_der*, sc_path*) {
 	sc_context* ctx = p15card.card.ctx;
 	int rv = SC_SUCCESS;
-	mixin (log!(q{"acos5_64_pkcs15_emu_store_data"}, q{"called"}));
+	mixin (log!(`"acos5_64_pkcs15_emu_store_data"`, `"called"`));
 	mixin log_scope_exit!("acos5_64_pkcs15_emu_store_data");
 	scope(exit)
 		log_scope_exit_do(__LINE__);
@@ -4754,24 +4346,6 @@ private extern(C) int acos5_64_pkcs15_emu_store_data(sc_pkcs15_card* p15card, sc
 
 /**
  * There are a lot of checks that might be tought of as reasonable
- Check reasonable access rights, depending on file type
- Check, that for every pin record, there is a sym key record as well, because they might be forced to cooperate in usage (e.g. in CRT AT, usage 0x88
- Check, that for every sym key record, there is a pin record as well, because they might be forced to cooperate in usage (e.g. in CRT AT, usage 0x88
- Check, if there are non-activated files
- Check, that popcnt of AM equals number of SC bytes, that follow: AM 0x07 and !=3 bytes following is illegal !
- Check if all files (except CHV 0001, 4101, ? SKEY 0002, 4102,  are mentioned in DFs:
- IMHO, TERMINATE/LOCK doesn't make sense, better DELETE and reuse file space, thus check, that TERMINATE/LOCK is always NEVER
- Check if what the PKCS#15 "managing files" like PrKDF etc. tell about file existance etc, is actually correct:
- E.g. scan card, detect for each DF: PIN file, Sym. Key file, SE file
- Mandatory: EF(Dir) 2F00
-
- Some of the checks are essential, others are my convention: How to handle that, where to put the log?
- etc.
- cards that do sanity check:
- src/pkcs15init/pkcs15-entersafe.c
- src/pkcs15init/pkcs15-epass2003.c
-
-
 */
 private extern(C) int acos5_64_pkcs15_sanity_check(sc_profile* profile, sc_pkcs15_card* p15card) {
 	sc_context* ctx = p15card.card.ctx;
@@ -4785,8 +4359,446 @@ private extern(C) int acos5_64_pkcs15_sanity_check(sc_profile* profile, sc_pkcs1
 	return rv;
 }
 
+//version(all/*REINITIALIZE*/) {
 
-uba  integral2ub(uint storage_bytes)(size_t integral)
+struct TriBool { //similar to std.typecons : Ternary; but no algebra required, just the states
+	@safe @nogc nothrow pure:
+
+	private ubyte value = 2; // yes
+	private static TriBool make(ubyte b) {
+		TriBool r = void;
+		r.value = b;
+		return r;
+	}
+
+	alias value this; // different from std.typecons.Ternary  // gdc seems to ignore it
+
+	/** The possible states of the `TriBool` */
+	enum no      = make(0);
+	enum yes     = make(2);
+	enum unknown = make(6);
+}
+
+struct reinit_entry {
+	c_ulong  flags;
+	int      cse;
+	ubyte    cmd_len; // temporarily, to check correct length of apdu
+	iuba                cmd;
+	iuba                sw1sw2Response; //expected_response;
+	TriBool   must_match_expected_response; // = TriBool.yes;
+}
+
+immutable(reinit_entry[])  Zeroize8030_entries;
+immutable(reinit_entry[])  E0_entries;
+immutable(reinit_entry[])  A444DC_entries;
+
+
+private int re_initialize_token(sc_card* card, in uba so_pin, const(char)* label) {
+/* currently, re_initialize_token doesn't process label ! Later, label will be stored in file 4100 5032 */
+	import std.string : toStringz, fromStringz, stripRight;
+	sc_context* ctx = card.ctx;
+	int rv = SC_SUCCESS;
+	sc_apdu apdu;
+	mixin (log!(`"re_initialize_token"`, `"called"`));
+	mixin transmit_apdu_strerror!("re_initialize_token");
+	mixin log_scope_exit!("re_initialize_token");
+	scope(exit) {
+		do_zeroize_token    = false;
+		do_initialize_token = false;
+		log_scope_exit_do(__LINE__);
+	}
+
+	version(REINIT_ACOSMODE_V2) {}
+	else return rv=SC_ERROR_NOT_SUPPORTED; // SC_ERROR_INVALID_CARD // REINIT_ACOSMODE_V3_FIPS_140_2L3  REINIT_ACOSMODE_V3_NSH_1
+
+	if (so_pin.length!=8)
+		return rv=SC_ERROR_NOT_SUPPORTED;
+	if (acos5_64_get_serialnr(card, null) < 0)
+		return rv=SC_ERROR_NOT_SUPPORTED;
+
+	ubyte[256] rbuf;
+
+
+	void do_logs_dry_run(in ulong i, const ref reinit_entry e) {
+		switch (e.cmd_len) { // minimum is 4, max. >13
+			case 0, 1, 2, 3:
+				break;
+			case 4:
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+					"(%2i) dry-run 'reinit' command: %02X %02X %02X %02X", i, e.cmd[0], e.cmd[1], e.cmd[2], e.cmd[3]);
+				break;
+			case 5:
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+					"(%2i) dry-run 'reinit' command: %02X %02X %02X %02X  %02X\n", i, e.cmd[0], e.cmd[1], e.cmd[2], e.cmd[3], e.cmd[4]);
+				break;
+			case 6:
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+					"(%2i) dry-run 'reinit' command: %02X %02X %02X %02X  %02X  %02X\n", i, e.cmd[0], e.cmd[1], e.cmd[2], e.cmd[3], e.cmd[4], e.cmd[5]);
+				break;
+			case 7:
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+					"(%2i) dry-run 'reinit' command: %02X %02X %02X %02X  %02X  %02X %02X\n", i, e.cmd[0], e.cmd[1], e.cmd[2], e.cmd[3], e.cmd[4], e.cmd[5], e.cmd[6]);
+				break;
+			case 8:
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+					"(%2i) dry-run 'reinit' command: %02X %02X %02X %02X  %02X  %02X %02X %02X\n", i, e.cmd[0], e.cmd[1], e.cmd[2], e.cmd[3], e.cmd[4], e.cmd[5], e.cmd[6], e.cmd[7]);
+				break;
+			case 9:
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+					"(%2i) dry-run 'reinit' command: %02X %02X %02X %02X  %02X  %02X %02X %02X %02X\n", i, e.cmd[0], e.cmd[1], e.cmd[2], e.cmd[3], e.cmd[4], e.cmd[5], e.cmd[6], e.cmd[7], e.cmd[8]);
+				break;
+			case 10:
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+					"(%2i) dry-run 'reinit' command: %02X %02X %02X %02X  %02X  %02X %02X %02X %02X %02X\n", i, e.cmd[0], e.cmd[1], e.cmd[2], e.cmd[3], e.cmd[4], e.cmd[5], e.cmd[6], e.cmd[7], e.cmd[8], e.cmd[9]);
+				break;
+			case 11:
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+					"(%2i) dry-run 'reinit' command: %02X %02X %02X %02X  %02X  %02X %02X %02X %02X %02X %02X\n", i, e.cmd[0], e.cmd[1], e.cmd[2], e.cmd[3], e.cmd[4], e.cmd[5], e.cmd[6], e.cmd[7], e.cmd[8], e.cmd[9], e.cmd[10]);
+				break;
+			case 12:
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+					"(%2i) dry-run 'reinit' command: %02X %02X %02X %02X  %02X  %02X %02X %02X %02X %02X %02X %02X\n", i, e.cmd[0], e.cmd[1], e.cmd[2], e.cmd[3], e.cmd[4], e.cmd[5], e.cmd[6], e.cmd[7], e.cmd[8], e.cmd[9], e.cmd[10], e.cmd[11]);
+				break;
+			case 13:
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+					"(%2i) dry-run 'reinit' command: %02X %02X %02X %02X  %02X  %02X %02X %02X %02X %02X %02X %02X %02X\n", i, e.cmd[0], e.cmd[1], e.cmd[2], e.cmd[3], e.cmd[4], e.cmd[5], e.cmd[6], e.cmd[7], e.cmd[8], e.cmd[9], e.cmd[10], e.cmd[11], e.cmd[12]);
+				break;
+			default: // >13
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+					"(%2i) dry-run 'reinit' command: %02X %02X %02X %02X  %02X  %02X %02X %02X %02X %02X %02X %02X %02X  more data ...\n", i, e.cmd[0], e.cmd[1], e.cmd[2], e.cmd[3], e.cmd[4], e.cmd[5], e.cmd[6], e.cmd[7], e.cmd[8], e.cmd[9], e.cmd[10], e.cmd[11], e.cmd[12]);
+				break;
+		}
+	} // do_logs_dry_run
+
+	int  perform_hot_run(in ulong i, const ref reinit_entry e) { // do_action_effectively
+		int rval = SC_SUCCESS;
+		rbuf = rbuf.init;
+		bytes2apdu(ctx, e.cmd, apdu);
+		apdu.flags = (apdu.flags & ~(SC_APDU_FLAGS_NO_GET_RESP | SC_APDU_FLAGS_NO_RETRY_WL)) | e.flags;
+
+		if (e.cse==SC_APDU_CASE_2_SHORT ||e.cse==SC_APDU_CASE_4_SHORT) {
+			apdu.resplen = rbuf.length;
+			apdu.resp    = rbuf.ptr;
+		}
+
+		if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0) return rv;
+		switch (e.sw1sw2Response.length) {
+			case 0, 1:
+				sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+				"(%2i) Didn't get expected response from command: %i (%s)\n", i, rval, sc_strerror(rval));
+				return rval= -1;
+//				break;
+			case 2:
+				switch (e.must_match_expected_response.value) { // gdc seems to ignore alias this
+					case TriBool.no:
+						break;
+					case TriBool.yes:
+						if ((rval = -1* (apdu.sw1!=e.sw1sw2Response[0] || apdu.sw2!=e.sw1sw2Response[1])) < 0) {
+							sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+							"(%2i) Didn't get expected response (mostly 0x9000 or 0x61??) from command: %i (%s), but intead sw1: %02X and sw2: %02X", i, rval, sc_strerror(rval), apdu.sw1, apdu.sw2);
+							return rval;
+						}
+						break;
+					case TriBool.unknown:
+						if ((rval = -1* (apdu.sw1!=e.sw1sw2Response[0])) < 0) {
+							sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+							"(%2i) Didn't get expected response (mostly 0x9000 or 0x61??) from command: %i (%s)\n", i, rval, sc_strerror(rval));
+							return rval;
+						}
+						break;
+					default:
+						assert(0);
+				}
+				break;
+			default:
+				switch (e.must_match_expected_response.value) { // gdc seems to ignore alias this
+					case TriBool.no,
+							 TriBool.unknown:
+						break;
+					case TriBool.yes:
+						if ((rval = -1*(apdu.sw1!=e.sw1sw2Response[$-2] || apdu.sw2!=e.sw1sw2Response[$-1])) < 0) {
+							sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+							"(%2i) Didn't get expected response=0x9000 from command: %i (%s)\n", i, rval, sc_strerror(rval));
+							return rval;
+						}
+						if ((rval=SC_ERROR_UNKNOWN_DATA_RECEIVED*(!equal(rbuf[0..apdu.resplen][], e.sw1sw2Response[0..$-2][]))) < 0) {
+							sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+								"(%2i) Received data don't match expected ones !\n(%i) Response: %s\n(%i) Expected: %s", i, apdu.resplen,
+								sc_dump_hex(rbuf.ptr, apdu.resplen), e.sw1sw2Response.length-2, sc_dump_hex(e.sw1sw2Response.ptr, e.sw1sw2Response.length-2));
+							return rval;
+						}
+						break;
+					default:
+						assert(0);
+				}
+				break;
+		} // switch (e.sw1sw2Response.length)
+		return rval;
+	} // perform_hot_run
+
+
+	foreach (i, const ref e; get_Zeroize8030_entries(card, so_pin)) {
+		enforce(e.cmd_len == e.cmd.length, "Something went wrong when checking Zeroize8030_entries"~" on index: "~to!string(i)); // temporarily
+		switch (e.cse) {
+			case SC_APDU_CASE_1,
+					 SC_APDU_CASE_2_SHORT:
+				enforce(e.cmd.length == 3+e.cse, "Something went wrong when checking Zeroize8030_entries on index: "~to!string(i)); // temporarily
+				break;
+			case SC_APDU_CASE_3_SHORT:
+				enforce(e.cmd_len == 2+e.cse+e.cmd[4], "Something went wrong when checking Zeroize8030_entries on index: "~to!string(i)); // temporarily
+				break;
+
+			default:
+				break;
+		}
+		if (e.cse==SC_APDU_CASE_3_SHORT || e.cse==SC_APDU_CASE_4_SHORT)
+			enforce(e.cmd_len == e.cmd[4] + 5, "Something went wrong when checking Zeroize8030_entries on index: "~to!string(i)); // temporarily
+		do_logs_dry_run(i+1, e);
+
+		if (do_zeroize_token)
+			if ((rv=perform_hot_run(i, e)) < 0) {
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+					"perform_hot_run for an Zeroize8030_entry failed: %i (%s)\n", rv, sc_strerror(rv));
+				return rv;
+			}
+	} // foreach (i, const ref e; Zeroize8030_entries)
+
+	foreach (i, const ref e; get_E0_entries()) { // all entries have the INS E0 and cmd_len>=11
+		enforce(e.cmd_len == e.cmd.length, "Something went wrong when checking E0_entries"~" on index: "~to!string(i)); // temporarily
+		enforce(e.cmd_len == e.cmd[4] + 5, "Something went wrong when checking E0_entries"~" on index: "~to!string(i)); // temporarily
+		do_logs_dry_run(i+1, e);
+
+		if (do_initialize_token)
+			if ((rv=perform_hot_run(i, e)) < 0) {
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+					"perform_hot_run for an E0_entry failed: %i (%s)\n", rv, sc_strerror(rv));
+				return rv;
+			}
+	}
+
+	foreach (i, const ref e; get_A444DC_entries(card, so_pin, label)) {
+		enforce(e.cmd_len == e.cmd.length, "Something went wrong when checking A444DC_entries"~" on index: "~to!string(i)); // temporarily
+		if (e.cse==SC_APDU_CASE_3_SHORT || e.cse==SC_APDU_CASE_4_SHORT)
+			enforce(e.cmd_len == e.cmd[4] + 5, "Something went wrong when checking A444DC_entries"~" on index: "~to!string(i)); // temporarily
+		do_logs_dry_run(i+1, e);
+
+		if (do_initialize_token)
+			if ((rv=perform_hot_run(i, e)) < 0) {
+				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "re_initialize_token",
+					"perform_hot_run for an A444DC_entry failed: %i (%s)\n", rv, sc_strerror(rv));
+				return rv;
+			}
+	}
+
+	return rv;
+} // re_initialize_token
+
+
+immutable(reinit_entry[]) get_Zeroize8030_entries(sc_card* card, in uba so_pin) {
+	reinit_entry[] result = [
+		reinit_entry(SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  4100"), representation(x"61 32"), TriBool.no), //  DF(PKCS #15) 4100
+		reinit_entry(SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  4129"), representation(x"61 20"), TriBool.no),
+
+		reinit_entry(SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_3_SHORT, 13,(representation(x"00 20 00 01 08")~so_pin).idup, representation(x"90 00"), TriBool.yes), // SOPIN FOR RE_INITIALIZE
+		reinit_entry(SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_3_SHORT, 13, representation(x"00 A4 00 00 08  4102  4102  4102  4102"), representation(x"6A 87"), TriBool.yes), // strange, undocumented
+		reinit_entry(SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  4100"), representation(x"61 32"), TriBool.no), //  DF(PKCS #15) 4100
+		reinit_entry(SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  4129"), representation(x"61 20"), TriBool.no),
+
+		reinit_entry(SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  3F00"), representation(x"61 1A"), TriBool.no),
+		reinit_entry(SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  3F00"), representation(x"61 1A"), TriBool.no),
+		reinit_entry(0, SC_APDU_CASE_1,        4, representation(x"80 30 00 00"),        representation(x"90 00"), TriBool.yes), // Zeroize Card Command
+		reinit_entry(0, SC_APDU_CASE_1,        4, representation(x"80 30 00 00"),        representation(x"90 00"), TriBool.yes), // Zeroize Card Command Sequence, undocumented
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  6, representation(x"00 D6  C191 01  02"/*eACOSV3MODE_V2*/), representation(x"90 00"), TriBool.yes), // Compatibility Byte/Operation Mode : SET TO ZERO, OKAY for a factory default
+		reinit_entry(0, SC_APDU_CASE_1,        4, representation(x"80 30 00 00"),        representation(x"90 00"), TriBool.yes), // Continue Zeroize Card Command Sequence, undocumented
+		reinit_entry(0, SC_APDU_CASE_1,        4, representation(x"80 30 00 FF"),        representation(x"90 00"), TriBool.yes), // End Zeroize Card Command Sequence, undocumented
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  6, representation(x"00 D6  C191 01  02"/*eACOSV3MODE_V2*/), representation(x"90 00"), TriBool.yes), // Changed, to be issued again here
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  6, representation(x"00 D6  C192 01  00"), representation(x"90 00"), TriBool.yes), // Zeroize Card User Data/Deactivate Card Disable Flag : SET TO ZERO, OKAY
+	];
+	if (card.type==SC_CARD_TYPE_ACOS5_64_V2)
+		result[10] = result[13] = reinit_entry(0, SC_APDU_CASE_3_SHORT,  6, representation(x"00 D6  C191  01 00"/*eACOSV2MODE_V2*/), representation(x"90 00"), TriBool.yes);
+
+	return assumeUnique(result);
+
+/+
+Description																						EEPROM Area									Update Access Stage		Default Value
+TA1 of ATR																						0xC183											0											0x96
+Card Life Cycle Byte																	0xC184											N/A										0
+
+SC_CARD_TYPE_ACOS5_64_V2: Compatibility Byte					0xC191											0											0  possible values: see enum EACOSV2MODE
+SC_CARD_TYPE_ACOS5_64_V3: Operation Mode Byte					0xC191											0											0  possible values: see enum EACOSV3MODE
+
+Zeroize Card User Data/Deactivate Card Disable Flag		0xC192											0,2,4									0
+EEPROM Key (Transport Key?), 8 bytes									0xC197 - 0xC19E							0,2										0
+Card Life Cycle Byte Complement												0xC19F											N/A										0xFF
+EEPROM Key Error Counter															0xC1A0											0,2										0xFF
++/
+}
+
+immutable(reinit_entry[]) get_E0_entries() {
+/*                                                                                                                            FDB==0x?? 38/3F           01/02/04/06/0A						09/0C							1C
+                                                                                                                                        DF/MF					 	EF_CHV										Key File					SE File
+
+                                                                                                                                          Delete Child	  Read										  Get Key					  Read
+                                                                                                                                         Create EF			 Update/Append Record			 Put Key					 MSE Store/Delete
+                                                                                                                                                         Update/Erase Binary
+                                                                                                                                        Create DF				N/A												MSE/PSO Commands	MSE Restore
+                                                                                                                                       Deactivate
+                                                                                                                                      Activate
+                                                                                                                                     Terminate  (are always FF, except for MF)
+                                                                                                                                    Delete Self (are always FF, except for MF))
+                                                                                                                                   Not Used
+                                                                                                                                   MSB(7)  LSB(0)
+                                                                                                                      HI LO      0b0111_1111==0x7F==AM (only AM==7F is used, except nothing which is 00 for MF)   */
+	reinit_entry[] result = [ //         FID (File ID)                           FID  |       FDB       MRL   NOR |      SFI      LCSI     AM b6 b5 b4 b3 b2 b1 b0
+		reinit_entry(0,3,32, /*§§ 3F00 MF         */representation(x"00 E0 00 00 1B 62 19 83 02  3F00  82 02  3F  00   8D 02 00 03          8A 01 01 8C 08 7F FF FF 01 01 01 01 01"), representation(x"90 00")), // AB 07 8C 02 80 30 9E 01 01
+		reinit_entry(0,3,35, /*   0001 CHVFile SO */representation(x"00 E0 00 00 1E 62 1C 83 02  0001  82 06  0A  00 00 15 00 01   88 01 00 8A 01 01 8C 08 7F 01 FF 01 01 FF 01 FF"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*§§ 0002 SymKeyF SO */representation(x"00 E0 00 00 1E 62 1C 83 02  0002  82 06  0C  00 00 25 00 02   88 01 00 8A 01 01 8C 08 7F FF FF 01 01 01 01 FF"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*§§ 0003 SEFile SO  */representation(x"00 E0 00 00 1E 62 1C 83 02  0003  82 06  1C  00 00 30 00 02   88 01 00 8A 01 01 8C 08 7F FF FF 01 01 01 01 00"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*$$ 2F00  EF.DIR    */representation(x"00 E0 00 00 1E 62 1C 83 02  2F00  82 02  01  00   80 02 00 21 88 01 00 8A 01 01 8C 08 7F 01 FF 01 01 FF 01 00"), representation(x"90 00")),
+		reinit_entry(0,3,55, /*§§ 4100  DF.PKCS#15*/representation(x"00 E0 00 00 32 62 30 83 02  4100  82 02  38  00   8D 02 41 03 88 01 00 8A 01 01 8C 08 7F FF FF 01 01 01 01 01   AB 00 84 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*§§ 4101 CHVFile USR*/representation(x"00 E0 00 00 1E 62 1C 83 02  4101  82 06  0A  00 00 15 00 01   88 01 01 8A 01 01 8C 08 7F 03 FF 00 FF FF 01 FF"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*4102               */representation(x"00 E0 00 00 1E 62 1C 83 02  4102  82 06  0C  00 00 25 00 0C   88 01 02 8A 01 01 8C 08 7F 03 FF 00 FF 01 01 FF"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*§§ 4103 SEFile USER*/representation(x"00 E0 00 00 1E 62 1C 83 02  4103  82 06  1C  00 00 38 00 08   88 01 03 8A 01 01 8C 08 7F 03 FF 00 FF 00 03 00"), representation(x"90 00")),
+
+		reinit_entry(0,3,35, /*$X 4111 AODF       */representation(x"00 E0 00 00 1E 62 1C 83 02  4111  82 02  01  00   80 02 00 80 88 01 11 8A 01 01 8C 08 7F 03 FF 00 03 FF 01 00"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*$X 4112 PrKDF      */representation(x"00 E0 00 00 1E 62 1C 83 02  4112  82 02  01  00   80 02 03 00 88 01 12 8A 01 01 8C 08 7F 03 FF 00 03 FF 01 00"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*$X 4113 PuKDF      */representation(x"00 E0 00 00 1E 62 1C 83 02  4113  82 02  01  00   80 02 06 00 88 01 13 8A 01 01 8C 08 7F 03 FF 00 03 FF 01 00"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*$X 4114 SKDF       */representation(x"00 E0 00 00 1E 62 1C 83 02  4114  82 02  01  00   80 02 01 00 88 01 14 8A 01 01 8C 08 7F 03 FF 00 03 FF 01 00"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*$X 4115 CDF        */representation(x"00 E0 00 00 1E 62 1C 83 02  4115  82 02  01  00   80 02 01 00 88 01 15 8A 01 05 8C 08 7F 03 FF 00 03 FF 01 00"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*$X 4116 DODF       */representation(x"00 E0 00 00 1E 62 1C 83 02  4116  82 02  01  00   80 02 01 00 88 01 16 8A 01 05 8C 08 7F 03 FF 00 03 FF 01 00"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*$X 4120 EF.Cert    */representation(x"00 E0 00 00 1E 62 1C 83 02  4120  82 02  01  00   80 02 20 00 88 01 20 8A 01 05 8C 08 7F 01 FF 00 01 FF 01 00"), representation(x"90 00")),
+
+		reinit_entry(0,3,35, /*5032  EF.TokInf */representation(x"00 E0 00 00 1E 62 1C 83 02  5032  82 02  01  00   80 02 00 C0 88 01 22 8A 01 01 8C 08 7F 03 FF 00 03 FF 00 00"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*5031  EF.ODF    */representation(x"00 E0 00 00 1E 62 1C 83 02  5031  82 02  01  00   80 02 00 6C 88 01 21 8A 01 01 8C 08 7F 03 FF 00 03 FF 00 00"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*5155  EF.AODF ? */representation(x"00 E0 00 00 1E 62 1C 83 02  5155  82 06  04  00 00 82 00 02   88 01 55 8A 01 01 8C 08 7F 01 FF 00 01 01 01 00"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*4110  EF.Cert ? */representation(x"00 E0 00 00 1E 62 1C 83 02  4110  82 02  01  00   80 02 10 00 88 01 10 8A 01 01 8C 08 7F 01 FF 00 01 FF 01 00"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*4129 cacheFriend*/representation(x"00 E0 00 00 1E 62 1C 83 02  4129  82 06  02  00 00 14 00 02   88 01 1D 8A 01 01 8C 08 7F 00 00 00 00 00 00 00"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*4151  ???       */representation(x"00 E0 00 00 1E 62 1C 83 02  4151  82 02  01  00   80 02 02 00 88 01 51 8A 01 01 8C 08 7F 01 FF 00 01 FF 01 00"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*4152  ???       */representation(x"00 E0 00 00 1E 62 1C 83 02  4152  82 02  01  00   80 02 02 00 88 01 52 8A 01 01 8C 08 7F 01 FF 00 01 FF 01 00"), representation(x"90 00")),
+
+		reinit_entry(0,3,35, /*3901 Test File  */representation(x"00 E0 00 00 1E 62 1C 83 02  3901  82 02  01  00   80 02 00 10 88 01 00 8A 01 01 8C 08 7F 01 FF 45 45 FF 45 45"), representation(x"90 00")),
+		reinit_entry(0,3,35, /*3902 Test File  */representation(x"00 E0 00 00 1E 62 1C 83 02  3902  82 02  01  00   80 02 00 10 88 01 00 8A 01 01 8C 08 7F 01 FF 46 46 FF 46 46"), representation(x"90 00")),
+	];
+	return assumeUnique(result);
+}
+
+immutable(reinit_entry[]) get_A444DC_entries(sc_card* card, in uba so_pin, const(char)* label) { // (use after creation commands E0)
+	reinit_entry[] result = [
+/* */
+		reinit_entry(2,3, 7, representation(x"00 A4 00 00 02  3F00"), representation(x"61 22"), TriBool.unknown),
+		reinit_entry(2,3, 7, representation(x"00 A4 00 00 02  0001"), representation(x"61 20")), // CHV-file within MF
+		reinit_entry(0,3,26,(representation(x"00 DC 01 04 15 C1 88 08")~so_pin~representation(x"88 08 61 63 6F 73 35 5F 36 34")).idup, representation(x"90 00")), // 8 tries
+		reinit_entry(0,3, 7, representation(x"00 44 00 00 02  0001"), representation(x"90 00")),
+
+		reinit_entry(2,3, 7, representation(x"00 A4 00 00 02  0002"), representation(x"61 20")), // sym. key-file within MF
+		reinit_entry(0,3, 7, representation(x"00 44 00 00 02  0002"), representation(x"90 00")),
+
+/*
+  "CODES PINS"
+  ALL (except Transport code; I won't touch that here) TO BE CHANGED LATER by the user; Following are the code/pin/password (defaults) set here:
+  (a) Transport code : 00 00 00 00 00 00 00 00   has no representation in ascii; set by Zeroize Card ; without PUK
+  (b) USER_PIN       : 31 32 33 34 35 36 37 38   in ascii: 12345678  ; with PUK (unblocking key) same as SO_PIN                     ; 8 tries each before being blocked
+if automatic initialization is done:
+  (c) SO_PIN         : 38 37 36 35 34 33 32 31   in ascii: 87654321  ; with PUK (unblocking key) same as SO_PUK, in ascii: acos5_64 ; 8 tries each before being blocked
+if called by e.g. pkcs11-tool --init-token --so-pin ...
+  (c) SO_PIN         : acc. to param so_pin                          ; with PUK (unblocking key) same as SO_PUK, in ascii: acos5_64 ; 8 tries each before being blocked
+  (d) SO_PUK         : 61 63 6F 73 35 5F 36 34   in ascii: acos5_64
+*/
+		reinit_entry(2,3, 7, representation(x"00 A4 00 00 02  0003"), representation(x"61 20")), // SE-file within MF
+		reinit_entry(0,3,16, representation(x"00 DC 01 04 0B 80 01 01 A4 06 83 01 01 95 01 08"), representation(x"90 00")), // rec #1, verify lokal pin #1==81
+		reinit_entry(0,3, 7, representation(x"00 44 00 00 02  0003"), representation(x"90 00")),
+
+
+		reinit_entry(2,3, 7, representation(x"00 A4 00 00 02  2F00"), representation(x"61 20")), //  EF(DIR) 2F00
+		reinit_entry(0,3,38, representation(x"00 D6 00 00 21 61 1F 4F 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 50 05 65 43 65 72 74 51 04 3F 00 41 00"), representation(x"90 00")),  // EF(DIR) 2F00 -> 3F00/4100
+		reinit_entry(0,3, 7, representation(x"00 44 00 00 02  2F00"), representation(x"90 00")),
+////
+		reinit_entry(2,3,  7, representation(x"00 A4 00 00 02  4100"), representation(x"61 32"), TriBool.unknown), //  DF(PKCS #15) 4100
+		reinit_entry(2,3,  7, representation(x"00 A4 00 00 02  5032"), representation(x"61 20")), //  EF(TokenInfo) 5032
+		reinit_entry(0,3,192, (representation(x"00 D6 00 00 BB 3081B80201000408")~card.serialnr.value[0..8]~
+				representation(x"0C1A416476616E63656420436172642053797374656D73204C74642EA0210C1F")~
+				TokenInfoLabel_default(card)~
+				representation(x"03020420A266300F020101020100050003020001020110300F02010202010105000302005C020110300F020103020106050003020050020110300F020104020140050003020050020110300F020105020103050003020040020110300F020106020103050003020004020113")).idup, representation(x"90 00")),
+		reinit_entry(0,3,  7, representation(x"00 44 00 00 02  5032"), representation(x"90 00")),
+
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  4101"), representation(x"61 20")), // CHV-file within DF
+		reinit_entry(0, SC_APDU_CASE_3_SHORT, 26, (representation(x"00 DC 01 04 15 C1 88 08 31 32 33 34 35 36 37 38 88 08")~so_pin).idup, representation(x"90 00")),  // 8 tries
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  7, representation(x"00 44 00 00 02  4101"), representation(x"90 00")),
+
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  4102"), representation(x"61 20")), // sym. key file within PKCS#15 application DF
+		reinit_entry(0, SC_APDU_CASE_3_SHORT, 42, representation(x"00 DC 01 04 25 8101FF14F1E0D0C1B0A1890807164504130201F189FEB3C837451694000000000000000000"), representation(x"90 00")), // no resetting code for key !
+		reinit_entry(0, SC_APDU_CASE_3_SHORT, 42, representation(x"00 DC 02 04 25 8202FFFF14F1010213048516070849A1B0C1D0E0F14589B316FE9437C80000000000000000"), representation(x"90 00")), // no resetting code for key ! think about using SO_PIN or just update record with new key?
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  7, representation(x"00 44 00 00 02  4102"), representation(x"90 00")),
+
+		reinit_entry(SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_3_SHORT,  7U, representation(x"00 A4 00 00 02  4103"), representation(x"61 20")), // SE-file within PKCS#15 application DF
+		reinit_entry(0, SC_APDU_CASE_3_SHORT, 61, representation(x"00 DC 01 04 38 80 01 01 A4 06 83 01 81 95 01 08 000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), cast(immutable(ubyte)[])x"90 00"), // rec #1-#4, verify lokal pin #1==81
+		reinit_entry(0, SC_APDU_CASE_3_SHORT, 61, representation(x"00 DC 02 04 38 80 01 02 B4 09 83 01 01 95 01 08 80 01 02 B8 09 83 01 01 95 01 08 80 01 02 A4 06 83 01 81 95 01 08 0000000000000000000000000000000000000000000000"), cast(immutable(ubyte)[])x"90 00"), // rec #1-#4, verify lokal pin #1==81
+		reinit_entry(0, SC_APDU_CASE_3_SHORT, 61, representation(x"00 DC 03 04 38 80 01 03 A4 06 83 01 01 95 01 08 000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), cast(immutable(ubyte)[])x"90 00"), // rec #1-#4, verify lokal pin #1==81
+		reinit_entry(0, SC_APDU_CASE_3_SHORT, 61, representation(x"00 DC 04 04 38 80 01 04 A4 09 83 01 01 83 01 81 95 01 08 000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), cast(immutable(ubyte)[])x"90 00"), // rec #1-#4, verify lokal pin #1==81
+
+		reinit_entry(0, SC_APDU_CASE_3_SHORT, 26, representation(x"00 DC 05 04 15 80 01 05   B4 08 84 00 95 01 30 80 01 02                                   A4 06 83 01 81 95 01 80"), cast(immutable(ubyte)[])x"90 00"),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT, 36, representation(x"00 DC 06 04 1F 80 01 06   B4 08 84 00 95 01 30 80 01 02   B8 08 84 00 95 01 30 80 01 02   A4 06 83 01 81 95 01 80"), cast(immutable(ubyte)[])x"90 00"),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  7, representation(x"00 44 00 00 02  4103"), representation(x"90 00")),
+
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,   7, representation(x"00 A4 00 00 02  4111"), representation(x"61 20")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  59, representation(x"00 D6 00 00 36 3034300A0C0455736572030206403003040101A121301F030202CC0A0101020104020108020108800200810401FF300604043F004100"), representation(x"90 00")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,   7, representation(x"00 44 00 00 02  4111"), representation(x"90 00")),
+
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,   7, representation(x"00 A4 00 00 02  4112"), representation(x"61 20")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,   7, representation(x"00 44 00 00 02  4112"), representation(x"90 00")),
+
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,   7, representation(x"00 A4 00 00 02  4113"), representation(x"61 20")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,   7, representation(x"00 44 00 00 02  4113"), representation(x"90 00")),
+
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,   7, representation(x"00 A4 00 00 02  4114"), representation(x"61 20")),
+//wrong content ?
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  47, representation(x"00 D6 00 00 2A 302830100C076B657943617264030206C0040101300F0401010303062040030203B80201013003020118"), representation(x"90 00")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,   7, representation(x"00 44 00 00 02  4114"), representation(x"90 00")),
+
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,   7, representation(x"00 A4 00 00 02  3901"), representation(x"61 20")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  21, representation(x"00 D6 00 00 10 FFFFFFFF80808080FFFFFFFF40404040"), representation(x"90 00")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,   7, representation(x"00 44 00 00 02  3901"), representation(x"90 00")),
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,   7, representation(x"00 A4 00 00 02  3902"), representation(x"61 20")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  21, representation(x"00 D6 00 00 10 FFFFFFFF80808080FFFFFFFF40404040"), representation(x"90 00")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,   7, representation(x"00 44 00 00 02  3902"), representation(x"90 00")),
+
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  5031"), representation(x"61 20")), //  EF.ODF 5031
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,113, representation(x"00 D6 00 00 6C A80A300804063F0041004111A00A300804063F0041004112A10A300804063F0041004113A30A300804063F0041004114A40A300804063F0041004120A70A300804063F0041004116000000000000000000000000000000000000000000000000000000000000000000000000"), representation(x"90 00")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  7, representation(x"00 44 00 00 02  5031"), representation(x"90 00")),
+
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  5155"), representation(x"61 20")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT, 66, representation(x"00 DC 02 04 3D 30 3B 30 08 0C 02 30 32 03 02 07 80 30 03 03 01 82 A1 2A 30 28 03 03 07 CB 80 0A 01 01 02 01 04 02 01 08 02 01 08 A0 03 02 01 08 04 01 00 18 0D 31 32 33 34 35 36 37 38 39 30 31 32 33"), representation(x"90 00")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT, 66, representation(x"00 DC 01 04 3D 30 3B 30 08 0C 02 30 31 03 02 07 80 30 03 03 01 81 A1 2A 30 28 03 03 07 CB 80 0A 01 01 02 01 04 02 01 08 02 01 08 A0 03 02 01 08 04 01 00 18 0D 31 32 33 34 35 36 37 38 39 30 31 32 33"), representation(x"90 00")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  7, representation(x"00 44 00 00 02  5155"), representation(x"90 00")),
+
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  4110"), representation(x"61 20")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  7, representation(x"00 44 00 00 02  4110"), representation(x"90 00")),
+
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  413B"), representation(x"6A 82")),
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  4100"), representation(x"61 32"), TriBool.unknown),
+
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  41FB"), representation(x"6A 82")),
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  4100"), representation(x"61 32"), TriBool.unknown),
+
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  4151"), representation(x"61 20")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  7, representation(x"00 44 00 00 02  4151"), representation(x"90 00")),
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  4152"), representation(x"61 20")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  7, representation(x"00 44 00 00 02  4152"), representation(x"90 00")),
+
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  4129"), representation(x"61 20")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT, 25, representation(x"00 DC 01 04 14 00 00 00 00 4A 97 4A 97 72 49 72 49 C0 C6 40 68 81 C7 01 00"), representation(x"90 00")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT, 25, representation(x"00 DC 02 04 14 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00"), representation(x"90 00")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  7, representation(x"00 44 00 00 02  4129"), representation(x"90 00")),
+
+		reinit_entry(2, SC_APDU_CASE_3_SHORT,  7, /*3F00*/representation(x"00 A4 00 00 02  3F00"), representation(x"61 22"), TriBool.unknown),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  7, /*4100*/representation(x"00 44 00 00 02  4100"), representation(x"90 00")),
+		reinit_entry(0, SC_APDU_CASE_3_SHORT,  7, /*4100*/representation(x"00 44 00 00 02  3F00"), representation(x"90 00")),
+	];
+	return assumeUnique(result);
+}
+
+
+uba /* <-OctetStringBigEndian*/ integral2ub(uint storage_bytes)(size_t integral)
 	if (storage_bytes<=size_t.sizeof)
 {
 	uba result;
@@ -4799,15 +4811,31 @@ uba  integral2ub(uint storage_bytes)(size_t integral)
 Most often, the byte stream has to be interpreted as big-endian (The most significant byte (MSB) value, is at the lowest address (position in stream). The other bytes follow in decreasing order of significance)
 currently used in new_file and unittest only
 */
-ushort ub22integral(in uba ub2) {
+ushort ub22integral(in uba ub2) { // formerly ub22integralLastTwo
 	if (ub2.length!=2)
 		return 0;
 	return  (ub2[0] << 8) | ub2[1];
 }
 
+uba TokenInfoLabel_default(sc_card* card) {
+	uba result;
+	result = (card.type==SC_CARD_TYPE_ACOS5_64_V2? representation("CryptoMate64_") : representation("CryptoMateNano_")).dup;
+	foreach (b; card.serialnr.value[0..8]) { // 80 DD 00 5B A1 0A 65 00
+		ubyte x = b>>>4;
+		if (x>9) result ~= cast(ubyte)(x+55);
+		else     result ~= cast(ubyte)(x+48);
+		x = b & 0x0F;
+		if (x>9) result ~= cast(ubyte)(x+55);
+		else     result ~= cast(ubyte)(x+48);
+	}
+	while (result.length<31) result ~= ubyte(0x30);
+	return result;
+}
+
 //@safe
 unittest {
 	import std.stdio;
+//	writeln("size_t.sizeof: ", size_t.sizeof);
 	ubyte[2] ub2 = [0x41, 0x03];
 	assert(ub22integral([0x41, 0x03]) == 0x4103);
 	writeln("PASSED: ub22integral");
@@ -4830,7 +4858,7 @@ else
 }
 
 
-version(ENABLE_ACOS5_64_UI/*ENABLE_DNIE_UI*/) {
+version(ENABLE_ACOS5_64_UI) {
 	/**
 	 * To handle user interface routines
 	 */
@@ -4838,7 +4866,6 @@ version(ENABLE_ACOS5_64_UI/*ENABLE_DNIE_UI*/) {
 		int     user_consent_enabled;
 		string  user_consent_app;
 	}
-//	alias  ui_context_t = ui_context;
 
 	ref ui_context_t get_acos5_64_ui_ctx(sc_card* card) {
 		acos5_64_private_data* private_data = cast(acos5_64_private_data*) card.drv_data;
@@ -4887,7 +4914,6 @@ private int acos5_64_get_environment(sc_card* card, ui_context_t* ui_context) {
 	}
 	return SC_SUCCESS;
 } // acos5_64_get_environment
-
 
 /**
  * Messages used on pinentry protocol
@@ -4945,7 +4971,6 @@ version(Posix) { // should be for Linux only  #include <sys/stat.h>
 		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_ask_user_consent", "User Consent is disabled in configuration file");
 		return rv=SC_SUCCESS;
 	}
-
 	/* check that user_consent_app exists. TODO: check if executable */
 	rv = stat(get_acos5_64_ui_ctx(card).user_consent_app.toStringz, &st_file);
 	if (rv != 0) {
@@ -4978,17 +5003,12 @@ version(Posix) { // should be for Linux only  #include <sys/stat.h>
 		close(srv_send[1]);
 		close(srv_recv[0]);
 		close(srv_recv[1]);
-		/* call exec() with proper user_consent_app from configuration */
-		/* if ok should never return */
 		execlp(get_acos5_64_ui_ctx(card).user_consent_app.toStringz, get_acos5_64_ui_ctx(card).user_consent_app.toStringz, cast(char*)null);
 
 		rv = SC_ERROR_INTERNAL;
 		msg = "execlp() error";	/* exec() failed */
 		goto do_error;
 	default:		/* parent */
-		/* Close the pipe ends that the child uses to read from / write to
-		 * so when we close the others, an EOF will be transmitted properly.
-		 */
 		close(srv_send[0]);
 		close(srv_recv[1]);
 		/* use iostreams to take care on newlines and text based data */
@@ -5036,6 +5056,11 @@ do_error:
 	/* close out channel to force client receive EOF and also die */
 	if (fout != null) fclose(fout);
 	if (fin != null) fclose(fin);
+/+
+#else
+#error "Don't know how to handle user consent in this (rare) Operating System"
+#endif
++/
 	if (msg != null)
 		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_ask_user_consent", "%s\n", msg.toStringz);
 
@@ -5093,12 +5118,12 @@ This is usually done by acos for RSA operations
 The interpretation of I2OSP's output is that of big-endian
 acos operates the same, writes an octet string `OctetString` where OctetString[0] is the most significant byte
 */
-uba  I2OSP(BIGNUM* x, int xLen /* intended length of the resulting octet string */)
+uba /* <-OctetStringBigEndian*/ I2OSP(BIGNUM* x, int xLen /* intended length of the resulting octet string */)
 in { assert(!BN_is_negative(x)); }
 body {
-	uba res;
+	uba res; // = new ubyte[0];
 	if (BN_num_bytes(x) > xLen)
-		return res;
+		return res; //, output "integer too large" and stop.
 //assert(4*x.top==BN_num_bytes(x));
 	foreach (i_chunk; 0..x.top)
 		res ~= integral2ub!(BN_ULONG.sizeof)(x.d[i_chunk]);
@@ -5126,18 +5151,24 @@ else // X86_64 or more general any (64 bit processor) system where openssl defin
 	writeln("PASSED: I2OSP");
 	import deimos.openssl.bio : BIO_snprintf;
 	import deimos.openssl.bn;
+//import std.conv : to;
+//int BIO_snprintf(char* buf, size_t n, const(char)* format, ...);
 	ulong num = 285212672; //FYI: fits in 29 bits
 	int normalInt = 5;
 	char[120] buf;
 	BIO_snprintf(buf.ptr, buf.length, "My number is %i bytes wide and its value is %lu. A normal number is %i.", num.sizeof, num, normalInt);
+//	printf("My number is %i bytes wide and its value is %ul. A normal number is %i.\n", sizeof(num.sizeof), num, normalInt);
+//buf[strlen(buf.ptr)] = '\0';
 	writeln("BIO_snprintf buf first:  ", buf.ptr.fromStringz);
 	buf = buf.init;
 	num = 0xFFEEDDCCBBAA9988;
 	BIO_snprintf(buf.ptr, buf.length, BN_DEC_FMT1, num);
+//buf[strlen(buf.ptr)] = '\0';
 	writeln("BIO_snprintf buf second: ", buf.ptr.fromStringz);
 
 	buf = buf.init;
 	BIO_snprintf(buf.ptr, buf.length, BN_DEC_FMT2, num);
+//buf[strlen(buf.ptr)] = '\0';
 	writeln("BIO_snprintf buf third:  ", buf.ptr.fromStringz);
 	stdout.flush();
 }
@@ -5227,21 +5258,25 @@ int changedExport_sc_sm_parse_answer(sc_card* card, ubyte* resp_data, size_t res
 int changedExport_sc_sm_update_apdu_response(sc_card* card, ubyte* resp_data, size_t resp_len, int ref_rv, sc_apdu* apdu, sm_card_response* sm_response=null)
 {
 	sm_card_response sm_resp;
-	int r;
+	sc_context* ctx = card.ctx;
+	int rv = SC_ERROR_UNKNOWN;
+	mixin (log!(`"changedExport_sc_sm_update_apdu_response"`, `"called"`));
+	mixin log_scope_exit!("changedExport_sc_sm_update_apdu_response");
+	scope(exit)
+		log_scope_exit_do(__LINE__);
 
 	if (!apdu)
-		return SC_ERROR_INVALID_ARGUMENTS;
+		return rv=SC_ERROR_INVALID_ARGUMENTS;
 	else if (!resp_data || !resp_len)
-		return SC_SUCCESS;
+		return rv=SC_SUCCESS;
 
 //	memset(&sm_resp, 0, sm_resp.sizeof);
-	r = changedExport_sc_sm_parse_answer(card, resp_data, resp_len, &sm_resp);
-	if (r)
-		return r;
+	if ((rv=changedExport_sc_sm_parse_answer(card, resp_data, resp_len, &sm_resp)) < 0)
+		return rv;
 
 	if (sm_resp.mac_len)   {
 		if (sm_resp.mac_len > apdu.mac.length)
-			return SC_ERROR_INVALID_DATA;
+			return rv=SC_ERROR_INVALID_DATA;
 		memcpy(apdu.mac.ptr, sm_resp.mac.ptr, sm_resp.mac_len);
 		apdu.mac_len = sm_resp.mac_len;
 	}
@@ -5252,8 +5287,9 @@ int changedExport_sc_sm_update_apdu_response(sc_card* card, ubyte* resp_data, si
 	if (sm_response)
 		*sm_response = sm_resp;
 
-	return SC_SUCCESS;
+	return rv=SC_SUCCESS;
 }
+
 
 int sm_acos5_64_decode_card_data(sc_context* ctx, sm_info* info, sc_remote_data *rdata, ubyte* out_, size_t out_len) {
 	sm_cwa_session*   session_data = &info.session.cwa;
@@ -5270,7 +5306,6 @@ int sm_acos5_64_decode_card_data(sc_context* ctx, sm_info* info, sc_remote_data 
 	sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_decode_card_data",
 		"decode answer() rdata length %i, out_ length %i", rdata.length, out_len);
 	for (rapdu = rdata.data; rapdu; rapdu = rapdu.next)   {
-//		ubyte* decrypted;
 		ubyte[2*SC_MAX_APDU_BUFFER_SIZE] decrypted;
 		size_t decrypted_len = decrypted.length;
 		ubyte[SC_MAX_APDU_BUFFER_SIZE] resp_data;
@@ -5335,8 +5370,11 @@ int sm_acos5_64_decode_card_data(sc_context* ctx, sm_info* info, sc_remote_data 
 				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_decode_card_data",
 					"decode card answer(s): out_len/offs %i/%i", out_len, offs);
 			}
+
+//			free(decrypted);
 		}
 	} // for (rapdu = rdata.data; rapdu; rapdu = rapdu.next)
+
 	return rv=offs;
 }
 
@@ -5395,6 +5433,7 @@ private int sm_acos5_64_initialize(sc_card* card, uint se_num, uint cmd) {
 version(ENABLE_SM) {
 	sm_info*         sm_info = &card.sm_ctx.info;
 	sm_cwa_session*  cwa_session = &sm_info.session.cwa;
+//	sc_remote_data   rdata;
 	sc_remote_data   remote_data;
 	sc_remote_data*  rdata = &remote_data;
 
@@ -5410,6 +5449,9 @@ version(ENABLE_SM) {
 	}
 
 	sc_remote_data_init(rdata);
+
+////	rv = sm_save_sc_context(card, sm_info);
+////	LOG_TEST_RET(ctx, rv, "iasecc_sm_initialize() cannot save current context");
 
 	if (!card.sm_ctx.module_.ops.initialize) {
 		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_initialize", "No SM module");
@@ -5456,12 +5498,17 @@ version(ENABLE_SM) {
 
 		/* session keys generation */
 		with (card.sm_ctx.info.session) {
+//			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_initialize",
+//				"cwa.icc.rnd: %s", sc_dump_hex(cwa.icc.rnd.ptr, cwa.icc.rnd.length));
+//			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_initialize",
+//				"cwa.ifd.rnd: %s", sc_dump_hex(cwa.ifd.rnd.ptr, cwa.ifd.rnd.length));
 version(SESSIONKEYSIZE24)
 			ub24  deriv_data = cwa.icc.rnd[4..8] ~ cwa.ifd.rnd[0..4] ~ cwa.icc.rnd[0..4] ~ cwa.ifd.rnd[4..8] ~ cwa.ifd.rnd[0..4] ~ cwa.icc.rnd[4..8];
 else
 			ub16  deriv_data = cwa.icc.rnd[4..8] ~ cwa.ifd.rnd[0..4] ~ cwa.icc.rnd[0..4] ~ cwa.ifd.rnd[4..8];
 
 			ub24  enc_buf, mac_buf;
+//		writefln("deriv_data_plain:     0x [ %(%x %) ]", deriv_data);
 			if ((rv=encrypt_algo(deriv_data, get_cwa_keyset_enc(cwa).ptr, null/*iv*/, enc_buf.ptr, cipher_TDES[ECB], false)) != enc_buf.length)
 				return rv=SC_ERROR_KEYPAD_TIMEOUT;
 			if ((rv=encrypt_algo(deriv_data, get_cwa_keyset_mac(cwa).ptr, null/*iv*/, mac_buf.ptr, cipher_TDES[ECB], false)) != mac_buf.length)
@@ -5499,12 +5546,13 @@ version(TRY_SM) {
 		writer.formattedWrite("%s", card.sm_ctx.info);
 	}
 
-	immutable(sc_path)  test_EF = { [0x3F, 0x00, 0x41, 0x00, 0x39, 0x01], 6,  0, -1, SC_PATH_TYPE_PATH };
-//	const sc_path test_EF = sc_path(cast(immutable(ubyte)[SC_MAX_PATH_SIZE]) x"3F00 4100 3901 00000000000000000000", 6, 0, 0, SC_PATH_TYPE.SC_PATH_TYPE_PATH);
+//immutable(sc_path)  test_EF = { [0x3F, 0x00, 0x41, 0x00, 0x39, 0x01], 6,  0, -1, SC_PATH_TYPE_PATH }; // test file for erase  (binary) some bytes with SM_CCT; SC = 0x45
+	immutable(sc_path)  test_EF = { [0x3F, 0x00, 0x41, 0x00, 0x39, 0x02], 6,  0, -1, SC_PATH_TYPE_PATH }; // test file for update (binary) some bytes with SM_CCT_AND_CT_sym; SC = 0x46
 	if ((rv=acos5_64_select_file_by_path(card, &test_EF,  null)) != SC_SUCCESS)
 		return rv=SC_ERROR_KEYPAD_CANCELLED;
 
 	card.sm_ctx.info.serialnr = card.serialnr;
+
 	if ((rv=acos5_64_get_challenge(card, null /* .icc.rnd.ptr*/, SM_SMALL_CHALLENGE_LEN)) != SC_SUCCESS)  {
 		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_open",
 			"initialize: get_challenge failed\n");
@@ -5529,9 +5577,6 @@ version(TRY_SM) {
 	ub8    host_challenge_encrypted_tdesecb_with_key_card_done_by_card;
 	ub8    host_challenge_encrypted_tdesecb_with_key_card_done_by_host; // both this and previous to be compared later
 
-////	if (rv == SC_ERROR_PIN_CODE_INCORRECT && tries_left)
-////		*tries_left = (rdata.data + rdata.length - 1)->apdu.sw2 & 0x0F;
-
 	if ((rv=sm_acos5_64_transmit_apdus (card, rdata, host_challenge_encrypted_tdesecb_with_key_card_done_by_card.ptr,
 																									&host_challenge_encrypted_tdesecb_with_key_card_done_by_card_len)) < 0) {
 		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_open",
@@ -5555,19 +5600,8 @@ version(TRY_SM) {
 		"        ### Card/Token and Host sym. keys configured are     suitable for Secure Messaging. The Mutual Authentication procedure succeeded ! ###");
 
 version(TRY_SM_MORE) {
-/* TODO check, that it's save to omit this: does opensc always select 0x3f00 (first) after calling card->init ? A select changing the current DF is required here in order to Deauthentićate and clear accumulated CRTs
-* /
-		scope(exit) {
-			if ((rv=acos5_64_select_file_by_path(card, &MF_path, null, true)) != 0) { // this should do deauthentication of key(s) as well !
-				apdu = sc_apdu(); // Deauthenticate key_host
-				// Case 1       APDU, 4 bytes: lc=0000          CLAINSP1  P2
-				bytes2apdu(card.ctx, cast(immutable(ubyte)[4])x"80 8A 00  82", apdu);
-				rv=transmit_apdu_strerror_do(__LINE__); // if ((rv=transmit_apdu_strerror_do(__LINE__))<0) return rv;
-			}
-		}
-/ * */
-		/* session keys generation */
-		with (card.sm_ctx.info.session) {
+	/* session keys generation */
+	with (card.sm_ctx.info.session) {
 version(SESSIONKEYSIZE24)
 			ub24  deriv_data = cwa.icc.rnd[4..8] ~ cwa.ifd.rnd[0..4] ~ cwa.icc.rnd[0..4] ~ cwa.ifd.rnd[4..8] ~ cwa.ifd.rnd[0..4] ~ cwa.icc.rnd[4..8];
 else
@@ -5581,97 +5615,62 @@ else
 				return rv=SC_ERROR_KEYPAD_TIMEOUT;
 			set_cwa_session_enc(cwa, enc_buf);
 			set_cwa_session_mac(cwa, mac_buf);
-		}
-/+
-		   Testing usability of 	card.sm_ctx.info.session.cwa.session_enc in encryption
-		writefln("deriv_data_encry_enc: 0x [ %(%x %) ]", get_cwa_session_enc(card.sm_ctx.info.session.cwa));
-		writefln("deriv_data_encry_mac: 0x [ %(%x %) ]", get_cwa_session_mac(card.sm_ctx.info.session.cwa));
-		writefln("deriv_data_plain:     0x [ %(%x %) ]", deriv_data);
-		writeln;
-
-
-		apdu = sc_apdu(); // SC_APDU_CASE_3_SHORT:       CLAINSP1  P2 lc
-		bytes2apdu(card.ctx, cast(immutable(ubyte)[13])x"00 22 01  B8 08  80 01 02  95 01 C0  84 00", apdu);
-		if ((rv=transmit_apdu_strerror_do(__LINE__))<0) return rv;
-		if ((rv=sc_check_sw(card, apdu.sw1, apdu.sw2))<0) return rv;
-
-		assert (plain_card.length%8==0);
-		apdu = sc_apdu(); // SC_APDU_CASE_4_SHORT       CLAINSP1 P2 lc
-version(SESSIONKEYSIZE24)
-		bytes2apdu(card.ctx, cast(immutable(ubyte)[5])x"00 2A 84 80 18" ~ plain_card ~ cast(ubyte)24, apdu);
-else
-		bytes2apdu(card.ctx, cast(immutable(ubyte)[5])x"00 2A 84 80 10" ~ plain_card ~ cast(ubyte)16, apdu);
-		apdu.resp    = cgram_response.ptr;
-		apdu.resplen = cgram_response.length;
-		if ((rv=transmit_apdu_strerror_do(__LINE__))<0) return rv;
-		if ((rv=sc_check_sw(card, apdu.sw1, apdu.sw2))<0) return rv;
-
-//		writefln("resp sw1, sw2 : %X, %X", apdu.sw1, apdu.sw2);
-//		writefln("plain_card    : 0x [ %(%x %) ]", plain_card);
-//		writefln("cgram_response: 0x [ %(%x %) ]", cgram_response);
-//		with (card.sm_ctx.info.session.cwa)
-		ub8  iv_zero;
-		if ((rv=decrypt_algo(cgram_response, get_cwa_session_enc(card.sm_ctx.info.session.cwa).ptr, iv_zero.ptr/*ubyte* iv*/,
-			plain_host.ptr, cipher_TDES[CBC], false ) ) != plain_host.length)
-			return rv=SC_ERROR_KEYPAD_TIMEOUT;
-//		writefln("plain_host    : 0x [ %(%x %) ]", plain_host);
-//		writeln;
-		if (!equal(plain_card, plain_host[]))
-			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_open",
-				"A trial enc/dec with session key failed\n");
-		else
-			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_open",
-				"   ### A trial enc/dec with session key succeeded ###\n");
-+/
+	}
 //////////////
-		/* Testing usability of 	card.sm_ctx.info.session.cwa.session_mac in an SM-Authenticity operation (erase all test file's contents (binary 3901, selected previously)
+		/* Testing usability of 	card.sm_ctx.info.session.cwa.session_mac in an SM-Authenticity operation (erase some test file's contents (binary 3901, selected previously)
 			 multiple calls to MSE  Set Security Environment accumulate the CRTs in system memory until they get erased by a select different DF/MF?
 			 alternative: use MSE Restore of record #5, which exists, but currently requires Pin-Authentication on my token; mimic this now: */
-		sc_remote_data_init(rdata);
-		if ((rv=alloc_rdata_rapdu_do(__LINE__))<0) return rv;
-		bytes2apdu(card.ctx, cast(immutable(ubyte)[3])x"00 22 01"~construct_sc_security_env(1, null, CCT, Session_Key_SM), rapdu.apdu);
-		if ((rv=alloc_rdata_rapdu_do(__LINE__))<0) return rv;
-		bytes2apdu(card.ctx, cast(immutable(ubyte)[3])x"00 22 01"~construct_sc_security_env(1, null, AT, SymKey_Authenticate, 0x81 /*key_host_authenticated*/), rapdu.apdu); // requires the (already done) Authentication of key for External Auth.
-		if ((rv=alloc_rdata_rapdu_do(__LINE__))<0) return rv;
+	sc_remote_data_init(rdata);
+	if ((rv=alloc_rdata_rapdu_do(__LINE__))<0) return rv;
+//bytes2apdu(card.ctx, representation(x"00 22 F3 05"), rapdu.apdu);
+	bytes2apdu(card.ctx, representation(x"00 22 F3 06"), rapdu.apdu);
+	mixin (log!(`"sm_acos5_64_card_open"`, `"ssc: %s"`, "sc_dump_hex(card.sm_ctx.info.session.cwa.ssc.ptr, 8)"));
+	TSMarguments smArguments;
+	with (card.sm_ctx.info.session)
+//	smArguments = TSMarguments(SC_APDU_CASE_3_SHORT, SM_CCT,            [0x00, 0x0E, 0x00, 0x00], get_cwa_session_enc(cwa).ptr, get_cwa_session_mac(cwa).ptr, cwa.ssc, 2, [0,5]);
+		smArguments = TSMarguments(SC_APDU_CASE_3_SHORT, SM_CCT_AND_CT_sym, [0x00, 0xD6, 0x00, 0x00], get_cwa_session_enc(cwa).ptr,
+			get_cwa_session_mac(cwa).ptr, cwa.ssc, 16, representation(x"0102030405060708090A0B0C0D0E0F10").dup);
 
-		TSMarguments smArguments;
-		with (card.sm_ctx.info.session)
-			smArguments = TSMarguments(SC_APDU_CASE_3_SHORT, SM_CCT, [0x00, 0x0E, 0x00, 0x00], get_cwa_session_mac(cwa).ptr, cwa.ssc, 2, [0,5]);
-//		smArguments = TSMarguments(SC_APDU_CASE_1, SM_CCT, [0x00, 0x44, 0x00, 0x00], get_cwa_session_mac(cwa).ptr, cwa.ssc, 0, null);
+//	smArguments = TSMarguments(SC_APDU_CASE_1, SM_CCT, [0x00, 0x44, 0x00, 0x00], get_cwa_session_mac(cwa).ptr, cwa.ssc, 0, null);
+//	mixin (log!(`"sm_acos5_64_card_open"`, `"smArg.ssc_iv: %s"`, "sc_dump_hex(smArguments.ssc_iv.ptr, 8)"));
 
-		bytes2apdu(card.ctx, construct_SMcommand(smArguments[]) ~ ubyte(10)/*le*/, rapdu.apdu);
-//		apdu.resp    = SM_response.ptr;
-//		apdu.resplen = SM_response.length;
-		rapdu.flags |= SC_REMOTE_APDU_FLAG_RETURN_ANSWER;
-		rapdu.apdu.resp    = rapdu.rbuf.ptr;    // host_challenge_encrypted_tdesecb_with_key_card_done_by_card.ptr;
-		rapdu.apdu.resplen = rapdu.rbuf.length; // host_challenge_encrypted_tdesecb_with_key_card_done_by_card.length;
+	if ((rv=alloc_rdata_rapdu_do(__LINE__))<0) return rv;
+	bytes2apdu(card.ctx, construct_SMcommand(smArguments[]) ~ ubyte(10)/*le*/, rapdu.apdu);
+	mixin (log!(`"sm_acos5_64_card_open"`, `"smArg.ssc_iv: %s"`, "sc_dump_hex(smArguments.ssc_iv.ptr, 8)"));
+	rapdu.flags |= SC_REMOTE_APDU_FLAG_RETURN_ANSWER;
+	rapdu.apdu.resp    = rapdu.rbuf.ptr;
+	rapdu.apdu.resplen = rapdu.rbuf.length;
 
-		ub16    SM_response;
-		size_t  SM_response_len;
-		if ((rv=sm_acos5_64_transmit_apdus (card, rdata, SM_response.ptr, &SM_response_len)) < 0) {
-			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_open",
-				"external_authentication(): execute failed");
-			return rv;
-		}
-		rdata.free(rdata);
+	ub16    SM_response;
+	size_t  SM_response_len;
+	if ((rv=sm_acos5_64_transmit_apdus (card, rdata, SM_response.ptr, &SM_response_len)) < 0) {
+		sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_open", "sm_acos5_64_transmit_apdus failed");
+		return rv;
+	}
+	rdata.free(rdata);
 
-		if ((rv=changedExport_sc_sm_update_apdu_response(card, rapdu.apdu.resp, rapdu.apdu.resplen, 0, &rapdu.apdu))<0) {
-			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_open", "empty apdu.resp or sc_sm_parse_answer failed");
-			return rv; // the response SW1SW2 got unwrapped and is now ready to be checked
-		}
+	/*      changedExport_sc_sm_update_apdu_response updates:  mac, maclen, sw1 and sw2 but no more */
+	if ((rv=changedExport_sc_sm_update_apdu_response(card, rapdu.apdu.resp, rapdu.apdu.resplen, 0, &rapdu.apdu))<0) {
+		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_open", "empty apdu.resp or sc_sm_parse_answer failed");
+		return rv; // the response SW1SW2 got unwrapped and is now ready to be checked
+	}
+//	writefln("rapdu.apdu.mac: 0x [ %(%x %) ]", rapdu.apdu.mac[0..rapdu.apdu.mac_len]);
+//	writefln("rapdu.apdu.sw1: 0x%02X", rapdu.apdu.sw1);
+//	writefln("rapdu.apdu.sw2: 0x%02X", rapdu.apdu.sw2);
+	if ((rv=sc_check_sw(card, rapdu.apdu.sw1, rapdu.apdu.sw2)) < 0) {
+		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_open", "The SM command failed");
+		return rv;
+	}
 
-		if ((rv=sc_check_sw(card, rapdu.apdu.sw1, rapdu.apdu.sw2)) < 0) {
-			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_open", "The SM command failed");
-			return rv;
-		}
-
-		if ((rv=check_SMresponse(&rapdu.apdu, null, null, smArguments[0..$-2])) != SC_SUCCESS) {
-			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_open", "    ### check_SMresponse failed! ###");
-			return rv;
-		}
-		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_open",
-			"        ##### SM Response Successfully Verified. Operation was performed as requested #####\n");
-
+	if ((rv=check_SMresponse(&rapdu.apdu, null, smArguments[0..$-2])) != SC_SUCCESS) {
+		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_open", "    ### check_SMresponse failed! ###");
+		return rv;
+	}
+//	mixin (log!(`"sm_acos5_64_card_open"`, `"smArg.ssc_iv: %s"`, "sc_dump_hex(smArguments.ssc_iv.ptr, 8)"));
+	sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_open",
+		"        ##### SM Response Successfully Verified. Operation was performed as requested #####\n");
+	card.sm_ctx.info.session.cwa.ssc = smArguments.ssc_iv;
+	mixin (log!(`"sm_acos5_64_card_open"`, `"ssc: %s"`, "sc_dump_hex(card.sm_ctx.info.session.cwa.ssc.ptr, 8)"));
 } // version(TRY_SM_MORE)
 
 	version(ENABLE_TOSTRING) {
@@ -5706,7 +5705,7 @@ private extern(C) int sm_acos5_64_card_close(sc_card* card) {
 
 private extern(C) int sm_acos5_64_card_get_apdu (sc_card* card, sc_apdu* apdu, sc_apdu** sm_apdu) {
 	sc_context* ctx = card.ctx;
-	int rv = SC_ERROR_SM_NOT_APPLIED;
+	int rv = SC_ERROR_SM_NOT_APPLIED; // this is no error !
 	mixin (log!(`"sm_acos5_64_card_get_apdu"`, `"called"`));
 	mixin log_scope_exit!("sm_acos5_64_card_get_apdu");
 	scope(exit)
@@ -5718,139 +5717,6 @@ private extern(C) int sm_acos5_64_card_free_apdu(sc_card* card, sc_apdu* apdu, s
 	return 0;
 }
 
-private extern(C) int sm_acos5_64_card_read_binary(sc_card* card, uint idx, ubyte* buf, size_t count) {
-	sc_context* ctx = card.ctx;
-	int rv;// = SC_ERROR_SM_NOT_APPLIED;
-	sc_apdu apdu;
-	mixin (log!(`"sm_acos5_64_card_read_binary"`, `"called"`));
-	mixin transmit_apdu_strerror!("sm_acos5_64_card_read_binary");
-	mixin log_scope_exit!("sm_acos5_64_card_read_binary");
-	scope(exit)
-		log_scope_exit_do(__LINE__);
-
-	rv=sm_acos5_64_initialize(card, 0, SM_CMD_FILE_READ);
-
-		bytes2apdu(ctx, cast(immutable(ubyte)[3])x"00 22 01"~construct_sc_security_env(1, null, CCT, Session_Key_SM), apdu);
-		if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0) return rv;
-		if ((rv=sc_check_sw(card, apdu.sw1, apdu.sw2))<0) return rv;
-
-//		if ((rv=alloc_rdata_rapdu_do(__LINE__))<0) return rv;
-		apdu = sc_apdu();
-		bytes2apdu(ctx, cast(immutable(ubyte)[3])x"00 22 01"~construct_sc_security_env(1, null, AT, Usage.SymKey_Authenticate, 0x82), apdu); // requires the (already done) Authentication of key for External Auth.
-		if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0) return rv;
-		if ((rv=sc_check_sw(card, apdu.sw1, apdu.sw2))<0) return rv;
-
-//		if ((rv=alloc_rdata_rapdu_do(__LINE__))<0) return rv;
-		TSMarguments smArguments;
-		with (card.sm_ctx.info.session)
-			smArguments = TSMarguments(SC_APDU_CASE_2_SHORT, SM_Extend.SM_CCT, [0x00, 0xB0, 0x00, 0x00], get_cwa_session_mac(cwa).ptr, cwa.ssc, cast(ubyte)count, null);
-
-//		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_read_binary",
-//			"ssc_iv SMcommand_v: %s", sc_dump_hex(smArguments.ssc_iv.ptr, 8));
-		apdu = sc_apdu();
-		bytes2apdu(ctx, construct_SMcommand(smArguments[]) ~ cast(ubyte)count, apdu);
-		ubyte[255]     SM_response;
-		apdu.resp    = SM_response.ptr;
-		apdu.resplen = SM_response.length;
-
-		if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0) return rv;
-		if ((rv=sc_check_sw(card, apdu.sw1, apdu.sw2))<0) return rv;
-
-		sm_card_response sm_response;
-		if ((rv=changedExport_sc_sm_update_apdu_response(card, apdu.resp, apdu.resplen, 0, &apdu, &sm_response))<0) {
-			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_read_binary", "empty apdu.resp or sc_sm_parse_answer failed");
-			return rv; // the response SW1SW2 got unwrapped and is now ready to be checked
-		}
-		if ((rv=sc_check_sw(card, apdu.sw1, apdu.sw2)) < 0) {
-			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_read_binary", "The SM command failed");
-			return rv;
-		}
-
-		smArguments.sm_extend = SM_Extend.SM_CCT_AND_CT_sym;
-
-		if ((rv=check_SMresponse(&apdu, &sm_response, get_cwa_session_enc(card.sm_ctx.info.session.cwa).ptr, smArguments[0..$-2])) != SC_SUCCESS) {
-			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_read_binary", "    ### check_SMresponse failed! ###");
-			return rv;
-		}
-		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_read_binary",
-			"        ##### SM Response Successfully Verified. Operation was performed as requested #####\n");
-	buf[0..sm_response.data_len] = sm_response.data[0..sm_response.data_len];
-	return cast(int)sm_response.data_len;
-}
-
-
-private extern(C) int sm_acos5_64_card_update_binary(sc_card* card, uint idx, const(ubyte)* buf, size_t count) {
-	sc_context* ctx = card.ctx;
-	int rv;// = SC_ERROR_SM_NOT_APPLIED;
-	sc_apdu apdu;
-	mixin (log!(`"sm_acos5_64_card_update_binary"`, `"called"`));
-	mixin transmit_apdu_strerror!("sm_acos5_64_card_update_binary");
-	mixin log_scope_exit!("sm_acos5_64_card_update_binary");
-	scope(exit)
-		log_scope_exit_do(__LINE__);
-
-
-	rv=sm_acos5_64_initialize(card, 0, SM_CMD_FILE_READ);
-
-		bytes2apdu(ctx, cast(immutable(ubyte)[3])x"00 22 01"~construct_sc_security_env(1, null, CCT, Session_Key_SM), apdu);
-		if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0) return rv;
-		if ((rv=sc_check_sw(card, apdu.sw1, apdu.sw2))<0) return rv;
-
-		apdu = sc_apdu();
-		bytes2apdu(ctx, cast(immutable(ubyte)[3])x"00 22 01"~construct_sc_security_env(1, null, AT, SymKey_Authenticate, 0x82), apdu); // requires the (already done) Authentication of key for External Auth.
-		if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0) return rv;
-		if ((rv=sc_check_sw(card, apdu.sw1, apdu.sw2))<0) return rv;
-
-		TSMarguments smArguments;
-		with (card.sm_ctx.info.session)
-			smArguments = TSMarguments(SC_APDU_CASE_3_SHORT, SM_CCT, [0x00, 0xD6, 0x00, 0x00], get_cwa_session_mac(cwa).ptr, cwa.ssc, cast(ubyte)count, buf[0..count].dup);
-
-		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_update_binary",
-			"ssc_iv SMcommand_v: %s", sc_dump_hex(smArguments.ssc_iv.ptr, 8));
-		apdu = sc_apdu();
-		bytes2apdu(ctx, construct_SMcommand(smArguments[]) ~ ubyte(10), apdu);
-		ubyte[255]     SM_response;
-		apdu.resp    = SM_response.ptr;
-		apdu.resplen = SM_response.length;
-		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_update_binary",
-			"ssc_iv SMcommand_n: %s", sc_dump_hex(smArguments.ssc_iv.ptr, 8));
-version(SESSIONKEYSIZE24)
-		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_update_binary",
-			"key_mc SMcommand_n: %s", sc_dump_hex(get_cwa_session_mac(card.sm_ctx.info.session.cwa).ptr, 24));
-else
-		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_update_binary",
-			"key_mc SMcommand_n: %s", sc_dump_hex(get_cwa_session_mac(card.sm_ctx.info.session.cwa).ptr, 16));
-
-		if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0) return rv;
-		if ((rv=sc_check_sw(card, apdu.sw1, apdu.sw2))<0) return rv;
-
-		/*      changedExport_sc_sm_update_apdu_response updates mac, maclen, sw1 and sw2 but no more */
-
-		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_update_binary",
-			"Response: %s", sc_dump_hex(apdu.resp, apdu.resplen));
-		if ((rv=changedExport_sc_sm_update_apdu_response(card, apdu.resp, apdu.resplen, 0, &apdu))<0) {
-			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_update_binary", "empty apdu.resp or sc_sm_parse_answer failed");
-			return rv; // the response SW1SW2 got unwrapped and is now ready to be checked
-		}
-
-		if ((rv=sc_check_sw(card, apdu.sw1, apdu.sw2)) < 0) {
-			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_update_binary", "The SM command failed");
-			return rv;
-		}
-
-		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_update_binary",
-			"ssc_iv SMrespons_v: %s", sc_dump_hex(smArguments.ssc_iv.ptr, 8));
-		if ((rv=check_SMresponse(&apdu, null, null, smArguments[0..$-2])) != SC_SUCCESS) {
-			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_update_binary",
-				"ssc_iv SMrespons_n: %s", sc_dump_hex(smArguments.ssc_iv.ptr, 8));
-			sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_update_binary", "    ### check_SMresponse failed! ###");
-			return rv;
-		}
-		sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "sm_acos5_64_card_update_binary",
-			"        ##### SM Response Successfully Verified. Operation was performed as requested #####\n");
-
-	return rv;
-}
 
 
 /**
@@ -6050,7 +5916,7 @@ int sm_acos5_64_cwa_initialize(sc_context* ctx, sm_info* info, sc_remote_data* r
 export extern(C) int initialize (sc_context* ctx, sm_info* info, sc_remote_data* rdata)
 {
 	int rv = SC_ERROR_NOT_SUPPORTED;
-	mixin (log!(q{"initialize"}, q{"called"}));
+	mixin (log!(`"initialize"`, `"called"`));
 	mixin log_scope_exit!("initialize");
 	scope(exit)
 		log_scope_exit_do(__LINE__);
@@ -6061,6 +5927,15 @@ export extern(C) int initialize (sc_context* ctx, sm_info* info, sc_remote_data*
 	with (info.current_aid) sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "initialize",
 		"Current AID: %s", sc_dump_hex(value.ptr, len));
 	final switch (cast(SM_TYPE)info.sm_type) {
+/*
+		case SM_TYPE_GP_SCP01:
+			rv = sm_gp_config_get_keyset(ctx, info);
+			LOG_TEST_RET(ctx, rv, "SM gp configuration error");
+
+			rv = sm_gp_initialize(ctx, info, rdata);
+			LOG_TEST_RET(ctx, rv, "SM gp initializing error");
+			break;
+*/
 		case SM_TYPE_CWA14890:
 			if ((rv=sm_acos5_64_cwa_config_get_keyset(ctx, info)) < 0) {
 				sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "initialize",
@@ -6098,6 +5973,7 @@ export extern(C) int /*sm_acos5_64_*/ get_apdus(sc_context* ctx, sm_info* info, 
 	mixin log_scope_exit!("get_apdus");
 	scope(exit)
 		log_scope_exit_do(__LINE__);
+
 	return rv;
 }
 
@@ -6117,9 +5993,7 @@ export extern(C) int /*sm_acos5_64_*/ finalize(sc_context* ctx, sm_info* info, s
 	if (!info || !rdata)
 		return rv=SC_SUCCESS;
 
-/*	if (info->sm_type == SM_TYPE_GP_SCP01)
-		rv = sm_gp_decode_card_answer(ctx, rdata, out, out_len);
-	else*/ if (canFind([SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3], info.card_type))
+	if (canFind([SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3], info.card_type))
 		rv = sm_acos5_64_decode_card_data(ctx, info, rdata, out_, out_len);
 	else {
 		mixin (log!(`"finalize"`, `"SM finalize: cannot decode card response(s)"`));
@@ -6144,7 +6018,7 @@ export extern(C) int /*sm_acos5_64_*/ module_cleanup(sc_context* ctx) {
 	mixin log_scope_exit!("module_cleanup");
 	scope(exit) {
 		log_scope_exit_do(__LINE__);
-	version(Windows) {} else { version(unittest) {} else rt_term(); }
+//	version(Windows) {} else { version(unittest) {} else rt_term(); }
 	}
 	return rv=SC_SUCCESS;
 }
@@ -6174,11 +6048,12 @@ private int is_string_valid_atr(const(char)* atr_str)
 	return 1;
 }
 
-/+
+
 /* All singing all dancing card connect routine */
 private int util_connect_card(sc_context* ctx, sc_card** cardp, const(char)* reader_id, int do_wait, int verbose)
 { // copy of tools/util.c:util_connect_card
 	import core.stdc.errno;
+	import core.stdc.stdlib : strtol;
 	sc_reader*  reader, found;
 	sc_card*    card;
 	int r;
@@ -6295,7 +6170,6 @@ autofound:
 	*cardp = card;
 	return 0;
 }
-+/
 
 /*
 The following unittest (in parts) heavyly depends on interpreting /tmp/opensc-debug.log, thus debuging should be switched on; level=3, see also string debug_file = "/tmp/opensc-debug.log"
@@ -6312,6 +6186,7 @@ unittest {
 version(Posix) {
 	import std.process,
 				 std.conv;
+//				 std.file;
 	string debug_file = "/tmp/opensc-debug.log";
 	{
 		auto f = File(debug_file, "w"); // open for writing, i.e. Create an empty file for output operations. If a file with the same name already exists, its contents are discarded and the file is treated as a new empty file.
@@ -6342,12 +6217,18 @@ version(none) {
 			return;
 version(OPENSC_VERSION_LATEST)
 		ctx.flags |= SC_CTX_FLAG_ENABLE_DEFAULT_DRIVER;
+//	if (verbose > 1) {
 		ctx.debug_ = SC_LOG_DEBUG_NORMAL/*verbose*/;
 		sc_ctx_log_to_file(ctx, toStringz(debug_file));
+//	}
+
+//		if (sc_set_card_driver(ctx, "acos5_64"))
+//			return;
+
 
 		acos5_64_se_info  se1;
 		se1.reference     = 1;
-		uba  indata = (cast(immutable(ubyte)[])x"A4 06 83 01 81 95 01 08").dup;
+		uba  indata = representation(x"A4 06 83 01 81 95 01 08").dup;
 		assert(indata.length==acos5_64_crt_parse(ctx, indata, &se1));
 		assert(se1.crts[0] == sc_crt(CRT_TAG.AT, 0x08, 0, [0x81U,0U,0U,0U,0U,0U,0U,0U]));
 //	writeln("se1.crts[0]: ", se1.crts[0]);
@@ -6355,7 +6236,7 @@ version(OPENSC_VERSION_LATEST)
 		acos5_64_se_info  se2;
 		se2.reference     = 2;
 		se1.next = &se2;
-		indata      = (cast(immutable(ubyte)[])x"B4 09 83 01 01 95 01 08 80 01 02   B8 09 83 01 01 95 01 08 80 01 02   A4 06 83 01 81 95 01 08").dup;
+		indata      = representation(x"B4 09 83 01 01 95 01 08 80 01 02   B8 09 83 01 01 95 01 08 80 01 02   A4 06 83 01 81 95 01 08").dup;
 		assert(indata.length==acos5_64_crt_parse(ctx, indata, &se2));
 		assert(se2.crts[0] == sc_crt(CRT_TAG.CCT,    0x08, 0x02, [0x01U,0U,0U,0U,0U,0U,0U,0U]));
 		assert(se2.crts[1] == sc_crt(CRT_TAG.CT_sym, 0x08, 0x02, [0x01U,0U,0U,0U,0U,0U,0U,0U]));
@@ -6365,7 +6246,7 @@ version(OPENSC_VERSION_LATEST)
 		acos5_64_se_info  se3;
 		se3.reference     = 3;
 		se2.next = &se3;
-		indata      = (cast(immutable(ubyte)[])x"A4 06 83 01 01 95 01 08").dup;
+		indata      = representation(x"A4 06 83 01 01 95 01 08").dup;
 		assert(indata.length==acos5_64_crt_parse(ctx, indata, &se3));
 		assert(se3.crts[0] == sc_crt(CRT_TAG.AT, 0x08, 0x00, [0x01U,0U,0U,0U,0U,0U,0U,0U]));
 //	writeln("se3.crts[0]: ", se3.crts[0]);
@@ -6373,7 +6254,7 @@ version(OPENSC_VERSION_LATEST)
 		acos5_64_se_info  se4;
 		se4.reference     = 4;
 		se3.next = &se4;
-		indata      = (cast(immutable(ubyte)[])x"A4 09 83 01 01 83 01 81 95 01 08").dup;
+		indata      = representation(x"A4 09 83 01 01 83 01 81 95 01 08").dup;
 		assert(indata.length==acos5_64_crt_parse(ctx, indata, &se4));
 		assert(se4.crts[0] == sc_crt(CRT_TAG.AT, 0x08, 0x00, [0x01U,0x81U,0U,0U,0U,0U,0U,0U]));
 //	writeln("These are 'AND' conditions in  se4.crts[0]: ", se4.crts[0]);
@@ -6381,7 +6262,7 @@ version(OPENSC_VERSION_LATEST)
 		acos5_64_se_info  se5;
 		se5.reference     = 5;
 		se4.next = &se5;
-		indata      = (cast(immutable(ubyte)[])x"B4 08 84 00 95 01 30 80 01 02   B8 08 84 00 95 01 30 80 01 02   A4 06 83 01 82 95 01 80").dup;
+		indata      = representation(x"B4 08 84 00 95 01 30 80 01 02   B8 08 84 00 95 01 30 80 01 02   A4 06 83 01 82 95 01 80").dup;
 		assert(indata.length==acos5_64_crt_parse(ctx, indata, &se5));
 		assert(se5.crts[0] == sc_crt(CRT_TAG.CCT,    0x30, 0x02, [0x84U,0U,0U,0U,0U,0U,0U,0U]));
 		assert(se5.crts[1] == sc_crt(CRT_TAG.CT_sym, 0x30, 0x02, [0x84U,0U,0U,0U,0U,0U,0U,0U]));
@@ -6408,34 +6289,6 @@ version(OPENSC_VERSION_LATEST)
 			return;
 		if (!card)
 			return;
-
-/*
-	char[ 9]  app_name   = "unittest";
-	char[22]  debug_file = "/tmp/opensc-debug.log";
-	auto      f = File(fromStringz(debug_file.ptr), "a"); // open for appending
-	// dummy_context is only usable for potential debug output required by sc_asn1_find_tag; doesn't need to be released
-version(OPENSC_VERSION_LATEST)
-	sc_context  dummy_context = { null, [null,null,null], app_name.ptr, SC_LOG_DEBUG_NORMAL,  0, f.getFP(), debug_file.ptr };
-else
-	sc_context  dummy_context = { null, [null,null,null], app_name.ptr, SC_LOG_DEBUG_NORMAL,0,0, f.getFP(), debug_file.ptr };
-*/
-/+
-// FIXME adapt cache.current_df
-		auto fci = cast(immutable(ubyte)[])x"6F 30 83 02 41 00 88 01 00 8A 01 05 82 02 38 00 8D 02 41 03 84 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 8C 08 7F FF FF 03 03 03 03 03 AB 00";
-		cache_current_df_se_info expected = { sac: [0x03, 0x03, 0x03, 0x03, 0x03, 0xFF, 0xFF, 0xFF], fdb: 0x38, path_fid: {[0x3F,0x00,0x41,0x00],4,0,-1,SC_PATH_TYPE_PATH},
-			path_seid: {[0x3F,0x00,0x41,0x00,0x41,0x03],6,0,-1,SC_PATH_TYPE_PATH}, fid: [0x41, 0x00], seid: [0x41, 0x03] };
-//			path_seid = card.cache.current_df.path; sc_append_path_id(&path_seid, private_data.current_df_se_info.seid.ptr, 2);
-		cache_current_df_se_info extracted;
-		assert( process_fci_sac_se(card, fci, &extracted, true) == SC_SUCCESS);
-//int process_fci_sac_se(sc_card* card, in uba fci_carrier, cache_current_df_se_info* info_out,/*enveloped=*/false,/*skip_seid_retrieval=*/false,/*sacNONE=*/false)
-		assert(extracted == expected);
-		writeln("PASSED: process_fci_sac_se");
-
-		if (acos5_64_init(card))
-			return;
-		if (acos5_64_finish(card))
-			return;
-+/
 	} // invoke scope(exit) to quit card and context
 } // version(none)
 } // version(Posix)
@@ -6484,28 +6337,6 @@ else
 		check_return_value(rv, "open session");
 		return session;
 	}
-/+
-	void end_session(CK_SESSION_HANDLE session) {
-		CK_RV rv;
-		rv = C_CloseSession(session);
-		check_return_value(rv, "close session");
-	}
-
-	void login(CK_SESSION_HANDLE session, ubyte[] pin) {
-		CK_RV rv;
-		if (pin !is null) {
-			rv = C_Login(session, CKU_USER, pin.ptr, pin.length);
-			check_return_value(rv, "log in");
-		}
-	}
-
-	void logout(CK_SESSION_HANDLE session) {
-		CK_RV rv;
-		rv = C_Logout(session);
-		if (rv != CKR_USER_NOT_LOGGED_IN)
-			check_return_value(rv, "log out");
-	}
-+/
 /////////////
 	PKCS11.load("opensc-pkcs11.so");
 	CK_RV rv;
@@ -6539,14 +6370,6 @@ version(TRY_SM_MORE) {
 		writeln("PASSED: PKCS#11 functions: grep_try_sm_more");
 	}
 }
-// version(TRY_SM_MORE) grep from opensc-debug.log:  ##### SM Response Successfully Verified. Operation was performed as requested #####
-// grep -c '##### SM Response Successfully Verified. Operation was performed as requested #####' opensc-debug.log
-// version(TRY_SM)      grep from opensc-debug.log:  ### Card/Token and Host sym. keys configured are     suitable for Secure Messaging. The Mutual Authentication procedure succeeded ! ###
-//                      grep from opensc-debug.log:  sc_card_sm_check: returning with: 0 (Success)
-//                      grep from opensc-debug.log:  sc_card_sm_load: returning with: 0 (Success)
-//                      grep from opensc-debug.log:  acos5_64_init: returning with: 0 (Success)
-//                      grep from opensc-debug.log:  acos5_64_match_card_checks: returning with: 0 (Success)
-
 }
 
 	CK_SLOT_INFO  slotInfo;
@@ -6590,16 +6413,15 @@ version(TRY_SM_MORE) {
 				writefln("mechanismList[%s]: 0x%04X; mInfo: MinKeySize: %s, MaxKeySize: %s, flags: 0x%04X", i, mt, mechanismInfo.ulMinKeySize, mechanismInfo.ulMaxKeySize, mechanismInfo.flags); // CKM_*
 			}
 	}
-
 	CK_SESSION_HANDLE  hSession = start_session(slotID, CKF_RW_SESSION | CKF_SERIAL_SESSION);
 	CK_OBJECT_HANDLE   hPublicKey, hPrivateKey;
 	CK_MECHANISM       mechanism = CK_MECHANISM(CKM_RSA_PKCS_KEY_PAIR_GEN);
 	CK_BBOOL           yes = CK_TRUE;
 	CK_BBOOL           no  = CK_FALSE;
-	CK_ULONG           modulusBits = 4096;
+	CK_ULONG           modulusBits = 3072; // 4096 doesn't work for ACOS-64 V3.00 so far ! For that, max. 3072!
 	CK_BYTE[3]         publicExponent = [0x01, 0x00, 0x01];
 	CK_BYTE[10]        subject = "privateKey".representation;
-	CK_BYTE[1]         id = [ 0x39 ];
+	CK_BYTE[1]         id = [ 0x04 ];
 
 
 	CK_ATTRIBUTE[] publicKeyTemplate = [
@@ -6612,7 +6434,7 @@ version(TRY_SM_MORE) {
 
 		CK_ATTRIBUTE(CKA_ENCRYPT,   &yes, yes.sizeof),
 		CK_ATTRIBUTE(CKA_VERIFY,    &yes, yes.sizeof),
-		CK_ATTRIBUTE(CKA_WRAP,      &yes, yes.sizeof),
+		CK_ATTRIBUTE(CKA_WRAP,      &no,  no.sizeof),
 	];
 
 	CK_ATTRIBUTE[] privateKeyTemplate = [
@@ -6622,37 +6444,32 @@ version(TRY_SM_MORE) {
 		CK_ATTRIBUTE(CKA_TOKEN,     &yes, yes.sizeof),
 		CK_ATTRIBUTE(CKA_SENSITIVE, &yes, yes.sizeof),
 		CK_ATTRIBUTE(CKA_PRIVATE,   &yes, yes.sizeof),
+		CK_ATTRIBUTE(CKA_NEVER_EXTRACTABLE, &yes, yes.sizeof),
 
 		CK_ATTRIBUTE(CKA_DECRYPT,   &yes, yes.sizeof),
 		CK_ATTRIBUTE(CKA_SIGN,      &yes, yes.sizeof),
-		CK_ATTRIBUTE(CKA_UNWRAP,    &yes, yes.sizeof),
+		CK_ATTRIBUTE(CKA_UNWRAP,    &no,  no.sizeof),
 	];
-/+
+/+ + /
 	rv = C_GenerateKeyPair(hSession, &mechanism,
 		publicKeyTemplate.ptr, publicKeyTemplate.length,
 		privateKeyTemplate.ptr, privateKeyTemplate.length, &hPublicKey, &hPrivateKey);
 
 	if (rv != CKR_OK)
-		writeln("C_GenerateKeyPair failed as expected (not yet implemented");
-+/
+		writeln("C_GenerateKeyPair failed as expected");
+/ + +/
 	writeln("PASSED: PKCS#11 functions that do require a present token");
 } // version(all)
 
 
 /*
- * The final goal for testing coverage is, to have coverage information about functions too, that get called by opensc-pkcs11.so.
+ * The final goal for testing coverage is, to have covergage information about functions too, that get called by opensc-pkcs11.so.
  * For this to work, the correct setup has to be ckecked.
  * In the meantime, manually call some functions:
 */
 	assert(iEF_FDB_to_structure(Transparent_EF) == SC_FILE_EF.SC_FILE_EF_TRANSPARENT);
 	assert(equal(sc_driver_version.fromStringz, sc_get_version.fromStringz));
-/*
-mixin template transmit_apdu(alias functionName)
-mixin template transmit_apdu_strerror(alias functionName)
-mixin template transmit_rapdu_strerror(alias functionName)
-check_SMresponse
-*/
-//	sc_module_init("acos5_64");
+
 	sc_module_init("acos5_64");
 	sc_get_acos5_64_driver();
 	sc_get_acos5_64_pkcs15init_ops();
@@ -6673,16 +6490,16 @@ private int acos5_64_crt_parse(sc_context* ctx, in ubyte[] data, acos5_64_se_inf
 	int          jj;
 	int          accu_lenP2;
 	int          rv;
-//	mixin (log!(`"acos5_64_crt_parse"`, `"(0x%X) called"`, "*data.ptr"));
-//	mixin log_scope_exit!("acos5_64_crt_parse");
-//	scope(exit)
-//		log_scope_exit_do(__LINE__);
+	mixin (log!(`"acos5_64_crt_parse"`, `"(0x%X) called"`, "*data.ptr"));
+	mixin log_scope_exit!("acos5_64_crt_parse");
+	scope(exit)
+		log_scope_exit_do(__LINE__);
 
 	for (jj=0; jj<SC_MAX_CRTS_IN_SE; jj++) // with SC_MAX_CRTS_IN_SE==12 opensc allows less than ACOS (==14)
 		if (!se.crts[jj].tag)  // find first free "slot" for storage
 			break;
 
-//	mixin (log!(`"acos5_64_crt_parse"`, `"first free 'slot' for storage: %i"`, "jj"));
+	mixin (log!(`"acos5_64_crt_parse"`, `"first free 'slot' for storage: %i"`, "jj"));
 	do {
 		if (jj==SC_MAX_CRTS_IN_SE) {
 			mixin (log!(`"acos5_64_crt_parse"`, `"error: too much CRTs in SE"`));
@@ -6723,7 +6540,7 @@ private int acos5_64_crt_parse(sc_context* ctx, in ubyte[] data, acos5_64_se_inf
 				case Algorithm:
 					crt.algo = *(data.ptr + accu_lenP2 + offs + 2);
 					break;
-				case HP_Key_Session:
+				case SubDO_Tag.HP_Key_Session:
 					if (*(data.ptr + accu_lenP2 + offs + 1)!=0)
 						return rv=SC_ERROR_UNKNOWN_DATA_RECEIVED;
 					block_SubDO_Tag_ID_Pin_Key_Local_Global = true;
@@ -6739,9 +6556,11 @@ private int acos5_64_crt_parse(sc_context* ctx, in ubyte[] data, acos5_64_se_inf
 		} // for
 		se.crts[jj++] = crt;
 		accu_lenP2   += lenP2;
+		++se.crts_len;
 	} while (accu_lenP2 < data.length);
 	return rv=accu_lenP2;
 }
+
 
 ubyte TAG_FCP_len (ISO7816_TAG_FCP_  tag) { // for those with varying length and known max it returns the max. length, otherwise 0
 	final switch (tag) {
@@ -6755,7 +6574,29 @@ ubyte TAG_FCP_len (ISO7816_TAG_FCP_  tag) { // for those with varying length and
 				 ISO7816_TAG_FCP_ACLS :        return 0;  // unknown max; not used by ACOS;         fold.seed:-2
 		case ISO7816_TAG_FCP_LCS :         return 1;
 	}
-} // ISO7816_TAG_FCP_len
+}
+
+/*
+	Example DF:
+		6F 30
+		83 02 41 00
+		88 01 00
+		8A 01 05
+		82 02 38 00
+		8D 02 41 03
+		84 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30
+		8C 08 7F FF FF 03 03 03 03 03
+		AB 00
+
+	Example EF:
+		6F 1E
+		83 02 41 03
+		88 01 03
+		8A 01 05
+		82 06 1C 00 00 30 00 05
+		8C 08 7F FF FF 03 03 01 03 01
+		AB 00
+*/
 
 ubyte TAG_FCP_len (ISO7816_RFU_TAG_FCP_  tag) { // for those with varying length and known max it returns the max. length, otherwise 0
 	final switch (tag) {
@@ -6765,3 +6606,122 @@ ubyte TAG_FCP_len (ISO7816_RFU_TAG_FCP_  tag) { // for those with varying length
 		case ISO7816_RFU_TAG_FCP_SAE:      return 32;
 	}
 }
+
+private int new_file(sc_profile* profile, sc_pkcs15_card* p15card, sc_pkcs15_object* p15object, uint otype, sc_file** out_)
+{
+	sc_card* card   = p15card.card;
+	sc_context* ctx = p15card.card.ctx;
+	int rv = SC_ERROR_UNKNOWN;
+	sc_file* file;
+	mixin (log!(`"new_file"`, `"called"`));
+	mixin log_scope_exit!("new_file");
+	scope(exit) {
+		version(ENABLE_TOSTRING) {
+			writer.put("int new_file(sc_profile* profile, sc_pkcs15_card* p15card, sc_pkcs15_object* p15object, uint otype, sc_file** out_) is returning with argument **out_:\n");
+			if (out_ && *out_)
+				writer.formattedWrite("%s", **out_);
+		}
+		if (rv<0 && file) {
+			sc_file_free(file);
+			file = null;
+		}
+		log_scope_exit_do(__LINE__);
+	}
+
+	assert(p15object.type == SC_PKCS15_TYPE_PRKEY_RSA);
+	assert(otype == SC_PKCS15_TYPE_PRKEY_RSA || otype == SC_PKCS15_TYPE_PUBKEY_RSA);
+
+		version(ENABLE_TOSTRING) {
+			writer.put("int new_file(sc_profile* profile, sc_pkcs15_card* p15card, sc_pkcs15_object* p15object, uint otype, sc_file** out_) called with argument *p15object:\n");
+//			if (out_ && *out_)
+				writer.formattedWrite("%s", *p15object);
+		}
+	sc_pkcs15_prkey_info* key_info = cast(sc_pkcs15_prkey_info*)p15object.data;
+	uint keybits = ((cast(uint)key_info.modulus_length+8U)/256)*256;
+
+	uint structure = 0xFFFFFFFF;
+	structure = EFDB.RSA_Key_EF;
+
+	uint modulusBytes = keybits/8;
+	file = sc_file_new();
+	with (file) {
+		path = key_info.path;
+
+		if (otype == SC_PKCS15_TYPE_PUBKEY_RSA)
+			path.value[path.len-1] &= 0x3F;
+		type = SC_FILE_TYPE.SC_FILE_TYPE_INTERNAL_EF;
+		ef_structure = EFDB.RSA_Key_EF;
+
+		size = 5 + (otype == SC_PKCS15_TYPE_PRKEY_RSA? modulusBytes/2*5 : modulusBytes+16); // CRT for SC_PKCS15_TYPE_PRKEY_RSA
+		id = ub22integral(path.value[path.len-2..path.len]);
+	}
+
+	cache_current_df_se_info info; // tag 0x8C and maybe more
+	info.sac = [ubyte(0),ubyte(0),ubyte(0),ubyte(0),ubyte(0),ubyte(0),ubyte(0),ubyte(0xFF)];
+	ubyte[7] ops_Key_SE = [ SC_AC_OP_READ,        SC_AC_OP_UPDATE,    SC_AC_OP_CRYPTO,    SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE ];
+
+	ubyte  op;
+	mixin file_add_acl_entry;
+	sc_file_add_acl_entry(  file, SC_AC_OP_SELECT,     SC_AC.SC_AC_NONE, 0);
+	op = SC_AC_OP.SC_AC_OP_WRITE;
+	file_add_acl_entry_do(1, __LINE__);
+
+	op = SC_AC_OP.SC_AC_OP_GENERATE;
+	file_add_acl_entry_do(1, __LINE__);
+
+	foreach (ii; 0..7) {
+		op = ops_Key_SE[ii];
+		if (ii>0)
+			mixin (log!(`"acos5_64_process_fci"`, `"offs %i, op 0x%02X, SC 0x%02X"`, "ii", "op", "info.sac[ii]"));
+		else
+			mixin (log!(`"acos5_64_process_fci"`, `"offs %i, op 0x%02X, SC 0x%02X  [op 0x16==SC_AC_OP_READ/op 0x08==SC_AC_OP_DELETE_SELF for DF_MF(Delete Child)]"`, "ii", "op", "info.sac[ii]"));
+		file_add_acl_entry_do(ii, __LINE__);
+	}
+
+	mixin (log!(`"new_file"`, `"file size %i; ef type %i/%i; id %04X; path_len %i; file path: %s"`,
+		"file.size", "file.type", "file.ef_structure", "file.id", "file.path.len", "sc_print_path(&file.path)"));
+
+	if (out_)
+		*out_ = file;
+	return rv=SC_SUCCESS;
+} // new_file
+
+private extern(C) int acos5_64_delete_file(sc_card* card, const(sc_path)* path) {
+	sc_context* ctx = card.ctx;
+	int rv = SC_ERROR_UNKNOWN;
+	mixin (log!(`"acos5_64_delete_file"`, `"called"`));
+	mixin log_scope_exit!("acos5_64_delete_file");
+	scope(exit)
+		log_scope_exit_do(__LINE__);
+
+	sc_path new_path = *path;
+	if (path.type != SC_PATH_TYPE_FILE_ID)
+	with (new_path)	{
+		type = SC_PATH_TYPE_FILE_ID;
+		value[0..len] = (UByteArray!1(value[0..len]) <<= len-2)[];
+		len = 2;
+	}
+	return rv=iso_ops_ptr.delete_file(card, &new_path);
+}
+
+/* this is limited currently to serve acos5_64_pkcs15_generate_key */
+private extern(C) int acos5_64_construct_fci(sc_card* card, const(sc_file)* file, ubyte* out_, size_t* outlen) {
+	*outlen = 30;
+	if      ((file.id >>> 4) == 0x41F) { //            4                           12
+		out_[0..*outlen] = representation(x"62 1C 83 02  41F1  82 02  09  00   80 02 05 15 88 01 00 8A 01 05 8C 08 7F 01 FF 00 01 01 01 FF").dup;
+		out_[ 4.. 6] = integral2ub!2(file.id)[];
+		out_[12..14] = integral2ub!2(file.size)[];
+	}
+	else if ((file.id >>> 4) == 0x413) {
+		out_[0..*outlen] = representation(x"62 1C 83 02  4131  82 02  09  00   80 02 02 15 88 01 00 8A 01 05 8C 08 7F 01 FF 00 01 00 01 00").dup;
+		out_[ 4.. 6] = integral2ub!2(file.id)[];
+		out_[12..14] = integral2ub!2(file.size)[];
+	}
+	else {
+		*outlen = 0;
+		return SC_ERROR_CARD_CMD_FAILED;
+	}
+	return SC_SUCCESS;
+}
+
+303530110C0B446563727970745369676E03020640300E0401010302018203020348020101A110300E300804063F004100413102021000
