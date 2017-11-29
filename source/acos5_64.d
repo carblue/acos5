@@ -281,7 +281,7 @@ enum SubDO_Tag : ubyte {
 }
 mixin FreeEnumMembers!SubDO_Tag;
 
-ubyte SubDO_Tag_len(SubDO_Tag tag /*, int algo=0*/) nothrow {
+ubyte SubDO_Tag_len(SubDO_Tag tag /*, int algo=0*/) {
 	final switch (tag) {
 		case Algorithm:                return 1;
 		case KeyFile_RSA:              return 2;
@@ -372,7 +372,7 @@ alias TSMarguments = Tuple!(
  * Attention: All mixin templates expect "some" symbol(s) to be available when instantiating, like e.g. for transmit_apdu: ctx, card, apdu
 */
 mixin template transmit_apdu(alias functionName) {
-	int transmit_apdu_do(int line=__LINE__) nothrow {
+	int transmit_apdu_do(int line=__LINE__) {
 		int rv_priv;
 		if ((rv_priv=sc_transmit_apdu(card, &apdu)) < 0)
 			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, line, functionName,
@@ -382,7 +382,7 @@ mixin template transmit_apdu(alias functionName) {
 }
 
 mixin template transmit_apdu_strerror(alias functionName) {
-	int transmit_apdu_strerror_do(int line=__LINE__) nothrow {
+	int transmit_apdu_strerror_do(int line=__LINE__) {
 		int rv_priv;
 		if ((rv_priv=sc_transmit_apdu(card, &apdu)) < 0)
 			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, line, functionName,
@@ -392,7 +392,7 @@ mixin template transmit_apdu_strerror(alias functionName) {
 }
 
 mixin template transmit_rapdu_strerror(alias functionName) {
-	int transmit_rapdu_strerror_do(int line=__LINE__) nothrow {
+	int transmit_rapdu_strerror_do(int line=__LINE__) {
 		int rv_priv;
 		if ((rv_priv=sc_transmit_apdu(card, &rapdu.apdu)) < 0)
 			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, line, functionName,
@@ -402,7 +402,7 @@ mixin template transmit_rapdu_strerror(alias functionName) {
 }
 
 mixin template alloc_rdata_rapdu(alias functionName) {
-	int alloc_rdata_rapdu_do(int line=__LINE__) nothrow {
+	int alloc_rdata_rapdu_do(int line=__LINE__) {
 		int rv_priv;
 		if ((rv_priv=rdata.alloc(rdata, &rapdu)) < 0)
 			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, line, functionName,
@@ -412,7 +412,7 @@ mixin template alloc_rdata_rapdu(alias functionName) {
 }
 
 mixin template log_scope_exit(alias functionName) {
-	void log_scope_exit_do(int line=__LINE__) nothrow {
+	void log_scope_exit_do(int line=__LINE__) {
 		if (rv <= 0)
 			sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, line, functionName,
 				"returning with: %i (%s)\n", rv, sc_strerror(rv));
@@ -423,7 +423,7 @@ mixin template log_scope_exit(alias functionName) {
 }
 
 mixin template file_add_acl_entry() {
-	void file_add_acl_entry_do(int offs, int line=__LINE__) nothrow {
+	void file_add_acl_entry_do(int offs, int line=__LINE__) {
 		if (op == 0xFF) {}
 		else if ( info.sac[offs] == 0)
 			sc_file_add_acl_entry(file, op, SC_AC.SC_AC_NONE, 0);
@@ -1152,7 +1152,7 @@ private sc_pkcs15init_operations* sc_get_acos5_64_pkcs15init_ops() {
  * @param serial where to store data retrieved, may be null
  * @return SC_SUCCESS if ok; else error code
  */
-private int acos5_64_get_serialnr(sc_card* card, sc_serial_number* serial) nothrow {
+private int acos5_64_get_serialnr(sc_card* card, sc_serial_number* serial) {
 	if (card == null || card.ctx == null)
 		return SC_ERROR_INVALID_ARGUMENTS;
 	sc_context* ctx = card.ctx;
@@ -1198,7 +1198,7 @@ version(ENABLE_SM)
 
 
 // for some reason, this usefull function is not exported from libopensc's version 0.15.0
-private int missingExport_match_atr_table(sc_context* ctx, sc_atr_table* table, sc_atr* atr) nothrow
+private int missingExport_match_atr_table(sc_context* ctx, sc_atr_table* table, sc_atr* atr)
 { // c source function 'match_atr_table' copied, translated to D
 	ubyte* card_atr_bin;
 	size_t card_atr_bin_len;
@@ -1261,7 +1261,7 @@ private int missingExport_match_atr_table(sc_context* ctx, sc_atr_table* table, 
 }
 
 
-private int acos5_64_match_card_checks(sc_card* card) nothrow { // regular return value: 0==SUCCESS
+private int acos5_64_match_card_checks(sc_card* card) { // regular return value: 0==SUCCESS
 	sc_context* ctx = card.ctx;
 	int rv = SC_ERROR_INVALID_CARD;
 	sc_apdu apdu;
@@ -1352,7 +1352,7 @@ else {
  * Returning 'no match' still doesn't stop opensc-pkcs11 using this driver, when forced to use acos5_64
  * Thus for case "card not matched", another 'killer argument': set card.type to impossible one and rule out in acos5_64_init
  */
-private extern(C) int acos5_64_match_card(sc_card* card) nothrow { // irregular/special return value: 0==FAILURE
+private extern(C) int acos5_64_match_card(sc_card* card) { // irregular/special return value: 0==FAILURE
 	int rv;
 	sc_context* ctx = card.ctx;
 	mixin (log!(`"acos5_64_match_card"`, `"called. Try to match card with ATR %s"`, "sc_dump_hex(card.atr.value.ptr, card.atr.len)"));
@@ -1548,7 +1548,7 @@ private int check_weak_DES_key(sc_card* card, in uba key) {
 }
 
 
-private extern(C) int acos5_64_init(sc_card* card) nothrow {
+private extern(C) int acos5_64_init(sc_card* card) {
 	sc_context* ctx = card.ctx;
 	int         rv  = SC_ERROR_INVALID_CARD;
 	sc_apdu apdu;
@@ -1579,9 +1579,7 @@ private extern(C) int acos5_64_init(sc_card* card) nothrow {
 	if ( !(apdu.sw1 == 0x69 && apdu.sw2 == 0x86)) {
 //		do_zeroize_token = true; // CHANGE_HERE_FOR_ZEROIZE : remove leading //
 		if (do_zeroize_token) {
-			try
-				re_initialize_token(card, representation(x"38 37 36 35 34 33 32 31" /* SO_PIN */), null);
-			catch (Exception e) {}
+			re_initialize_token(card, representation(x"38 37 36 35 34 33 32 31" /* SO_PIN */), null);
 			return rv=SC_ERROR_INVALID_CARD;
 		}
 	}
@@ -1589,10 +1587,8 @@ private extern(C) int acos5_64_init(sc_card* card) nothrow {
 		++once;
 		if (once==1) {
 			do_initialize_token = true; // CHANGE_HERE_FOR_INIT : remove leading //
-			try
-				if ((rv=re_initialize_token(card, representation(x"38 37 36 35 34 33 32 31" /* SO_PIN */), null)) < 0)
-					return rv;
-			catch (Exception e) {}
+			if ((rv=re_initialize_token(card, representation(x"38 37 36 35 34 33 32 31" /* SO_PIN */), null)) < 0)
+				return rv;
 			bytes2apdu(ctx, representation(x"00 A4 00 00"), apdu);
 			apdu.flags = SC_APDU_FLAGS_NO_GET_RESP;
 			if ((rv=transmit_apdu_strerror_do(__LINE__)) < 0)  return rv;
@@ -1791,7 +1787,7 @@ version(ENABLE_ACOS5_64_UI) {
  * @param card Pointer to card driver data structure
  * @return SC_SUCCESS if ok; else error code
  */
-private extern(C) int acos5_64_finish(sc_card* card) nothrow {
+private extern(C) int acos5_64_finish(sc_card* card) {
 	sc_context* ctx = card.ctx;
 	int rv = SC_ERROR_UNKNOWN;
 	mixin (log!(`"acos5_64_finish"`, `"called"`));
@@ -1825,7 +1821,7 @@ opensc-tool doesn't communicate the length of data to be read, only the length o
 available in the record and opensc automatically issues the corrected APDU once more
 */
 private extern(C) int acos5_64_read_record(sc_card* card, uint rec_nr,
-	ubyte* buf, size_t buf_len, c_ulong flags) nothrow {
+	ubyte* buf, size_t buf_len, c_ulong flags) {
 	sc_context* ctx = card.ctx;
 	int rv = SC_ERROR_UNKNOWN;
 	sc_apdu apdu;
@@ -1959,7 +1955,7 @@ struct SelectSupport {
 	sc_path*      path;
 	const size_t  plen;
 	size_t*       pclen;
-	this(sc_card* in_card, sc_path* in_path) nothrow {
+	this(sc_card* in_card, sc_path* in_path) {
 		card  = in_card;
 		path  = in_path;
 		plen  = in_path.len;
@@ -1967,7 +1963,7 @@ struct SelectSupport {
 			pclen = &in_card.cache.current_df.path.len;
 	}
 
-	int run(bool* prestore_cache_current_df, bool force_select_prefix=false) nothrow {
+	int run(bool* prestore_cache_current_df, bool force_select_prefix=false) {
 		sc_context*      ctx = card.ctx;
 		int              rv;
 		bool             seid_changed;
@@ -2045,7 +2041,7 @@ struct SelectSupport {
 } // struct SelectSupport
 
 /* designed to always select the last path component, but potentially discard selecting it's prefix components; assumes we always get a complete path beginning at MF */
-private int acos5_64_select_file_by_path(sc_card* card, const(sc_path)* in_path, sc_file** file_out, bool force_select_prefix=false) nothrow
+private int acos5_64_select_file_by_path(sc_card* card, const(sc_path)* in_path, sc_file** file_out, bool force_select_prefix=false)
 {
 	assert(in_path.len%2==0);
 	sc_context*  ctx  = card.ctx;
@@ -2110,7 +2106,7 @@ private int acos5_64_select_file_by_path(sc_card* card, const(sc_path)* in_path,
 }
 
 
-private extern(C) int acos5_64_select_file(sc_card* card, const(sc_path)* path, sc_file** file_out) nothrow
+private extern(C) int acos5_64_select_file(sc_card* card, const(sc_path)* path, sc_file** file_out)
 {
 	sc_context* ctx = card.ctx;
 	int rv = SC_ERROR_INS_NOT_SUPPORTED;
@@ -2145,7 +2141,7 @@ private extern(C) int acos5_64_select_file(sc_card* card, const(sc_path)* path, 
  *  The iso7816.c -version get_challenge get's wrapped to have RNDc known by terminal/host in sync with card's last SM_SMALL_CHALLENGE_LEN challenge handed out
  *  len is restricted to be a multiple of 8 AND 8<=len
  */
-private extern(C) int acos5_64_get_challenge(sc_card* card, ubyte* rnd, size_t len) nothrow
+private extern(C) int acos5_64_get_challenge(sc_card* card, ubyte* rnd, size_t len)
 {
 	int rv = SC_ERROR_UNKNOWN;
 	sc_context* ctx = card.ctx;
@@ -2191,7 +2187,7 @@ version(ENABLE_SM)
 	return rv;
 }
 
-private extern(C) int acos5_64_logout(sc_card* card) nothrow
+private extern(C) int acos5_64_logout(sc_card* card)
 {
 	sc_context* ctx = card.ctx;
 	int rv;
@@ -2217,7 +2213,7 @@ enum {
 /** constructs the "ubyte-string" for set security environment beginning with CRT template tag
  *  2 modes: 'from_env' taking input from sc_security_env or 'from_usage' taking input from the other parameters */
 uba construct_sc_security_env (int mode, const(sc_security_env)* psec_env, CRT_TAG crtt, Usage usage=None,
-	ubyte id_pin_key_local_global_or_key_session=0xFF/*None*/, ubyte algo=0xFF/*None, or infer*/, uba keyFile_RSA=null, uba iv=null) nothrow
+	ubyte id_pin_key_local_global_or_key_session=0xFF/*None*/, ubyte algo=0xFF/*None, or infer*/, uba keyFile_RSA=null, uba iv=null)
 {
 	uba result;
 
@@ -2365,7 +2361,7 @@ unittest {
 }
 
 
-private extern(C) int acos5_64_set_security_env(sc_card* card, const(sc_security_env)* env, int se_num) nothrow
+private extern(C) int acos5_64_set_security_env(sc_card* card, const(sc_security_env)* env, int se_num)
 {
 /*
 if env.operation==SC_SEC_OPERATION_SIGN then
@@ -2528,7 +2524,7 @@ err:
 }
 
 
-private extern(C) int acos5_64_decipher(sc_card* card, const(ubyte)* in_, /*in*/ size_t in_len, ubyte* out_, /*in*/ size_t out_len) nothrow
+private extern(C) int acos5_64_decipher(sc_card* card, const(ubyte)* in_, /*in*/ size_t in_len, ubyte* out_, /*in*/ size_t out_len)
 { // check in_len, out_len, they aren't constant any more, but treat them as if they are constant
 	assert(card != null && in_ != null && out_ != null);
 	sc_context* ctx = card.ctx;
@@ -2814,7 +2810,7 @@ unittest {
 
 
 
-private extern(C) int acos5_64_compute_signature(sc_card* card, const(ubyte)* in_, /*in*/ size_t in_len, ubyte* out_, /*in*/ size_t out_len) nothrow
+private extern(C) int acos5_64_compute_signature(sc_card* card, const(ubyte)* in_, /*in*/ size_t in_len, ubyte* out_, /*in*/ size_t out_len)
 { // check in_len, out_len, they aren't constant any more, but treat them as if they are constant
 	// we got a SHA-512 hash value and this function can not deal with that. Hopefully, the prkey is allowed to decrypt as well, as we will delegate to acos5_64_decipher (raw RSA)
 	// There is a signing test, which pads properly, but has no digestinfo(no hash). If the key is capable to decipher as well, we can delegate to acos5_64_decipher. Let's try it.
@@ -3050,7 +3046,7 @@ version(Posix) {
 }
 
 
-private extern(C) int acos5_64_list_files(sc_card* card, ubyte* buf, size_t buflen) nothrow
+private extern(C) int acos5_64_list_files(sc_card* card, ubyte* buf, size_t buflen)
 {
   sc_apdu apdu;
   int rv;
@@ -3106,7 +3102,7 @@ private extern(C) int acos5_64_list_files(sc_card* card, ubyte* buf, size_t bufl
 	return  rv=cast(int)(bufp - buf);
 }
 
-private extern(C) int acos5_64_check_sw(sc_card *card, uint sw1, uint sw2) nothrow
+private extern(C) int acos5_64_check_sw(sc_card *card, uint sw1, uint sw2)
 {
 	int rv = SC_ERROR_UNKNOWN;
 	sc_context* ctx = card.ctx;
@@ -3137,7 +3133,7 @@ struct acos5_64_se_info {
 	uint                       magic;
 }
 
-private int acos5_64_se_set_cached_info(sc_card* card, acos5_64_se_info* se) nothrow {
+private int acos5_64_se_set_cached_info(sc_card* card, acos5_64_se_info* se) {
 	sc_context* ctx = card.ctx;
 	int rv = SC_SUCCESS;
 	mixin (log!(`"acos5_64_se_set_cached_info"`, `"called"`));
@@ -3168,7 +3164,7 @@ private int acos5_64_se_set_cached_info(sc_card* card, acos5_64_se_info* se) not
 }
 
 
-private int acos5_64_se_get_cached_info(sc_card* card, acos5_64_se_info* se) nothrow {
+private int acos5_64_se_get_cached_info(sc_card* card, acos5_64_se_info* se) {
 	sc_context* ctx = card.ctx;
 	int rv = SC_SUCCESS;
 	if (se==null)
@@ -3197,7 +3193,7 @@ private int acos5_64_se_get_cached_info(sc_card* card, acos5_64_se_info* se) not
 	return rv;
 }
 
-private int acos5_64_se_get_info(sc_card* card, acos5_64_se_info* se) nothrow {
+private int acos5_64_se_get_info(sc_card* card, acos5_64_se_info* se) {
 	sc_context* ctx = card.ctx;
 	int rv = SC_SUCCESS;//SC_ERROR_UNKNOWN;
 	if (!se || se.reference<=0 || se.reference > 0x0E )
@@ -3209,7 +3205,7 @@ private int acos5_64_se_get_info(sc_card* card, acos5_64_se_info* se) nothrow {
 }
 
 
-private int acos5_64_se_get_reference(sc_card* card, int se_reference, sc_crt search_template) nothrow {
+private int acos5_64_se_get_reference(sc_card* card, int se_reference, sc_crt search_template) {
 /*
 	search_template  = { CRT_TAG.AT, 0x08 }; // 'USER PASSWORD' authentication  search/result template
 	search_template  = { CRT_TAG.AT, 0x80 }; // 'SYMMETRIC KEY' authentication  search/result template
@@ -3287,7 +3283,7 @@ private int acos5_64_se_get_reference(sc_card* card, int se_reference, sc_crt se
  *
  * TODO: wait for GET_CARD_INFO generic cardctl to be implemented in opensc
  */
-private extern(C) int acos5_64_card_ctl(sc_card* card, c_ulong request, void* data) nothrow {
+private extern(C) int acos5_64_card_ctl(sc_card* card, c_ulong request, void* data) {
 	if (card == null || card.ctx == null)
 		return SC_ERROR_INVALID_ARGUMENTS;
 	sc_context* ctx = card.ctx;
@@ -3318,10 +3314,7 @@ private extern(C) int acos5_64_card_ctl(sc_card* card, c_ulong request, void* da
 				}
 //				do_zeroize_token       = true; // CHANGE_HERE_FOR_REINIT : remove leading //
 //				do____initialize_token = true; // CHANGE_HERE_FOR_REINIT : remove leading //
-				try
-					return rv=re_initialize_token(card, so_pin[0..so_pin_len], label);
-				catch (Exception e) { rv = SC_ERROR_INTERNAL; }
-				return rv;
+				return rv=re_initialize_token(card, so_pin[0..so_pin_len], label);
 			}
 
 		case SC_CARDCTL_PKCS11_INIT_PIN:
@@ -3376,7 +3369,7 @@ private extern(C) int acos5_64_card_ctl(sc_card* card, c_ulong request, void* da
  * Bits 0,1,2 may have different meaning depending on file type, from bits 3 to 6/7 (unused) meanings are the same for all file types
  * Maybe later integrate this in acos5_64_process_fci
  */
-int read_8C_SAC_Bytes_to_ub8SC(out ub8 SC, in uba _8C_SAC_Bytes) nothrow {
+int read_8C_SAC_Bytes_to_ub8SC(out ub8 SC, in uba _8C_SAC_Bytes) {
 	import core.bitop : popcnt; //, _popcnt; : GDC doesn't know _popcnt //	import core.cpuid : hasPopcnt;
 	int  rv;
 	try {
@@ -3425,7 +3418,7 @@ unittest {
 }
 
 
-private int process_fci_sac_se(sc_card* card, in uba fci_carrier, cache_current_df_se_info* info_out, bool enveloped=false, bool skip_seid_retrieval=false, bool sacNONE=false/*, bool append=false*/) nothrow {
+private int process_fci_sac_se(sc_card* card, in uba fci_carrier, cache_current_df_se_info* info_out, bool enveloped=false, bool skip_seid_retrieval=false, bool sacNONE=false/*, bool append=false*/) {
 	sc_context*      ctx = card.ctx;
 	const(ubyte)*    tag;
 	size_t           taglen;
@@ -3560,7 +3553,7 @@ private int process_fci_sac_se(sc_card* card, in uba fci_carrier, cache_current_
 }
 
 
-private extern(C) int acos5_64_process_fci(sc_card* card, sc_file* file, const(ubyte)* buf, size_t buflen) nothrow
+private extern(C) int acos5_64_process_fci(sc_card* card, sc_file* file, const(ubyte)* buf, size_t buflen)
 {
 	const(ubyte)* tag;
 	size_t        taglen;
@@ -3648,7 +3641,7 @@ private extern(C) int acos5_64_process_fci(sc_card* card, sc_file* file, const(u
 } // acos5_64_process_fci
 
 
-private extern(C) int acos5_64_pin_cmd(sc_card *card, sc_pin_cmd_data *data, int *tries_left) nothrow {
+private extern(C) int acos5_64_pin_cmd(sc_card *card, sc_pin_cmd_data *data, int *tries_left) {
 	sc_context* ctx = card.ctx;
 	int rv;
 	sc_apdu apdu;
@@ -3677,7 +3670,7 @@ private extern(C) int acos5_64_pin_cmd(sc_card *card, sc_pin_cmd_data *data, int
 		/* 'AUT' key is the transport PIN and should have reference '0' */
 			rv = (data.pin_reference ? SC_ERROR_INVALID_ARGUMENTS : iso_ops_ptr.pin_cmd(card, data, tries_left));
 			break;
-		case SC_AC_NONE, SC_AC_UNKNOWN, SC_AC_NEVER, SC_AC_TERM, SC_AC_PRO, SC_AC_SYMBOLIC, SC_AC_SEN, SC_AC_SCB, SC_AC_IDA /*, SC_AC_SESSION*/:
+		case SC_AC_NONE, SC_AC_UNKNOWN, SC_AC_NEVER, SC_AC_TERM, SC_AC_PRO, SC_AC_SYMBOLIC, SC_AC_SEN, SC_AC_SCB, SC_AC_IDA:
 			rv = SC_ERROR_INVALID_ARGUMENTS;
 			break;
 		}
@@ -3698,15 +3691,12 @@ private extern(C) int acos5_64_pin_cmd(sc_card *card, sc_pin_cmd_data *data, int
 	case SC_PIN_CMD_GET_INFO: /*3*/
 		rv = acos5_64_pin_get_policy(card, data);//iasecc_pin_get_policy(card, data);
 		break;
-//	case SC_PIN_CMD_GET_SESSION_PIN: /*4*/
-//		rv = SC_ERROR_INS_NOT_SUPPORTED;
-//		break;
 	}
 
 	return rv;
 }
 
-private int acos5_64_pin_get_policy(sc_card *card, sc_pin_cmd_data *data) nothrow
+private int acos5_64_pin_get_policy(sc_card *card, sc_pin_cmd_data *data)
 {
 	sc_context* ctx = card.ctx;
 	int rv;
@@ -3743,7 +3733,7 @@ private int acos5_64_pin_get_policy(sc_card *card, sc_pin_cmd_data *data) nothro
 	return rv;
 }
 
-private int acos5_64_pin_change(sc_card *card, sc_pin_cmd_data *data, int *tries_left) nothrow
+private int acos5_64_pin_change(sc_card *card, sc_pin_cmd_data *data, int *tries_left)
 {
 	sc_context* ctx = card.ctx;
 	sc_apdu apdu;
@@ -3802,7 +3792,7 @@ private int acos5_64_pin_change(sc_card *card, sc_pin_cmd_data *data, int *tries
 	return rv;
 }
 
-private int acos5_64_pin_unblock_change(sc_card *card, sc_pin_cmd_data *data, int *tries_left) nothrow
+private int acos5_64_pin_unblock_change(sc_card *card, sc_pin_cmd_data *data, int *tries_left)
 {
 	sc_context* ctx = card.ctx;
 	sc_apdu apdu;
@@ -3857,7 +3847,7 @@ private int acos5_64_pin_unblock_change(sc_card *card, sc_pin_cmd_data *data, in
 
 
 private extern(C) int acos5_64_read_public_key(sc_card* card, uint algorithm, sc_path* path,
-	uint key_reference, uint modulus_length, ubyte** response, size_t* responselen) nothrow
+	uint key_reference, uint modulus_length, ubyte** response, size_t* responselen)
 {
 	sc_pkcs15_pubkey_rsa  rsa_key;
 	sc_apdu               apdu;
@@ -3929,7 +3919,7 @@ private extern(C) int acos5_64_read_public_key(sc_card* card, uint algorithm, sc
 } // acos5_64_read_public_key
 
 
-private int missingExport_sc_pkcs1_strip_01_padding(sc_context* ctx, const(ubyte)* in_dat, size_t in_len, ubyte* out_, size_t* out_len) nothrow
+private int missingExport_sc_pkcs1_strip_01_padding(sc_context* ctx, const(ubyte)* in_dat, size_t in_len, ubyte* out_, size_t* out_len)
 {
 	const(ubyte)* tmp = in_dat;
 	size_t    len;
@@ -3962,7 +3952,7 @@ private int missingExport_sc_pkcs1_strip_01_padding(sc_context* ctx, const(ubyte
 
 
 /* remove pkcs1 BT02 padding (adding BT02 padding is currently not needed/implemented) */
-private int missingExport_sc_pkcs1_strip_02_padding(sc_context* ctx, const(ubyte)* data, size_t len, ubyte* out_, size_t* out_len) nothrow
+private int missingExport_sc_pkcs1_strip_02_padding(sc_context* ctx, const(ubyte)* data, size_t len, ubyte* out_, size_t* out_len)
 {
 	uint	n = 0;
 
@@ -3999,7 +3989,7 @@ private int missingExport_sc_pkcs1_strip_02_padding(sc_context* ctx, const(ubyte
 }
 
 
-private extern(C) int acos5_64_pkcs15_init_card(sc_profile* profile, sc_pkcs15_card* p15card) nothrow
+private extern(C) int acos5_64_pkcs15_init_card(sc_profile* profile, sc_pkcs15_card* p15card)
 {
 	sc_context* ctx = p15card.card.ctx;
 	int rv = SC_ERROR_UNKNOWN;
@@ -4025,7 +4015,7 @@ private extern(C) int acos5_64_pkcs15_init_card(sc_profile* profile, sc_pkcs15_c
 	return rv;
 }
 
-private extern(C) int acos5_64_pkcs15_select_pin_reference(sc_profile*, sc_pkcs15_card* p15card, sc_pkcs15_auth_info*) nothrow
+private extern(C) int acos5_64_pkcs15_select_pin_reference(sc_profile*, sc_pkcs15_card* p15card, sc_pkcs15_auth_info*)
 {
 	sc_context* ctx = p15card.card.ctx;
 	int rv = SC_SUCCESS;
@@ -4070,7 +4060,7 @@ private extern(C) int acos5_64_pkcs15_select_key_reference(sc_profile*, sc_pkcs1
 }
 
 /* Generate the private key on card */
-private extern(C) int acos5_64_pkcs15_create_key(sc_profile*, sc_pkcs15_card* p15card, sc_pkcs15_object*) nothrow
+private extern(C) int acos5_64_pkcs15_create_key(sc_profile*, sc_pkcs15_card* p15card, sc_pkcs15_object*)
 { // does nothing !!!
 	sc_context* ctx = p15card.card.ctx;
 	int rv = SC_SUCCESS;
@@ -4085,7 +4075,7 @@ private extern(C) int acos5_64_pkcs15_create_key(sc_profile*, sc_pkcs15_card* p1
 
 private extern(C) int acos5_64_pkcs15_store_key(sc_profile*, sc_pkcs15_card* p15card,
 			sc_pkcs15_object*,
-			sc_pkcs15_prkey*) nothrow
+			sc_pkcs15_prkey*)
 {
 	sc_context* ctx = p15card.card.ctx;
 	int rv = SC_SUCCESS;
@@ -4121,7 +4111,7 @@ unittest {
 }
 
 
-private extern(C) int acos5_64_pkcs15_generate_key(sc_profile* profile, sc_pkcs15_card* p15card, sc_pkcs15_object* p15object, sc_pkcs15_pubkey* p15pubkey) nothrow
+private extern(C) int acos5_64_pkcs15_generate_key(sc_profile* profile, sc_pkcs15_card* p15card, sc_pkcs15_object* p15object, sc_pkcs15_pubkey* p15pubkey)
 {
 	sc_card* card   = p15card.card;
 	sc_context* ctx = card.ctx;
@@ -4304,7 +4294,7 @@ private extern(C) int acos5_64_pkcs15_generate_key(sc_profile* profile, sc_pkcs1
  */
 private extern(C) int acos5_64_pkcs15_encode_private_key(sc_profile* profile, sc_card* card,
 				sc_pkcs15_prkey_rsa*,
-				ubyte* , size_t*, int) nothrow {
+				ubyte* , size_t*, int) {
 	sc_context* ctx = card.ctx;
 	int rv = SC_SUCCESS;
 	mixin (log!(q{"acos5_64_pkcs15_encode_private_key"}, q{"called"}));
@@ -4318,7 +4308,7 @@ private extern(C) int acos5_64_pkcs15_encode_private_key(sc_profile* profile, sc
 
 private extern(C) int acos5_64_pkcs15_encode_public_key(sc_profile* profile, sc_card* card,
 				sc_pkcs15_prkey_rsa*,
-				ubyte* , size_t*, int) nothrow {
+				ubyte* , size_t*, int) {
 	sc_context* ctx = card.ctx;
 	int rv = SC_SUCCESS;
 	mixin (log!(q{"acos5_64_pkcs15_encode_public_key"}, q{"called"}));
@@ -4331,7 +4321,7 @@ private extern(C) int acos5_64_pkcs15_encode_public_key(sc_profile* profile, sc_
 }
 
 private extern(C) int acos5_64_pkcs15_delete_object(sc_profile* profile, sc_pkcs15_card* p15card,
-			sc_pkcs15_object*, const(sc_path)* path) nothrow {
+			sc_pkcs15_object*, const(sc_path)* path) {
 	sc_context* ctx = p15card.card.ctx;
 	int rv = SC_SUCCESS;
 	mixin (log!(q{"acos5_64_pkcs15_delete_object"}, q{"called"}));
@@ -4342,7 +4332,7 @@ private extern(C) int acos5_64_pkcs15_delete_object(sc_profile* profile, sc_pkcs
 }
 
 private extern(C) int acos5_64_pkcs15_emu_store_data(sc_pkcs15_card* p15card, sc_profile* profile, sc_pkcs15_object*,
-				sc_pkcs15_der*, sc_path*) nothrow {
+				sc_pkcs15_der*, sc_path*) {
 	sc_context* ctx = p15card.card.ctx;
 	int rv = SC_SUCCESS;
 	mixin (log!(`"acos5_64_pkcs15_emu_store_data"`, `"called"`));
@@ -4357,7 +4347,7 @@ private extern(C) int acos5_64_pkcs15_emu_store_data(sc_pkcs15_card* p15card, sc
 /**
  * There are a lot of checks that might be tought of as reasonable
 */
-private extern(C) int acos5_64_pkcs15_sanity_check(sc_profile* profile, sc_pkcs15_card* p15card) nothrow {
+private extern(C) int acos5_64_pkcs15_sanity_check(sc_profile* profile, sc_pkcs15_card* p15card) {
 	sc_context* ctx = p15card.card.ctx;
 	int rv = SC_SUCCESS;
 	mixin (log!(q{"acos5_64_pkcs15_sanity_check"}, q{"called"}));
@@ -4403,7 +4393,7 @@ immutable(reinit_entry[])  E0_entries;
 immutable(reinit_entry[])  A444DC_entries;
 
 
-private int re_initialize_token(sc_card* card, in uba so_pin, const(char)* label) /*nothrow*/ {
+private int re_initialize_token(sc_card* card, in uba so_pin, const(char)* label) {
 /* currently, re_initialize_token doesn't process label ! Later, label will be stored in file 4100 5032 */
 	import std.string : toStringz, fromStringz, stripRight;
 	sc_context* ctx = card.ctx;
@@ -4604,7 +4594,7 @@ private int re_initialize_token(sc_card* card, in uba so_pin, const(char)* label
 } // re_initialize_token
 
 
-immutable(reinit_entry[]) get_Zeroize8030_entries(sc_card* card, in uba so_pin) nothrow {
+immutable(reinit_entry[]) get_Zeroize8030_entries(sc_card* card, in uba so_pin) {
 	reinit_entry[] result = [
 		reinit_entry(SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  4100"), representation(x"61 32"), TriBool.no), //  DF(PKCS #15) 4100
 		reinit_entry(SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_3_SHORT,  7, representation(x"00 A4 00 00 02  4129"), representation(x"61 20"), TriBool.no),
@@ -4644,7 +4634,7 @@ EEPROM Key Error Counter															0xC1A0											0,2										0xFF
 +/
 }
 
-immutable(reinit_entry[]) get_E0_entries() nothrow {
+immutable(reinit_entry[]) get_E0_entries() {
 /*                                                                                                                            FDB==0x?? 38/3F           01/02/04/06/0A						09/0C							1C
                                                                                                                                         DF/MF					 	EF_CHV										Key File					SE File
 
@@ -4692,7 +4682,7 @@ immutable(reinit_entry[]) get_E0_entries() nothrow {
 	return assumeUnique(result);
 }
 
-immutable(reinit_entry[]) get_A444DC_entries(sc_card* card, in uba so_pin, const(char)* label) nothrow { // (use after creation commands E0)
+immutable(reinit_entry[]) get_A444DC_entries(sc_card* card, in uba so_pin, const(char)* label) { // (use after creation commands E0)
 	reinit_entry[] result = [
 /* */
 		reinit_entry(2,3, 7, representation(x"00 A4 00 00 02  3F00"), representation(x"61 22"), TriBool.unknown),
@@ -4821,13 +4811,13 @@ uba /* <-OctetStringBigEndian*/ integral2ub(uint storage_bytes)(size_t integral)
 Most often, the byte stream has to be interpreted as big-endian (The most significant byte (MSB) value, is at the lowest address (position in stream). The other bytes follow in decreasing order of significance)
 currently used in new_file and unittest only
 */
-ushort ub22integral(in uba ub2) nothrow { // formerly ub22integralLastTwo
+ushort ub22integral(in uba ub2) { // formerly ub22integralLastTwo
 	if (ub2.length!=2)
 		return 0;
 	return  (ub2[0] << 8) | ub2[1];
 }
 
-uba TokenInfoLabel_default(sc_card* card) nothrow {
+uba TokenInfoLabel_default(sc_card* card) {
 	uba result;
 	result = (card.type==SC_CARD_TYPE_ACOS5_64_V2? representation("CryptoMate64_") : representation("CryptoMateNano_")).dup;
 	foreach (b; card.serialnr.value[0..8]) { // 80 DD 00 5B A1 0A 65 00
@@ -5535,7 +5525,7 @@ else {
 }
 }
 
-private extern(C) int sm_acos5_64_card_open(sc_card* card) nothrow {
+private extern(C) int sm_acos5_64_card_open(sc_card* card) {
 /* used only once after init to test SM; will finally switch to mode acl */
 	sc_context*      ctx = card.ctx;
 	sc_remote_apdu*  rapdu;
@@ -5703,7 +5693,7 @@ else
 }
 
 
-private extern(C) int sm_acos5_64_card_close(sc_card* card) nothrow {
+private extern(C) int sm_acos5_64_card_close(sc_card* card) {
 	sc_context* ctx = card.ctx;
 	int rv = SC_SUCCESS;
 	mixin (log!(`"sm_acos5_64_card_close"`, `"called"`));
@@ -5713,7 +5703,7 @@ private extern(C) int sm_acos5_64_card_close(sc_card* card) nothrow {
 	return rv;
 }
 
-private extern(C) int sm_acos5_64_card_get_apdu (sc_card* card, sc_apdu* apdu, sc_apdu** sm_apdu) nothrow {
+private extern(C) int sm_acos5_64_card_get_apdu (sc_card* card, sc_apdu* apdu, sc_apdu** sm_apdu) {
 	sc_context* ctx = card.ctx;
 	int rv = SC_ERROR_SM_NOT_APPLIED; // this is no error !
 	mixin (log!(`"sm_acos5_64_card_get_apdu"`, `"called"`));
@@ -5723,7 +5713,7 @@ private extern(C) int sm_acos5_64_card_get_apdu (sc_card* card, sc_apdu* apdu, s
 	return rv;
 }
 
-private extern(C) int sm_acos5_64_card_free_apdu(sc_card* card, sc_apdu* apdu, sc_apdu** sm_apdu) nothrow {
+private extern(C) int sm_acos5_64_card_free_apdu(sc_card* card, sc_apdu* apdu, sc_apdu** sm_apdu) {
 	return 0;
 }
 
@@ -6139,7 +6129,7 @@ private int util_connect_card(sc_context* ctx, sc_card** cardp, const(char)* rea
 				uint num;
 
 				errno = 0;
-				num = cast(uint)strtol(reader_id, null/*&endptr*/, 0); // &endptr doesn't work since 2.0.74
+				num = cast(uint)strtol(reader_id, null/*&endptr*/, 0);
 				if (!errno && endptr && *endptr == '\0')
 					reader = sc_ctx_get_reader(ctx, num);
 				else
@@ -6490,11 +6480,11 @@ version(TRY_SM_MORE) {
 } // unittest
 } // version(ENABLED_DEBUG_FILE)
 
-private int acos5_64_crt_parse(sc_card* card,   in ubyte[] data, acos5_64_se_info* se) nothrow {
+private int acos5_64_crt_parse(sc_card* card,   in ubyte[] data, acos5_64_se_info* se) {
 	return acos5_64_crt_parse(card.ctx, data, se);
 }
 
-private int acos5_64_crt_parse(sc_context* ctx, in ubyte[] data, acos5_64_se_info* se) nothrow
+private int acos5_64_crt_parse(sc_context* ctx, in ubyte[] data, acos5_64_se_info* se)
 { // changed copy from libopensc/iasecc-sdo.c:iasecc_crt_parse; *data e.g.  A4 06 83 01 81 95 01 08
 	// might be enhanced by checking with aa_* infos
 	int          jj;
@@ -6572,7 +6562,7 @@ private int acos5_64_crt_parse(sc_context* ctx, in ubyte[] data, acos5_64_se_inf
 }
 
 
-ubyte TAG_FCP_len (ISO7816_TAG_FCP_  tag) nothrow { // for those with varying length and known max it returns the max. length, otherwise 0
+ubyte TAG_FCP_len (ISO7816_TAG_FCP_  tag) { // for those with varying length and known max it returns the max. length, otherwise 0
 	final switch (tag) {
 		case ISO7816_TAG_FCP :             return 0;
 		case ISO7816_TAG_FCP_SIZE,                    // not to be included for the max(MF/DF) fold; seed:-4
@@ -6608,7 +6598,7 @@ ubyte TAG_FCP_len (ISO7816_TAG_FCP_  tag) nothrow { // for those with varying le
 		AB 00
 */
 
-ubyte TAG_FCP_len (ISO7816_RFU_TAG_FCP_  tag) nothrow { // for those with varying length and known max it returns the max. length, otherwise 0
+ubyte TAG_FCP_len (ISO7816_RFU_TAG_FCP_  tag) { // for those with varying length and known max it returns the max. length, otherwise 0
 	final switch (tag) {
 		case ISO7816_RFU_TAG_FCP_SFI:      return 1;
 		case ISO7816_RFU_TAG_FCP_SAC:      return 8;
@@ -6617,7 +6607,7 @@ ubyte TAG_FCP_len (ISO7816_RFU_TAG_FCP_  tag) nothrow { // for those with varyin
 	}
 }
 
-private int new_file(sc_profile* profile, sc_pkcs15_card* p15card, sc_pkcs15_object* p15object, uint otype, sc_file** out_) nothrow
+private int new_file(sc_profile* profile, sc_pkcs15_card* p15card, sc_pkcs15_object* p15object, uint otype, sc_file** out_)
 {
 	sc_card* card   = p15card.card;
 	sc_context* ctx = p15card.card.ctx;
@@ -6696,7 +6686,7 @@ private int new_file(sc_profile* profile, sc_pkcs15_card* p15card, sc_pkcs15_obj
 	return rv=SC_SUCCESS;
 } // new_file
 
-private extern(C) int acos5_64_delete_file(sc_card* card, const(sc_path)* path) nothrow {
+private extern(C) int acos5_64_delete_file(sc_card* card, const(sc_path)* path) {
 	sc_context* ctx = card.ctx;
 	int rv = SC_ERROR_UNKNOWN;
 	mixin (log!(`"acos5_64_delete_file"`, `"called"`));
@@ -6715,7 +6705,7 @@ private extern(C) int acos5_64_delete_file(sc_card* card, const(sc_path)* path) 
 }
 
 /* this is limited currently to serve acos5_64_pkcs15_generate_key */
-private extern(C) int acos5_64_construct_fci(sc_card* card, const(sc_file)* file, ubyte* out_, size_t* outlen) nothrow {
+private extern(C) int acos5_64_construct_fci(sc_card* card, const(sc_file)* file, ubyte* out_, size_t* outlen) {
 	*outlen = 30;
 	if      ((file.id >>> 4) == 0x41F) { //            4                           12
 		out_[0..*outlen] = representation(x"62 1C 83 02  41F1  82 02  09  00   80 02 05 15 88 01 00 8A 01 05 8C 08 7F 01 FF 00 01 01 01 FF").dup;
