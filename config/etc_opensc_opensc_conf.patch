@@ -11,7 +11,7 @@
 @@ -20,6 +21,7 @@
  	# Default: stderr
  	#
- 	# debug_file = @DEBUG_FILE@
+ 	# debug_file = /tmp/opensc-debug.log
 +	  debug_file = /tmp/opensc-debug.log;
  
  	# Reopen debug file at the every debug message.
@@ -34,7 +34,7 @@
  
  	# For card drivers loaded from an external shared library/DLL,
 @@ -165,6 +177,13 @@
- 		# module = @LIBDIR@@LIB_PRE@card_customcos@DYN_LIB_EXT@;
+ 		# module = /usr/lib/libcard_customcos.so;
  	# }
  
 +	card_driver acos5_64 {
@@ -111,7 +111,7 @@
  		# name of external SM module
  		# module_name = @DEFAULT_SM_MODULE@;
 @@ -978,6 +1053,12 @@
- 			# module = @LIBDIR@@LIB_PRE@p15emu_custom@DYN_LIB_EXT@;
+ 			# module = /usr/lib/libp15emu_custom.so;
  		# }
  
 +		pkcs15init acos5_64 {
