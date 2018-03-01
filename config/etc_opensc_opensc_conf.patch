@@ -1,5 +1,5 @@
---- /home/bodo/git/OpenSC/etc/opensc.conf.in	2018-02-28 11:16:51.427373624 +0100
-+++ /etc/opensc/opensc_temp.conf	2018-03-01 13:00:41.070468407 +0100
+--- /home/bodo/git/OpenSC/etc/opensc.conf.in	2018-03-01 15:46:28.926585147 +0100
++++ /etc/opensc/opensc_temp.conf	2018-03-01 15:38:54.745936242 +0100
 @@ -13,6 +13,7 @@
  	# Default: 0
  	#
@@ -16,10 +16,13 @@
  
  	# Reopen debug file at the every debug message.
  	#
-@@ -155,6 +157,16 @@
+@@ -153,7 +155,17 @@
+ 	# Default: internal
+ 	# NOTE: When "internal" keyword is used, must be last entry
  	#
- 	# card_drivers = customcos, internal;
- 
+-	#card_drivers = customcos, internal;
++	# card_drivers = old, internal;
++
 +	# NOTE: the driver acos5 (included in internal; it's for ACOS5-32 but claims to serve ACOS5-64 as well) must be
 +	#       avoided, either by this setting, or by e.g. force_card_driver=acos5_64,
 +	#       or by other settings (ignored_readers doesn't seem to work as expected);
@@ -29,25 +32,25 @@
 +	#       but the dummy default driver (as set below). 
 +	#       Later, if other cards/token than acos5_64 shall be served by opensc as well, replace default by internal
 +	card_drivers = acos5_64, default;
-+
+ 
  	# Card driver configuration blocks.
  
- 	# For card drivers loaded from an external shared library/DLL,
-@@ -165,6 +177,13 @@
- 		# module = /usr/lib/libcard_customcos.so;
- 	# }
+@@ -197,6 +209,14 @@
+ 	#
+ 	# force_card_driver = customcos;
  
 +	card_driver acos5_64 {
 +		# The (/path/to/) filename of the driver library. /path/to/ is dispensable if it's in a 'standard search path'
 +		module = $TRAVIS_BUILD_DIR/lib/libacos5_64.so;
 +		# Params for the Graph. User Interface app 'Consent for signing' (currently Linux only, deactivated)
++		# Only used if compiled with ENABLE_ACOS5_64_UI
 +		popup_user_consent_app = /usr/bin/pinentry;
 +	}
 +
- 	card_driver npa {
- 		# German ID card requires the CAN to be verified before QES PIN. This,
- 		# however, is not part of the PKCS#15 profile of the card. So for
-@@ -823,6 +842,62 @@
+ 	# Configuration block for DNIe
+ 	#
+ 	# Card DNIe has an option to show an extra warning before
+@@ -823,6 +843,62 @@
  		notify_pin_bad_text = "GoID ist gesperrt";
  	}
  
@@ -109,9 +112,13 @@
 +
  	secure_messaging local_authentic  {
  		# name of external SM module
- 		# module_name = @DEFAULT_SM_MODULE@;
-@@ -978,6 +1053,12 @@
- 			# module = /usr/lib/libp15emu_custom.so;
+ 		# module_name = libsmm-local.so;
+@@ -975,9 +1051,15 @@
+ 		#
+ 		# emulate custom {
+ 			# The location of the driver library
+-			# module = @LIBDIR@@LIB_PRE@p15emu_custom@DYN_LIB_EXT@;
++			# module = /usr/lib/libp15emu_custom.so;
  		# }
  
 +		pkcs15init acos5_64 {

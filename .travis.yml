@@ -16,7 +16,7 @@ script:
   - dub build --build=release --compiler=$DC
   - sudo cp lib/libacos5_64.so /usr/lib
   - sudo ldconfig
-  - sudo patch -u -b /etc/opensc/opensc.conf config/etc_opensc_opensc_conf.patch
+  - sudo patch -u -b /etc/opensc/opensc.conf config/etc_opensc_opensc_conf.patch || cat /etc/opensc/opensc.conf.rej
   - diff /etc/opensc/opensc.conf.orig /etc/opensc/opensc.conf || true
   - opensc-tool -D
   - dub test  --compiler=$DC
