@@ -18,7 +18,7 @@
  	#
 @@ -155,6 +157,16 @@
  	#
- 	#card_drivers = old, internal;
+ 	# card_drivers = customcos, internal;
  
 +	# NOTE: the driver acos5 (included in internal; it's for ACOS5-32 but claims to serve ACOS5-64 as well) must be
 +	#       avoided, either by this setting, or by e.g. force_card_driver=acos5_64,
