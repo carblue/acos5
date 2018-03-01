@@ -1,0 +1,125 @@
+--- /home/bodo/git/OpenSC/etc/opensc.conf.in	2018-02-28 11:16:51.427373624 +0100
++++ /etc/opensc/opensc_temp.conf	2018-03-01 13:00:41.070468407 +0100
+@@ -13,6 +13,7 @@
+ 	# Default: 0
+ 	#
+ 	#debug = 3;
++	 debug = 3;
+ 
+ 	# The file to which debug output will be written
+ 	#
+@@ -20,6 +21,7 @@
+ 	# Default: stderr
+ 	#
+ 	# debug_file = @DEBUG_FILE@
++	  debug_file = /tmp/opensc-debug.log;
+ 
+ 	# Reopen debug file at the every debug message.
+ 	#
+@@ -155,6 +157,16 @@
+ 	#
+ 	#card_drivers = old, internal;
+ 
++	# NOTE: the driver acos5 (included in internal; it's for ACOS5-32 but claims to serve ACOS5-64 as well) must be
++	#       avoided, either by this setting, or by e.g. force_card_driver=acos5_64,
++	#       or by other settings (ignored_readers doesn't seem to work as expected);
++	#       The default driver isn't very useful and won't be used unless the external module acos5_64 get's unloaded
++	#       unexpectedly, yet You will notice that instead of going on with a wrong driver acos5 !
++	#       In the beginning, to test that acos5_64 is well configured, start with excluding all internal drivers,
++	#       but the dummy default driver (as set below). 
++	#       Later, if other cards/token than acos5_64 shall be served by opensc as well, replace default by internal
++	card_drivers = acos5_64, default;
++
+ 	# Card driver configuration blocks.
+ 
+ 	# For card drivers loaded from an external shared library/DLL,
+@@ -165,6 +177,13 @@
+ 		# module = @LIBDIR@@LIB_PRE@card_customcos@DYN_LIB_EXT@;
+ 	# }
+ 
++	card_driver acos5_64 {
++		# The (/path/to/) filename of the driver library. /path/to/ is dispensable if it's in a 'standard search path'
++		module = $TRAVIS_BUILD_DIR/lib/libacos5_64.so;
++		# Params for the Graph. User Interface app 'Consent for signing' (currently Linux only, deactivated)
++		popup_user_consent_app = /usr/bin/pinentry;
++	}
++
+ 	card_driver npa {
+ 		# German ID card requires the CAN to be verified before QES PIN. This,
+ 		# however, is not part of the PKCS#15 profile of the card. So for
+@@ -823,6 +842,62 @@
+ 		notify_pin_bad_text = "GoID ist gesperrt";
+ 	}
+ 
++	# ACOS5-64 V2.00
++	card_atr 3B:BE:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00 {
++		type = 16003;
++		name = "ACS ACOS5-64 (v2.00: Smart Card/CryptoMate64)";
++		driver = "acos5_64";
++		secure_messaging = acos5_64_sm;
++	}
++
++	# ACOS5-64 V3.00
++	card_atr 3B:BE:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00 {
++		type = 16004;
++		name = "ACS ACOS5-64 (v3.00: Smart Card/CryptoMate Nano)";
++		driver = "acos5_64";
++		secure_messaging = acos5_64_sm;
++	}
++
++	secure_messaging acos5_64_sm  {
++		# name of external SM module
++		module_name = libacos5_64.so;
++		# directory with external SM module, required, if module_name isn't in an OS's 'standard search path'
++		module_path = $TRAVIS_BUILD_DIR/lib;
++
++		# specific data to tune the module initialization
++		# module_data = "Here can be your SM module init data";
++
++		# SM mode:
++		# 'transmit' -- in this mode the procedure to securize an APDU is called by the OpenSC general
++		#	       APDU transmit procedure.
++		#		In this mode all APDUs, except the ones filtered by the card specific procedure,
++		#	       are securized.
++		# 'acl' -- in this mode APDU are securized only if needed by the ACLs of the command to be executed.
++		#
++		mode = acl;
++
++		ifd_serial = "61:63:6F:73:35:5F:36:34";  # decoded to ASCII: acos5_64
++
++		# the key naming_41434F53504B43532D313576312E3030 (decoded to ASCII, len=len_max=16: ACOSPKCS-15v1.00)
++		# may have to be changed according to card/token application DF's file name.
++		# the key value, within quotes, colon (:) delimited hex encoding, MUST BE CHANGED INDIVIDUALLY IN ANY CASE,
++		# here and on card/token !!!
++		# using 24 byte instead of default 16 byte keys requires compiling the driver with this version identifier set:
++		# SESSIONKEYSIZE24
++		# The effective security level of 16 byte key is around 80 bits; 24 byte key effective security level is around 112 bits.
++		# keyset...enc is called key_card, keyset...mac is called key_host; key_card takes part in Internal Auth.
++		# and computation of key session_enc;
++		# key_host takes part in External Auth. and computation of key session_mac (key_host will be in state
++		# 'authenticated' after success of External Auth.)
++		# session keys: Block cipher modes of operation: ECB for generation of session keys, CBC for usage of
++		# session keys. cipher: Triple-DES-ede(3) only.
++		# keysets to select from: 
++		keyset_41434F53504B43532D313576312E3030_01_enc = "F1:01:02:13:04:85:16:07:08:49:A1:B0:C1:D0:E0:F1";
++		keyset_41434F53504B43532D313576312E3030_01_mac = "F1:E0:D0:C1:B0:A1:89:08:07:16:45:04:13:02:01:F1";
++		keyset_41434F53504B43532D313576312E3030_02_enc = "F1:01:02:13:04:85:16:07:08:49:A1:B0:C1:D0:E0:F1:45:89:B3:16:FE:94:37:C8";
++		keyset_41434F53504B43532D313576312E3030_02_mac = "F1:E0:D0:C1:B0:A1:89:08:07:16:45:04:13:02:01:F1:89:FE:B3:C8:37:45:16:94";
++	}
++
+ 	secure_messaging local_authentic  {
+ 		# name of external SM module
+ 		# module_name = @DEFAULT_SM_MODULE@;
+@@ -978,6 +1053,12 @@
+ 			# module = @LIBDIR@@LIB_PRE@p15emu_custom@DYN_LIB_EXT@;
+ 		# }
+ 
++		pkcs15init acos5_64 {
++			# The location of the driver library: /path/to/libacos5_64.so;
++			module = $TRAVIS_BUILD_DIR/lib/libacos5_64.so;
++			# function = "sc_pkcs15emu_acos5_64_init_ex";
++		}
++
+ 		# some additional application parameters:
+ 		# - type (generic, protected) used to distinguish the common access application
+ 		#   and application for which authentication to perform some operation cannot be

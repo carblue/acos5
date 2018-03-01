@@ -1,0 +1,42 @@
+How the accompanied patch file was generated:
+
+It's an edited diff of tarball's opensc.conf.in (actually from github, assuming it'll be the same for opensc-0.18.0)
+and the opensc.conf I'm using
+
+diff -u /path/to/opensc-0.18.0/etc/opensc.conf.in  /etc/opensc/opensc.conf > etc_opensc_opensc_conf.patch
+
+All removed from etc_opensc_opensc_conf.patch which is parameterized for OS/will be substituted depending on installation's OS
+All neutralized what are my individual settings, to more general/recommended ones
+
+How to apply:
+
+sudo patch -b  /etc/opensc/opensc.conf etc_opensc_opensc_conf.patch
+
+Do edit /etc/opensc/opensc.conf to Your needs/pathes (lines beginning with # are comments only), with special attention to:
+- debug = ?;
+- debug_file = ?;
+- card_drivers = acos5_64, ?;
+- disable_popups = ?;
+- profile_dir = ?;  # <- that's where later an acos5_64.profile will have to be placed
+- # The (/path/to/) filename of the driver library
+  module = ?;
+- # directory with external SM module
+  module_path = ?;  # module_path required, if module_name isn't in an OS's 'standard search path' for libs
+
+keyset_41434F53504B43532D313576312E3030_01_enc = ?; # 16 bytes for 2-key Triple-DES
+keyset_41434F53504B43532D313576312E3030_01_mac = ?; # 16 bytes for 2-key Triple-DES
+or
+keyset_41434F53504B43532D313576312E3030_02_enc = ?; # 24 bytes for 3-key Triple-DES
+keyset_41434F53504B43532D313576312E3030_02_mac = ?; # 24 bytes for 3-key Triple-DES
+- replace 41434F53504B43532D313576312E3030 (ascii: ACOSPKCS-15v1.00) in keyset_...  if Your application directory is
+  named differently.
+  Only either 16 byte or 24 byte keyset_..._enc and keyset_..._mac required; key length MUST match version identifier
+  SESSIONKEYSIZE24 set or not set.
+  Change the byte values after = (here and on card) to odd_parity bytes,  each block of 8 bytes being a different,
+  non-weak DES key; check the non-(semi)-weakness ! https://en.wikipedia.org/wiki/Weak_key.
+  These keys SHOULD NOT be used for encrypting/macing, except taking part in (on-the-fly-) generation of new session keys
+  for the aforementioned purposes.
+  But an adversary having access to opensc.conf AND access to the communication between driver and card CAN retrieve the
+  session keys and thus reveal SM-protected communication!
+  That's why I chainged opensc.conf's (and more) file permissions to be inaccessible for group 'other' and belonging to
+  group 'pcscd' (chown root:pcscd /etc/opensc/opensc.conf). Recommended after the testing period only !
