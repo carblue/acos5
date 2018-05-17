@@ -2,7 +2,7 @@
 	"name" : "acos5_64",
 	"description" : "ACS ACOS5-64/CryptoMate64/Nano driver/SM/PKCS#15 external module for the OpenSC framework",
 	"license": "LGPL-2.1",
-	"copyright": "Copyright © 2017, Carsten Blüggel",
+	"copyright": "Copyright © 2016-2018, Carsten Blüggel",
 	"authors": ["Carsten Blüggel"],
 	"homepage": "https://github.com/carblue/acos5_64",
 	"dependencies" : {
@@ -14,7 +14,6 @@
 	"targetName": "acos5_64",
 	"targetPath": "lib",
 	"targetType": "dynamicLibrary",
-	"buildRequirements" : ["disallowDeprecations"],
 
 	"dflags-posix-dmd": ["-defaultlib=libphobos2.so", "-mcpu=native"],
 	"dflags-posix-ldc": ["-defaultlib=:libphobos2-ldc.so,:libdruntime-ldc.so"],
