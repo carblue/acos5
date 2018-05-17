@@ -6,6 +6,15 @@
 
 ACS ACOS5-64/CryptoMate64/CryptoMateNano driver/SM/PKCS#15 external module for the OpenSC framework.<br>
 
+Linux binaries from recent sources are available at:<br>
+https://github.com/carblue/acos5_64_gui/tree/master/opensc_0.18.0<br>
+https://github.com/carblue/acos5_64_gui/tree/master/opensc_0.17.0<br>
+
+Releasing source code to anonymous recipients got discontinued since April 2017.<br>
+Thus part of what's here get's increasingly outdated.
+
+---
+
 Restricted to Non-FIPS/64K operation mode setting !<br>
 If the card/token is virgin from factory (no MF), it will be switched to Non-FIPS/64K mode and initialized (by any tool, that invokes acos5_64_init, e.g. opensc-tool --serial). Initial "CODES PINS" to be looked up in source code.<br>
 For tweaking init/reinit/zeroize card/token, search for CHANGE_HERE_FOR_  in source code.<br>
