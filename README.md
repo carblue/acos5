@@ -7,8 +7,7 @@
 ACS ACOS5-64/CryptoMate64/CryptoMateNano driver/SM/PKCS#15 external module for the OpenSC framework.<br>
 
 Linux binaries from recent sources are available at:<br>
-https://github.com/carblue/acos5_64_gui/tree/master/opensc_0.18.0<br>
-https://github.com/carblue/acos5_64_gui/tree/master/opensc_0.17.0<br>
+https://github.com/carblue/acos5_64_gui/tree/master/acos5_64_driver_and_acos5_64_gui_setup<br>
 
 Releasing source code to anonymous recipients got discontinued since April 2017.<br>
 Thus part of what's here get's increasingly outdated.
