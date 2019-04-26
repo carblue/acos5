@@ -1,4 +1,0 @@
-ACOS564_1.1 {
-  global: sc_driver_version; sc_module_init;  initialize; get_apdus; finalize; module_init; module_cleanup; test;  # explicitly list symbols to be exported
-  local: *;         # hide everything else
-};
