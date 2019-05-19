@@ -1,0 +1,15 @@
+[package]
+name = "acos5_64"
+version = "0.1.0"
+authors = ["carblue <bluecars@posteo.eu>"]
+edition = "2018"
+
+[dependencies]
+opensc-sys = { git = "https://github.com/carblue/opensc-sys" }
+
+[build-dependencies]
+pkg-config = "0.3"
+
+[lib]
+name = "acos5_64"
+crate-type = ["cdylib"]
