@@ -25,9 +25,11 @@ fn main() {
    6. Run cargo build -v -v and check that for both e.g. driver and opensc-sys, the changed OpenSC package version was used
    7. If that failed, remove directory target, deactivate the following match pkg_config... {...} code block and activate the required lines println!("cargo:rustc-...=... manually in all build.rs.
 */
-    match pkg_config::Config::new().atleast_version("0.17.0").probe("opensc") {
+    match pkg_config::Config::new().atleast_version("0.15.0").probe("opensc") {
         Ok(lib) => {
             match lib.version.as_str() {
+                "0.15.0" => println!("cargo:rustc-cfg=v0_15_0"),
+                "0.16.0" => println!("cargo:rustc-cfg=v0_16_0"),
                 "0.17.0" => println!("cargo:rustc-cfg=v0_17_0"),
                 "0.18.0" => println!("cargo:rustc-cfg=v0_18_0"),
                 "0.19.0" => println!("cargo:rustc-cfg=v0_19_0"),
