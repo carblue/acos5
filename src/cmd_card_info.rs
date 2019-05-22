@@ -25,7 +25,7 @@ use std::ffi::{/*CString,*/ CStr};
 
 use opensc_sys::opensc::{sc_transmit_apdu, sc_card, sc_bytes2apdu_wrapper};
 use opensc_sys::types::{/*sc_path, sc_file,*/ sc_apdu, sc_serial_number/*, SC_MAX_PATH_SIZE*/};
-use opensc_sys::log::{sc_do_log/*, sc_dump_hex*/, SC_LOG_DEBUG_NORMAL};
+use opensc_sys::log::{sc_do_log, SC_LOG_DEBUG_NORMAL};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_KEYPAD_MSG_TOO_LONG, SC_ERROR_FILE_NOT_FOUND};
 
 use crate::constants_types::*;

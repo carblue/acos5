@@ -21,6 +21,8 @@
 //extern crate bitintr;
 //use bitintr::Popcnt;
 
+//#![feature(const_fn)]
+
 use std::os::raw::{c_int, c_void, c_uint, c_uchar, c_ulong/*, c_uchar*/};
 use std::ffi::{/*CString,*/ CStr};
 
@@ -370,8 +372,7 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
     SC_SUCCESS
 }
 
-
-pub fn acos5_64_atrs_supported() -> [sc_atr_table; 3]
+pub /*const*/ fn acos5_64_atrs_supported() -> [sc_atr_table; 3]
 {
     let acos5_64_atrs: [sc_atr_table; 3] = [
         sc_atr_table {

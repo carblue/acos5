@@ -30,6 +30,7 @@
 #![allow(non_snake_case)]
 */
 
+//#![feature(const_fn)]
 
 extern crate opensc_sys;
 
@@ -56,7 +57,7 @@ use opensc_sys::opensc::{/*sc_get_version, sc_print_path, sc_path_set, sc_format
     SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_SEC_ENV_FILE_REF_PRESENT,
 
     SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK
-                         //, SC_ALGORITHM_RSA_PAD_PKCS1
+    //, SC_ALGORITHM_RSA_PAD_PKCS1
 };
 #[cfg(not(any(v0_15_0, v0_16_0)))]
 use opensc_sys::opensc::{SC_PIN_CMD_GET_SESSION_PIN};
@@ -90,6 +91,11 @@ use opensc_sys::errors::{/* SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKNOWN, */ sc_s
 use opensc_sys::internal::{_sc_card_add_rsa_alg};
 #[cfg(not(any(v0_15_0, v0_16_0)))]
 use opensc_sys::internal::{_sc_match_atr};
+/*  for feature(const_fn)
+#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0)))]
+use opensc_sys::internal::{sc_atr_table};
+*/
+
 use opensc_sys::log::{sc_do_log, sc_dump_hex, SC_LOG_DEBUG_NORMAL};
 use opensc_sys::cardctl::{SC_CARDCTL_GET_SERIALNR};
 use opensc_sys::asn1::{sc_asn1_find_tag/*, sc_asn1_skip_tag, sc_asn1_read_tag, sc_asn1_print_tags*/};
@@ -319,14 +325,20 @@ extern "C" fn acos5_64_match_card(card: *mut sc_card) -> c_int
     unsafe { sc_do_log(card_ref.ctx, SC_LOG_DEBUG_NORMAL, file_str.as_ptr(), line!() as i32, func.as_ptr(),
                        format.as_ptr(), sc_dump_hex(card_ref.atr.value.as_ptr(), card_ref.atr.len) ) };
 
+    #[cfg(any(v0_17_0, v0_18_0))]
     let mut acos5_64_atrs = acos5_64_atrs_supported();
+    #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0)))]
+//    const   acos5_64_atrs : [sc_atr_table; 3] = acos5_64_atrs_supported();
+    let     acos5_64_atrs = acos5_64_atrs_supported();
     /* check whether card.atr can be found in acos5_64_atrs_supported[i].atr, iff yes, then
        card.type_ will be set accordingly, but not before the successful return of match_card */
     let mut type_out : c_int = 0;
-    #[cfg(    any(v0_15_0, v0_16_0))]
-    let idx_acos5_64_atrs = -1; // no match, because: not callable/ not patched / not implemented
-    #[cfg(not(any(v0_15_0, v0_16_0)))]
-        let idx_acos5_64_atrs = unsafe { _sc_match_atr(card_ref_mut, (&mut acos5_64_atrs).as_mut_ptr(), &mut type_out) };
+    #[cfg(any(v0_15_0, v0_16_0))]
+    let idx_acos5_64_atrs = -1; // no match, because: _sc_match_atr is not callable: OpenSC not patched / not implemented
+    #[cfg(any(v0_17_0, v0_18_0))]
+    let idx_acos5_64_atrs = unsafe { _sc_match_atr(card_ref_mut, (&mut acos5_64_atrs).as_mut_ptr(), &mut type_out) };
+    #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0)))]
+    let idx_acos5_64_atrs = unsafe { _sc_match_atr(card_ref_mut, (   & acos5_64_atrs).as_ptr(),     &mut type_out) };
 ////    println!("idx_acos5_64_atrs: {}, card.type_: {}, type_out: {}, &card.atr.value[..19]: {:?}\n", idx_acos5_64_atrs, card_ref.type_, type_out, &card_ref.atr.value[..19]);
 
     card_ref_mut.type_ = 0;
@@ -493,16 +505,14 @@ what can we rely on, when this get's called:
 
     unsafe{sc_format_path(CStr::from_bytes_with_nul(b"3F00\0").unwrap().as_ptr(), &mut card_ref_mut.cache.current_path);} // type = SC_PATH_TYPE_PATH;
 
-    card_ref_mut.caps = SC_CARD_CAP_RNG |
-                        SC_CARD_CAP_USE_FCI_AC |
-                        /* SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH | */
-                        0 as c_ulong;
-
-//    if !cfg!(feature = "v0_15_0")
-//    #[cfg(not(v0_15_0))]
-//    card_ref_mut.caps |= SC_CARD_CAP_ISO7816_PIN_INFO;
-//    #[cfg(not(any(v0_15_0, v0_16_0)))]
-//    card_ref_mut.caps |= SC_CARD_CAP_SESSION_PIN;
+    /* possibly more SC_CARD_CAP_* apply, TODO clarify */
+    card_ref_mut.caps = SC_CARD_CAP_RNG | SC_CARD_CAP_USE_FCI_AC;
+    if cfg!(not(    v0_15_0))           { card_ref_mut.caps |=  SC_CARD_CAP_ISO7816_PIN_INFO; }
+    if cfg!(not(any(v0_15_0, v0_16_0))) { card_ref_mut.caps |=  SC_CARD_CAP_SESSION_PIN; }
+    /* card_ref_mut.caps |= SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH   what exactly is this? */ //#[cfg(not(any(v0_15_0, v0_16_0)))]
+    /* card_ref_mut.caps |= SC_CARD_CAP_ONCARD_SESSION_OBJECTS          what exactly is this? */ //#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+    /* card_ref_mut.caps |= SC_CARD_CAP_WRAP_KEY */    //#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+    /* card_ref_mut.caps |= SC_CARD_CAP_UNWRAP_KEY */  //#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
 
     card_ref_mut.cla  = 0x00;                                        // int      default APDU class (interindustry)
     card_ref_mut.max_send_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE; // 0x0FF; // 0x0FFFF for usb-reader, 0x0FF for chip/card;  Max Lc supported by the card
@@ -534,14 +544,15 @@ what can we rely on, when this get's called:
     */
 /*
      let rsa_algo_flags : c_ulong = SC_ALGORITHM_ONBOARD_KEY_GEN  // 0x8000_0000 c_ulong
-//        | SC_ALGORITHM_RSA_PAD_PKCS1  // the effect vs. without this: acos5_64_compute_signature @param data_len : 83 v. 512
+//NO//        | SC_ALGORITHM_RSA_PAD_PKCS1  // the effect vs. without this: acos5_64_compute_signature @param data_len : 83 v. 512 // SC_ALGORITHM_RSA_PAD_PKCS1 is possible only, if the keyLen is known by compute_signature/decipher
                         | SC_ALGORITHM_RSA_RAW           // 0x0000_0001  /* RSA raw support */
                         | SC_ALGORITHM_RSA_PAD_NONE //   CHANGED, but makes no difference; it means: the card/driver doesn't do the padding, but opensc does it
 //                      | SC_ALGORITHM_RSA_HASH_SHA1     // sign: the driver will not use RSA raw  0x0000_0020
 //                      | SC_ALGORITHM_RSA_HASH_SHA256   // sign: the driver will not use RSA raw  0x0000_0200
     ;                       // 0x8000_0231
 */
-    /* card or driver does not do the padding, but expects OpenSC to supply the padding */
+
+    /* card or driver does not do the padding, but expects OpenSC to supply the padding: */
     #[cfg(    any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0))]
     let mut rsa_algo_flags = SC_ALGORITHM_RSA_RAW;
     #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
@@ -550,27 +561,25 @@ what can we rely on, when this get's called:
     /* alternatively, select a padding method: card or driver will do the padding, thus will receive from OpenSC the digestInfo only, e.g.
     let mut rsa_algo_flags = SC_ALGORITHM_RSA_PAD_PKCS1;   or  let mut rsa_algo_flags = SC_ALGORITHM_RSA_PAD_ISO9796; */
 
+    /* SC_ALGORITHM_NEED_USAGE : Don't use that: the driver will handle that for sign internally ! */
     rsa_algo_flags |= SC_ALGORITHM_ONBOARD_KEY_GEN;
+    /* Though there is now some more hash related info in opensc.h, still it's not clear to me whether to apply any of
+         SC_ALGORITHM_RSA_HASH_NONE or SC_ALGORITHM_RSA_HASH_SHA256 etc. */
 
-    /* temporary skip some key length */
-    let key_len_from : c_uint = 0x0800; //0x200;
-//    let key_len_to   : c_uint = 0x0C00; //0x1000;
-    let key_len_step : c_uint = 0x0400; //0x100;
-//    if (is_ACOS564V3_opmode_FIPS_140_2L3) {
-//        key_len_from = 0x800;
-//        key_len_to   = 0x0C00;
-//        key_len_step = 0x400;
-//    }
-
-    for  i in 0..3 { //(uint key_len = key_len_from; key_len <= key_len_to; key_len += key_len_step)
-        let key_len = key_len_from + i*key_len_step;
-        let rv = unsafe { _sc_card_add_rsa_alg(card_ref_mut, key_len, rsa_algo_flags, 0/*0x10001*/) }; // FIXME RSAPUBEXP_CONVENTION
+    let is_v3_fips_compliant = card_ref.type_ == SC_CARD_TYPE_ACOS5_64_V3 &&
+        get_op_mode_byte(card_ref_mut).unwrap()==0 && get_fips_compliance(card_ref_mut).unwrap();
+    let mut rv;
+    let     rsa_key_len_from = if is_v3_fips_compliant {2048u32} else { 512u32};
+    let     rsa_key_len_step = if is_v3_fips_compliant {1024u32} else { 256u32};
+    let     rsa_key_len_to   = if is_v3_fips_compliant {3072u32} else {4096u32};
+    let mut rsa_key_len = rsa_key_len_from;
+    while   rsa_key_len <= rsa_key_len_to {
+        rv = unsafe { _sc_card_add_rsa_alg(card_ref_mut, rsa_key_len, rsa_algo_flags, 0/*0x10001*/) };
         if rv != SC_SUCCESS {
             return rv;
         }
+        rsa_key_len += rsa_key_len_step;
     }
-//    unsafe { _sc_card_add_rsa_alg(card_ref_mut, 2304, rsa_algo_flags, 0/*0x10001*/) }; // FIXME RSAPUBEXP_CONVENTION
-
 //////////////////////////////////////
     let mut files : HashMap<KeyTypeFiles, ValueTypeFiles> = HashMap::with_capacity(50);
     files.insert(0x3F00, (
@@ -591,10 +600,10 @@ what can we rely on, when this get's called:
 
     card_ref_mut.drv_data = Box::into_raw(dp) as *mut c_void;
 /*
-    let format   = CStr::from_bytes_with_nul(b"##### No select_file should have been called so far #####\0").unwrap();
+    let format = CStr::from_bytes_with_nul(b"##### No select_file should have been called so far #####\0").unwrap();
     #[cfg(log)]
     unsafe { sc_do_log(card_ref.ctx, SC_LOG_DEBUG_NORMAL, file_str.as_ptr(), line!() as i32, func.as_ptr(),
-                       format.as_ptr() ) };
+                       format.as_ptr()) };
 */
     let mut path : sc_path = Default::default();
     unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3F00\0").unwrap().as_ptr(), &mut path); } // type = SC_PATH_TYPE_PATH;
@@ -1437,11 +1446,9 @@ extern "C" fn acos5_64_pin_cmd(card: *mut sc_card, data: *mut sc_pin_cmd_data, t
 //        println!("sc_pin_cmd_pin 2: len: {}, [{:X},{:X},{:X},{:X}]", pindata_rm.pin2.len, unsafe{*pindata_rm.pin2.data.add(0)}, unsafe{*pindata_rm.pin2.data.add(1)}, unsafe{*pindata_rm.pin2.data.add(2)}, unsafe{*pindata_rm.pin2.data.add(3)});
         unsafe { (*(*sc_get_iso7816_driver()).ops).pin_cmd.unwrap()(card, data, tries_left) }
     }
-/*
-    else if SC_PIN_CMD_GET_SESSION_PIN == pin_cmd_data_ref_mut.cmd {
+    else if cfg!(not(any(v0_15_0, v0_16_0))) && SC_PIN_CMD_GET_SESSION_PIN == pin_cmd_data_ref_mut.cmd {
         SC_ERROR_NO_CARD_SUPPORT
     }
-*/
     else {
         SC_ERROR_NO_CARD_SUPPORT
 /*
@@ -1825,9 +1832,11 @@ extern "C" fn acos5_64_compute_signature(card: *mut sc_card, data: *const c_ucha
     }
     assert!(vec_in.len()>0);
 //    println!("Sign input: {:?}", vec_in);
+    let rsa_algo_flags_no_rng = !SC_ALGORITHM_ONBOARD_KEY_GEN & get_rsa_algo_flags(card_ref_mut);
+    println!("rsa_algo_flags_no_rng in comp_sig: {:X}", rsa_algo_flags_no_rng);
     let digest_info =
         /* this only serves the purpose, that me_pkcs1_strip_01_padding is applied only for SC_ALGORITHM_RSA_RAW (i.e. when OpenSC supplies the padding) */
-        if !SC_ALGORITHM_ONBOARD_KEY_GEN & get_rsa_algo_flags(card_ref_mut) != SC_ALGORITHM_RSA_RAW {vec_in.as_slice()} // that's not really digest_info, but all of data
+        if rsa_algo_flags_no_rng != SC_ALGORITHM_RSA_RAW { vec_in.as_slice() } // that's not really digest_info, but all of data
         else {
             match me_pkcs1_strip_01_padding(&vec_in) {
                 Ok(digest_info) => digest_info,
