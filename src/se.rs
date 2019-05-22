@@ -277,6 +277,7 @@ pub fn se_parse_crts(/*card: &mut sc_card,*/ reference: c_int, data: &[u8], se_i
 mod tests {
     use super::*;
 
+    #[cfg(not(v0_15_0))]
     #[test]
     fn test_se_parse_crts() {
         let mut seinfo : SeInfo =  Default::default();
