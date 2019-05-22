@@ -24,7 +24,7 @@ fn main() {
    5. Rebuild (if used) acos5_64_pkcs15init and sm by first deleting Cargo.lock and target
    6. Run cargo build -v -v and check that for both e.g. driver and opensc-sys, the changed OpenSC package version was used
    7. If that failed, remove directory target, deactivate the following match pkg_config... {...} code block and activate the required lines println!("cargo:rustc-...=... manually in all build.rs.
-*/
+*//*
     match pkg_config::Config::new().atleast_version("0.15.0").probe("opensc") {
         Ok(lib) => {
             match lib.version.as_str() {
@@ -37,12 +37,12 @@ fn main() {
             }
         }
         Err(_e) => panic!("No pkg-config found for opensc library") // "{}", e.description()
-    };
-/* in case of non-availability of pkg-config or failure of above:
+    };*/
+/* in case of non-availability of pkg-config or failure of above: */
     println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");
     println!("cargo:rustc-link-lib=opensc");
-    println!("cargo:rustc-cfg=v0_19_0");   <= or whatever version the installed OpenSC package is
-*/
+    println!("cargo:rustc-cfg=v0_15_0");//   <= or whatever version the installed OpenSC package is
+/**/
 
     /* other conditionaĺ compilation settings */
     println!("cargo:rustc-cfg=log"); // enables acos5_64 log output to file debug_file, set in opensc.conf (e.g. debug_file = "/tmp/opensc-debug.log";). Otherwise the driver will be almost quiet referring that

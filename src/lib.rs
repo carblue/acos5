@@ -49,15 +49,24 @@ use opensc_sys::opensc::{/*sc_get_version, sc_print_path, sc_path_set, sc_format
     sc_card, sc_card_driver, sc_card_operations, sc_pin_cmd_data, sc_security_env,
     sc_get_iso7816_driver, sc_file_add_acl_entry, sc_format_path,
     sc_file_set_prop_attr, sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_check_sw,
-    SC_CARD_CAP_RNG, SC_CARD_CAP_USE_FCI_AC, SC_CARD_CAP_ISO7816_PIN_INFO,
-    /*SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH,*/ SC_CARD_CAP_SESSION_PIN,
+    SC_CARD_CAP_RNG, SC_CARD_CAP_USE_FCI_AC,
+    /*SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH,*/
     SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
     SC_ALGORITHM_RSA, SC_ALGORITHM_ONBOARD_KEY_GEN, SC_ALGORITHM_RSA_RAW,
     SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_SEC_ENV_FILE_REF_PRESENT,
 
-    SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK, SC_PIN_CMD_GET_SESSION_PIN
+    SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK
                          //, SC_ALGORITHM_RSA_PAD_PKCS1
 };
+#[cfg(not(any(v0_15_0, v0_16_0)))]
+use opensc_sys::opensc::{SC_PIN_CMD_GET_SESSION_PIN};
+
+#[cfg(not(v0_15_0))]
+use opensc_sys::opensc::{SC_CARD_CAP_ISO7816_PIN_INFO};
+
+#[cfg(not(any(v0_15_0, v0_16_0)))]
+use opensc_sys::opensc::{SC_CARD_CAP_SESSION_PIN};
+
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
 use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_NONE};
 
@@ -78,7 +87,9 @@ use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_PATH_TYPE_FILE_ID
 use opensc_sys::errors::{/* SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKNOWN, */ sc_strerror, SC_SUCCESS, SC_ERROR_INTERNAL,
     SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG, SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY,
     /*SC_ERROR_WRONG_PADDING,*/SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING, SC_ERROR_INCORRECT_PARAMETERS};
-use opensc_sys::internal::{_sc_match_atr, _sc_card_add_rsa_alg};
+use opensc_sys::internal::{_sc_card_add_rsa_alg};
+#[cfg(not(any(v0_15_0, v0_16_0)))]
+use opensc_sys::internal::{_sc_match_atr};
 use opensc_sys::log::{sc_do_log, sc_dump_hex, SC_LOG_DEBUG_NORMAL};
 use opensc_sys::cardctl::{SC_CARDCTL_GET_SERIALNR};
 use opensc_sys::asn1::{sc_asn1_find_tag/*, sc_asn1_skip_tag, sc_asn1_read_tag, sc_asn1_print_tags*/};
@@ -309,7 +320,6 @@ extern "C" fn acos5_64_match_card(card: *mut sc_card) -> c_int
                        format.as_ptr(), sc_dump_hex(card_ref.atr.value.as_ptr(), card_ref.atr.len) ) };
 
     let mut acos5_64_atrs = acos5_64_atrs_supported();
-
     /* check whether card.atr can be found in acos5_64_atrs_supported[i].atr, iff yes, then
        card.type_ will be set accordingly, but not before the successful return of match_card */
     let mut type_out : c_int = 0;
@@ -484,11 +494,16 @@ what can we rely on, when this get's called:
     unsafe{sc_format_path(CStr::from_bytes_with_nul(b"3F00\0").unwrap().as_ptr(), &mut card_ref_mut.cache.current_path);} // type = SC_PATH_TYPE_PATH;
 
     card_ref_mut.caps = SC_CARD_CAP_RNG |
-                        SC_CARD_CAP_ISO7816_PIN_INFO |
                         SC_CARD_CAP_USE_FCI_AC |
-                        SC_CARD_CAP_SESSION_PIN |
                         /* SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH | */
                         0 as c_ulong;
+
+//    if !cfg!(feature = "v0_15_0")
+//    #[cfg(not(v0_15_0))]
+//    card_ref_mut.caps |= SC_CARD_CAP_ISO7816_PIN_INFO;
+//    #[cfg(not(any(v0_15_0, v0_16_0)))]
+//    card_ref_mut.caps |= SC_CARD_CAP_SESSION_PIN;
+
     card_ref_mut.cla  = 0x00;                                        // int      default APDU class (interindustry)
     card_ref_mut.max_send_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE; // 0x0FF; // 0x0FFFF for usb-reader, 0x0FF for chip/card;  Max Lc supported by the card
     card_ref_mut.max_recv_size = SC_READER_SHORT_APDU_MAX_RECV_SIZE; // reduced as long as iso7816_read_binary is used: 0==0x100 is not understood // 0x100; // 0x10000 for usb-reader, 0x100 for chip/card;  Max Le supported by the card, decipher (in chaining mode) with a 4096-bit key returns 2 chunks of 256 bytes each !!
@@ -1422,9 +1437,11 @@ extern "C" fn acos5_64_pin_cmd(card: *mut sc_card, data: *mut sc_pin_cmd_data, t
 //        println!("sc_pin_cmd_pin 2: len: {}, [{:X},{:X},{:X},{:X}]", pindata_rm.pin2.len, unsafe{*pindata_rm.pin2.data.add(0)}, unsafe{*pindata_rm.pin2.data.add(1)}, unsafe{*pindata_rm.pin2.data.add(2)}, unsafe{*pindata_rm.pin2.data.add(3)});
         unsafe { (*(*sc_get_iso7816_driver()).ops).pin_cmd.unwrap()(card, data, tries_left) }
     }
+/*
     else if SC_PIN_CMD_GET_SESSION_PIN == pin_cmd_data_ref_mut.cmd {
         SC_ERROR_NO_CARD_SUPPORT
     }
+*/
     else {
         SC_ERROR_NO_CARD_SUPPORT
 /*
