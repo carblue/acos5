@@ -1,12 +1,15 @@
 language: rust
-cache: cargo
 rust:
   - stable
-  - beta
-  - nightly
-  
-matrix:
-  allow_failures:
-    - rust: nightly
-  fast_finish: true
 
+sudo: required
+dist: xenial
+
+before_install:
+  - sudo apt-get install -y opensc opensc-pkcs11
+  - ls -lh /usr/lib/x86_64-linux-gnu/libopensc*
+  - sudo ln -s -T /usr/lib/x86_64-linux-gnu/libopensc.so.3 /usr/lib/x86_64-linux-gnu/libopensc.so
+  - sudo ldconfig
+  - sudo cp travis/opensc.pc /usr/lib/x86_64-linux-gnu/pkgconfig
+  - cat /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc
+  - opensc-tool -i
