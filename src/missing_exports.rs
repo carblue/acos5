@@ -33,22 +33,16 @@ see file src/libopensc/libopensc.exports
 1. Try to convince OpenSC to make that callable from libopensc.so/opensc.dll
 2. In the meantime, for the external driver, that code must be duplicated here in Rust
 */
+extern crate libc;
 
-use std::os::raw::{c_int};
+use libc::{realloc, free};
 
-/*
-//use std::ptr::{copy_nonoverlapping};
-//use std::ffi::{/*CString,*/ CStr};
+use std::os::raw::{c_int, c_uint, c_void};
 
-//use opensc_sys::types::{sc_apdu};
-//use opensc_sys::log::{sc_do_log, SC_LOG_DEBUG_NORMAL};
-//use crate::constants_types::*;
-//use super::{};
-*/
-use opensc_sys::opensc::{sc_card, SC_CARD_CAP_APDU_EXT, SC_PROTO_T0,
+use opensc_sys::opensc::{sc_card, sc_algorithm_info, SC_CARD_CAP_APDU_EXT, SC_PROTO_T0,
                          SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_READER_SHORT_APDU_MAX_RECV_SIZE};
-use opensc_sys::errors::{SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL
-//                       , SC_ERROR_INVALID_ARGUMENTS, SC_SUCCESS, SC_ERROR_NOT_SUPPORTED
+use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL, SC_ERROR_OUT_OF_MEMORY
+//                       , SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_NOT_SUPPORTED
 };
 
 
@@ -95,6 +89,31 @@ pub fn me_get_max_send_size(card: &sc_card) -> usize
     max_send_size
 }
 
+fn me_card_add_algorithm(card: &mut sc_card, info: &sc_algorithm_info) -> c_int
+{
+    let p = unsafe { realloc(card.algorithms as *mut c_void, ((card.algorithm_count + 1) as usize) *
+        std::mem::size_of::<sc_algorithm_info>()) } as *mut sc_algorithm_info;
+
+    if p.is_null() {
+        if !card.algorithms.is_null() {
+            unsafe { free(card.algorithms as *mut c_void) };
+        }
+        card.algorithms = std::ptr::null_mut();
+        card.algorithm_count = 0;
+        return SC_ERROR_OUT_OF_MEMORY;
+    }
+    card.algorithms = p;
+    unsafe { p.add(card.algorithm_count as usize) };
+    card.algorithm_count += 1;
+    unsafe {*p = *info };
+    SC_SUCCESS
+}
+
+pub fn me_card_add_symmetric_alg(card: &mut sc_card, algorithm: c_uint, key_length: c_uint, flags: c_uint) -> c_int
+{ // same as in opensc
+    let info = sc_algorithm_info { algorithm, key_length, flags, .. Default::default() };
+    me_card_add_algorithm(card, &info)
+}
 
 /* Signature schemes supported natively by ACOS5-64:
 ISO 9796-2 scheme 1 padding  http://www.sarm.am/docs/ISO_IEC_9796-2_2002(E)-Character_PDF_document.pdf

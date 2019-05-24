@@ -4,13 +4,14 @@
 
 # acos5_64
 
-ACS ACOS5-64 Smart Card/CryptoMate64/CryptoMate Nano driver, external module for the OpenSC framework.
+Driver for ACS ACOS5-64 Smart Card/CryptoMate64/CryptoMate Nano, external module for the OpenSC framework.
 
 https://github.com/OpenSC/OpenSC/wiki<br>
 https://www.rust-lang.org/learn/get-started
 
-Compile - as usual with Rust and find the library in target/release -<br>
-user@host:~/path/to/acos5_64$ cargo build --release
+Compile - as usual with Rust -<br>
+user@host:~/path/to/acos5_64$ cargo build --release<br>
+optionally user@host:~/path/to/acos5_64$ strip --strip-all target/release/libacos5_64.so
 
 The required opensc.conf entries:<br>
 ...... just denotes, there is other opensc.conf content before this line<br>
@@ -18,7 +19,7 @@ Content within ... (excluded) must be adapted (/something/like/path/to/acos5_64/
 The line "card_drivers = acos5_64, npa, internal;" is just an example for OpenSC version 0.17.0: It means: Just prepend<br>
 acos5_64,<br>
 to the list of drivers specified by default and remove a leading comment character # in this line, if there is any.<br>
-When using ACOS5-64 hardware versions V2.00, it's possibly also required to bypass the 'acos5' driver somehow, thus a painless start is by using
+When using ACOS5-64 V2.00, it's possibly also required to bypass the 'acos5' driver somehow, thus a painless start is by using<br>
     card_drivers = acos5_64, default;
 
 ```

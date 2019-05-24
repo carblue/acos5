@@ -51,7 +51,6 @@ use opensc_sys::internal::{sc_atr_table};
 use crate::constants_types::*;
 use crate::se::se_parse_crts;
 use crate::path::cut_path;
-//use crate::missing_exports::;
 
 use super::{acos5_64_list_files, acos5_64_select_file};
 
@@ -491,6 +490,37 @@ pub fn encrypt_public_rsa(card: *mut sc_card, signature: *mut c_uchar, siglen: u
     println!("{:X?}", &rbuf[416..448]);
     println!("{:X?}", &rbuf[448..480]);
     println!("{:X?}", &rbuf[480..512]);
+}
+
+/*
+  The EMSA-PKCS1-v1_5 DigestInfo prefix (all content excluding the trailing hash) is known, same the length of hash
+  guess by length of known length of DigestInfo, whether the input likely is a DigestInfo and NOT some other raw data
+*/
+pub fn is_any_of_di_by_len(len: usize) -> bool
+{
+   let known_len = [34u8, 35, 47, 51, 67, 83];
+    for i in 0..known_len.len() {
+        if known_len[i] as usize == len { return true; }
+    }
+    false
+}
+
+pub fn pkcs1_add_01_padding(digest_info: &[u8], outlen: usize) -> Result<Vec<u8>, c_int>
+{
+    if 11+digest_info.len() > outlen {
+        return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
+    }
+    let mut vec : Vec<u8> = Vec::with_capacity(outlen);
+    vec.push(0);
+    vec.push(1);
+    for _i in 0..outlen-digest_info.len()-3 {
+        vec.push(0xFF);
+    }
+    vec.push(0);
+    for b in digest_info {
+        vec.push(*b);
+    }
+    Ok(vec)
 }
 
 #[cfg(test)]

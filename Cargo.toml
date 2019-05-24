@@ -5,6 +5,7 @@ authors = ["carblue <bluecars@posteo.eu>"]
 edition = "2018"
 
 [dependencies]
+libc = "0.2"
 opensc-sys = { git = "https://github.com/carblue/opensc-sys" }
 
 [build-dependencies]
