@@ -589,7 +589,11 @@ extern "C" fn acos5_64_init(card: *mut sc_card) -> c_int
     missingExport_sc_card_add_symmetric_alg(card, SC_ALGORITHM_3DES, 192); // input interpreted as given as 3des/192, NOT cheked for odd parity
 */
     if cfg!(not(any(v0_15_0, v0_16_0))) {
-        let aes_algo_flags = SC_ALGORITHM_AES | SC_ALGORITHM_AES_FLAGS;
+        let aes_algo_flags = SC_ALGORITHM_AES;
+//        if cfg!(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0))) {
+//            aes_algo_flags |= SC_ALGORITHM_AES_FLAGS;
+//        }
+
         me_card_add_symmetric_alg(card_ref_mut, SC_ALGORITHM_AES as c_uint,  128, aes_algo_flags);
         me_card_add_symmetric_alg(card_ref_mut, SC_ALGORITHM_AES as c_uint,  192, aes_algo_flags);
         me_card_add_symmetric_alg(card_ref_mut, SC_ALGORITHM_AES as c_uint,  256, aes_algo_flags);

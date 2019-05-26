@@ -42,7 +42,7 @@ use std::os::raw::{c_int, c_uint, c_void};
 use opensc_sys::opensc::{sc_context, sc_card, sc_algorithm_info, SC_CARD_CAP_APDU_EXT, SC_PROTO_T0,
                          SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
                          SC_ALGORITHM_RAW_MASK, SC_ALGORITHM_RSA_PADS,
-                         SC_ALGORITHM_RSA_PAD_NONE, SC_ALGORITHM_RSA_PAD_PKCS1, SC_ALGORITHM_RSA_PAD_PSS,
+                         SC_ALGORITHM_RSA_PAD_NONE, SC_ALGORITHM_RSA_PAD_PKCS1,
                          SC_ALGORITHM_RSA_HASH_NONE,
                          SC_ALGORITHM_RSA_HASH_MD5,
                          SC_ALGORITHM_RSA_HASH_SHA1,
@@ -53,8 +53,12 @@ use opensc_sys::opensc::{sc_context, sc_card, sc_algorithm_info, SC_CARD_CAP_APD
                          SC_ALGORITHM_RSA_HASH_RIPEMD160,
                          SC_ALGORITHM_RSA_HASH_MD5_SHA1
 };
-#[cfg(not(any(v0_15_0, v0_16_0)))]
-use opensc_sys::opensc::{SC_ALGORITHM_AES};
+//#[cfg(not(any(v0_15_0, v0_16_0)))]
+//use opensc_sys::opensc::{SC_ALGORITHM_AES};
+
+#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0)))]
+use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_PSS};
+
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
 use opensc_sys::opensc::{SC_ALGORITHM_AES_FLAGS, SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_RSA_RAW, SC_ALGORITHM_RSA_HASHES};
 
@@ -186,7 +190,7 @@ if cfg!(any(v0_17_0, v0_18_0, v0_19_0)) {
         *sflags |= caps & SC_ALGORITHM_RAW_MASK; /* adds in the one raw type */
         *pflags = 0;
     }
-/* */
+/* * /
     else if cfg!(v0_19_0) && (iflags & SC_ALGORITHM_RSA_PAD_PSS) != 0 {
         if (caps & SC_ALGORITHM_RSA_PAD_PSS) != 0 {
             *sflags |= SC_ALGORITHM_RSA_PAD_PSS;
@@ -195,12 +199,12 @@ if cfg!(any(v0_17_0, v0_18_0, v0_19_0)) {
             *pflags |= SC_ALGORITHM_RSA_PAD_PSS;
         }
     }
-/* */
+/ * */
     else {
         return SC_ERROR_NOT_SUPPORTED; // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "unsupported algorithm");
     }
 }
-
+/*
 if cfg!(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0))) {
     /* For ECDSA and GOSTR, we don't do any padding or hashing ourselves, the
      * card has to support the requested operation.  Similarly, for RSA with
@@ -253,7 +257,7 @@ if cfg!(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0))) {
     }
 
 }
-
+*/
     //    sc_log(ctx, "pad flags 0x%lX, secure algorithm flags 0x%lX", *pflags, *sflags);
     //LOG_FUNC_RETURN(ctx, SC_SUCCESS);
     SC_SUCCESS
