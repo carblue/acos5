@@ -58,7 +58,7 @@ use opensc_sys::opensc::{/*sc_get_version, sc_print_path, sc_path_set, sc_format
     SC_SEC_OPERATION_DERIVE, //SC_ALGORITHM_DES, SC_ALGORITHM_3DES,
 
     SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK,
-    SC_ALGORITHM_RSA_PAD_PKCS1
+    SC_ALGORITHM_RSA_PAD_NONE, SC_ALGORITHM_RSA_PAD_PKCS1, SC_ALGORITHM_RSA_PAD_ISO9796//, SC_ALGORITHM_RSA_PAD_PSS
 };
 
 #[cfg(not(v0_15_0))]
@@ -68,7 +68,7 @@ use opensc_sys::opensc::{SC_CARD_CAP_ISO7816_PIN_INFO};
 use opensc_sys::opensc::{SC_CARD_CAP_SESSION_PIN, SC_PIN_CMD_GET_SESSION_PIN, SC_ALGORITHM_AES};
 
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_NONE, SC_SEC_OPERATION_WRAP, SC_SEC_OPERATION_UNWRAP};
+use opensc_sys::opensc::{SC_ALGORITHM_AES_FLAGS/*, SC_SEC_OPERATION_WRAP, SC_SEC_OPERATION_UNWRAP*/};
 
 use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_PATH_TYPE_FILE_ID, sc_file_t, SC_MAX_ATR_SIZE, */
     sc_apdu, sc_path, sc_file, sc_serial_number, SC_PATH_TYPE_PATH, SC_FILE_TYPE_INTERNAL_EF, SC_MAX_PATH_SIZE,
@@ -87,7 +87,7 @@ use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_PATH_TYPE_FILE_ID
 use opensc_sys::errors::{/* SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKNOWN, */ sc_strerror, SC_SUCCESS, SC_ERROR_INTERNAL,
     SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG, SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY,
     /*SC_ERROR_WRONG_PADDING,*/SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING, SC_ERROR_INCORRECT_PARAMETERS};
-use opensc_sys::internal::{_sc_card_add_rsa_alg};
+use opensc_sys::internal::{_sc_card_add_rsa_alg/*, sc_pkcs1_encode*/};
 #[cfg(not(any(v0_15_0, v0_16_0)))]
 use opensc_sys::internal::{_sc_match_atr};
 /*  for feature(const_fn)
@@ -119,7 +119,7 @@ pub mod no_cdecl;
 use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_array, enum_dir,
     pin_get_policy, track_iso7816_select_file, acos5_64_atrs_supported,
                       /*encrypt_public_rsa,*/ get_rsa_algo_flags,
-    set_is_running_cmd_long_response, get_is_running_cmd_long_response, is_any_of_di_by_len, pkcs1_add_01_padding};
+    set_is_running_cmd_long_response, get_is_running_cmd_long_response, is_any_of_di_by_len};
 // choose new name ? denoting, that there are rust-mangled, non-externC functions, that don't relate to se
 // (security environment) nor relate to sm (secure messaging) nor relate to pkcs15/pkcs15-init
 
@@ -153,6 +153,7 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
     else  if cfg!(v0_17_0) { CStr::from_bytes_with_nul(b"0.17.0\0").unwrap().as_ptr() }
     else  if cfg!(v0_18_0) { CStr::from_bytes_with_nul(b"0.18.0\0").unwrap().as_ptr() }
     else  if cfg!(v0_19_0) { CStr::from_bytes_with_nul(b"0.19.0\0").unwrap().as_ptr() }
+    else  if cfg!(v0_20_0) { CStr::from_bytes_with_nul(b"0.20.0\0").unwrap().as_ptr() }
     else                   { CStr::from_bytes_with_nul(b"0.0.0\0" ).unwrap().as_ptr() }
 }
 
@@ -518,9 +519,9 @@ extern "C" fn acos5_64_init(card: *mut sc_card) -> c_int
     card_ref_mut.max_recv_size = SC_READER_SHORT_APDU_MAX_RECV_SIZE; // reduced as long as iso7816_read_binary is used: 0==0x100 is not understood // 0x100; // 0x10000 for usb-reader, 0x100 for chip/card;  Max Le supported by the card, decipher (in chaining mode) with a 4096-bit key returns 2 chunks of 256 bytes each !!
 
     /* possibly more SC_CARD_CAP_* apply, TODO clarify */
-    card_ref_mut.caps = SC_CARD_CAP_RNG | SC_CARD_CAP_USE_FCI_AC;
-    if cfg!(not(    v0_15_0))           { card_ref_mut.caps |=  SC_CARD_CAP_ISO7816_PIN_INFO; }
-    if cfg!(not(any(v0_15_0, v0_16_0))) { card_ref_mut.caps |=  SC_CARD_CAP_SESSION_PIN; }
+    card_ref_mut.caps = (SC_CARD_CAP_RNG | SC_CARD_CAP_USE_FCI_AC) as c_ulong;
+    if cfg!(not(    v0_15_0))           { card_ref_mut.caps |=  SC_CARD_CAP_ISO7816_PIN_INFO as c_ulong; }
+    if cfg!(not(any(v0_15_0, v0_16_0))) { card_ref_mut.caps |=  SC_CARD_CAP_SESSION_PIN      as c_ulong; }
     /* card_ref_mut.caps |= SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH   what exactly is this? */ //#[cfg(not(any(v0_15_0, v0_16_0)))]
     /* card_ref_mut.caps |= SC_CARD_CAP_ONCARD_SESSION_OBJECTS          what exactly is this? */ //#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
     /* card_ref_mut.caps |= SC_CARD_CAP_WRAP_KEY */    //#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
@@ -546,24 +547,24 @@ extern "C" fn acos5_64_init(card: *mut sc_card) -> c_int
        TODO support PSS signature scheme
     */
 
+    let mut rsa_algo_flags = SC_ALGORITHM_ONBOARD_KEY_GEN;
     /* card or driver does not do the padding before compute_signature, but expects OpenSC to supply the padding:
        Thus inLen==keyLen */
 //  #[cfg(    any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0))]
-    let mut rsa_algo_flags = SC_ALGORITHM_RSA_RAW;
-    #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-    let mut rsa_algo_flags = SC_ALGORITHM_RSA_PAD_NONE;
+    rsa_algo_flags |= SC_ALGORITHM_RSA_RAW;
+    rsa_algo_flags |= SC_ALGORITHM_RSA_PAD_NONE; // for cfg!(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)) this is a NOOP, as SC_ALGORITHM_RSA_PAD_NONE is zero then
 
     /* alternatively, since acos5_64_compute_signature is adaptive to SC_ALGORITHM_RSA_PAD_PKCS1, select that padding method:
     driver will do the padding, thus will receive from OpenSC the digestInfo only, but this doesn't always work: It
     requires, that outLen==keyLen, but some OpenSC code doesn't comply  TODO locate and PR the bug * /
 
-    let mut rsa_algo_flags = SC_ALGORITHM_RSA_PAD_PKCS1;  */
-    /* SC_ALGORITHM_NEED_USAGE : Don't use that: the driver will handle that for sign internally ! */
+    rsa_algo_flags |= SC_ALGORITHM_RSA_PAD_PKCS1;  / * */
 
-    rsa_algo_flags |= SC_ALGORITHM_ONBOARD_KEY_GEN;
+    /* SC_ALGORITHM_NEED_USAGE : Don't use that: the driver will handle that for sign internally ! */
     /* Though there is now some more hash related info in opensc.h, still it's not clear to me whether to apply any of
          SC_ALGORITHM_RSA_HASH_NONE or SC_ALGORITHM_RSA_HASH_SHA256 etc. */
 
+    /* */
     let is_v3_fips_compliant = card_ref.type_ == SC_CARD_TYPE_ACOS5_64_V3 &&
         get_op_mode_byte(card_ref_mut).unwrap()==0 && get_fips_compliance(card_ref_mut).unwrap();
     let mut rv;
@@ -572,12 +573,13 @@ extern "C" fn acos5_64_init(card: *mut sc_card) -> c_int
     let     rsa_key_len_to   = if is_v3_fips_compliant {3072u32} else {4096u32};
     let mut rsa_key_len = rsa_key_len_from;
     while   rsa_key_len <= rsa_key_len_to {
-        rv = unsafe { _sc_card_add_rsa_alg(card_ref_mut, rsa_key_len, rsa_algo_flags, 0/*0x10001*/) };
+        rv = unsafe { _sc_card_add_rsa_alg(card_ref_mut, rsa_key_len, rsa_algo_flags as c_ulong, 0/*0x10001*/) };
         if rv != SC_SUCCESS {
             return rv;
         }
         rsa_key_len += rsa_key_len_step;
     }
+
 /*
     missingExport_sc_card_add_symmetric_alg(card, SC_ALGORITHM_DES,   56); // input with effective key_length as required by tool pkcs11-init; key value will be transformed to des/64 odd parity
     missingExport_sc_card_add_symmetric_alg(card, SC_ALGORITHM_DES,   64); // input interpreted as given as des/64,   NOT cheked for odd parity
@@ -587,11 +589,14 @@ extern "C" fn acos5_64_init(card: *mut sc_card) -> c_int
     missingExport_sc_card_add_symmetric_alg(card, SC_ALGORITHM_3DES, 192); // input interpreted as given as 3des/192, NOT cheked for odd parity
 */
     if cfg!(not(any(v0_15_0, v0_16_0))) {
-        me_card_add_symmetric_alg(card_ref_mut, SC_ALGORITHM_AES,  128, 0);
-        me_card_add_symmetric_alg(card_ref_mut, SC_ALGORITHM_AES,  192, 0);
-        me_card_add_symmetric_alg(card_ref_mut, SC_ALGORITHM_AES,  256, 0);
+        let aes_algo_flags = SC_ALGORITHM_AES | SC_ALGORITHM_AES_FLAGS;
+        me_card_add_symmetric_alg(card_ref_mut, SC_ALGORITHM_AES as c_uint,  128, aes_algo_flags);
+        me_card_add_symmetric_alg(card_ref_mut, SC_ALGORITHM_AES as c_uint,  192, aes_algo_flags);
+        me_card_add_symmetric_alg(card_ref_mut, SC_ALGORITHM_AES as c_uint,  256, aes_algo_flags);
     }
 /*
+OpenSC v0.19.0:
+
 user@host:~$ pkcs11-tool --list-mechanisms
 Using slot 0 with a present token (0x0)
 Supported mechanisms:
@@ -606,22 +611,38 @@ Supported mechanisms:
   RSA-PKCS, keySize={,4096}, hw, decrypt, sign, verify
   SHA1-RSA-PKCS, keySize={,4096}, sign, verify
   RIPEMD160-RSA-PKCS, keySize={,4096}, sign, verify
+  RSA-PKCS-PSS, keySize={,4096}, hw, sign
+  SHA1-RSA-PKCS-PSS, keySize={,4096}, sign
   RSA-PKCS-KEY-PAIR-GEN, keySize={,4096}, generate_key_pair
 
 user@host:~$ p11tool --list-mechanisms pkcs11:model=PKCS%2315;manufacturer=Advanced%20Card%20Systems%20Ltd.;
   [0x0220] CKM_SHA_1
   [0x0250] CKM_SHA256
-[0x0260] CKM_SHA384
+[0x0260] CKM_SHA384                <= opensc-pkcs11.so supports this, but libacospkcs11.so doesn't
   [0x0270] CKM_SHA512
   [0x0210] CKM_MD5
-[0x0240] CKM_RIPEMD160
-[0x1210] CKM_GOSTR3411
+[0x0240] CKM_RIPEMD160             <= opensc-pkcs11.so supports this, but libacospkcs11.so doesn't
+[0x1210] CKM_GOSTR3411             <= opensc-pkcs11.so supports this, but libacospkcs11.so doesn't
   [0x0003] CKM_RSA_X_509
   [0x0001] CKM_RSA_PKCS
   [0x0006] CKM_SHA1_RSA_PKCS
   [0x0040] CKM_SHA256_RSA_PKCS
-[0x0042] CKM_SHA512_RSA_PKCS
+[0x0042] CKM_SHA512_RSA_PKCS       <= opensc-pkcs11.so supports this, but libacospkcs11.so doesn't
+[0x000d] CKM_RSA_PKCS_PSS          <= opensc-pkcs11.so supports this, but libacospkcs11.so doesn't
+[0x000e] CKM_SHA1_RSA_PKCS_PSS     <= opensc-pkcs11.so supports this, but libacospkcs11.so doesn't
+[0x0043] CKM_SHA256_RSA_PKCS_PSS   <= opensc-pkcs11.so supports this, but libacospkcs11.so doesn't
   [0x0000] CKM_RSA_PKCS_KEY_PAIR_GEN
+
+{
+since OpenSC v0.20.0 (==git-master, Latest commit 65a86b8):
+[0x0255] CKM_SHA224                <= opensc-pkcs11.so supports this, but libacospkcs11.so doesn't
+[0x0005] CKM_MD5_RSA_PKCS          <= opensc-pkcs11.so supports this, but libacospkcs11.so doesn't
+[0x0045] CKM_SHA512_RSA_PKCS_PSS   <= opensc-pkcs11.so supports this, but libacospkcs11.so doesn't
+  [0x1081] CKM_AES_ECB             <= new
+  [0x1082] CKM_AES_CBC             <= new
+  [0x1085] CKM_AES_CBC_PAD         <= new
+}
+
 user@host:~$ p11tool --list-mechanisms pkcs11:model=CTM64;manufacturer=Advanced%20Card%20Systems%20Ltd.;
   [0x0000] CKM_RSA_PKCS_KEY_PAIR_GEN
   [0x0001] CKM_RSA_PKCS
@@ -630,28 +651,54 @@ user@host:~$ p11tool --list-mechanisms pkcs11:model=CTM64;manufacturer=Advanced%
   [0x0210] CKM_MD5
   [0x0250] CKM_SHA256
   [0x0270] CKM_SHA512
-[0x1081] CKM_AES_ECB
-[0x1082] CKM_AES_CBC
-[0x1085] CKM_AES_CBC_PAD
-[0x0121] CKM_DES_ECB
-[0x0122] CKM_DES_CBC
-[0x0125] CKM_DES_CBC_PAD
-[0x0132] CKM_DES3_ECB
-[0x0133] CKM_DES3_CBC
-[0x0136] CKM_DES3_CBC_PAD
-[0x1080] CKM_AES_KEY_GEN
-[0x0120] CKM_DES_KEY_GEN
-[0x0130] CKM_DES2_KEY_GEN
-[0x0131] CKM_DES3_KEY_GEN
-[0x1101] UNKNOWN
-[0x1100] UNKNOWN
-[0x1102] UNKNOWN
-[0x1103] UNKNOWN
-[0x1104] UNKNOWN
-[0x1105] UNKNOWN
+  [0x1081] CKM_AES_ECB         <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't up to v0.19.0
+  [0x1082] CKM_AES_CBC         <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't up to v0.19.0
+  [0x1085] CKM_AES_CBC_PAD     <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't up to v0.19.0
+[0x0121] CKM_DES_ECB           <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't
+[0x0122] CKM_DES_CBC           <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't
+[0x0125] CKM_DES_CBC_PAD       <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't
+[0x0132] CKM_DES3_ECB          <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't
+[0x0133] CKM_DES3_CBC          <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't
+[0x0136] CKM_DES3_CBC_PAD      <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't
+[0x1080] CKM_AES_KEY_GEN       <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't
+[0x0120] CKM_DES_KEY_GEN       <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't
+[0x0130] CKM_DES2_KEY_GEN      <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't
+[0x0131] CKM_DES3_KEY_GEN      <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't
+[0x1101] CKM_DES_CBC_ENCRYPT_DATA   <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't
+[0x1100] CKM_DES_ECB_ENCRYPT_DATA   <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't
+[0x1102] CKM_DES3_ECB_ENCRYPT_DATA  <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't
+[0x1103] CKM_DES3_CBC_ENCRYPT_DATA  <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't
+[0x1104] CKM_AES_ECB_ENCRYPT_DATA   <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't
+[0x1105] CKM_AES_CBC_ENCRYPT_DATA   <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't
   [0x0040] CKM_SHA256_RSA_PKCS
   [0x0006] CKM_SHA1_RSA_PKCS
-[0x80000001] UNKNOWN
+[0x80000001] UNKNOWN                some CKM_VENDOR_DEFINED ?
+
+
+file 5032 before changes applied (stripping any supportedAlgorithms [2] SEQUENCE OF AlgorithmInfo OPTIONAL.  thus there will be no (possibly conflicting info from there):
+30 74 02 01 01 04 06 serial no 6 bytes 0C 1A 41
+64 76 61 6E 63 65 64 20 43 61 72 64 20 53 79 73
+74 65 6D 73 20 4C 74 64 2E 80 12 43 54 4D 36 34
+5F serial no bin              12 bytes 03 02 05
+20 A2 33 30 0F 02 01 01 02 01 00 05 00 03 02 00
+01 02 01 10 30 0F 02 01 02 02 01 01 05 00 03 02
+00 5C 02 01 10 30 0F 02 01 03 02 01 0E 05 00 03
+02 00 50 02 01 10
+
+file 5032 after stripping any supportedAlgorithms [2] SEQUENCE OF AlgorithmInfo OPTIONAL.  thus there will be no (possibly conflicting info from there):
+30 3F 02 01 01 04 06 00 00 00 00 00 00 0C 1A 41
+64 76 61 6E 63 65 64 20 43 61 72 64 20 53 79 73
+74 65 6D 73 20 4C 74 64 2E 80 12 43 54 4D 36 34
+5F 30 30 30 30 30 30 30 30 30 30 30 30 03 02 04
+20
+
+SEQUENCE (5 elem)
+  INTEGER 1
+  OCTET STRING (6 byte) 000000000000
+  UTF8String Advanced Card Systems Ltd.
+  [0] CTM64_000000000000
+  BIT STRING (4 bit) 0010
+
 */
 ////////////////////////////////////////
     let mut files : HashMap<KeyTypeFiles, ValueTypeFiles> = HashMap::with_capacity(50);
@@ -746,7 +793,7 @@ extern "C" fn acos5_64_card_ctl(card: *mut sc_card, command: c_ulong, data: *mut
 //    let card_ref = unsafe { &*card };
     let card_ref_mut = unsafe { &mut *card };
 
-    match command {
+    match command as c_uint {
         SC_CARDCTL_GET_SERIALNR =>
             if data.is_null() { SC_ERROR_INVALID_ARGUMENTS }
             else {
@@ -1130,7 +1177,7 @@ extern "C" fn acos5_64_get_response(card: *mut sc_card, count: *mut usize, buf: 
     apdu.resplen = rlen;
     apdu.resp    = buf;
     /* don't call GET RESPONSE recursively */
-    apdu.flags  |= SC_APDU_FLAGS_NO_GET_RESP;
+    apdu.flags  |= SC_APDU_FLAGS_NO_GET_RESP as c_ulong;
 
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
 //    LOG_TEST_RET(card->ctx, rv, "APDU transmit failed");
@@ -1718,14 +1765,16 @@ extern "C" fn acos5_64_set_security_env(card: *mut sc_card, env: *const sc_secur
     {
         return SC_ERROR_NO_CARD_SUPPORT;
     }
-    else if (SC_SEC_OPERATION_SIGN == env_ref.operation || SC_SEC_OPERATION_DECIPHER == env_ref.operation) &&
-        env_ref.algorithm==SC_ALGORITHM_RSA && (env_ref.flags&SC_SEC_ENV_FILE_REF_PRESENT)==SC_SEC_ENV_FILE_REF_PRESENT
+    else if (SC_SEC_OPERATION_SIGN     == env_ref.operation ||
+             SC_SEC_OPERATION_DECIPHER == env_ref.operation)   &&
+        env_ref.algorithm==SC_ALGORITHM_RSA && (env_ref.flags as c_uint & SC_SEC_ENV_FILE_REF_PRESENT)==SC_SEC_ENV_FILE_REF_PRESENT
     {
         // TODO where is the decision taken to use PKCS#1 scheme padding?
-        /* includes hardcoded PKCS#1 padding by algo 0x10; ISO 9796-2 scheme 1 padding will require algo 0x11 */
+        let rsa_algo_flags_no_rng = !SC_ALGORITHM_ONBOARD_KEY_GEN & get_rsa_algo_flags(card_ref_mut);
+        let algo = if (rsa_algo_flags_no_rng & SC_ALGORITHM_RSA_PAD_ISO9796) == 0 {0x10u8} else {0x11u8};
         let path_idx = env_ref.file_ref.len - 2;
         if SC_SEC_OPERATION_SIGN == env_ref.operation {
-            let command: [u8; 15] = [0x00, 0x22, 0x01, 0xB6, 0x0A, 0x80, 0x01, 0x10, 0x81, 0x02,  env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
+            let command: [u8; 15] = [0x00, 0x22, 0x01, 0xB6, 0x0A, 0x80, 0x01, algo, 0x81, 0x02,  env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
             let mut apdu : sc_apdu = Default::default();
             let mut rv = sc_bytes2apdu_wrapper(card_ref_mut.ctx, &command, &mut apdu);
             assert_eq!(rv, SC_SUCCESS);
@@ -1817,7 +1866,7 @@ extern "C" fn acos5_64_decipher(card: *mut sc_card, crgram: *const c_uchar, crgr
     apdu.resplen = outlen;
     apdu.le      = std::cmp::min(crgram_len, SC_READER_SHORT_APDU_MAX_RECV_SIZE);
     if apdu.lc > card_ref_mut.max_send_size {
-        apdu.flags |= SC_APDU_FLAGS_CHAINING;
+        apdu.flags |= SC_APDU_FLAGS_CHAINING as c_ulong;
     }
 
     set_is_running_cmd_long_response(card_ref_mut, true); // switch to false is done by acos5_64_get_response
@@ -1856,7 +1905,6 @@ extern "C" fn acos5_64_decipher(card: *mut sc_card, crgram: *const c_uchar, crgr
 }
 
 
-/* compute_signature:  Generates a digital signature on the card.  Similiar to the function decipher. */
 /*
  * What it does
  Ideally this function should be adaptive, meaning it works for SC_ALGORITHM_RSA_RAW (SC_ALGORITHM_RSA_PAD_NONE)
@@ -1897,13 +1945,11 @@ extern "C" fn acos5_64_compute_signature(card: *mut sc_card, data: *const c_ucha
         vec_in.push(unsafe { *data.add(i) } );
     }
     assert!(vec_in.len()>0);
-//println!("Sign input: {:?}", vec_in);
     let rsa_algo_flags_no_rng = !SC_ALGORITHM_ONBOARD_KEY_GEN & get_rsa_algo_flags(card_ref_mut);
-//println!("rsa_algo_flags_no_rng in comp_sig: {:X}", rsa_algo_flags_no_rng);
+//println!("Sign: rsa_algo_flags_no_rng: 0x{:X}, input len: {}, input data: {:?}", rsa_algo_flags_no_rng, vec_in.len(), vec_in);
     let digest_info =
-        /* this only serves the purpose, that me_pkcs1_strip_01_padding is applied only for SC_ALGORITHM_RSA_RAW (i.e. when OpenSC supplies the padding) */
-        if rsa_algo_flags_no_rng != SC_ALGORITHM_RSA_RAW { vec_in.as_slice() } // that's not really digest_info, but all of data
-        else {
+        if rsa_algo_flags_no_rng != SC_ALGORITHM_RSA_RAW { vec_in.as_slice() } // then vec_in IS digest_info
+        else { // rsa_algo_flags_no_rng == SC_ALGORITHM_RSA_RAW
             match me_pkcs1_strip_01_padding(&vec_in) {
                 Ok(digest_info) => digest_info,
                 Err(e) => {
@@ -1923,26 +1969,52 @@ extern "C" fn acos5_64_compute_signature(card: *mut sc_card, data: *const c_ucha
     }
 
     let digest_info_prefix_sha256 = [0x30u8, 0x31, 0x30, 0x0D, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20];
+    // id_rsassa_pkcs1_v1_5_with_sha512_256 and id_rsassa_pkcs1_v1_5_with_sha3_256 also have a digest_info.len() == 51
     if (digest_info.len() != 35 /*SHA-1*/ && digest_info.len() != 51 /*SHA-256*/) || (digest_info.len() == 51 && digest_info[..19]!=digest_info_prefix_sha256)
-    { // id_rsassa_pkcs1_v1_5_with_sha512_256 and id_rsassa_pkcs1_v1_5_with_sha3_256 also have a digest_info.len() == 51
+    {   /* this will fail if key_len != outlen */
         if cfg!(log) {
             let fmt = CStr::from_bytes_with_nul(b"### Switch to acos5_64_decipher, because acos5_64_compute_signature \
                 can't handle the hash algo ###\0").unwrap();
             wr_do_log(card_ref.ctx, file, line!(), fun, fmt);
         }
         let rv : c_int;
-        /* guess whether digest_info.len() is from SC_ALGORITHM_RSA_RAW/SC_ALGORITHM_RSA_PAD_NONE or SC_ALGORITHM_RSA_PAD_PKCS1 */
-        if rsa_algo_flags_no_rng == SC_ALGORITHM_RSA_RAW {
-            rv = acos5_64_decipher(card, data, data_len, out, outlen);
-        }
-        else if rsa_algo_flags_no_rng == SC_ALGORITHM_RSA_PAD_PKCS1 && is_any_of_di_by_len(digest_info.len()) {
-            /* this will fail if key_len != outlen */
-            let vec_2 = match pkcs1_add_01_padding(digest_info, outlen) {
-                Ok(vec_2) => vec_2,
+        /* digest_info.len() is from SC_ALGORITHM_RSA_RAW/SC_ALGORITHM_RSA_PAD_NONE or SC_ALGORITHM_RSA_PAD_PKCS1 */
+        /* is_any_of_di_by_len or ? could go further an compare digest_info_prefix to known ones as well
+           With that done, a possible attacker can control nothing but the hash value (and signature scheme to be used)
+           TODO implement delaying, if consecutive trials to sign are detected, revoke PIN verification etc.
+             or enable an additional layer where user MUST accept or deny sign operation (see DNIE) */
+        if      SC_ALGORITHM_RSA_PAD_PKCS1 & rsa_algo_flags_no_rng > 0 && is_any_of_di_by_len(digest_info.len())
+        {
+/* difficult to get this right, trying to substitute pkcs1_add_01_padding by sc_pkcs1_encode
+            let mut buf = [0u8; 512];
+            let mut buf_len = std::cmp::min(512, outlen);
+            rv = unsafe { sc_pkcs1_encode(card_ref_mut.ctx, rsa_algo_flags_no_rng as c_ulong, digest_info.as_ptr(), digest_info.len(),
+                                          buf.as_mut_ptr(), &mut buf_len, buf_len) };
+            if rv != SC_SUCCESS {
+                return rv;
+            }
+            rv = acos5_64_decipher(card, buf.as_ptr(), buf_len, out, outlen);
+
+0x7f25a7c8ff80 18:35:17.552 [opensc-pkcs11] sec.c:59:sc_compute_signature: called
+0x7f25a7c8ff80 18:35:17.552 [opensc-pkcs11] acos5_64:1894:acos5_64_compute_signature: called with: data_len: 83, outlen: 512
+0x7f25a7c8ff80 18:35:17.552 [opensc-pkcs11] acos5_64:1934:acos5_64_compute_signature: ### Switch to acos5_64_decipher, because acos5_64_compute_signature can't handle the hash algo ###
+0x7f25a7c8ff80 18:35:17.552 [opensc-pkcs11] padding.c:243:sc_pkcs1_encode: called
+0x7f25a7c8ff80 18:35:17.552 [opensc-pkcs11] padding.c:247:sc_pkcs1_encode: hash algorithm 0x0, pad algorithm 0x2
+0x7f25a7c8ff80 18:35:17.552 [opensc-pkcs11] padding.c:252:sc_pkcs1_encode: Unable to add digest info 0x0
+0x7f25a7c8ff80 18:35:17.552 [opensc-pkcs11] padding.c:253:sc_pkcs1_encode: returning with: -1400 (Internal error)
+0x7f25a7c8ff80 18:35:17.552 [opensc-pkcs11] sec.c:63:sc_compute_signature: returning with: -1400 (Internal error)
+*/
+
+            let vec = match me_pkcs1_add_01_padding(digest_info, outlen)
+            {
+                Ok(vec) => vec,
                 Err(e) => return e,
             };
-            assert_eq!(vec_2.len(), 512);
-            rv = acos5_64_decipher(card, vec_2.as_ptr(), vec_2.len(), out, outlen);
+//            assert_eq!(vec.len(), 512);
+            rv = acos5_64_decipher(card, vec.as_ptr(), vec.len(), out, outlen);
+        }
+        else if SC_ALGORITHM_RSA_RAW & rsa_algo_flags_no_rng > 0  {
+            rv = acos5_64_decipher(card, data, data_len, out, outlen);
         }
         else {
             rv = 0; // do nothing
@@ -1950,7 +2022,7 @@ extern "C" fn acos5_64_compute_signature(card: *mut sc_card, data: *const c_ucha
         /* acos5_64_decipher will fail if the key is not capable to decrypt */
         /* temporary: "decrypt" signature (out) to stdout * /
         if rv>0 {
-            encrypt_public_rsa(card,out, data_len);
+            encrypt_public_rsa(card, out, /*data_len*/ outlen);
         }
         / * */
         if cfg!(log) {
@@ -1959,8 +2031,8 @@ extern "C" fn acos5_64_compute_signature(card: *mut sc_card, data: *const c_ucha
         }
         return rv;
     }
-    else { // SHA-1 and SHA-256 hashes
-//        assert!(digest_info.len() == 35 || digest_info.len() == 51);
+    else { // SHA-1 and SHA-256 hashes, what the card can handle natively
+        assert!(digest_info.len() == 35 || digest_info.len() == 51);
         let hash = if digest_info.len()==35 { &digest_info[15..] } else { &digest_info[19..] };
         assert!(hash.len()==20 || hash.len()==32);
 
@@ -1968,10 +2040,11 @@ extern "C" fn acos5_64_compute_signature(card: *mut sc_card, data: *const c_ucha
         let func_ptr = unsafe { (*(*sc_get_iso7816_driver()).ops).compute_signature.unwrap() };
         let rv = unsafe { func_ptr(card, hash.as_ptr(), hash.len(), out, outlen) };
         if rv <= 0 {
-            let fmt = CStr::from_bytes_with_nul(b"iso7816_compute_signature failed or apdu.resplen==0\0").unwrap();
-            #[cfg(log)]
-            unsafe { sc_do_log(card_ref_mut.ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line!() as i32, fun.as_ptr(),
-                               fmt.as_ptr()) };
+            if cfg!(log) {
+                let fmt = CStr::from_bytes_with_nul(b"iso7816_compute_signature failed or apdu.resplen==0. rv: %d\0")
+                                 .unwrap();
+                wr_do_log_t(card_ref.ctx, file, line!(), fun, fmt, rv);
+            }
             return rv;
         }
         /* temporary: "decrypt" signature (out) to stdout * /

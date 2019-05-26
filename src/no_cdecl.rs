@@ -206,7 +206,7 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path/*, depth: c_int*/) -> c_int
         let mut vec_seinfo : Vec<SeInfo> = Vec::new();
         for rec_nr in 1..1+nor {
             let buf = &mut [0u8; 255];
-            rv = unsafe { sc_read_record(card, rec_nr, buf.as_mut_ptr(), mrl, SC_RECORD_BY_REC_NR) };
+            rv = unsafe { sc_read_record(card, rec_nr, buf.as_mut_ptr(), mrl, SC_RECORD_BY_REC_NR as c_ulong) };
 /* * /
 // TODO temporary if SE file is pin-protected for READ
 if rv < 0 && card.type_== SC_CARD_TYPE_ACOS5_64_V3  // currently has SO_PIN same as User pin
@@ -428,7 +428,7 @@ pub fn get_is_running_compute_signature(card: &mut sc_card) -> bool
 */
 
 
-pub fn get_rsa_algo_flags(card: &mut sc_card) -> c_ulong
+pub fn get_rsa_algo_flags(card: &mut sc_card) -> c_uint
 {
     let dp : Box<DataPrivate> = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let result = dp.rsa_algo_flags;
@@ -466,7 +466,7 @@ pub fn encrypt_public_rsa(card: *mut sc_card, signature: *mut c_uchar, siglen: u
     apdu.resplen = siglen;
     apdu.le      = std::cmp::min(siglen, SC_READER_SHORT_APDU_MAX_RECV_SIZE);
     if apdu.lc > card_ref_mut.max_send_size {
-        apdu.flags |= SC_APDU_FLAGS_CHAINING;
+        apdu.flags |= SC_APDU_FLAGS_CHAINING as c_ulong;
     }
 
     set_is_running_cmd_long_response(card_ref_mut, true); // switch to false is done by acos5_64_get_response
@@ -503,24 +503,6 @@ pub fn is_any_of_di_by_len(len: usize) -> bool
         if known_len[i] as usize == len { return true; }
     }
     false
-}
-
-pub fn pkcs1_add_01_padding(digest_info: &[u8], outlen: usize) -> Result<Vec<u8>, c_int>
-{
-    if 11+digest_info.len() > outlen {
-        return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
-    }
-    let mut vec : Vec<u8> = Vec::with_capacity(outlen);
-    vec.push(0);
-    vec.push(1);
-    for _i in 0..outlen-digest_info.len()-3 {
-        vec.push(0xFF);
-    }
-    vec.push(0);
-    for b in digest_info {
-        vec.push(*b);
-    }
-    Ok(vec)
 }
 
 #[cfg(test)]

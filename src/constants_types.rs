@@ -18,7 +18,7 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-use std::os::raw::{c_uchar, c_int, c_ulong};
+use std::os::raw::{c_uchar, c_int, c_uint};
 use std::collections::HashMap;
 
 use opensc_sys::types::{sc_crt, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
@@ -130,56 +130,62 @@ pub const RSAPUB_MAX_LEN           : usize = 5 + 16 + 512; // the max. file size
 pub const RSAPRIV_MAX_LEN_STD      : usize = 5 +      512; // the max. file size requirement for RSA private key (non-CRT)
 pub const RSAPRIV_MAX_LEN_CRT      : usize = 5 +   5* 256; // the max. file size requirement for RSA private key stored in CRT manner
 
-// see opensc-sys: opensc.rs
-//pub const SC_SEC_OPERATION_DECIPHER          : u32 = 0x0001;
-//pub const SC_SEC_OPERATION_SIGN              : u32 = 0x0002;
-//pub const SC_SEC_OPERATION_AUTHENTICATE      : u32 = 0x0003;
-//pub const SC_SEC_OPERATION_DERIVE            : u32 = 0x0004;
-pub const SC_SEC_OPERATION_GENERATE_RSAPRIVATE : u32 = 0x0005;
-pub const SC_SEC_OPERATION_GENERATE_RSAPUBLIC  : u32 = 0x0006;
-pub const SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC  : u32 = 0x0007;
-pub const SC_SEC_OPERATION_DECIPHER_RSAPRIVATE : u32 = 0x0008;
-pub const SC_SEC_OPERATION_ENCIPHER_SYMMETRIC  : u32 = 0x0009;
-pub const SC_SEC_OPERATION_DECIPHER_SYMMETRIC  : u32 = 0x000A;
+/* see opensc-sys: opensc.rs
+pub const SC_SEC_OPERATION_DECIPHER            : c_int = 0x0001;
+pub const SC_SEC_OPERATION_SIGN                : c_int = 0x0002;
+pub const SC_SEC_OPERATION_AUTHENTICATE        : c_int = 0x0003;
+pub const SC_SEC_OPERATION_DERIVE              : c_int = 0x0004;
+#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+pub const SC_SEC_OPERATION_WRAP                : c_int = 0x0005;
+#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+pub const SC_SEC_OPERATION_UNWRAP              : c_int = 0x0006;
+*/
+pub const SC_SEC_OPERATION_GENERATE_RSAPRIVATE : c_int = 0x0007;
+pub const SC_SEC_OPERATION_GENERATE_RSAPUBLIC  : c_int = 0x0008;
 
+pub const SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC  : c_int = 0x0009;
+pub const SC_SEC_OPERATION_DECIPHER_RSAPRIVATE : c_int = 0x000A;
+
+pub const SC_SEC_OPERATION_ENCIPHER_SYMMETRIC  : c_int = 0x000B;
+pub const SC_SEC_OPERATION_DECIPHER_SYMMETRIC  : c_int = 0x000C;
 
 /*
 /*
  * Generic card_ctl calls, see opensc-sys: cardctl.rs
  */
-pub const SC_CARDCTL_GENERIC_BASE            : c_ulong =  0x0000_0000;
-pub const SC_CARDCTL_ERASE_CARD              : c_ulong =  0x0000_0001;
-pub const SC_CARDCTL_GET_DEFAULT_KEY         : c_ulong =  0x0000_0002;
-pub const SC_CARDCTL_LIFECYCLE_GET           : c_ulong =  0x0000_0003;
-pub const SC_CARDCTL_LIFECYCLE_SET           : c_ulong =  0x0000_0004;
-pub const SC_CARDCTL_GET_SERIALNR            : c_ulong =  0x0000_0005; // data: *mut sc_serial_number,  get_serialnr
-pub const SC_CARDCTL_GET_SE_INFO             : c_ulong =  0x0000_0006;
-pub const SC_CARDCTL_GET_CHV_REFERENCE_IN_SE : c_ulong =  0x0000_0007;
-pub const SC_CARDCTL_PKCS11_INIT_TOKEN       : c_ulong =  0x0000_0008;
-pub const SC_CARDCTL_PKCS11_INIT_PIN         : c_ulong =  0x0000_0009;
+pub const SC_CARDCTL_GENERIC_BASE            : c_uint =  0x0000_0000;
+pub const SC_CARDCTL_ERASE_CARD              : c_uint =  0x0000_0001;
+pub const SC_CARDCTL_GET_DEFAULT_KEY         : c_uint =  0x0000_0002;
+pub const SC_CARDCTL_LIFECYCLE_GET           : c_uint =  0x0000_0003;
+pub const SC_CARDCTL_LIFECYCLE_SET           : c_uint =  0x0000_0004;
+pub const SC_CARDCTL_GET_SERIALNR            : c_uint =  0x0000_0005; // data: *mut sc_serial_number,  get_serialnr
+pub const SC_CARDCTL_GET_SE_INFO             : c_uint =  0x0000_0006;
+pub const SC_CARDCTL_GET_CHV_REFERENCE_IN_SE : c_uint =  0x0000_0007;
+pub const SC_CARDCTL_PKCS11_INIT_TOKEN       : c_uint =  0x0000_0008;
+pub const SC_CARDCTL_PKCS11_INIT_PIN         : c_uint =  0x0000_0009;
 */
 /*
  * Proprietary card_ctl calls
  *
  * for an internal driver these will move to cardctl.h
 */
-pub const SC_CARDCTL_GET_COUNT_FILES_CURR_DF : c_ulong =  0x0000_0011; // data: *mut usize,  get_count_files_curr_DF
-pub const SC_CARDCTL_GET_FILE_INFO           : c_ulong =  0x0000_0012; // data: *mut CardCtlArray8,  get_file_info
-pub const SC_CARDCTL_GET_FREE_SPACE          : c_ulong =  0x0000_0014; // data: *mut c_uint,  get_free_space
-pub const SC_CARDCTL_GET_IDENT_SELF          : c_ulong =  0x0000_0015; // data: *mut c_uint,  get_ident_self
-pub const SC_CARDCTL_GET_COS_VERSION         : c_ulong =  0x0000_0016; // data: *mut CardCtlArray8,  get_cos_version
+pub const SC_CARDCTL_GET_COUNT_FILES_CURR_DF : c_uint =  0x0000_0011; // data: *mut usize,  get_count_files_curr_DF
+pub const SC_CARDCTL_GET_FILE_INFO           : c_uint =  0x0000_0012; // data: *mut CardCtlArray8,  get_file_info
+pub const SC_CARDCTL_GET_FREE_SPACE          : c_uint =  0x0000_0014; // data: *mut c_uint,  get_free_space
+pub const SC_CARDCTL_GET_IDENT_SELF          : c_uint =  0x0000_0015; // data: *mut c_uint,  get_ident_self
+pub const SC_CARDCTL_GET_COS_VERSION         : c_uint =  0x0000_0016; // data: *mut CardCtlArray8,  get_cos_version
 /* available only since ACOS5-64 V3: */
-pub const SC_CARDCTL_GET_ROM_MANUFACTURE_DATE: c_ulong =  0x0000_0017; // data: *mut c_uint,  get_manufacture_date
-pub const SC_CARDCTL_GET_ROM_SHA1            : c_ulong =  0x0000_0018; // data: *mut CardCtlArray20,  get_rom_sha1
-pub const SC_CARDCTL_GET_OP_MODE_BYTE        : c_ulong =  0x0000_0019; // data: *mut c_uint,  get_op_mode_byte
-pub const SC_CARDCTL_GET_FIPS_COMPLIANCE     : c_ulong =  0x0000_001A; // data: *mut c_uint,  get_fips_compliance
-pub const SC_CARDCTL_GET_PIN_AUTH_STATE      : c_ulong =  0x0000_001B; // data: *mut CardCtlAuthState,  get_pin_auth_state
-pub const SC_CARDCTL_GET_KEY_AUTH_STATE      : c_ulong =  0x0000_001C; // data: *mut CardCtlAuthState,  get_key_auth_state
+pub const SC_CARDCTL_GET_ROM_MANUFACTURE_DATE: c_uint =  0x0000_0017; // data: *mut c_uint,  get_manufacture_date
+pub const SC_CARDCTL_GET_ROM_SHA1            : c_uint =  0x0000_0018; // data: *mut CardCtlArray20,  get_rom_sha1
+pub const SC_CARDCTL_GET_OP_MODE_BYTE        : c_uint =  0x0000_0019; // data: *mut c_uint,  get_op_mode_byte
+pub const SC_CARDCTL_GET_FIPS_COMPLIANCE     : c_uint =  0x0000_001A; // data: *mut c_uint,  get_fips_compliance
+pub const SC_CARDCTL_GET_PIN_AUTH_STATE      : c_uint =  0x0000_001B; // data: *mut CardCtlAuthState,  get_pin_auth_state
+pub const SC_CARDCTL_GET_KEY_AUTH_STATE      : c_uint =  0x0000_001C; // data: *mut CardCtlAuthState,  get_key_auth_state
 
-pub const SC_CARDCTL_GET_FILES_HASHMAP_INFO  : c_ulong =  0x0000_0020; // data: *mut CardCtlArray32,  get_files_hashmap_info
+pub const SC_CARDCTL_GET_FILES_HASHMAP_INFO  : c_uint =  0x0000_0020; // data: *mut CardCtlArray32,  get_files_hashmap_info
 
 
-pub const SC_CARDCTL_UPDATE_FILES_HASHMAP    : c_ulong =  0x0000_0040; // data: null
+pub const SC_CARDCTL_UPDATE_FILES_HASHMAP    : c_uint =  0x0000_0040; // data: null
 
 
 /* common types and general function(s) */
@@ -255,7 +261,7 @@ impl Default for CardCtlArray32 {
 #[repr(C)]
 #[derive(Debug, Copy, Clone,  PartialEq)]
 pub struct SeInfo {
-    pub reference  : c_int, // the SE file's record no == stored id in record
+    pub reference  : c_int, // the SE file's record no == stored id in record  TODO check if this can be typed c_uint
     pub crts_len   : usize,                       /* what is used actually in crts */
     pub crts       : [sc_crt; SC_MAX_CRTS_IN_SE], // align(8) // SC_MAX_CRTS_IN_SE==12
 }
@@ -280,7 +286,7 @@ pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, Opt
 #[derive(Debug /*, Copy*/, Clone)]
 pub struct DataPrivate { // see settings in acos5_64_init
     pub files : HashMap< KeyTypeFiles, ValueTypeFiles >,
-    pub rsa_algo_flags : c_ulong,
+    pub rsa_algo_flags : c_uint,
     pub is_running_init : bool, // true as long as acos5_64_init runs: It may be used to control behavior of acos5_64_list_files (lazily filling hashmap)
     /* some commands like sign, decipher etc. may supply > 256 bytes to get_response, but the exact number will not be known (the only info is 0x6100),
        thus guessing, there are another 256 bytes will be turned on with: true; guessing is limited to those commands, that turn on this feature.
