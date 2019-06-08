@@ -27,9 +27,9 @@ use std::os::raw::{c_int, c_void, c_uint, c_uchar, c_ulong/*, c_uchar*/};
 use std::ffi::{/*CString,*/ CStr};
 
 
-use opensc_sys::opensc::{sc_card, sc_pin_cmd_data,
+use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env,
                          sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_get_iso7816_driver, sc_file_free, sc_read_record,
-                         /*sc_verify,*/ sc_format_path, sc_select_file,
+                         sc_format_path, sc_select_file, sc_check_sw, SC_ALGORITHM_RSA_RAW, /*sc_verify,*/
                          SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE
 };
 use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_MAX_PATH_SIZE, sc_file_t,
@@ -397,14 +397,14 @@ pub /*const*/ fn acos5_64_atrs_supported() -> [sc_atr_table; 3]
 
 pub fn set_is_running_cmd_long_response(card: &mut sc_card, value: bool)
 {
-    let mut dp : Box<DataPrivate> = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     dp.is_running_cmd_long_response = value;
     card.drv_data = Box::into_raw(dp) as *mut c_void;
 }
 
 pub fn get_is_running_cmd_long_response(card: &mut sc_card) -> bool
 {
-    let dp : Box<DataPrivate> = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let result = dp.is_running_cmd_long_response;
     card.drv_data = Box::into_raw(dp) as *mut c_void;
     result
@@ -426,12 +426,36 @@ pub fn get_is_running_compute_signature(card: &mut sc_card) -> bool
     result
 }
 */
+/*
+pub fn set_rsa_caps(card: &mut sc_card, value: c_uint)
+{
+    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    dp.rsa_caps = value;
+    card.drv_data = Box::into_raw(dp) as *mut c_void;
+}
+*/
+/*
+pub fn get_rsa_caps(card: &mut sc_card) -> c_uint
+{
+    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let result = dp.rsa_caps;
+    card.drv_data = Box::into_raw(dp) as *mut c_void;
+    result
+}
+*/
+pub fn set_sec_env(card: &mut sc_card, value: &sc_security_env)
+{
+    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    dp.sec_env = *value;
+    // if sc_get_encoding_flags evaluates: secure algorithm flags == 0x0, then set SC_ALGORITHM_RSA_RAW
+    dp.sec_env.algorithm_flags = std::cmp::max(dp.sec_env.algorithm_flags, SC_ALGORITHM_RSA_RAW);
+    card.drv_data = Box::into_raw(dp) as *mut c_void;
+}
 
-
-pub fn get_rsa_algo_flags(card: &mut sc_card) -> c_uint
+pub fn get_sec_env(card: &mut sc_card) -> sc_security_env
 {
     let dp : Box<DataPrivate> = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-    let result = dp.rsa_algo_flags;
+    let result = dp.sec_env;
     card.drv_data = Box::into_raw(dp) as *mut c_void;
     result
 }
@@ -505,9 +529,298 @@ pub fn is_any_of_di_by_len(len: usize) -> bool
     false
 }
 
+pub fn trailing_blockcipher_padding_calculate(
+    block_size   : c_uchar, // 16 or 8
+    padding_type : c_uchar, // any of BLOCKCIPHER_PAD_TYPE_*
+    rem          : c_uchar  // == len (input len to blockcipher encrypt, may be != block_size) % block_size; 0 <= rem < block_size
+) -> Vec<c_uchar> // in general: 0 <= result_len <= block_size, but different for some padding_type
+{
+    assert!(rem < block_size);
+    assert!(block_size == 16 || block_size == 8);
+    assert!([BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5,
+        BLOCKCIPHER_PAD_TYPE_PKCS5, BLOCKCIPHER_PAD_TYPE_ANSIX9_23/*, BLOCKCIPHER_PAD_TYPE_W3C*/].contains(&padding_type));
+    let mut vec : Vec<c_uchar> = Vec::with_capacity(block_size.into());
+    match padding_type {
+        BLOCKCIPHER_PAD_TYPE_ZEROES => {
+            for _i in 0..block_size- if rem==0 {block_size} else {rem}
+                { vec.push(0x00); }
+            },
+        BLOCKCIPHER_PAD_TYPE_ONEANDZEROES => {
+            vec.push(0x80);
+            for _i in 0..block_size-rem-1 { vec.push(0x00); }
+        },
+        BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5 => {
+            if rem != 0 {
+                vec.push(0x80);
+                for _i in 0..block_size-rem-1 { vec.push(0x00); }
+            }
+        },
+        BLOCKCIPHER_PAD_TYPE_PKCS5 => {
+            let pad_byte = block_size-rem;
+            for _i in 0..pad_byte { vec.push(pad_byte); }
+        },
+        BLOCKCIPHER_PAD_TYPE_ANSIX9_23 => {
+            let pad_byte = block_size-rem;
+            for _i in 0..pad_byte-1 { vec.push(0x00); }
+            vec.push(pad_byte);
+
+        },
+/*
+        BLOCKCIPHER_PAD_TYPE_W3C => {
+
+        },
+*/
+        _ => ()
+    }
+    vec
+}
+
+pub fn trailing_blockcipher_padding_get_length(
+    block_size   : c_uchar, // 16 or 8
+    padding_type : c_uchar, // any of BLOCKCIPHER_PAD_TYPE_*
+    last_block_values: &[c_uchar]
+) -> Result<c_uchar,c_int> // in general: 0 <= result_len <= block_size, but different for some padding_type
+{
+    assert_eq!(usize::from(block_size), last_block_values.len());
+    match padding_type {
+        BLOCKCIPHER_PAD_TYPE_ZEROES => {
+            let mut cnt = 0u8;
+            for b in last_block_values.iter().rev() {
+                if *b==0 { cnt += 1; }
+                else {
+                    break;
+                }
+            }
+            if cnt==block_size {return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);}
+            Ok(cnt)
+        },
+        BLOCKCIPHER_PAD_TYPE_ONEANDZEROES => {
+            let mut cnt = 0u8;
+            for b in last_block_values.iter().rev() {
+                if *b==0 { cnt += 1; }
+                else {
+                    if *b!=0x80 {return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);}
+                    cnt += 1;
+                    break;
+                }
+            }
+            if cnt==block_size && last_block_values[0]==0 {return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);}
+            Ok(cnt)
+        },
+        BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5 => {
+            /* last byte 0x80 will be interpreted as padding, thus plaintext data can't end with 0x80 ! TODO possibly check while encrypting for trailing byte 0x80 */
+            if ![0u8, 0x80].contains(&last_block_values[usize::from(block_size-1)]) {return Ok(0);}
+            let mut cnt = 0u8;
+            for b in last_block_values.iter().rev() {
+                if *b==0 { cnt += 1; }
+                else {
+                    if *b!=0x80 {/*what to do now? assume wrong padding or payload?*/ return Ok(0)/*Err(SC_ERROR_KEYPAD_MSG_TOO_LONG)*/;}
+                    cnt += 1;
+                    break;
+                }
+            }
+            if cnt==block_size && [0u8, 0x80].contains(&last_block_values[0]) {return Ok(0)/*Err(SC_ERROR_KEYPAD_MSG_TOO_LONG)*/;}
+            Ok(cnt)
+        },
+        BLOCKCIPHER_PAD_TYPE_PKCS5 => {
+            let pad_byte = last_block_values[last_block_values.len()-1];
+            let mut cnt = 1u8;
+            for (i,b) in last_block_values[..usize::from(block_size-1)].iter().rev().enumerate() {
+                if *b==pad_byte && i+1<usize::from(pad_byte) { cnt += 1; }
+                else {break;}
+            }
+            if cnt != pad_byte {return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);}
+            Ok(cnt)
+        },
+        BLOCKCIPHER_PAD_TYPE_ANSIX9_23 => {
+            let pad_byte = last_block_values[last_block_values.len()-1];
+            let mut cnt = 1u8;
+            for (i,b) in last_block_values[..usize::from(block_size-1)].iter().rev().enumerate() {
+                if *b==0 && i+1<usize::from(pad_byte) { cnt += 1; }
+                else {break;}
+            }
+            if cnt != pad_byte {return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);}
+            Ok(cnt)
+        },
+/*
+        BLOCKCIPHER_PAD_TYPE_W3C => {
+Ok(0)
+        },
+*/
+        _ => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG)
+    }
+}
+
+
+#[allow(non_snake_case)]
+pub fn multipleGreaterEqual(multiplier: usize, x: usize) -> usize
+{
+    let rem = x % multiplier;
+    x + if rem==0 {0} else {multiplier-rem}
+}
+
+/*
+7.4.3.6.  Symmetric Key Encrypt does    work with chaining for CryptoMate64;                               CryptoMate Nano say's, it doesn't support chaining
+7.4.3.7.  Symmetric Key Decrypt doesn't work with chaining for CryptoMate64, though it should per ref.man; CryptoMate Nano say's, it doesn't support chaining
+if inData is not a multiple of blockSize, then addPadding80 will be done and outData must be able to receive that
+*/
+/* This function cares for padding the input TODO */
+/* Acc to ref. manual, V2.00 uses chaining, while V3.00 does not !
+https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Cipher_Block_Chaining_(CBC)
+*/
+#[allow(non_snake_case)]
+pub fn cry_pso_7_4_3_6_2A_sym_encrypt(
+    card: &mut sc_card,
+    inData:  &    [c_uchar], // unpadded raw data
+    outData: &mut [c_uchar], // Len: a multiple of blockSize
+    blockSize:  c_uchar,
+    pad_type:   c_uchar
+) -> c_int
+{
+    assert!([8u8, 16].contains(&blockSize));
+    assert!([BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5,
+        BLOCKCIPHER_PAD_TYPE_PKCS5, BLOCKCIPHER_PAD_TYPE_ANSIX9_23/*, BLOCKCIPHER_PAD_TYPE_W3C*/].contains(&pad_type));
+    let Len1 = inData.len();
+    let Len0 = (Len1/usize::from(blockSize)) * usize::from(blockSize);
+    let Len2 = multipleGreaterEqual(usize::from(blockSize), Len1+
+        if [BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5].contains(&pad_type) {0} else {1});
+    assert!(Len1 == 0    || outData.len() >= Len1);
+    assert!(Len1 == Len2 || outData.len() >= Len2);
+    let mut inDataRem = Vec::with_capacity(usize::from(blockSize));
+    if Len1 != Len2 {
+//        for i in 0..Len1 - Len0 {
+//            inDataRem.push(inData[Len0 + i]);
+//        }
+        inDataRem.extend_from_slice(&inData[Len0..Len1]); // no copying if Len0==Len1
+        inDataRem.extend(trailing_blockcipher_padding_calculate(blockSize, pad_type, (Len1-Len0) as u8) );
+//        if pad_type==0 {
+//            for _i in 0..Len2 - Len1 {
+//                inDataRem.push(0);
+//            }
+//        }
+        assert_eq!(inDataRem.len(), usize::from(blockSize));
+    }
+
+/*
+    /* MSE*/
+    let mut algoMSE = 0x04u8; //algoECB_MSE;  AES - ECB
+
+    let keySym_keyRef = 0x83u8;
+//    let mut tlv_crt_sym_encdec = Vec::with_capacity(29);
+    let mut tlv_crt_sym_encdec =   // made for cbc and blockSize == 16
+        vec![0xB8u8, 0xFF, 0x95, 0x01, 0x40,
+                           0x80, 0x01, 0xFF,
+                           0x83, 0x01, 0xFF,
+                           0x87, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+
+    if doCBCmode
+    {
+        algoMSE += 2;
+        if blockSize == 8
+        { tlv_crt_sym_encdec.truncate(21); }
+    }
+    else // ECB
+        { tlv_crt_sym_encdec.truncate(11); }
+
+//    assert!(tlv_crt_sym_encdec.len() >= 2);
+    tlv_crt_sym_encdec[1]  = (tlv_crt_sym_encdec.len()-2) as u8;
+    tlv_crt_sym_encdec[7]  = algoMSE;
+    tlv_crt_sym_encdec[10] = keySym_keyRef;
+
+    let mut vec = vec![0u8, 0x22, 0x01];
+    vec.extend_from_slice(&tlv_crt_sym_encdec);
+    let mut apdu = Default::default();
+    let mut rv = sc_bytes2apdu_wrapper(card.ctx, &vec, &mut apdu);
+    assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
+    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
+    if rv != SC_SUCCESS {
+        return rv;
+    }
+    rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+    if rv != SC_SUCCESS {
+        return rv;
+    }
+*/
+
+    /* encrypt */
+    let max_send = 255-blockSize+1;
+    let command : [u8; 7] = [0u8, 0x2A, 0x84, 0x80, 0x01, 0xFF, 0xFF];
+    let mut apdu = Default::default();
+    let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
+    assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_4_SHORT);
+    let mut cnt = 0usize; // counting apdu.resplen bytes received;
+
+    while cnt < Len0 {
+        apdu.data = unsafe { inData.as_ptr().add(cnt) };
+        apdu.datalen = std::cmp::min(usize::from(max_send), Len0-cnt); // = lc = le
+        apdu.lc = apdu.datalen;
+        apdu.le = apdu.datalen;
+        apdu.resp = unsafe { outData.as_mut_ptr().add(cnt) }; // scope variable encrypted_RSA assigned to non-scope apdu
+        apdu.resplen = outData.len()-cnt;
+        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
+        if rv != SC_SUCCESS {
+            return rv;
+        }
+        rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+        if rv != SC_SUCCESS {
+            return rv;
+        }
+        if apdu.resplen == 0 {
+            return -1;
+        }
+        cnt += apdu.resplen;
+    }
+
+    if Len1 != Len2 {
+        apdu.data = inDataRem.as_ptr();
+        apdu.datalen = inDataRem.len();
+        apdu.lc = apdu.datalen;
+        apdu.le = apdu.datalen;
+        apdu.resp = unsafe { outData.as_mut_ptr().add(cnt) }; // scope variable encrypted_RSA assigned to non-scope apdu
+        apdu.resplen = outData.len()-cnt;
+//            cla = cnt+max_send<Len && doCBCmode ? ubyte(0x10) : ubyte(0);
+        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
+        if rv != SC_SUCCESS {
+            return rv;
+        }
+        rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+        if rv != SC_SUCCESS {
+            return rv;
+        }
+        if apdu.resplen == 0 {
+            return -1;
+        }
+        cnt += apdu.resplen;
+    }
+    cnt as c_int
+}
+
+/*
+#[allow(non_snake_case)]
+pub fn cry_pso_7_4_3_7_2A_sym_decrypt(
+    card: &mut sc_card,
+    inData:  &    [c_uchar], // unpadded raw data
+    outData: &mut [c_uchar], // Len: a multiple of blockSize
+    blockSize:  c_uchar,
+    pad_type:   c_uchar
+//    bool doCBCmode=true, /* otherwise handled as ECB*/
+//    const scope ubyte[] tlv = null, // the same that was used for encryption; assuming that allows decrypzion as well
+//ub2 fid = [ubyte(0),ubyte(0)] // any DF for that verification was done already
+) -> c_int
+{ // the implem. is the same as for cry_pso_7_4_3_6_2A_sym_encrypt, except "PSO_P1P2.decrypt"
+0
+}
+*/
+
 #[cfg(test)]
 mod tests {
-    use super::{convert_bytes_tag_fcp_sac_to_scb_array};
+    use super::{convert_bytes_tag_fcp_sac_to_scb_array, multipleGreaterEqual, trailing_blockcipher_padding_calculate,
+                trailing_blockcipher_padding_get_length};
+    use crate::constants_types::*;
+//    use opensc_sys::errors::*;
 
     #[test]
     fn test_convert_bytes_tag_fcp_sac_to_scb_array() {
@@ -535,5 +848,61 @@ mod tests {
         let bytes_tag_fcp_sac = [0x2B, 0x05, 0x03, 0x01, 0x45];
         scb8 = convert_bytes_tag_fcp_sac_to_scb_array(&bytes_tag_fcp_sac).unwrap();
         assert_eq!(scb8, [0x45, 0x01, 0x00, 0x03, 0x00, 0x05, 0x00, 0xFF]);
+    }
+
+    #[allow(non_snake_case)]
+    #[test]
+    fn test_multipleGreaterEqual() {
+        assert_eq!(multipleGreaterEqual(8, 0),  0);
+        assert_eq!(multipleGreaterEqual(8, 7),  8);
+        assert_eq!(multipleGreaterEqual(8, 8),  8);
+        assert_eq!(multipleGreaterEqual(8, 9), 16);
+    }
+
+    #[test]
+    fn test_trailing_blockcipher_padding_calculate() {
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ZEROES, 3).as_slice(), &[0u8,0,0,0,0]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ZEROES, 7).as_slice(), &[0u8]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ZEROES, 0).as_slice(), &[0u8; 0]);
+
+        // this is implemented in libopensc as well: sodium_pad
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, 3).as_slice(), &[0x80u8,0,0,0,0]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, 7).as_slice(), &[0x80u8]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, 0).as_slice(), &[0x80u8, 0,0,0,0,0,0,0]);
+
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5, 3).as_slice(), &[0x80u8,0,0,0,0]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5, 7).as_slice(), &[0x80u8]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5, 0).as_slice(), &[0u8; 0]);
+
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS5, 3).as_slice(), &[0x05u8; 5]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS5, 7).as_slice(), &[0x01u8; 1]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS5, 0).as_slice(), &[0x08u8; 8]);
+
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, 3).as_slice(), &[0u8,0,0,0,5]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, 7).as_slice(), &[1u8]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, 0).as_slice(), &[0u8,0,0,0,0,0,0,8]);
+    }
+    #[test]
+    fn test_trailing_blockcipher_padding_get_length() {
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ZEROES, &[0u8,2,1,0,0,0,0,0]).unwrap(), 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ZEROES, &[0u8,6,5,4,3,2,1,0]).unwrap(), 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ZEROES, &[0u8,7,6,5,4,3,2,1]).unwrap(), 0);
+
+        // something similar is implemented in libopensc as well: sodium_unpad
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0u8,0,0,0x80,0,0,0,0]).unwrap(), 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0u8,0,0,0,0,0,0,0x80]).unwrap(), 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0x80u8,0,0,0,0,0,0,0]).unwrap(), 8);
+
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5, &[0u8,0,0,0x80,0,0,0,0]).unwrap(), 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5, &[0u8,0,0,0,0,0,0,0x80]).unwrap(), 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5, &[0x80u8,0,0,0,0,0,0,0]).unwrap(), 0);
+
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[0u8,5,5,5,5,5,5,5]).unwrap(), 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[0u8,1,1,1,1,1,1,1]).unwrap(), 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[8u8,8,8,8,8,8,8,8]).unwrap(), 8);
+
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0u8,0,0,0,0,0,0,5]).unwrap(), 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0u8,0,0,0,0,0,0,1]).unwrap(), 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0u8,0,0,0,0,0,0,8]).unwrap(), 8);
     }
 }

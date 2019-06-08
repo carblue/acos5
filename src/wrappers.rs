@@ -20,11 +20,13 @@
 
 /* naming: replace sc to wr, e.g. sc_do_log -> wr_do_log */
 
-use std::os::raw::{c_uint, c_int, c_uchar};
+use std::os::raw::{c_uint, c_int, c_uchar, c_char};
 use std::ffi::CStr;
 
 use opensc_sys::opensc::{sc_context};
 use opensc_sys::log::{sc_do_log, SC_LOG_DEBUG_NORMAL};
+#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+use opensc_sys::log::{sc_do_log_color, SC_COLOR_FG_RED};
 
 
 pub fn wr_do_log(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, fmt: &CStr)
@@ -32,12 +34,17 @@ pub fn wr_do_log(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, fm
     unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr()) };
 }
 
-pub fn wr_do_log_t<T>(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, fmt: &CStr, arg: T)
+pub fn wr_do_log_t<T>(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg: T, fmt: &CStr)
 {
     unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg) };
 }
 
-pub fn wr_do_log_tu<T,U>(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, fmt: &CStr, arg1: T, arg2: U)
+pub fn wr_do_log_tt<T>(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: T, arg2: T, fmt: &CStr)
+{
+    unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg1, arg2) };
+}
+
+pub fn wr_do_log_tu<T,U>(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: T, arg2: U, fmt: &CStr)
 {
     unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg1, arg2) };
 }
@@ -48,7 +55,15 @@ pub fn wr_do_log_8u8_i32(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &
                        a[0] as u32, a[1] as u32, a[2] as u32, a[3] as u32, a[4] as u32, a[5] as u32, a[6] as u32, a[7] as u32, i) };
 }
 
-pub fn wr_do_log_zz(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, fmt: &CStr, arg1: usize, arg2: usize)
+// usage for error return (<0) with: LOG_TEST_RET, LOG_TEST_GOTO_ERR
+
+pub fn wr_do_log_sds(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: *const c_char, arg2: c_int, arg3: *const c_char, fmt: &CStr)
 {
-    unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg1, arg2) };
+    unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg1, arg2, arg3) };
+}
+
+#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+pub fn wrc_do_log_sds(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: *const c_char, arg2: c_int, arg3: *const c_char, fmt: &CStr)
+{
+    unsafe { sc_do_log_color(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), SC_COLOR_FG_RED, fmt.as_ptr(), arg1, arg2, arg3) };
 }

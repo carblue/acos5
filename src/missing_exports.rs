@@ -35,13 +35,13 @@ see file src/libopensc/libopensc.exports
 */
 extern crate libc;
 
-use libc::{realloc, free};
-
+use libc::{realloc,/* free*/};
+use std::ffi::CStr;
 use std::os::raw::{c_int, c_uint, c_void};
 
 use opensc_sys::opensc::{sc_context, sc_card, sc_algorithm_info, SC_CARD_CAP_APDU_EXT, SC_PROTO_T0,
                          SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
-                         SC_ALGORITHM_RAW_MASK, SC_ALGORITHM_RSA_PADS,
+                         SC_ALGORITHM_EC, sc_compare_oid,
                          SC_ALGORITHM_RSA_PAD_NONE, SC_ALGORITHM_RSA_PAD_PKCS1,
                          SC_ALGORITHM_RSA_HASH_NONE,
                          SC_ALGORITHM_RSA_HASH_MD5,
@@ -60,11 +60,25 @@ use opensc_sys::opensc::{sc_context, sc_card, sc_algorithm_info, SC_CARD_CAP_APD
 use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_PSS};
 
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-use opensc_sys::opensc::{SC_ALGORITHM_AES_FLAGS, SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_RSA_RAW, SC_ALGORITHM_RSA_HASHES};
+use opensc_sys::opensc::{SC_ALGORITHM_AES, SC_ALGORITHM_AES_FLAGS, SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_RSA_RAW,
+                         SC_ALGORITHM_RSA_HASHES};
 
-use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL, SC_ERROR_OUT_OF_MEMORY,
-                         SC_ERROR_NOT_SUPPORTED, SC_ERROR_KEYPAD_MSG_TOO_LONG
+#[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
+use opensc_sys::opensc::{SC_ALGORITHM_RAW_MASK, SC_ALGORITHM_RSA_PADS};
+
+use opensc_sys::errors::{sc_strerror, SC_SUCCESS, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL, SC_ERROR_OUT_OF_MEMORY,
+                         SC_ERROR_NOT_SUPPORTED
+//                         , SC_ERROR_KEYPAD_MSG_TOO_LONG
 };
+
+use opensc_sys::types::{sc_object_id};
+
+//use opensc_sys::log::{sc_do_log, SC_LOG_DEBUG_NORMAL};
+//#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+//use opensc_sys::log::{sc_do_log_color};
+
+use crate::constants_types::*;
+use crate::wrappers::*;
 
 
 /* for acos5_64_get_response only */
@@ -78,7 +92,8 @@ pub fn me_get_max_recv_size(card: &sc_card) -> usize
 
     /* initialize max_recv_size to a meaningful value */
     if max_recv_size == 0 {
-        max_recv_size = if card.caps as c_uint & SC_CARD_CAP_APDU_EXT != 0 {0x1_0000} else {SC_READER_SHORT_APDU_MAX_RECV_SIZE};
+        max_recv_size = if card.caps as c_uint & SC_CARD_CAP_APDU_EXT != 0 {0x1_0000}
+                        else {SC_READER_SHORT_APDU_MAX_RECV_SIZE};
     }
 
     /*  Override card limitations with reader limitations. */
@@ -112,21 +127,19 @@ pub fn me_get_max_send_size(card: &sc_card) -> usize
 
 fn me_card_add_algorithm(card: &mut sc_card, info: &sc_algorithm_info) -> c_int
 {
-    let p = unsafe { realloc(card.algorithms as *mut c_void, ((card.algorithm_count + 1) as usize) *
+    let mut p = unsafe { realloc(card.algorithms as *mut c_void, ((card.algorithm_count + 1) as usize) *
         std::mem::size_of::<sc_algorithm_info>()) } as *mut sc_algorithm_info;
 
     if p.is_null() {
-        if !card.algorithms.is_null() {
-            unsafe { free(card.algorithms as *mut c_void) };
-        }
-        card.algorithms = std::ptr::null_mut();
-        card.algorithm_count = 0;
         return SC_ERROR_OUT_OF_MEMORY;
     }
     card.algorithms = p;
-    unsafe { p.add(card.algorithm_count as usize) };
+    unsafe { p = p.add(card.algorithm_count as usize) };
     card.algorithm_count += 1;
-    unsafe {*p = *info };
+    let p_ref =  unsafe {&mut *p};
+    *p_ref = *info;
+//    unsafe { *p = *info };
+//println!("card.algorithm_count: {}, p_ref.algorithm: {}, p_ref.key_length: {}, p_ref.flags: {}", card.algorithm_count, p_ref.algorithm, p_ref.key_length, p_ref.flags);
     SC_SUCCESS
 }
 
@@ -134,6 +147,28 @@ pub fn me_card_add_symmetric_alg(card: &mut sc_card, algorithm: c_uint, key_leng
 { // same as in opensc
     let info = sc_algorithm_info { algorithm, key_length, flags, .. Default::default() };
     me_card_add_algorithm(card, &info)
+}
+
+pub fn me_card_find_alg(card: &mut sc_card,
+                        algorithm: c_uint, key_length: c_uint, param: *mut c_void) -> *mut sc_algorithm_info
+{
+    for i in 0..card.algorithm_count as usize {
+        assert!(unsafe { !card.algorithms.add(i).is_null() });
+        let info = unsafe { &mut *card.algorithms.add(i) };
+
+        if info.algorithm != algorithm   { continue; }
+        if info.key_length != key_length { continue; }
+
+        if !param.is_null() {
+            if info.algorithm == SC_ALGORITHM_EC {
+                if unsafe { sc_compare_oid(param as *mut sc_object_id, &info.u._ec.params.id) } != 0 {
+                    continue;
+                }
+            }
+        }
+        return info;
+    }
+    std::ptr::null_mut() as *mut sc_algorithm_info
 }
 
 
@@ -146,7 +181,7 @@ pub fn me_card_add_symmetric_alg(card: &mut sc_card, algorithm: c_uint, key_leng
  * @param  sflags  OUT the security env. algorithm flag to use
  * @return SC_SUCCESS on success and an error code otherwise
  */
-pub fn me_get_encoding_flags(_ctx: *mut sc_context, iflags: c_uint, caps: c_uint,
+pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: c_uint, caps: c_uint,
                              pflags: &mut c_uint, sflags: &mut c_uint) -> c_int
 {
     const DIGEST_INFO_PREFIX: [c_uint; 9] = [
@@ -160,108 +195,134 @@ pub fn me_get_encoding_flags(_ctx: *mut sc_context, iflags: c_uint, caps: c_uint
         SC_ALGORITHM_RSA_HASH_RIPEMD160,
         SC_ALGORITHM_RSA_HASH_MD5_SHA1
     ];
-//    LOG_FUNC_CALLED(ctx);
-//    if pflags.is_null() || sflags.is_null() {
-//        return SC_ERROR_INVALID_ARGUMENTS; //LOG_FUNC_RETURN(ctx, SC_ERROR_INVALID_ARGUMENTS);
-//    }
-//    sc_log(ctx, "iFlags 0x%lX, card capabilities 0x%lX", iflags, caps);
 
-if cfg!(any(v0_17_0, v0_18_0, v0_19_0)) {
-
-    for hash_algo in &DIGEST_INFO_PREFIX {
-        if (iflags & *hash_algo) != 0 {
-            if *hash_algo != SC_ALGORITHM_RSA_HASH_NONE && (caps & *hash_algo) != 0
-            { *sflags |= *hash_algo; }
-            else
-            { *pflags |= *hash_algo; }
-            break;
-        }
+    let file = CStr::from_bytes_with_nul(CRATE).unwrap();
+    let fun  = CStr::from_bytes_with_nul(b"me_get_encoding_flags\0").unwrap();
+    if cfg!(log) {
+        wr_do_log(ctx, file, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+        wr_do_log_tt(ctx, file, line!(), fun, iflags, caps,
+                     CStr::from_bytes_with_nul(b"iFlags 0x%X, card capabilities 0x%X\0").unwrap());
     }
 
-    if (iflags   & SC_ALGORITHM_RSA_PAD_PKCS1) != 0 {
-        if (caps & SC_ALGORITHM_RSA_PAD_PKCS1) != 0
-        { *sflags |= SC_ALGORITHM_RSA_PAD_PKCS1; } else { *pflags |= SC_ALGORITHM_RSA_PAD_PKCS1; }
-    }
-    else if (iflags & SC_ALGORITHM_RSA_PADS) == SC_ALGORITHM_RSA_PAD_NONE {
-        /* Work with RSA, EC and maybe GOSTR? */
-        if (caps & SC_ALGORITHM_RAW_MASK) == 0 {
-            return SC_ERROR_NOT_SUPPORTED; // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "raw encryption is not supported");
+    #[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
+    {
+        for hash_algo in &DIGEST_INFO_PREFIX {
+            if (iflags & *hash_algo) > 0 {
+                if *hash_algo != SC_ALGORITHM_RSA_HASH_NONE && (caps & *hash_algo) > 0
+                     { *sflags |= *hash_algo; }
+                else { *pflags |= *hash_algo; }
+                break;
+            }
         }
-        *sflags |= caps & SC_ALGORITHM_RAW_MASK; /* adds in the one raw type */
-        *pflags = 0;
-    }
-/* * /
-    else if cfg!(v0_19_0) && (iflags & SC_ALGORITHM_RSA_PAD_PSS) != 0 {
-        if (caps & SC_ALGORITHM_RSA_PAD_PSS) != 0 {
-            *sflags |= SC_ALGORITHM_RSA_PAD_PSS;
-        }
-        else {
-            *pflags |= SC_ALGORITHM_RSA_PAD_PSS;
-        }
-    }
-/ * */
-    else {
-        return SC_ERROR_NOT_SUPPORTED; // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "unsupported algorithm");
-    }
-}
-/*
-if cfg!(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0))) {
-    /* For ECDSA and GOSTR, we don't do any padding or hashing ourselves, the
-     * card has to support the requested operation.  Similarly, for RSA with
-     * raw padding (raw RSA) and ISO9796, we require the card to do it for us.
-     * Finally, for PKCS1 (v1.5 and PSS) and ASNI X9.31 we can apply the padding
-     * ourselves if the card supports raw RSA. */
 
-    /* TODO: Could convert GOSTR3410_HASH_GOSTR3411 -> GOSTR3410_RAW and
-     *       ECDSA_HASH_ -> ECDSA_RAW using OpenSSL (not much benefit though). */
-
-    if (caps & iflags) == iflags {
-        /* Card supports the signature operation we want to do, great, let's
-         * go with it then. */
-        *sflags = iflags;
-        *pflags = 0;
-    }
-    else if (caps & SC_ALGORITHM_RSA_PAD_PSS) != 0 && (iflags & SC_ALGORITHM_RSA_PAD_PSS) != 0 {
-        *sflags |= SC_ALGORITHM_RSA_PAD_PSS;
-    }
-    else if (caps & SC_ALGORITHM_RSA_RAW) != 0 &&
-        ((iflags & SC_ALGORITHM_RSA_PAD_PKCS1) != 0
-            || (iflags & SC_ALGORITHM_RSA_PAD_PSS) != 0
-            || (iflags & SC_ALGORITHM_RSA_PAD_NONE) != 0) {
-        /* Use the card's raw RSA capability on the padded input */
-        *sflags = SC_ALGORITHM_RSA_PAD_NONE;
-        *pflags = iflags;
-    }
-    else if (caps & (SC_ALGORITHM_RSA_PAD_PKCS1 | SC_ALGORITHM_RSA_HASH_NONE)) != 0 &&
-        (iflags & SC_ALGORITHM_RSA_PAD_PKCS1) != 0 {
-        /* A corner case - the card can partially do PKCS1, if we prepend the
-         * DigestInfo bit it will do the rest. */
-        *sflags = SC_ALGORITHM_RSA_PAD_PKCS1 | SC_ALGORITHM_RSA_HASH_NONE;
-        *pflags = iflags & SC_ALGORITHM_RSA_HASHES;
-    }
-    else if (iflags & SC_ALGORITHM_AES) == SC_ALGORITHM_AES { /* TODO: seems like this constant does not belong to the same set of flags used form asymmetric algos. Fix this! */
-        *sflags = 0;
-        *pflags = 0;
-    }
-    else if (iflags & SC_ALGORITHM_AES_FLAGS) > 0 {
-        *sflags = iflags & SC_ALGORITHM_AES_FLAGS;
-        if (iflags & SC_ALGORITHM_AES_CBC_PAD) > 0 {
-            *pflags = SC_ALGORITHM_AES_CBC_PAD;
+        if (iflags   & SC_ALGORITHM_RSA_PAD_PKCS1) > 0
+        {
+            if (caps & SC_ALGORITHM_RSA_PAD_PKCS1) > 0
+                 { *sflags |= SC_ALGORITHM_RSA_PAD_PKCS1; }
+            else { *pflags |= SC_ALGORITHM_RSA_PAD_PKCS1; }
         }
-        else {
+        else if (iflags & SC_ALGORITHM_RSA_PADS) == SC_ALGORITHM_RSA_PAD_NONE
+        {
+            /* Work with RSA, EC and maybe GOSTR? */
+            if (caps & SC_ALGORITHM_RAW_MASK) == 0 {
+                if cfg!(log) { // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "raw encryption is not supported");
+                    wr_do_log_sds(ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"raw decipher is not supported\0").unwrap().as_ptr(),
+                                   SC_ERROR_NOT_SUPPORTED, unsafe { sc_strerror(SC_ERROR_NOT_SUPPORTED) },
+                                   CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap() );
+                }
+                return SC_ERROR_NOT_SUPPORTED;
+            }
+            *sflags |= caps & SC_ALGORITHM_RAW_MASK; /* adds in the one raw type */
             *pflags = 0;
         }
-
-    } else {
-//        LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "unsupported algorithm");
+        else if cfg!(v0_19_0) {
+        #[cfg(v0_19_0)]
+        {
+            if (iflags   & SC_ALGORITHM_RSA_PAD_PSS) > 0
+            {
+                if (caps & SC_ALGORITHM_RSA_PAD_PSS) > 0 { *sflags |= SC_ALGORITHM_RSA_PAD_PSS; }
+                else                                     { *pflags |= SC_ALGORITHM_RSA_PAD_PSS; }
+            }
+        }}
+        else {
+             if cfg!(log) { // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "unsupported algorithm");
+                wr_do_log_sds(ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"unsupported algorithm\0").unwrap().as_ptr(),
+                               SC_ERROR_NOT_SUPPORTED, unsafe { sc_strerror(SC_ERROR_NOT_SUPPORTED) },
+                               CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap() );
+            }
+            return SC_ERROR_NOT_SUPPORTED;
+        }
     }
 
-}
-*/
-    //    sc_log(ctx, "pad flags 0x%lX, secure algorithm flags 0x%lX", *pflags, *sflags);
-    //LOG_FUNC_RETURN(ctx, SC_SUCCESS);
+    #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+    {
+
+        /* For ECDSA and GOSTR, we don't do any padding or hashing ourselves, the
+         * card has to support the requested operation.  Similarly, for RSA with
+         * raw padding (raw RSA) and ISO9796, we require the card to do it for us.
+         * Finally, for PKCS1 (v1.5 and PSS) and ASNI X9.31 we can apply the padding
+         * ourselves if the card supports raw RSA. */
+
+        /* TODO: Could convert GOSTR3410_HASH_GOSTR3411 -> GOSTR3410_RAW and
+         *       ECDSA_HASH_ -> ECDSA_RAW using OpenSSL (not much benefit though). */
+
+        if (caps & iflags) == iflags {
+            /* Card supports the signature operation we want to do, great, let's
+             * go with it then. */
+            *sflags = iflags;
+            *pflags = 0;
+        }
+        else if (caps & SC_ALGORITHM_RSA_PAD_PSS) > 0 &&
+              (iflags & SC_ALGORITHM_RSA_PAD_PSS) > 0
+        {
+            *sflags |=  SC_ALGORITHM_RSA_PAD_PSS;
+        }
+        else if (caps & SC_ALGORITHM_RSA_RAW) > 0 &&
+             ((iflags & SC_ALGORITHM_RSA_PAD_PKCS1) > 0
+                || (iflags & SC_ALGORITHM_RSA_PAD_PSS) > 0
+                || (iflags & SC_ALGORITHM_RSA_PAD_NONE) > 0)
+        {
+            /* Use the card's raw RSA capability on the padded input */
+            *sflags = SC_ALGORITHM_RSA_PAD_NONE;
+            *pflags = iflags;
+        }
+        else if (caps & (SC_ALGORITHM_RSA_PAD_PKCS1 | SC_ALGORITHM_RSA_HASH_NONE)) > 0  &&
+              (iflags &  SC_ALGORITHM_RSA_PAD_PKCS1) > 0
+        {
+            /* A corner case - the card can partially do PKCS1, if we prepend the
+             * DigestInfo bit it will do the rest. */
+            *sflags = SC_ALGORITHM_RSA_PAD_PKCS1 | SC_ALGORITHM_RSA_HASH_NONE;
+            *pflags = iflags & SC_ALGORITHM_RSA_HASHES;
+        }
+        else if (iflags & SC_ALGORITHM_AES) == SC_ALGORITHM_AES  /* TODO: seems like this constant does not belong to the same set of flags used form asymmetric algos. Fix this! */
+        {
+            *sflags = 0;
+            *pflags = 0;
+        }
+        else if (iflags & SC_ALGORITHM_AES_FLAGS) > 0
+        {
+            *sflags = iflags & SC_ALGORITHM_AES_FLAGS;
+            if (iflags &     SC_ALGORITHM_AES_CBC_PAD) > 0
+                 { *pflags = SC_ALGORITHM_AES_CBC_PAD; }
+            else { *pflags = 0; }
+        }
+        else {
+            if cfg!(log) { // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "unsupported algorithm");
+                wrc_do_log_sds(ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"unsupported algorithm\0").unwrap().as_ptr(),
+                              SC_ERROR_NOT_SUPPORTED, unsafe { sc_strerror(SC_ERROR_NOT_SUPPORTED) },
+                              CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap() );
+            }
+            return SC_ERROR_NOT_SUPPORTED;
+        }
+    }
+    if cfg!(log) {
+        wr_do_log_tt(ctx, file, line!(), fun,*pflags, *sflags,
+                     CStr::from_bytes_with_nul(b"pad flags 0x%X, secure algorithm flags 0x%X\0").unwrap());
+        wr_do_log_tu(ctx, file, line!(), fun,SC_SUCCESS, unsafe { sc_strerror(SC_SUCCESS) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+    }
     SC_SUCCESS
-}
+} // pub fn me_get_encoding_flags
+
 
 /* Signature schemes supported natively by ACOS5-64:
 ISO 9796-2 scheme 1 padding  http://www.sarm.am/docs/ISO_IEC_9796-2_2002(E)-Character_PDF_document.pdf
@@ -338,6 +399,7 @@ pub fn me_pkcs1_strip_01_padding(in_dat: &[u8]) -> Result<&[u8], c_int>
     Ok(&in_dat[in_len-len..])
 }
 
+/*
 pub fn me_pkcs1_add_01_padding(digest_info: &[u8], outlen: usize) -> Result<Vec<u8>, c_int>
 {
     if 11+digest_info.len() > outlen {
@@ -355,7 +417,7 @@ pub fn me_pkcs1_add_01_padding(digest_info: &[u8], outlen: usize) -> Result<Vec<
     }
     Ok(vec)
 }
-
+*/
 
 #[cfg(test)]
 mod tests {

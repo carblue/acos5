@@ -21,6 +21,7 @@
 use std::os::raw::{c_uchar, c_int, c_uint};
 use std::collections::HashMap;
 
+use opensc_sys::opensc::{sc_security_env};
 use opensc_sys::types::{sc_crt, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
 use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUSTED,
                          SC_PKCS15_SKDF, SC_PKCS15_CDF, SC_PKCS15_CDF_TRUSTED, SC_PKCS15_CDF_USEFUL,
@@ -130,6 +131,21 @@ pub const RSAPUB_MAX_LEN           : usize = 5 + 16 + 512; // the max. file size
 pub const RSAPRIV_MAX_LEN_STD      : usize = 5 +      512; // the max. file size requirement for RSA private key (non-CRT)
 pub const RSAPRIV_MAX_LEN_CRT      : usize = 5 +   5* 256; // the max. file size requirement for RSA private key stored in CRT manner
 
+//https://cryptosys.net/pki/manpki/pki_paddingschemes.html
+// don't use BLOCKCIPHER_PAD_TYPE_ZEROES, if it's required to retrieve the message length exactly
+pub const BLOCKCIPHER_PAD_TYPE_ZEROES             : u8 =  0; // as for  CKM_AES_CBC: adds max block size minus one null bytes (0 ≤ N < B Blocksize)
+pub const BLOCKCIPHER_PAD_TYPE_ONEANDZEROES       : u8 =  1; // Unconditionally add a byte of value 0x80 followed by as many zero bytes as is necessary to fill the input to the next exact multiple of B
+// be careful with BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5: It can't unambiguously be detected, what is padding, what is payload
+pub const BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5 : u8 =  2; // Used in ACOS5 SM: Only if in_len isn't a multiple of blocksize, then add a byte of value 0x80 followed by as many zero bytes as is necessary to fill the input to the next exact multiple of B
+// BLOCKCIPHER_PAD_TYPE_PKCS5 is the recommended one, otherwise BLOCKCIPHER_PAD_TYPE_ONEANDZEROES and BLOCKCIPHER_PAD_TYPE_ANSIX9_23 (BLOCKCIPHER_PAD_TYPE_W3C) also exhibit unambiguity
+pub const BLOCKCIPHER_PAD_TYPE_PKCS5              : u8 =  3; // as for CKM_AES_CBC_PAD: If the block length is B then add N padding bytes (1 < N ≤ B Blocksize) of value N to make the input length up to the next exact multiple of B. If the input length is already an exact multiple of B then add B bytes of value B
+pub const BLOCKCIPHER_PAD_TYPE_ANSIX9_23          : u8 =  4; // If N padding bytes are required (1 < N ≤ B Blocksize) set the last byte as N and all the preceding N-1 padding bytes as zero.
+// BLOCKCIPHER_PAD_TYPE_W3C is not recommended
+//b const BLOCKCIPHER_PAD_TYPE_W3C                : u8 =  5; // If N padding bytes are required (1 < N ≤ B Blocksize) set the last byte as N and all the preceding N-1 padding bytes as arbitrary byte values.
+
+pub const SC_SEC_ENV_PARAM_DES_ECB           : c_uint = 3;
+pub const SC_SEC_ENV_PARAM_DES_CBC           : c_uint = 4;
+
 /* see opensc-sys: opensc.rs
 pub const SC_SEC_OPERATION_DECIPHER            : c_int = 0x0001;
 pub const SC_SEC_OPERATION_SIGN                : c_int = 0x0002;
@@ -140,8 +156,8 @@ pub const SC_SEC_OPERATION_WRAP                : c_int = 0x0005;
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
 pub const SC_SEC_OPERATION_UNWRAP              : c_int = 0x0006;
 */
-pub const SC_SEC_OPERATION_GENERATE_RSAPRIVATE : c_int = 0x0007;
-pub const SC_SEC_OPERATION_GENERATE_RSAPUBLIC  : c_int = 0x0008;
+pub const SC_SEC_OPERATION_GENERATE_RSAPRIVATE : c_int = 0x0007; // sc_set_security_env must know this related to file id
+pub const SC_SEC_OPERATION_GENERATE_RSAPUBLIC  : c_int = 0x0008; // sc_set_security_env must know this related to file id
 
 pub const SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC  : c_int = 0x0009;
 pub const SC_SEC_OPERATION_DECIPHER_RSAPRIVATE : c_int = 0x000A;
@@ -182,10 +198,16 @@ pub const SC_CARDCTL_GET_FIPS_COMPLIANCE     : c_uint =  0x0000_001A; // data: *
 pub const SC_CARDCTL_GET_PIN_AUTH_STATE      : c_uint =  0x0000_001B; // data: *mut CardCtlAuthState,  get_pin_auth_state
 pub const SC_CARDCTL_GET_KEY_AUTH_STATE      : c_uint =  0x0000_001C; // data: *mut CardCtlAuthState,  get_key_auth_state
 
-pub const SC_CARDCTL_GET_FILES_HASHMAP_INFO  : c_uint =  0x0000_0020; // data: *mut CardCtlArray32,  get_files_hashmap_info
+pub const SC_CARDCTL_UPDATE_FILES_HASHMAP    : c_uint =  0x0000_0020; // data: null
+pub const SC_CARDCTL_GET_FILES_HASHMAP_INFO  : c_uint =  0x0000_0021; // data: *mut CardCtlArray32,  get_files_hashmap_info
 
 
-pub const SC_CARDCTL_UPDATE_FILES_HASHMAP    : c_uint =  0x0000_0040; // data: null
+pub const SC_CARDCTL_ENCRYPT_SYM             : c_uint =  0x0000_0022; // data: *mut CardCtl_crypt_sym,  do_encrypt_sym
+//pub const SC_CARDCTL_ENCRYPT_ASYM            : c_uint =  0x0000_0023; // data: *mut CardCtl_crypt_asym, do_encrypt_asym; Signature verification with public key
+//pub const SC_CARDCTL_DECRYPT_SYM             : c_uint =  0x0000_0024; // data: *mut CardCtl_crypt_sym,  do_decrypt_sym
+////pub const SC_CARDCTL_DECRYPT_ASYM            : c_uint =  0x0000_0025; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
+
+
 
 
 /* common types and general function(s) */
@@ -255,6 +277,53 @@ impl Default for CardCtlArray32 {
         }
     }
 }
+//
+
+// struct for SC_CARDCTL_ENCRYPT_SYM // data: *mut CardCtl_crypt_sym, do_encrypt_sym
+#[repr(C)]
+#[derive(/*Debug,*/ Copy, Clone)]
+pub struct CardCtl_crypt_sym {
+    pub infile       : *const char, //  path/to/file where the indata may be read from, interpreted as an [c_uchar]; if!= null has preference over indata
+    pub indata       : [c_uchar; 64],
+    pub indata_len   : usize,
+    pub outfile      : *const char, //  path/to/file where the outdata may be written to, interpreted as an [c_uchar]; if!= null has preference over outdata
+    pub outdata      : [c_uchar; 64],
+    pub outdata_len  : usize,
+    pub iv           : [c_uchar; 16],
+    pub iv_len       : usize, // equal to algo_family, i.e. 16 for AES, else 8
+
+    pub key_ref      : c_uchar, // how the key is known by cos5: e.g. internal local key with id 3 has key_ref: 0x83
+    pub block_size   : c_uchar, // 16: AES; 8: 3DES or DES
+    pub key_len      : c_uchar, // in bytes
+    pub pad_type     : c_uchar, // 0 currently is filling modulo rem with zero
+//    pub use_sess_key : bool, // if true, the session key will be used and key_ref ignored
+    pub local        : bool, // whether local or global key to use; used to select MF or appDF where the key file resides
+    pub cbc          : bool, // true: CBC Mode, false: ECB
+    pub enc_dec      : bool, // true: encrypt,  false: decrypt
+}
+
+impl Default for CardCtl_crypt_sym {
+    fn default() -> CardCtl_crypt_sym {
+        CardCtl_crypt_sym {
+            infile: std::ptr::null(),
+            indata: [0u8; 64],
+            indata_len: 0,
+            outfile: std::ptr::null(),
+            outdata: [0u8; 64],
+            outdata_len: 0,
+            iv: [0u8; 16],
+            iv_len: 0,
+            key_ref: 0,
+            block_size: 16, // set as default: AES 256 bit CBC, encryption with local key and PKCS5 padding
+            key_len: 32,
+            pad_type: BLOCKCIPHER_PAD_TYPE_PKCS5, // the recommended one, one of those that are able to be de-pad'ed unambiguously
+//            use_sess_key: false,
+            local: true,
+            cbc: true,
+            enc_dec: true
+        }
+    }
+}
 
 /////////////////////////////////////////////////////////////////////////////////
 /* Stores 1 record of SecurityEnvironment File, intended to be placed in a Vec */
@@ -286,7 +355,9 @@ pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, Opt
 #[derive(Debug /*, Copy*/, Clone)]
 pub struct DataPrivate { // see settings in acos5_64_init
     pub files : HashMap< KeyTypeFiles, ValueTypeFiles >,
-    pub rsa_algo_flags : c_uint,
+    pub sec_env : sc_security_env, // remember the input of last call to acos5_64_set_security_env; especially algorithm_flags will be required in compute_signature
+//  pub sec_env_algo_flags : c_uint, // remember the padding scheme etc. selected for RSA; required in acos5_64_set_security_env
+    pub rsa_caps : c_uint, // remember how the rsa_algo_flags where set for _sc_card_add_rsa_alg
     pub is_running_init : bool, // true as long as acos5_64_init runs: It may be used to control behavior of acos5_64_list_files (lazily filling hashmap)
     /* some commands like sign, decipher etc. may supply > 256 bytes to get_response, but the exact number will not be known (the only info is 0x6100),
        thus guessing, there are another 256 bytes will be turned on with: true; guessing is limited to those commands, that turn on this feature.
@@ -294,6 +365,7 @@ pub struct DataPrivate { // see settings in acos5_64_init
          false: acos5_64_get_response behaves (exactly?) like iso7816_get_response
      */
     pub is_running_cmd_long_response : bool,
+    /*  is_running_compute_signature: false, // maybe, acos5_64_decipher will need to know, that it was called by acos5_64_compute_signature */
 }
 
 
