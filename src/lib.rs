@@ -2289,7 +2289,7 @@ extern "C" fn acos5_64_compute_signature(card: *mut sc_card, data: *const c_ucha
                      CStr::from_bytes_with_nul(b"called with: data_len: %zu, outlen: %zu\0").unwrap());
     }
 
-    let mut rv;
+    let mut rv = SC_SUCCESS;
     let mut vec_in : Vec<u8> = Vec::with_capacity(512);
     for i in 0..data_len {
         vec_in.push(unsafe { *data.add(i) } );
@@ -2297,7 +2297,7 @@ extern "C" fn acos5_64_compute_signature(card: *mut sc_card, data: *const c_ucha
 //    assert!(vec_in.len()>0);
 
     let sec_env_algo_flags = get_sec_env(card_ref_mut).algorithm_flags;
-println!("Sign: sec_env_algo_flags: 0x{:X}, output len: {}, input len: {}, input data: {:X?}", sec_env_algo_flags, outlen, vec_in.len(), vec_in);
+//println!("Sign: sec_env_algo_flags: 0x{:X}, output len: {}, input len: {}, input data: {:X?}", sec_env_algo_flags, outlen, vec_in.len(), vec_in);
     let digest_info =
         if sec_env_algo_flags != SC_ALGORITHM_RSA_RAW { vec_in.as_slice() } // then vec_in IS digest_info
         else { // sec_env_algo_flags == SC_ALGORITHM_RSA_RAW (in v0.20.0 that's the same as sec_env_algo_flags == SC_ALGORITHM_RSA_PAD_NONE)
@@ -2314,7 +2314,7 @@ println!("Sign: sec_env_algo_flags: 0x{:X}, output len: {}, input len: {}, input
                 }
             }
         };
-println!("digest_info.len(): {}, digest_info: {:X?}", digest_info.len(), digest_info);
+//println!("digest_info.len(): {}, digest_info: {:X?}", digest_info.len(), digest_info);
     if digest_info.len() == 0 { // if there is no content to sign, then don't sign
         return SC_SUCCESS;
     }
