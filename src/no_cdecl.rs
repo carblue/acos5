@@ -29,8 +29,10 @@ use std::ffi::{/*CString,*/ CStr};
 
 use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env,
                          sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_get_iso7816_driver, sc_file_free, sc_read_record,
-                         sc_format_path, sc_select_file, sc_check_sw, SC_ALGORITHM_RSA_RAW, /*sc_verify,*/
-                         SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE
+                         sc_format_path, sc_select_file, sc_check_sw, sc_set_security_env, SC_ALGORITHM_RSA_RAW,
+                         SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE, /*,sc_verify*/
+                         SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA,
+
 };
 use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_MAX_PATH_SIZE, sc_file_t,
     SC_MAX_ATR_SIZE, SC_FILE_TYPE_DF,  */  sc_path, sc_file, sc_apdu, SC_PATH_TYPE_FILE_ID/*, SC_PATH_TYPE_PATH*/,
@@ -47,7 +49,7 @@ use opensc_sys::errors::{/*sc_strerror, SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKN
 };
 use opensc_sys::internal::{sc_atr_table};
 
-
+use crate::wrappers::*;
 use crate::constants_types::*;
 use crate::se::se_parse_crts;
 use crate::path::cut_path;
@@ -515,6 +517,163 @@ pub fn encrypt_public_rsa(card: *mut sc_card, signature: *mut c_uchar, siglen: u
     println!("{:X?}", &rbuf[448..480]);
     println!("{:X?}", &rbuf[480..512]);
 }
+
+pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtl_generate_crypt_asym, print: bool) -> c_int
+{
+    /*  don't use print==true: it's a special, tailored case (with some hard-code crypt_data) for testing purposes */
+    let mut rv;
+    let mut env = sc_security_env {
+        operation: SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC,
+        flags    : SC_SEC_ENV_FILE_REF_PRESENT.into(),
+        algorithm: SC_ALGORITHM_RSA,
+        file_ref: sc_path { len: 2, ..Default::default() }, // file_ref.value[0..2] = fidRSApublic.getub2;
+        ..Default::default()
+    };
+    if crypt_data.perform_mse {
+        env.file_ref.value[0] = (crypt_data.file_id_pub >> 8  ) as c_uchar;
+        env.file_ref.value[1] = (crypt_data.file_id_pub & 0xFF) as c_uchar;
+//        command = [0u8, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x12, 0x81, 0x02, (crypt_data.file_id_pub >> 8) as c_uchar, (crypt_data.file_id_pub & 0xFF) as c_uchar, 0x95, 0x01, 0x80];
+    }
+    else if print {
+        env.file_ref.value[0] = 0x41;
+        env.file_ref.value[1] = 0x33;
+        let mut path = Default::default();
+        let mut file_ptr = std::ptr::null_mut();
+        unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3f0041004133\0").unwrap().as_ptr(), &mut path); } // path.type_ = SC_PATH_TYPE_PATH;
+        rv = unsafe { sc_select_file(card, &path, &mut file_ptr) };
+        assert_eq!(rv, SC_SUCCESS);
+//        command = [0u8, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x12, 0x81, 0x02, 0x41, 0x33, 0x95, 0x01, 0x80];
+    }
+
+    if crypt_data.perform_mse || print {
+        rv = unsafe { sc_set_security_env(card, &env, 0) };
+        if rv < 0 {
+            /*
+                            mixin (log!(__FUNCTION__,  "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
+                            hstat.SetString(IUP_TITLE, "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
+                            return IUP_DEFAULT;
+            */
+            return rv;
+        }
+    }
+    let command = [0u8, 0x2A, 0x84, 0x80, 0x02, 0xFF, 0xFF, 0xFF]; // will replace lc, cmd_data, le later; the last 4 bytes are placeholders only for sc_bytes2apdu_wrapper
+    let mut apdu = Default::default();
+    rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
+    assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_4_SHORT);
+    let mut rbuf = [0u8; 512];
+ //   assert_eq!(rbuf.len(), siglen);
+    apdu.data    = crypt_data.data.as_ptr();
+    apdu.datalen = crypt_data.data_len;
+    apdu.lc      = crypt_data.data_len;
+    apdu.resp    = rbuf.as_mut_ptr();
+    apdu.resplen = rbuf.len();
+    apdu.le      = std::cmp::min(crypt_data.data_len, SC_READER_SHORT_APDU_MAX_RECV_SIZE);
+    if apdu.lc > card.max_send_size {
+        apdu.flags |= SC_APDU_FLAGS_CHAINING as c_ulong;
+    }
+
+    set_is_running_cmd_long_response(card, true); // switch to false is done by acos5_64_get_response
+    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
+    assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.resplen, crypt_data.data_len);
+    let dst = &mut crypt_data.data[.. crypt_data.data_len];
+    dst.copy_from_slice(&rbuf[.. crypt_data.data_len]);
+/*
+let src = [1, 2, 3, 4];
+let mut dst = [0, 0];
+
+// Because the slices have to be the same length,
+// we slice the source slice from four elements
+// to two. It will panic if we don't do this.
+dst.copy_from_slice(&src[2..]);
+*/
+
+    if print {
+        println!("signature 'decrypted' with public key:");
+        println!("{:X?}", &rbuf[0..32]);
+        println!("{:X?}", &rbuf[32..64]);
+        println!("{:X?}", &rbuf[64..96]);
+        println!("{:X?}", &rbuf[96..128]);
+        println!("{:X?}", &rbuf[128..160]);
+        println!("{:X?}", &rbuf[160..192]);
+        println!("{:X?}", &rbuf[192..224]);
+        println!("{:X?}", &rbuf[224..256]);
+        println!("{:X?}", &rbuf[256..288]);
+        println!("{:X?}", &rbuf[288..320]);
+        println!("{:X?}", &rbuf[320..352]);
+        println!("{:X?}", &rbuf[352..384]);
+        println!("{:X?}", &rbuf[384..416]);
+        println!("{:X?}", &rbuf[416..448]);
+        println!("{:X?}", &rbuf[448..480]);
+        println!("{:X?}", &rbuf[480..512]);
+    }
+    0
+}
+
+pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym) -> c_int
+{
+    let file = CStr::from_bytes_with_nul(CRATE).unwrap();
+    let fun  = CStr::from_bytes_with_nul(b"generate_asym\0").unwrap();
+    if cfg!(log) {
+        let fmt  = CStr::from_bytes_with_nul(CALLED).unwrap();
+        wr_do_log(card.ctx, file, line!(), fun, fmt);
+    }
+    let mut rv;
+
+    if data.perform_mse {
+        let mut env = sc_security_env {
+            operation: SC_SEC_OPERATION_GENERATE_RSAPRIVATE,
+            flags    : (SC_SEC_ENV_ALG_PRESENT | SC_SEC_ENV_FILE_REF_PRESENT).into(),
+            algorithm: SC_ALGORITHM_RSA,
+            file_ref: sc_path { len: 2, ..Default::default() }, // file_ref.value[0..2] = fidRSAprivate.getub2;
+            ..Default::default()
+        };
+        env.file_ref.value[0] = (data.file_id_priv >> 8  ) as c_uchar;
+        env.file_ref.value[1] = (data.file_id_priv & 0xFF) as c_uchar;
+        rv = unsafe { sc_set_security_env(card, &env, 0) };
+        if rv < 0 {
+/*
+                mixin (log!(__FUNCTION__,  "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPRIVATE"));
+                hstat.SetString(IUP_TITLE, "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPRIVATE");
+                return IUP_DEFAULT;
+*/
+            return rv;
+        }
+
+        let mut env = sc_security_env {
+            operation: SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
+            flags    : (SC_SEC_ENV_ALG_PRESENT | SC_SEC_ENV_FILE_REF_PRESENT).into(),
+            algorithm: SC_ALGORITHM_RSA,
+            file_ref: sc_path { len: 2, ..Default::default() }, // file_ref.value[0..2] = fidRSApublic.getub2;
+            ..Default::default()
+        };
+        env.file_ref.value[0] = (data.file_id_pub >> 8  ) as c_uchar;
+        env.file_ref.value[1] = (data.file_id_pub & 0xFF) as c_uchar;
+        rv = unsafe { sc_set_security_env(card, &env, 0) };
+        if rv < 0 {
+/*
+                mixin (log!(__FUNCTION__,  "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
+                hstat.SetString(IUP_TITLE, "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
+                return IUP_DEFAULT;
+*/
+            return rv;
+        }
+    }
+    let mut command = [0u8, 0x46, 0,0,18, data.key_len_code, data.key_priv_type_code, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+    if data.exponent_std { command[4] = 2; }
+    let mut apdu = Default::default();
+    rv = sc_bytes2apdu_wrapper(card.ctx, &command[.. if data.exponent_std  {command.len()-16} else {command.len()}], &mut apdu);
+    assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
+    let fmt  = CStr::from_bytes_with_nul(b"generate_asym: %s\0").unwrap();
+    unsafe { sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line!() as c_int, fun.as_ptr(), fmt.as_ptr(),
+                       sc_dump_hex(command.as_ptr(), 7)) };
+    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
+    data.op_success = rv==SC_SUCCESS;
+    rv
+}
+
 
 /*
   The EMSA-PKCS1-v1_5 DigestInfo prefix (all content excluding the trailing hash) is known, same the length of hash

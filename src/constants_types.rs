@@ -185,27 +185,31 @@ pub const SC_CARDCTL_PKCS11_INIT_PIN         : c_uint =  0x0000_0009;
  *
  * for an internal driver these will move to cardctl.h
 */
-pub const SC_CARDCTL_GET_COUNT_FILES_CURR_DF : c_uint =  0x0000_0011; // data: *mut usize,  get_count_files_curr_DF
-pub const SC_CARDCTL_GET_FILE_INFO           : c_uint =  0x0000_0012; // data: *mut CardCtlArray8,  get_file_info
-pub const SC_CARDCTL_GET_FREE_SPACE          : c_uint =  0x0000_0014; // data: *mut c_uint,  get_free_space
-pub const SC_CARDCTL_GET_IDENT_SELF          : c_uint =  0x0000_0015; // data: *mut c_uint,  get_ident_self
-pub const SC_CARDCTL_GET_COS_VERSION         : c_uint =  0x0000_0016; // data: *mut CardCtlArray8,  get_cos_version
+pub const SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF : c_uint =  0x0000_0011; // data: *mut usize,  get_count_files_curr_DF
+pub const SC_CARDCTL_ACOS5_GET_FILE_INFO           : c_uint =  0x0000_0012; // data: *mut CardCtlArray8,  get_file_info
+pub const SC_CARDCTL_ACOS5_GET_FREE_SPACE          : c_uint =  0x0000_0014; // data: *mut c_uint,  get_free_space
+pub const SC_CARDCTL_ACOS5_GET_IDENT_SELF          : c_uint =  0x0000_0015; // data: *mut c_uint,  get_ident_self
+pub const SC_CARDCTL_ACOS5_GET_COS_VERSION         : c_uint =  0x0000_0016; // data: *mut CardCtlArray8,  get_cos_version
 /* available only since ACOS5-64 V3: */
-pub const SC_CARDCTL_GET_ROM_MANUFACTURE_DATE: c_uint =  0x0000_0017; // data: *mut c_uint,  get_manufacture_date
-pub const SC_CARDCTL_GET_ROM_SHA1            : c_uint =  0x0000_0018; // data: *mut CardCtlArray20,  get_rom_sha1
-pub const SC_CARDCTL_GET_OP_MODE_BYTE        : c_uint =  0x0000_0019; // data: *mut c_uint,  get_op_mode_byte
-pub const SC_CARDCTL_GET_FIPS_COMPLIANCE     : c_uint =  0x0000_001A; // data: *mut c_uint,  get_fips_compliance
-pub const SC_CARDCTL_GET_PIN_AUTH_STATE      : c_uint =  0x0000_001B; // data: *mut CardCtlAuthState,  get_pin_auth_state
-pub const SC_CARDCTL_GET_KEY_AUTH_STATE      : c_uint =  0x0000_001C; // data: *mut CardCtlAuthState,  get_key_auth_state
+pub const SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE: c_uint =  0x0000_0017; // data: *mut c_uint,  get_manufacture_date
+pub const SC_CARDCTL_ACOS5_GET_ROM_SHA1            : c_uint =  0x0000_0018; // data: *mut CardCtlArray20,  get_rom_sha1
+pub const SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE        : c_uint =  0x0000_0019; // data: *mut c_uint,  get_op_mode_byte
+pub const SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE     : c_uint =  0x0000_001A; // data: *mut c_uint,  get_fips_compliance
+pub const SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE      : c_uint =  0x0000_001B; // data: *mut CardCtlAuthState,  get_pin_auth_state
+pub const SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE      : c_uint =  0x0000_001C; // data: *mut CardCtlAuthState,  get_key_auth_state
 
-pub const SC_CARDCTL_UPDATE_FILES_HASHMAP    : c_uint =  0x0000_0020; // data: null
-pub const SC_CARDCTL_GET_FILES_HASHMAP_INFO  : c_uint =  0x0000_0021; // data: *mut CardCtlArray32,  get_files_hashmap_info
+pub const SC_CARDCTL_ACOS5_UPDATE_FILES_HASHMAP    : c_uint =  0x0000_0020; // data: null
+pub const SC_CARDCTL_ACOS5_GET_FILES_HASHMAP_INFO  : c_uint =  0x0000_0021; // data: *mut CardCtlArray32,  get_files_hashmap_info
 
+pub const SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST  : c_uint =  0x0000_0022; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting excluded
+pub const SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE : c_uint =  0x0000_0023; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting excluded
+pub const SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST_MSE  : c_uint =  0x0000_0024; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting included
+pub const SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE_MSE : c_uint =  0x0000_0025; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting included
 
-pub const SC_CARDCTL_ENCRYPT_SYM             : c_uint =  0x0000_0022; // data: *mut CardCtl_crypt_sym,  do_encrypt_sym
-//pub const SC_CARDCTL_ENCRYPT_ASYM            : c_uint =  0x0000_0023; // data: *mut CardCtl_crypt_asym, do_encrypt_asym; Signature verification with public key
-//pub const SC_CARDCTL_DECRYPT_SYM             : c_uint =  0x0000_0024; // data: *mut CardCtl_crypt_sym,  do_decrypt_sym
-////pub const SC_CARDCTL_DECRYPT_ASYM            : c_uint =  0x0000_0025; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
+pub const SC_CARDCTL_ACOS5_ENCRYPT_SYM             : c_uint =  0x0000_0026; // data: *mut CardCtl_crypt_sym,  do_encrypt_sym
+pub const SC_CARDCTL_ACOS5_ENCRYPT_ASYM            : c_uint =  0x0000_0027; // data: *mut CardCtl_crypt_asym, do_encrypt_asym; Signature verification with public key
+//pub const SC_CARDCTL_ACOS5_DECRYPT_SYM           : c_uint =  0x0000_0028; // data: *mut CardCtl_crypt_sym,  do_decrypt_sym
+////pub const SC_CARDCTL_ACOS5_DECRYPT_ASYM        : c_uint =  0x0000_0029; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
 
 
 
@@ -277,7 +281,45 @@ impl Default for CardCtlArray32 {
         }
     }
 }
-//
+
+// struct for SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST and SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE, SC_CARDCTL_ACOS5_ENCRYPT_ASYM// data: *mut CardCtl_generate_crypt_asym, do_generate_asym, do_crypt_asym
+// not all data are require for do_crypt_asym (exponent, exponent_std, key_len_code, key_priv_type_code)
+#[repr(C)]
+#[derive(/*Debug,*/ Copy, Clone)]
+pub struct CardCtl_generate_crypt_asym {
+    pub data : [c_uchar; 512],   // INOUT for crypt_asym (performs cos5  'RSA Public Key Encrypt')
+    pub data_len : usize,        // len bytes used within in_data
+    pub file_id_priv : u16,       // IN  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5_64.profile,
+    pub file_id_pub  : u16,       // IN  if both are !=0, then the given values are preferred
+    pub exponent : [c_uchar; 16], // public exponent
+    pub exponent_std  : bool,  // whether the default exponent 0x10001 shall be used and the exponent field disregarded; otherwise all 16 bytes from exponent will be used
+    pub key_len_code  : c_uchar,  //
+    pub key_priv_type_code : c_uchar,  // as required by cos5 Generate RSA Key Pair
+    pub perform_mse   : bool,     // IN parameter, whether MSE Manage Security Env. shall be done (here) prior to generation
+    pub op_success   : bool,     // OUT parameter, whether generation succeeded
+/*
+Key Length Indicator :  1 byte 0x04-0x20    dependence on SC_CARD_TYPE_ACOS5_64_V2 / SC_CARD_TYPE_ACOS5_64_V3 (FIPS)
+Private Key Type     :  1 byte 1-6 (incl. CRT or NON-CRT) dependence on SC_CARD_TYPE_ACOS5_64_V2 / SC_CARD_TYPE_ACOS5_64_V3 (FIPS)
+*/
+}
+
+impl Default for CardCtl_generate_crypt_asym {
+    fn default() -> CardCtl_generate_crypt_asym {
+        CardCtl_generate_crypt_asym {
+            data: [0u8; 512],
+            data_len: 0,
+            file_id_priv: 0,
+            file_id_pub: 0,
+            exponent: [0u8; 16],
+            exponent_std: true,    // the standard exponent 0x10001 will be used
+            key_len_code: 0x20,    // 4096 bit
+            key_priv_type_code: 6, // CRT, sign+decrypt
+            perform_mse: false,
+            op_success: false
+        }
+    }
+}
+
 
 // struct for SC_CARDCTL_ENCRYPT_SYM // data: *mut CardCtl_crypt_sym, do_encrypt_sym
 #[repr(C)]
@@ -290,12 +332,13 @@ pub struct CardCtl_crypt_sym {
     pub outdata      : [c_uchar; 64],
     pub outdata_len  : usize,
     pub iv           : [c_uchar; 16],
-    pub iv_len       : usize, // equal to algo_family, i.e. 16 for AES, else 8
+    pub iv_len       : usize, // 0==unused or equal to block_size, i.e. 16 for AES, else 8
 
+//  pub key_id       : c_uchar, // how the key is known by OpenSC in SKDF: id
     pub key_ref      : c_uchar, // how the key is known by cos5: e.g. internal local key with id 3 has key_ref: 0x83
     pub block_size   : c_uchar, // 16: AES; 8: 3DES or DES
     pub key_len      : c_uchar, // in bytes
-    pub pad_type     : c_uchar, // 0 currently is filling modulo rem with zero
+    pub pad_type     : c_uchar, // BLOCKCIPHER_PAD_TYPE_*
 //    pub use_sess_key : bool, // if true, the session key will be used and key_ref ignored
     pub local        : bool, // whether local or global key to use; used to select MF or appDF where the key file resides
     pub cbc          : bool, // true: CBC Mode, false: ECB

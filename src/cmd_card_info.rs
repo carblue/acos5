@@ -395,12 +395,26 @@ pub fn get_files_hashmap_info(card: &mut sc_card, key: u16) -> Result<[u8; 32], 
 
     let mut rbuf = [0u8; 32];
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+//alias  TreeTypeFS = tree_k_ary.Tree!ub32; // 8 bytes + length of pathlen_max considered (, here SC_MAX_PATH_SIZE = 16) + 8 bytes SAC (file access conditions)
+//                            path                    File Info       scb8                SeInfo
+//pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, Option<Vec<SeInfo>>);
+// File Info originally:  {FDB, DCB, FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI}
+// File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,   LCSI}
 
     if dp.files.contains_key(&key) {
         let dp_files_value_ref = &dp.files[&key];
         {
             let dst = &mut rbuf[ 0.. 8];
             dst.copy_from_slice(&dp_files_value_ref.1);
+/*
+            // FIXME temporarily
+            if [0x4131, 0x4132, 0x4133].contains(&key) {
+                rbuf[6] = PKCS15_FILE_TYPE_RSAPUBLICKEY;
+            }
+            if [0x41F1, 0x41F2, 0x41F3].contains(&key) {
+                rbuf[6] = PKCS15_FILE_TYPE_RSAPRIVATEKEY;
+            }
+*/
         }
         {
             let dst = &mut rbuf[ 8..24];
