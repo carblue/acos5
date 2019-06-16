@@ -1,0 +1,175 @@
+opensc-explorer seems to be the only tool that let's us perform a pin change.
+
+change
+unblock
+
+E.g. suppose we want to change our user pin in application directory 0x4100, it's stored in [3F00/4100/some_local_pinfile_existing_known_by_acos].
+
+Initially, the record of some_local_pinfile_existing_known_by_acos was filled by cmd "Update Redord" with these values (the first 5 bytes for the command, 
+the remaining 21 as content of the record):
+hexString!"00 DC 01 04 15   C1   88 08 31 32 33 34 35 36 37 38   88 08 38 37 36 35 34 33 32 31"
+In short: The pin is specified to hold 8 bytes for user pin and  8 bytes for PUK of user pin (Unblock PIN command enabled), each with max. 8 false pin trials before blocking
+
+i.e. it's a "local" pin with id 1, thus add 128 resulting in pin reference 129 => CHV129
+Our old pin has length 8 bytes (thus me must stick to that length, in hex rep. [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38] which is in ascii: 12345678
+Our new pin supposed shall be in hex rep. [0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39] which is in ascii: 23456789
+
+
+user@host:~$ opensc-explorer
+OpenSC Explorer version 0.17.0
+Using reader with a card: ACS CryptoMate64 00 00
+OpenSC [3F00]> cd 4100
+OpenSC [3F00/4100]> change
+Usage: change CHV<pin ref> [[<old pin>] <new pin>]
+OpenSC [3F00/4100]> change CHV129 3132333435363738 3233343536373839
+PIN changed.
+OpenSC [3F00/4100]> change CHV129 3233343536373839 3132333435363738
+PIN changed.
+OpenSC [3F00/4100]> q
+user@host:~$
+
+-------------------------
+SO pin
+For the Security Officer pin, in MF directory 0x3F00, it's stored in [3F00/some_global_pinfile_existing_known_by_acos].
+Suppose, the same data where stored in some_global_pinfile_existing_known_by_acos
+
+Being stored within MF it's the "global"/Security Officer/admin pin with id 1, thus => CHV1
+Our old pin has length 8 bytes (thus me must stick to that length, in hex rep. [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]
+Our new pin supposed shall be in hex rep. [0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39]
+
+user@host:~$ opensc-explorer
+OpenSC Explorer version 0.17.0
+Using reader with a card: ACS CryptoMate64 00 00
+OpenSC [3F00]> change
+Usage: change CHV<pin ref> [[<old pin>] <new pin>]
+OpenSC [3F00]> change CHV1 3132333435363738 3233343536373839
+PIN changed.
+OpenSC [3F00]> q
+user@host:~$
+
+-------------------------
+Unblocking works without/with setting a replacement pin for the blocked one
+
+user@host:~$ opensc-explorer
+OpenSC Explorer version 0.17.0
+Using reader with a card: ACS CryptoMate64 00 00
+OpenSC [3F00]> cd 4100
+OpenSC [3F00/4100]> unblock
+Usage: unblock CHV<pin ref> [<puk> [<new pin>]]
+OpenSC [3F00/4100]> unblock CHV129 3837363534333231
+PIN unblocked.
+OpenSC [3F00/4100]> unblock CHV129 3837363534333231 3132333435363738
+PIN unblocked.
+OpenSC [3F00/4100]> q
+user@host:~$ 
+
+
+user@host:~$ opensc-explorer                                                                                              
+OpenSC Explorer version 0.19.0                                                                                            
+Using reader with a card: ACS CryptoMate64 00 00                                                                          
+OpenSC [3F00]> ls                                                                                                         
+FileID  Type  Size                                                                                                        
+ 0001    iEF    21                                                                                                        
+ 0002    iEF   148                                                                                                        
+ 0003    iEF    48                                                                                                        
+ 2F00    wEF    33                                                                                                        
+[4100]    DF     0      Name: ACOSPKCS-15v1.00                                                                            
+OpenSC [3F00]> cd 4100
+OpenSC [3F00/4100]> ls
+FileID  Type  Size
+ 4101    iEF    21
+ 4102    iEF   444
+ 4103    iEF   448
+ 4111    wEF   128
+ 4112    wEF   768
+ 4113    wEF  1536
+ 4114    wEF   256
+ 4115    wEF   256
+ 4120    wEF  1664
+ 5032    wEF   192
+ 5031    wEF   108
+ 5155    wEF   260
+ 4129    wEF    40
+ 4131    iEF   533
+ 41F1    iEF  1285
+ 4132    iEF   533
+ 41F2    iEF  1285
+ 4133    iEF   533
+ 41F3    iEF  1285
+ 3908    wEF    16
+[4300]    DF     0
+ 3903    wEF    32
+ 3904    wEF    32
+ 3905    wEF    32
+ 3906    wEF    32
+OpenSC [3F00/4100]> cat 4111
+00000000: 30 34 30 0A 0C 04 55 73 65 72 03 02 06 C0 30 03 040...User....0.
+00000010: 04 01 01 A1 21 30 1F 03 03 04 CC 00 0A 01 01 02 ....!0..........
+00000020: 01 04 02 01 08 02 01 08 80 01 81 04 01 FF 30 06 ..............0.
+00000030: 04 04 3F 00 41 00 30 30 30 08 0C 02 53 4F 03 02 ..?.A.000...SO..
+00000040: 06 C0 30 03 04 01 02 A1 1F 30 1D 03 03 04 8F 00 ..0......0......
+00000050: 0A 01 01 02 01 04 02 01 08 02 01 08 80 01 01 04 ................
+00000060: 01 FF 30 04 04 02 3F 00 00 00 00 00 00 00 00 00 ..0...?.........
+00000070: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................
+OpenSC [3F00/4100]> cat 4131
+only working EFs may be read
+OpenSC [3F00/4100]> cat 3908
+read failed: Security status not satisfied        <== Once the acos5_64 SM module is available, this will pass
+ACL for operation: PROT
+OpenSC [3F00/4100]> info 3908
+
+Elementary File  ID 3908, SFI 08
+
+File path:     3F00/4100/3908
+File size:     16 bytes
+EF structure:  Transparent
+ACL for READ:         PROT
+ACL for UPDATE:       PROT
+ACL for DELETE:       PROT
+ACL for WRITE:        PROT
+ACL for REHABILITATE: PROT
+ACL for INVALIDATE:   PROT
+ACL for LIST FILES:   N/A
+ACL for CRYPTO:       N/A
+Proprietary attributes:  83 02 39 08 88 01 08 8A 01 05 82 02 01 00 80 02 00 10 8C 08 7F 46 FF 46 46 FF 46 46 AB 00
+
+OpenSC [3F00/4100]> q
+user@host:~$
+
+
+The remaining:
+Not yet tested
+
+----------------------------------------------
+
+Supported commands:
+  echo [<string> ..]                         display arguments
+  ls [<pattern> ..]                          list files in the current DF
+  find [<start id> [<end id>]]               find all files in the current DF
+  find_tags [<start tag> [<end tag>]]        find all tags of data objects in the current context
+  cd {.. | <file id> | aid:<DF name>}        change to another DF
+  cat [<file id> | sfi:<sfi id>]             print the contents of an EF
+  info [<file id>]                           display attributes of card file
+  create <file id> <size>                    create a new EF
+  mkdir <file id> <size>                     create a new DF
+  delete <file id>                           remove an EF/DF
+  rm <file id>                               remove an EF/DF
+  verify {CHV|KEY|AUT|PRO}<key ref> [<pin>]  present a PIN or key to the card
+  change CHV<pin ref> [[<old pin>] <new pin>]  change a PIN
+  unblock CHV<pin ref> [<puk> [<new pin>]]   unblock a PIN
+  put <file id> [<input file>]               copy a local file to the card
+  get <file id> [<output file>]              copy an EF to a local file
+  do_get <hex tag> [<output file>]           get a data object
+  do_put <hex tag> <data>                    put a data object
+  erase                                      erase card
+  random <count>                             obtain <count> random bytes from card
+  update_record <file id> <rec no> <rec offs> <data>  update record
+  update_binary <file id> <offs> <data>      update binary
+  apdu <data>+                               send a custom apdu command
+  asn1 [<file id>]                           decode an ASN.1 file
+  sm open|close                              call SM 'open' or 'close' handlers, if available  <== irrelevant: The acos5_64 SM module won't implement SM mode 'transmit' but SM mode 'acl'
+  debug [<value>]                            get/set the debug level
+  quit                                       quit this program
+  exit                                       quit this program
+  help                                       show this help
+

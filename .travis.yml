@@ -3,10 +3,10 @@ rust:
   - stable
 
 sudo: required
-dist: xenial
+dist: xenial  # see https://blog.travis-ci.com/2018-11-08-xenial-release
 
 before_install:
-  - sudo add-apt-repository -y -u ppa:gertvdijk/opensc-backports
+  - sudo add-apt-repository -y -u ppa:gertvdijk/opensc-backports # xenial supplies 0.15.0-1ubuntu1; the ppa supplies OpenSC version 0.17.0; current is version 0.19.0
   - sudo apt-get install -y opensc opensc-pkcs11
   - ls -lh /usr/lib/x86_64-linux-gnu/libopensc*
   - sudo ln -s -T /usr/lib/x86_64-linux-gnu/libopensc.so.5 /usr/lib/x86_64-linux-gnu/libopensc.so

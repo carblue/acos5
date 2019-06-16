@@ -77,7 +77,7 @@ For SAE (Security Attributes Expanded), TODO
 use std::os::raw::{c_ulong, c_int, c_void};
 
 use opensc_sys::opensc::{sc_card, sc_file_add_acl_entry};
-use opensc_sys::types::{sc_file, sc_crt, SC_AC_NONE, SC_AC_UNKNOWN, SC_AC_NEVER, SC_AC_CHV, SC_AC_AUT,
+use opensc_sys::types::{sc_file, sc_crt, SC_AC_NONE, SC_AC_UNKNOWN, SC_AC_NEVER, SC_AC_CHV, SC_AC_AUT, SC_AC_PRO,
                         SC_AC_KEY_REF_NONE};
 use opensc_sys::errors::{SC_SUCCESS};
 use opensc_sys::asn1::{sc_asn1_read_tag, SC_ASN1_TAG_EOC};
@@ -105,16 +105,35 @@ pub fn se_file_add_acl_entry(card: &mut sc_card, file: &mut sc_file, scb: u8/*sc
     else if  (scb & 0x0F) == 0 || (scb & 0x0F) == 0x0F || (scb & 0x30) != 0 || (scb & 0xC0) == 0xC0
     { assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_UNKNOWN, SC_AC_KEY_REF_NONE as c_ulong) }); }
     else {
-        if           (scb & 0x80) == 0x80 {} // FIXME
-//        else if      (scb & 0x40) == 0x40 // SM TODO
-//            { unsafe { sc_file_add_acl_entry(file, op, SC_AC_PRO, 0); } }
-        else {
-            let pin_ref = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x08));
-            if pin_ref         != SC_AC_KEY_REF_NONE as c_ulong { assert_eq!(SC_SUCCESS, unsafe {
-                sc_file_add_acl_entry(file, op, SC_AC_CHV, pin_ref) }); }
+        if           (scb & 0x80) == 0x80 {} // TODO  all conditions must be satisfied opposed to one of a set of conditions
+        // TODO  the 'one of a set of conditions' case just tries the first in sc_crt.refs, it doesn't try the (possible) alternatives
+        else if      (scb & 0x40) == 0x40 // SM
+        { // almost a copy of the else branch with SC_AC_PRO instead of SC_AC_CHV/SC_AC_AUT
+            let pin_ref     = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x08));
+            if pin_ref     != SC_AC_KEY_REF_NONE as c_ulong { assert_eq!(SC_SUCCESS, unsafe {
+                sc_file_add_acl_entry(    file, op, SC_AC_PRO, pin_ref) }); }
             else {
-                let key_ref     = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x80));
-                if key_ref     != SC_AC_KEY_REF_NONE as c_ulong { assert_eq!(SC_SUCCESS, unsafe {
+                let key_ref = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x80));
+                if key_ref != SC_AC_KEY_REF_NONE as c_ulong { assert_eq!(SC_SUCCESS, unsafe {
+                    sc_file_add_acl_entry(file, op, SC_AC_PRO, key_ref) }); }
+                else {
+                    let pin_key_ref = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x88));
+                    if pin_key_ref != SC_AC_KEY_REF_NONE as c_ulong {
+                        assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_PRO, pin_key_ref) });
+//                      assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_PRO, pin_key_ref) });
+                    }
+                    else {  assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_UNKNOWN,
+                                                                                  SC_AC_KEY_REF_NONE as c_ulong) }); }
+                }
+            }
+        }
+        else {
+            let pin_ref     = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x08));
+            if pin_ref     != SC_AC_KEY_REF_NONE as c_ulong { assert_eq!(SC_SUCCESS, unsafe {
+                sc_file_add_acl_entry(    file, op, SC_AC_CHV, pin_ref) }); }
+            else {
+                let key_ref = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x80));
+                if key_ref != SC_AC_KEY_REF_NONE as c_ulong { assert_eq!(SC_SUCCESS, unsafe {
                     sc_file_add_acl_entry(file, op, SC_AC_AUT, key_ref) }); }
                 else {
                     let pin_key_ref = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x88));

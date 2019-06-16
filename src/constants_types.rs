@@ -18,7 +18,7 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-use std::os::raw::{c_uchar, c_int, c_uint};
+use std::os::raw::{c_uchar, c_int, c_uint, c_char};
 use std::collections::HashMap;
 
 use opensc_sys::opensc::{sc_security_env};
@@ -71,19 +71,19 @@ pub const ISO7816_RFU_TAG_FCP_SEID : u8 = 0x8D;    /* L:2,    V: Security Enviro
 
 //ACOS5 File Descriptor Bytes, the proprietary encoding of file types, the first within V of Tag ISO7816_TAG_FCP_TYPE:
 pub const FDB_MF                 : u8 = 0x3F; // Master File     MF
-pub const FDB_DF                 : u8 = 0x38; // Dedicated File  DF
+pub const FDB_DF                 : u8 = 0x38; // Dedicated File  DF, same as opensc-sys.iso7816.ISO7816_FILE_TYPE_DF
 /* Working Elementary Files  EF */
-pub const FDB_TRANSPARENT_EF     : u8 = 0x01; // Transparent EF     == SC_FILE_EF_TRANSPARENT
-pub const FDB_LINEAR_FIXED_EF    : u8 = 0x02; // Linear-Fixed EF    == SC_FILE_EF_LINEAR_FIXED
-pub const FDB_LINEAR_VARIABLE_EF : u8 = 0x04; // Linear-Variable EF == SC_FILE_EF_LINEAR_VARIABLE
-pub const FDB_CYCLIC_EF          : u8 = 0x06; // Cyclic EF          == SC_FILE_EF_CYCLIC
+pub const FDB_TRANSPARENT_EF     : u8 = 0x01; // Transparent EF     == opensc-sys.types.SC_FILE_EF_TRANSPARENT; same as opensc-sys.iso7816.ISO7816_FILE_TYPE_TRANSPARENT_EF
+pub const FDB_LINEAR_FIXED_EF    : u8 = 0x02; // Linear-Fixed EF    == opensc-sys.types.SC_FILE_EF_LINEAR_FIXED
+pub const FDB_LINEAR_VARIABLE_EF : u8 = 0x04; // Linear-Variable EF == opensc-sys.types.SC_FILE_EF_LINEAR_VARIABLE
+pub const FDB_CYCLIC_EF          : u8 = 0x06; // Cyclic EF          == opensc-sys.types.SC_FILE_EF_CYCLIC
 /* Internal EF */
-pub const FDB_RSA_KEY_EF         : u8 = 0x09; // RSA Key EF, for private and public key file
-pub const FDB_CHV_EF             : u8 = 0x0A; // CHV EF, for the pin file, max 1 only in each DF
-pub const FDB_SYMMETRIC_KEY_EF   : u8 = 0x0C; // Symmetric Key EF,         max 1 only in each DF
-pub const FDB_PURSE_EF           : u8 = 0x0E; // Purse EF since V3.00
-/* Proprietary EF */
-pub const FDB_SE_FILE            : u8 = 0x1C; // SE File,              exactly 1 only in each DF
+pub const FDB_RSA_KEY_EF         : u8 = 0x09; // RSA Key EF, for private and public key file; distinguish by PKCS15_FILE_TYPE_RSAPRIVATEKEY or PKCS15_FILE_TYPE_RSAPUBLICKEY
+pub const FDB_CHV_EF             : u8 = 0x0A; // CHV EF, for the pin file, max 1 only in each DF, max 1 file only in each DF
+pub const FDB_SYMMETRIC_KEY_EF   : u8 = 0x0C; // Symmetric Key EF,         max 1 only in each DF, max 1 file only in each DF;  PKCS15_FILE_TYPE_SECRETKEY
+pub const FDB_PURSE_EF           : u8 = 0x0E; // Purse EF, since ACOS5-64 v3.00
+/* Proprietary internal EF */
+pub const FDB_SE_FILE            : u8 = 0x1C; // Security Environment File, exactly 1 file only in each DF; DF's header/FCI points to this
 
 /* the Control Reference Template Tags (CRT) understood by acos
 ATTENTION with CRT_TAG_CT Confidentiality Template: In reality acos makes no difference for asym/sym, there is 0xB8 only
@@ -151,19 +151,20 @@ pub const SC_SEC_OPERATION_DECIPHER            : c_int = 0x0001;
 pub const SC_SEC_OPERATION_SIGN                : c_int = 0x0002;
 pub const SC_SEC_OPERATION_AUTHENTICATE        : c_int = 0x0003;
 pub const SC_SEC_OPERATION_DERIVE              : c_int = 0x0004;
-#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_SEC_OPERATION_WRAP                : c_int = 0x0005;
-#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_SEC_OPERATION_UNWRAP              : c_int = 0x0006;
+////#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+////pub const SC_SEC_OPERATION_WRAP                : c_int = 0x0005;
+////#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+////pub const SC_SEC_OPERATION_UNWRAP              : c_int = 0x0006;
 */
-pub const SC_SEC_OPERATION_GENERATE_RSAPRIVATE : c_int = 0x0007; // sc_set_security_env must know this related to file id
-pub const SC_SEC_OPERATION_GENERATE_RSAPUBLIC  : c_int = 0x0008; // sc_set_security_env must know this related to file id
+////pub const SC_SEC_OPERATION_ENCIPHER            : c_int = 0x0007;
+pub const SC_SEC_OPERATION_GENERATE_RSAPRIVATE : c_int = 0x0005; // sc_set_security_env must know this related to file id
+pub const SC_SEC_OPERATION_GENERATE_RSAPUBLIC  : c_int = 0x0006; // sc_set_security_env must know this related to file id
 
-pub const SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC  : c_int = 0x0009;
-pub const SC_SEC_OPERATION_DECIPHER_RSAPRIVATE : c_int = 0x000A;
+pub const SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC  : c_int = 0x0007; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
+pub const SC_SEC_OPERATION_DECIPHER_RSAPRIVATE : c_int = 0x0008; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
 
-pub const SC_SEC_OPERATION_ENCIPHER_SYMMETRIC  : c_int = 0x000B;
-pub const SC_SEC_OPERATION_DECIPHER_SYMMETRIC  : c_int = 0x000C;
+pub const SC_SEC_OPERATION_ENCIPHER_SYMMETRIC  : c_int = 0x0009; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
+pub const SC_SEC_OPERATION_DECIPHER_SYMMETRIC  : c_int = 0x000A; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
 
 /*
 /*
@@ -198,8 +199,8 @@ pub const SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE     : c_uint =  0x0000_001A; // d
 pub const SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE      : c_uint =  0x0000_001B; // data: *mut CardCtlAuthState,  get_pin_auth_state
 pub const SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE      : c_uint =  0x0000_001C; // data: *mut CardCtlAuthState,  get_key_auth_state
 
-pub const SC_CARDCTL_ACOS5_UPDATE_FILES_HASHMAP    : c_uint =  0x0000_0020; // data: null
-pub const SC_CARDCTL_ACOS5_GET_FILES_HASHMAP_INFO  : c_uint =  0x0000_0021; // data: *mut CardCtlArray32,  get_files_hashmap_info
+pub const SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO   : c_uint =  0x0000_0020; // data: null
+pub const SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO   : c_uint =  0x0000_0021; // data: *mut CardCtlArray32,  get_files_hashmap_info
 
 pub const SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST  : c_uint =  0x0000_0022; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting excluded
 pub const SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE : c_uint =  0x0000_0023; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting excluded
@@ -208,11 +209,12 @@ pub const SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE_MSE : c_uint =  0x0000_0025
 
 pub const SC_CARDCTL_ACOS5_ENCRYPT_SYM             : c_uint =  0x0000_0026; // data: *mut CardCtl_crypt_sym,  do_encrypt_sym
 pub const SC_CARDCTL_ACOS5_ENCRYPT_ASYM            : c_uint =  0x0000_0027; // data: *mut CardCtl_crypt_asym, do_encrypt_asym; Signature verification with public key
-//pub const SC_CARDCTL_ACOS5_DECRYPT_SYM           : c_uint =  0x0000_0028; // data: *mut CardCtl_crypt_sym,  do_decrypt_sym
+pub const SC_CARDCTL_ACOS5_DECRYPT_SYM             : c_uint =  0x0000_0028; // data: *mut CardCtl_crypt_sym,  do_decrypt_sym
 ////pub const SC_CARDCTL_ACOS5_DECRYPT_ASYM        : c_uint =  0x0000_0029; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
 
 
-
+/* more related to acos5_64_pkcs15init */
+/* more related to acos5_64_sm */
 
 /* common types and general function(s) */
 
@@ -295,8 +297,8 @@ pub struct CardCtl_generate_crypt_asym {
     pub exponent_std  : bool,  // whether the default exponent 0x10001 shall be used and the exponent field disregarded; otherwise all 16 bytes from exponent will be used
     pub key_len_code  : c_uchar,  //
     pub key_priv_type_code : c_uchar,  // as required by cos5 Generate RSA Key Pair
-    pub perform_mse   : bool,     // IN parameter, whether MSE Manage Security Env. shall be done (here) prior to generation
-    pub op_success   : bool,     // OUT parameter, whether generation succeeded
+    pub perform_mse   : bool,     // IN parameter, whether MSE Manage Security Env. shall be done (here) prior to crypto operation
+//    pub op_success   : bool,     // OUT parameter, whether generation succeeded
 /*
 Key Length Indicator :  1 byte 0x04-0x20    dependence on SC_CARD_TYPE_ACOS5_64_V2 / SC_CARD_TYPE_ACOS5_64_V3 (FIPS)
 Private Key Type     :  1 byte 1-6 (incl. CRT or NON-CRT) dependence on SC_CARD_TYPE_ACOS5_64_V2 / SC_CARD_TYPE_ACOS5_64_V3 (FIPS)
@@ -315,7 +317,7 @@ impl Default for CardCtl_generate_crypt_asym {
             key_len_code: 0x20,    // 4096 bit
             key_priv_type_code: 6, // CRT, sign+decrypt
             perform_mse: false,
-            op_success: false
+//            op_success: false
         }
     }
 }
@@ -325,11 +327,11 @@ impl Default for CardCtl_generate_crypt_asym {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct CardCtl_crypt_sym {
-    pub infile       : *const char, //  path/to/file where the indata may be read from, interpreted as an [c_uchar]; if!= null has preference over indata
+    pub infile       : *const c_char, //  path/to/file where the indata may be read from, interpreted as an [c_uchar]; if!= null has preference over indata
     pub indata       : [c_uchar; 64],
     pub indata_len   : usize,
-    pub outfile      : *const char, //  path/to/file where the outdata may be written to, interpreted as an [c_uchar]; if!= null has preference over outdata
-    pub outdata      : [c_uchar; 64],
+    pub outfile      : *const c_char, //  path/to/file where the outdata may be written to, interpreted as an [c_uchar]; if!= null has preference over outdata
+    pub outdata      : [c_uchar; 80],
     pub outdata_len  : usize,
     pub iv           : [c_uchar; 16],
     pub iv_len       : usize, // 0==unused or equal to block_size, i.e. 16 for AES, else 8
@@ -343,6 +345,7 @@ pub struct CardCtl_crypt_sym {
     pub local        : bool, // whether local or global key to use; used to select MF or appDF where the key file resides
     pub cbc          : bool, // true: CBC Mode, false: ECB
     pub enc_dec      : bool, // true: encrypt,  false: decrypt
+    pub perform_mse  : bool, // IN parameter, whether MSE Manage Security Env. shall be done (here) prior to crypto operation
 }
 
 impl Default for CardCtl_crypt_sym {
@@ -352,7 +355,7 @@ impl Default for CardCtl_crypt_sym {
             indata: [0u8; 64],
             indata_len: 0,
             outfile: std::ptr::null(),
-            outdata: [0u8; 64],
+            outdata: [0u8; 80],
             outdata_len: 0,
             iv: [0u8; 16],
             iv_len: 0,
@@ -363,7 +366,8 @@ impl Default for CardCtl_crypt_sym {
 //            use_sess_key: false,
             local: true,
             cbc: true,
-            enc_dec: true
+            enc_dec: true,
+            perform_mse: false,
         }
     }
 }
@@ -411,6 +415,14 @@ pub struct DataPrivate { // see settings in acos5_64_init
     /*  is_running_compute_signature: false, // maybe, acos5_64_decipher will need to know, that it was called by acos5_64_compute_signature */
 }
 
+
+/*  returns true, if given a fdb parameter that represents type MF or DF, which are directories,
+    returns false for any other fdb, which are 'real' files */
+#[allow(non_snake_case)]
+pub fn is_DFMF(fdb: c_uchar) -> bool
+{
+    (fdb & FDB_DF) == FDB_DF
+}
 
 /**
  * Converts the first 2 bytes of input slice to an u16; panics if slice.len()<2

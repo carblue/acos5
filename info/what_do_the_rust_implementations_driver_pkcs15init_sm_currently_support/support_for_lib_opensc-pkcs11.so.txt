@@ -1,0 +1,76 @@
+
+Some is known to work, but not all tested so far
+
+OpenSC: CKR_FUNCTION_NOT_SUPPORTED : as of version 0.19.0
+
+------------------------------------------------------------------------------------------
+user@host:~$ nm -D /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so
+
+C_CancelFunction
+C_CloseAllSessions           OKAY
+C_CloseSession
+C_CopyObject                 OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
+C_CreateObject               No support from driver currently
+C_Decrypt                    ??  also impl. via sc_card_ctl(card, SC_CARDCTL_DECRYPT_SYM, ...)
+C_DecryptDigestUpdate        OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
+C_DecryptFinal               OpenSC: CKR_FUNCTION_NOT_SUPPORTED
+C_DecryptInit
+C_DecryptUpdate              OpenSC: CKR_FUNCTION_NOT_SUPPORTED
+C_DecryptVerifyUpdate        OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
+C_DeriveKey                            SC_ERROR_NO_CARD_SUPPORT; No support from hardware/driver
+C_DestroyObject
+C_Digest
+C_DigestEncryptUpdate        OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
+C_DigestFinal
+C_DigestInit
+C_DigestKey                  OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
+C_DigestUpdate
+C_Encrypt                    OpenSC: CKR_FUNCTION_NOT_SUPPORTED; impl. via sc_card_ctl(card, SC_CARDCTL_ENCRYPT_SYM, ...)  and sc_card_ctl(card, SC_CARDCTL_ENCRYPT_ASYM, ...)
+C_EncryptFinal               OpenSC: CKR_FUNCTION_NOT_SUPPORTED
+C_EncryptInit                OpenSC: CKR_FUNCTION_NOT_SUPPORTED
+C_EncryptUpdate              OpenSC: CKR_FUNCTION_NOT_SUPPORTED
+C_Finalize                   OKAY, tested in acos5_64_gui
+C_FindObjects
+C_FindObjectsFinal
+C_FindObjectsInit            OKAY, tested via  ssh -T git@github.com
+C_GenerateKey                OpenSC: CKR_FUNCTION_NOT_SUPPORTED
+C_GenerateKeyPair            No support from driver currently, except regenerate key pair in existing files via acos5_64_gui
+C_GenerateRandom             OKAY
+C_GetAttributeValue          OKAY, tested via  ssh -T git@github.com
+C_GetFunctionList            OKAY
+C_GetFunctionStatus
+C_GetInfo                    OKAY, tested in acos5_64_gui
+C_GetMechanismInfo
+C_GetMechanismList
+C_GetObjectSize              OpenSC: CKR_FUNCTION_NOT_SUPPORTED
+C_GetOperationState
+C_GetSessionInfo
+C_GetSlotInfo                OKAY, tested in acos5_64_gui
+C_GetSlotList                OKAY, tested in acos5_64_gui
+C_GetTokenInfo               OKAY, tested in acos5_64_gui
+C_Initialize                 OKAY, tested in acos5_64_gui
+C_InitPIN                    No support from driver currently
+C_InitToken                  No support from driver currently
+C_Login                      OKAY, tested via  ssh -T git@github.com
+C_Logout
+C_OpenSession                OKAY, tested via  ssh -T git@github.com
+C_SeedRandom                 OpenSC: CKR_FUNCTION_NOT_SUPPORTED; ACOS5-64 RNG does that automatically
+C_SetAttributeValue
+C_SetOperationState
+C_SetPIN
+C_Sign                       OKAY, tested via  ssh -T git@github.com
+C_SignEncryptUpdate          OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
+C_SignFinal                            SC_ERROR_NO_CARD_SUPPORT; No support from hardware
+C_SignInit                   OKAY, tested via  ssh -T git@github.com
+C_SignRecover                OpenSC: CKR_FUNCTION_NOT_SUPPORTED
+C_SignRecoverInit            OpenSC: CKR_FUNCTION_NOT_SUPPORTED
+C_SignUpdate                           SC_ERROR_NO_CARD_SUPPORT; No support from hardware
+C_UnwrapKey                  OpenSC: CKR_FUNCTION_NOT_SUPPORTED (available since 0.20.0); No support from driver currently
+C_Verify                     OpenSC: will call OpenSSL but no card function
+C_VerifyFinal                OpenSC: will call OpenSSL but no card function; No support from hardware
+C_VerifyInit                 OpenSC: will call OpenSSL but no card function
+C_VerifyRecover              OpenSC: CKR_FUNCTION_NOT_SUPPORTED
+C_VerifyRecoverInit          OpenSC: CKR_FUNCTION_NOT_SUPPORTED
+C_VerifyUpdate               OpenSC: will call OpenSSL but no card function; No support from hardware
+C_WaitForSlotEvent
+C_WrapKey                    OpenSC: CKR_FUNCTION_NOT_SUPPORTED (available since 0.20.0); No support from driver currently

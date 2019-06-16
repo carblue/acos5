@@ -46,12 +46,7 @@ pub fn current_path_df(card: &mut sc_card) -> &[u8]
     let fdb = (&dp.files[&file_id]).1[0];
     card.drv_data = Box::into_raw(dp) as *mut c_void;
 
-    if fdb & FDB_DF == FDB_DF {
-        &card.cache.current_path.value[..len]
-    }
-    else {
-        &card.cache.current_path.value[..len-2]
-    }
+    &card.cache.current_path.value[.. len - if is_DFMF(fdb) {0} else {2}]
 }
 
 /* If one of the 'is_search_ruleX_match()' functions returns true, it's sufficient for cos5 to just select the file_id

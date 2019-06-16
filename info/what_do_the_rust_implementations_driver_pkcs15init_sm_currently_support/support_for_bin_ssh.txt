@@ -1,0 +1,87 @@
+https://help.github.com/en/articles/testing-your-ssh-connection
+https://help.github.com/en/articles/which-remote-url-should-i-use
+https://help.github.com/en/articles/changing-a-remotes-url
+https://gist.github.com/developius/c81f021eb5c5916013dc
+
+That does work with the current driver implementation !
+
+user@host:~$ cat /etc/ssh/ssh_config 
+
+# This is the ssh client system-wide configuration file.  See
+# ssh_config(5) for more information.  This file provides defaults for
+# users, and the values can be changed in per-user configuration files
+# or on the command line.
+
+# Configuration data is parsed as follows:
+#  1. command line options
+#  2. user-specific file
+#  3. system-wide file
+# Any configuration value is only changed the first time it is set.
+# Thus, host-specific definitions should be at the beginning of the
+# configuration file, and defaults at the end.
+
+# Site-wide defaults for some commonly used options.  For a comprehensive
+# list of available options, their meanings and defaults, please see the
+# ssh_config(5) man page.
+
+Host *
+#   ForwardAgent no
+#   ForwardX11 no
+#   ForwardX11Trusted yes
+#   PasswordAuthentication yes
+#   HostbasedAuthentication no
+#   GSSAPIAuthentication no
+#   GSSAPIDelegateCredentials no
+#   GSSAPIKeyExchange no
+#   GSSAPITrustDNS no
+#   BatchMode no
+#   CheckHostIP yes
+#   AddressFamily any
+#   ConnectTimeout 0
+#   StrictHostKeyChecking ask
+#   IdentityFile ~/.ssh/id_rsa
+#   IdentityFile ~/.ssh/id_dsa
+#   IdentityFile ~/.ssh/id_ecdsa
+#   IdentityFile ~/.ssh/id_ed25519
+#   Port 22
+#   Protocol 2
+#   Ciphers aes128-ctr,aes192-ctr,aes256-ctr,aes128-cbc,3des-cbc
+#   MACs hmac-md5,hmac-sha1,umac-64@openssh.com
+#   EscapeChar ~
+#   Tunnel no
+#   TunnelDevice any:any
+#   PermitLocalCommand no
+#   VisualHostKey no
+#   ProxyCommand ssh -q -W %h:%p gateway.example.com
+#   RekeyLimit 1G 1h
+    SendEnv LANG LC_*
+    HashKnownHosts yes
+    GSSAPIAuthentication yes
+    PKCS11Provider /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so # this saves specifying the module with option -I
+
+    
+ssh
+===
+If You want to test ssh and don't have a target to connect to:
+Use e.g. Your GitHub repo (or create one for free). In it's settings, store a RSA public key:
+E.g. use acos5_gui, switch to tab file system, select one of Your RSA public keys in the tree view, that has a non-bullet symbol (meaning it's known/detectable conforming to PKCS#15).
+The content view shows i.a. the ssh format; copy and past that complete line (up to the beginning of the next line) into Your GitHub repo setting for a new ssh key and store that key. GitHub complains if something is wrong with that key.
+Check key's fingerprint shown by GitHub, compare to the one in acos5_gui content window (MD5). They should match.
+Then use GitHub's ssh testing facility:
+
+user@host:~$ ssh -T git@github.com
+Enter PIN for 'User (CTM64_C0C640A1B2C3)':                                                                                                                                                                            
+Hi carblue! You've successfully authenticated, but GitHub does not provide shell access.
+
+user@host:~$ ssh-add -s /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so 
+Enter passphrase for PKCS#11:                                                                                                                                                                                         
+Card added: /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so                                                                                                                                                                
+
+user@host:~$ ssh-add -l
+4095 SHA256:ysU6n8cD+7ts9ZcGoxo96K46aNI9RGb2lZRSXXGUTtc /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so (RSA)
+4096 SHA256:c7cH3XNHkfJ4jQ2gsiwWyU/bshW9HObw7oXIkybLLnw /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so (RSA)
+4095 SHA256:bHjQrSs4HE/n1hdSrSOr6nA0zFATvfrn97tMw/+jJqY /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so (RSA)
+
+user@host:~$ ssh-add -e /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so                                                                                                                          
+Card removed: /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so
+

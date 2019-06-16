@@ -20,13 +20,13 @@
 
 /* functions callable via sc_card_ctl(acos5_64_card_ctl), mostly used by acos5_64_gui */
 
-use std::os::raw::{c_int, c_uint, c_void,/* c_char, c_uchar, c_void*/};
+use std::os::raw::{c_int, c_uint /*, c_void, c_char, c_uchar*/};
 use std::ffi::{/*CString,*/ CStr};
 
 use opensc_sys::opensc::{sc_transmit_apdu, sc_card, sc_bytes2apdu_wrapper};
-use opensc_sys::types::{/*sc_path, sc_file,*/ sc_apdu, sc_serial_number/*, SC_MAX_PATH_SIZE*/};
+use opensc_sys::types::{/*sc_path, sc_file,*/ sc_apdu, sc_serial_number, SC_MAX_SERIALNR/*, SC_MAX_PATH_SIZE*/};
 use opensc_sys::log::{sc_do_log, SC_LOG_DEBUG_NORMAL};
-use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_KEYPAD_MSG_TOO_LONG, SC_ERROR_FILE_NOT_FOUND};
+use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_KEYPAD_MSG_TOO_LONG/*, SC_ERROR_FILE_NOT_FOUND*/};
 
 use crate::constants_types::*;
 //use super::{acos5_64_select_file};
@@ -51,10 +51,11 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, c_int>
     let mut apdu : sc_apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
+    assert!(len_card_serial_number <= SC_MAX_SERIALNR);
 
     let mut serial : sc_serial_number = Default::default();
     apdu.resp = serial.value.as_mut_ptr();
-    apdu.resplen = len_card_serial_number;
+    apdu.resplen = SC_MAX_SERIALNR;
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 || apdu.resplen < len_card_serial_number {
         let format = CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5-64 'Get Card Info: Serial Number' failed\0")
@@ -382,59 +383,4 @@ pub fn get_key_auth_state(card: &mut sc_card, reference: u8) -> Result<bool, c_i
         return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
     }
     Ok(rbuf[0] == 1)
-}
-
-
-pub fn get_files_hashmap_info(card: &mut sc_card, key: u16) -> Result<[u8; 32], c_int>
-{
-    let file_str = CStr::from_bytes_with_nul(CRATE).unwrap();
-    let func     = CStr::from_bytes_with_nul(b"get_files_hashmap_info\0").unwrap();
-    let format   = CStr::from_bytes_with_nul(CALLED).unwrap();
-    #[cfg(log)]
-    unsafe {sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, file_str.as_ptr(), line!() as i32, func.as_ptr(), format.as_ptr())};
-
-    let mut rbuf = [0u8; 32];
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-//alias  TreeTypeFS = tree_k_ary.Tree!ub32; // 8 bytes + length of pathlen_max considered (, here SC_MAX_PATH_SIZE = 16) + 8 bytes SAC (file access conditions)
-//                            path                    File Info       scb8                SeInfo
-//pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, Option<Vec<SeInfo>>);
-// File Info originally:  {FDB, DCB, FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI}
-// File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,   LCSI}
-
-    if dp.files.contains_key(&key) {
-        let dp_files_value_ref = &dp.files[&key];
-        {
-            let dst = &mut rbuf[ 0.. 8];
-            dst.copy_from_slice(&dp_files_value_ref.1);
-/*
-            // FIXME temporarily
-            if [0x4131, 0x4132, 0x4133].contains(&key) {
-                rbuf[6] = PKCS15_FILE_TYPE_RSAPUBLICKEY;
-            }
-            if [0x41F1, 0x41F2, 0x41F3].contains(&key) {
-                rbuf[6] = PKCS15_FILE_TYPE_RSAPRIVATEKEY;
-            }
-*/
-        }
-        {
-            let dst = &mut rbuf[ 8..24];
-            dst.copy_from_slice(&dp_files_value_ref.0);
-        }
-        if dp_files_value_ref.2.is_some() {
-            let dst = &mut rbuf[24..32];
-            dst.copy_from_slice(&(dp_files_value_ref.2).unwrap());
-        }
-        else {
-            let format = CStr::from_bytes_with_nul(b"### forgot to call acos5_64_update_hashmap first ###\0").unwrap();
-            #[cfg(log)]
-            unsafe { sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, file_str.as_ptr(), line!() as i32, func.as_ptr(),
-                               format.as_ptr()) };
-        }
-    }
-    else {
-        return Err(SC_ERROR_FILE_NOT_FOUND);
-    }
-
-    card.drv_data = Box::into_raw(dp) as *mut c_void;
-    Ok(rbuf)
 }
