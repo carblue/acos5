@@ -40,19 +40,18 @@ use std::os::raw::{c_int, c_uint, c_void, c_char, c_uchar, c_ulong};
 use std::ffi::CStr;
 use std::ptr::{copy_nonoverlapping};
 use std::collections::HashMap;
-use std::fs;
+//use std::fs;
 
-use opensc_sys::opensc::{
-sc_card, sc_card_driver, sc_card_operations, sc_pin_cmd_data, sc_security_env, sc_get_iso7816_driver,
-sc_file_add_acl_entry, sc_format_path, sc_file_set_prop_attr, sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_check_sw,
-SC_CARD_CAP_RNG, SC_CARD_CAP_USE_FCI_AC, SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
-SC_ALGORITHM_RSA, SC_ALGORITHM_ONBOARD_KEY_GEN, SC_ALGORITHM_RSA_RAW, SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER,
-SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_DERIVE,
-SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK, SC_ALGORITHM_RSA_PAD_NONE,
-SC_ALGORITHM_RSA_PAD_PKCS1, SC_ALGORITHM_RSA_PAD_ISO9796, SC_ALGORITHM_RSA_HASH_NONE,
-SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT, //sc_select_file, sc_verify,
-SC_SEC_ENV_ALG_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES
-};
+use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_pin_cmd_data, sc_security_env,
+                         sc_get_iso7816_driver, sc_file_add_acl_entry, sc_format_path, sc_file_set_prop_attr,
+                         sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_check_sw, SC_CARD_CAP_RNG, SC_CARD_CAP_USE_FCI_AC,
+                         SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_ALGORITHM_RSA,
+                         SC_ALGORITHM_ONBOARD_KEY_GEN, SC_ALGORITHM_RSA_RAW, SC_SEC_OPERATION_SIGN,
+                         SC_SEC_OPERATION_DECIPHER, SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_DERIVE,
+                         SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK,
+                         SC_ALGORITHM_RSA_PAD_NONE, SC_ALGORITHM_RSA_PAD_PKCS1, SC_ALGORITHM_RSA_PAD_ISO9796,
+                         SC_ALGORITHM_RSA_HASH_NONE, SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT,
+                         SC_SEC_ENV_ALG_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES/*, sc_select_file, sc_update_binary*/};
 
 #[cfg(not(    v0_15_0))]
 use opensc_sys::opensc::{SC_CARD_CAP_ISO7816_PIN_INFO};
@@ -114,7 +113,8 @@ use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_arra
     pin_get_policy, track_iso7816_select_file, acos5_64_atrs_supported,
                       /*encrypt_public_rsa,*/ get_sec_env, set_sec_env, /*get_rsa_caps,*/
     get_is_running_cmd_long_response, set_is_running_cmd_long_response, is_any_of_di_by_len,
-    cry_pso_7_4_3_6_2A_sym_encrypt, generate_asym, encrypt_asym, get_files_hashmap_info, update_hashmap,
+    sym_endecrypt,
+    generate_asym, encrypt_asym, get_files_hashmap_info, update_hashmap,
     logical_xor
 };
 // choose new name ? denoting, that there are rust-mangled, non-externC functions, that don't relate to se
@@ -945,46 +945,56 @@ extern "C" fn acos5_64_finish(card: *mut sc_card) -> c_int
         let fmt  = CStr::from_bytes_with_nul(CALLED).unwrap();
         wr_do_log(card_ref.ctx, file, line!(), fun, fmt);
     }
-
-/* another testing area for acos5_64_card_ctl * /
-    let mut path= Default::default();
-    unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3F0041004102\0").unwrap().as_ptr(), &mut path) };
-    let mut rv =  unsafe { sc_select_file(card_ref_mut, &path, std::ptr::null_mut()/*file: *mut *mut sc_file*/) };
+/* * /
+    let mut path = Default::default();
+    unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3F0041004121\0").unwrap().as_ptr(), &mut path) };
+    let rv = unsafe { sc_select_file(card, &path, std::ptr::null_mut()) };
     assert_eq!(rv, SC_SUCCESS);
-    let mut tries_left= 0i32;
-    rv = unsafe { sc_verify(card_ref_mut, SC_AC_CHV, 0x81, [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38].as_ptr(), 8, &mut tries_left) };
-    assert_eq!(rv, SC_SUCCESS);
+    let path_file = CStr::from_bytes_with_nul(b"/path/to/cert.der\0").unwrap();
+    let read_result = fs::read(path_file.to_str().unwrap());
+    let rv = unsafe { sc_update_binary(card, 0, read_result.unwrap().as_ptr(), 1637, 0) };
+    assert_eq!(rv, 1637);
+/ * */
 
-    let mut crypt_sym = CardCtl_crypt_sym {
-        indata: [1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
-                 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-        indata_len:  33,
-        outdata_len: 32, // experimental, not the real limit
-//        iv:  [1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 14, 15, 16],
-//        iv_len: 16,
-        key_ref: 0x83, // has stored a 256 bit key for AES usage
+    /* another testing area for acos5_64_card_ctl * /
+        let mut path= Default::default();
+        unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3F0041004102\0").unwrap().as_ptr(), &mut path) };
+        let mut rv =  unsafe { sc_select_file(card_ref_mut, &path, std::ptr::null_mut()/*file: *mut *mut sc_file*/) };
+        assert_eq!(rv, SC_SUCCESS);
+        let mut tries_left= 0i32;
+        rv = unsafe { sc_verify(card_ref_mut, SC_AC_CHV, 0x81, [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38].as_ptr(), 8, &mut tries_left) };
+        assert_eq!(rv, SC_SUCCESS);
 
-//        pad_type: BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5,//BLOCKCIPHER_PAD_TYPE_ANSIX9_23, //BLOCKCIPHER_PAD_TYPE_PKCS5, //BLOCKCIPHER_PAD_TYPE_ZEROES,
-        perform_mse: true,
-/*
-        block_size: 16,
-        key_len: 32,
-        pad_type: BLOCKCIPHER_PAD_TYPE_PKCS5,
-        local: true,
-        cbc: true,
-        enc_dec : true,
-        perform_mse: false,
-*/
-        .. Default::default()
-    };
-    rv = acos5_64_card_ctl(card_ref_mut, SC_CARDCTL_ACOS5_ENCRYPT_SYM.into(), &mut crypt_sym as *mut CardCtl_crypt_sym as *mut c_void);
-    println!("rv: {}, outdata_len: {}", rv, crypt_sym.outdata_len);
-    if rv == SC_SUCCESS {
-        println!("indata_len:      {}",   &crypt_sym.indata_len);
-        println!("outdata[ 0..32]: {:?}", &crypt_sym.outdata[ 0..32]);
-        println!("outdata[32..{}]: {:?}", crypt_sym.outdata_len, &crypt_sym.outdata[32..crypt_sym.outdata_len]);
-    }
-/ **/
+        let mut crypt_sym = CardCtl_crypt_sym {
+            indata: [1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
+                     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            indata_len:  33,
+            outdata_len: 32, // experimental, not the real limit
+    //        iv:  [1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 14, 15, 16],
+    //        iv_len: 16,
+            key_ref: 0x83, // has stored a 256 bit key for AES usage
+
+    //        pad_type: BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5,//BLOCKCIPHER_PAD_TYPE_ANSIX9_23, //BLOCKCIPHER_PAD_TYPE_PKCS5, //BLOCKCIPHER_PAD_TYPE_ZEROES,
+            perform_mse: true,
+    /*
+            block_size: 16,
+            key_len: 32,
+            pad_type: BLOCKCIPHER_PAD_TYPE_PKCS5,
+            local: true,
+            cbc: true,
+            encrypt : true,
+            perform_mse: false,
+    */
+            .. Default::default()
+        };
+        rv = acos5_64_card_ctl(card_ref_mut, SC_CARDCTL_ACOS5_ENCRYPT_SYM.into(), &mut crypt_sym as *mut CardCtl_crypt_sym as *mut c_void);
+        println!("rv: {}, outdata_len: {}", rv, crypt_sym.outdata_len);
+        if rv == SC_SUCCESS {
+            println!("indata_len:      {}",   &crypt_sym.indata_len);
+            println!("outdata[ 0..32]: {:?}", &crypt_sym.outdata[ 0..32]);
+            println!("outdata[32..{}]: {:?}", crypt_sym.outdata_len, &crypt_sym.outdata[32..crypt_sym.outdata_len]);
+        }
+    / **/
 ////////////////////
     assert!(!card_ref.drv_data.is_null(), "drv_data is null");
     let dp : Box<DataPrivate> = unsafe { Box::from_raw(card_ref.drv_data as *mut DataPrivate) };
@@ -1185,55 +1195,26 @@ extern "C" fn acos5_64_card_ctl(card: *mut sc_card, command: c_ulong, data: *mut
                 /* suppose select_file, authenticate, (possibly setting MSE) etc. was done already */
                 encrypt_asym(card_ref_mut, generate_crypt_asym_data, false)
             },
-        SC_CARDCTL_ACOS5_ENCRYPT_SYM =>
+        SC_CARDCTL_ACOS5_ENCRYPT_SYM |
+        SC_CARDCTL_ACOS5_DECRYPT_SYM     =>
             if data.is_null() { SC_ERROR_INVALID_ARGUMENTS }
             else {
                 let crypt_sym_data = unsafe { &mut *(data as *mut CardCtl_crypt_sym) };
-                assert!(logical_xor(crypt_sym_data.outdata_len > 0, !crypt_sym_data.outfile.is_null() ));
-                assert!(logical_xor(crypt_sym_data.indata_len > 0, !crypt_sym_data.infile.is_null() ));
-                assert_eq!(crypt_sym_data.iv, [0u8; 16]); // IV is not yet supported
-                if !crypt_sym_data.infile.is_null() {
-                    let path = unsafe { CStr::from_ptr(crypt_sym_data.infile) };
-                    let read_result = fs::read(path.to_str().unwrap());
-                    let vec = match read_result {
-                        Ok(vec) => vec,
-                        Err(e) => return e.raw_os_error().unwrap(),
-                    };
-                    let cnt = std::cmp::min(crypt_sym_data.indata.len(), vec.len());
-                    let dst = &mut crypt_sym_data.indata[..cnt];
-                    dst.copy_from_slice(&vec.as_slice()[..cnt]);
-                    crypt_sym_data.indata_len = cnt;
-                }
-                /* suppose setting MSE etc. was done already */
+                if !logical_xor(crypt_sym_data.outdata_len > 0, !crypt_sym_data.outfile.is_null())  ||
+                   !logical_xor(crypt_sym_data.indata_len  > 0, !crypt_sym_data.infile.is_null())   ||
+                   ![8u8, 16].contains(&crypt_sym_data.block_size)  ||
+                   ![BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5,
+                        BLOCKCIPHER_PAD_TYPE_PKCS5, BLOCKCIPHER_PAD_TYPE_ANSIX9_23/*, BLOCKCIPHER_PAD_TYPE_W3C*/]
+                        .contains(&crypt_sym_data.pad_type)  ||
+                   crypt_sym_data.iv != [0u8; 16]
+                { return SC_ERROR_INVALID_ARGUMENTS; }
 
-                let rv = cry_pso_7_4_3_6_2A_sym_encrypt(card_ref_mut, crypt_sym_data);
-/*
-                    card_ref_mut,
-                    &crypt_sym_data.indata[..std::cmp::min(crypt_sym_data.indata.len(), crypt_sym_data.indata_len)],
-                    &mut crypt_sym_data.outdata,
-                    crypt_sym_data.block_size,
-                    crypt_sym_data.pad_type
-*/
-                if rv > 0 {
-                    crypt_sym_data.outdata_len = rv as usize;
-                    if !crypt_sym_data.outfile.is_null() {
-                        let path = unsafe { CStr::from_ptr(crypt_sym_data.outfile) };
-//                        let x = &crypt_sym_data.outdata[..crypt_sym_data.outdata_len]
-                        let write_result = fs::write(path.to_str().unwrap(), &crypt_sym_data.outdata[..crypt_sym_data.outdata_len]);
-                        match write_result {
-                            Ok(_) => (),
-                            Err(e) => return e.raw_os_error().unwrap(),
-                        }
-                    }
-                    SC_SUCCESS
-                }
-                else {
-                    SC_ERROR_KEYPAD_MSG_TOO_LONG
-                }
+                let rv = sym_endecrypt(card_ref_mut, crypt_sym_data);
+                if rv > 0 {SC_SUCCESS} else {SC_ERROR_KEYPAD_MSG_TOO_LONG}
             },
         _   => SC_ERROR_NO_CARD_SUPPORT
     }
-}
+} // acos5_64_card_ctl
 
 /*
  * What it does
@@ -2210,9 +2191,9 @@ extern "C" fn acos5_64_set_security_env(card: *mut sc_card, env: *const sc_secur
                 ![SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES].contains(&env_ref.algorithm) {
                 return SC_ERROR_NOT_SUPPORTED;
             }
-            #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0)))]
+            #[cfg(not(    v0_17_0))]
             { if env_ref.flags as c_uint & SC_SEC_ENV_KEY_REF_SYMMETRIC == 0 {return SC_ERROR_NOT_SUPPORTED;} }
-            #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+            #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
             {
                 if (env_ref.algorithm & SC_ALGORITHM_AES) > 0 &&
                     ![SC_ALGORITHM_AES_CBC_PAD,
@@ -2229,14 +2210,23 @@ extern "C" fn acos5_64_set_security_env(card: *mut sc_card, env: *const sc_secur
                      0x87, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
 
-            if env_ref.algorithm != SC_ALGORITHM_AES {
+            if env_ref.algorithm == SC_ALGORITHM_AES {
+                #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+                    { if env_ref.algorithm_flags == SC_ALGORITHM_AES_ECB {vec.truncate(vec.len()-18);} }
+                #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
+                    {
+                        if [4, 5].contains(&env_ref.algorithm_ref)
+                        { vec.truncate(vec.len()-18); }
+                    }
+            }
+            else { // then it's SC_ALGORITHM_3DES | SC_ALGORITHM_DES
                 vec.truncate(vec.len()-8);
                 let pos = vec.len()-9;
                 vec[pos] = 8; // IV has len == 8. assuming it's CBC
+                if [0, 1].contains(&env_ref.algorithm_ref)
+                { vec.truncate(vec.len()-10); }
             }
-            // TODO how is CBC/ECB for 3DES/DES communicated ? truncating vec for that is missing
-            #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-            { if env_ref.algorithm_flags == SC_ALGORITHM_AES_ECB {vec.truncate(vec.len()-10);} }
+
             /*  transferring the iv is missing below 0.20.0
             #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
             {

@@ -11,7 +11,7 @@ fn main() {
 
 /* pkg_config-based-adaption to installed OpenSC release version
    with file /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc in place:
-   This will print to stdout (for Kubuntu):
+   This will print to stdout (for (K)ubuntu):
    cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu
    cargo:rustc-link-lib=opensc
    cargo:rustc-cfg=v0_19_0   <= or whatever version the installed OpenSC package is
@@ -28,8 +28,8 @@ fn main() {
     match pkg_config::Config::new().atleast_version("0.17.0").probe("opensc") {
         Ok(lib) => {
             match lib.version.as_str() {
-//                "0.15.0" => println!("cargo:rustc-cfg=v0_15_0"),
-//                "0.16.0" => println!("cargo:rustc-cfg=v0_16_0"),
+//                "0.15.0" => println!("cargo:rustc-cfg=v0_15_0"), // an impl. will need to care for function _sc_match_atr and more
+//                "0.16.0" => println!("cargo:rustc-cfg=v0_16_0"), // dito
                 "0.17.0" => println!("cargo:rustc-cfg=v0_17_0"),
                 "0.18.0" => println!("cargo:rustc-cfg=v0_18_0"),
                 "0.19.0" => println!("cargo:rustc-cfg=v0_19_0"),
@@ -39,10 +39,10 @@ fn main() {
         }
         Err(_e) => panic!("No pkg-config found for opensc library") // "{}", e.description()
     };
-/* in case of non-availability of pkg-config or failure of above:
+/* in case of non-availability of pkg-config or failure of above (possibly adapt next line for path_to of /path_to/libopensc.so|dll/|dylib):
     println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");
     println!("cargo:rustc-link-lib=opensc");
-    println!("cargo:rustc-cfg=v0_19_0");   <= or whatever version the installed OpenSC package is
+    println!("cargo:rustc-cfg=v0_19_0"); //  <= or whatever version the installed OpenSC package is
 */
 
     /* other conditionaĺ compilation settings */

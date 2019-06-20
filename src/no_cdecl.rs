@@ -1,5 +1,5 @@
 /*
- * no_cdecl.rs: Driver 'acos5_64' - Miscellaneous functions referring to sc_path or sc_path.value
+* no_cdecl.rs: Driver 'acos5_64' - Miscellaneous functions referring to sc_path or sc_path.value
  *
  * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
@@ -23,9 +23,10 @@
 
 //#![feature(const_fn)]
 
-use std::os::raw::{c_int, c_void, c_uint, c_uchar, c_ulong/*, c_uchar*/};
+use std::os::raw::{c_int, c_void, c_uint, c_uchar, c_char, c_ulong};
 use std::ffi::{/*CString,*/ CStr};
-
+use std::fs;//::{read/*, write*/};
+//use std::io;
 
 use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env,
                          sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_get_iso7816_driver, sc_file_free, sc_read_record,
@@ -857,7 +858,7 @@ Ok(0)
 
 
 #[allow(non_snake_case)]
-pub fn multipleGreaterEqual(multiplier: usize, x: usize) -> usize
+fn multipleGreaterEqual(multiplier: usize, x: usize) -> usize
 {
     let rem = x % multiplier;
     x + if rem==0 {0} else {multiplier-rem}
@@ -865,7 +866,7 @@ pub fn multipleGreaterEqual(multiplier: usize, x: usize) -> usize
 
 #[allow(non_snake_case)]
 #[cfg(not(any(v0_15_0, v0_16_0)))]
-fn algo_ref_cos5_sym_SEDO(/*sec_op: c_int,*/ algo: c_uint, op_mode_cbc: bool) -> c_uint
+fn algo_ref_cos5_sym_SEDO(algo: c_uint, op_mode_cbc: bool) -> c_uint
 {
     match algo {
         SC_ALGORITHM_AES => if op_mode_cbc {6} else {4},
@@ -873,6 +874,18 @@ fn algo_ref_cos5_sym_SEDO(/*sec_op: c_int,*/ algo: c_uint, op_mode_cbc: bool) ->
         SC_ALGORITHM_DES => if op_mode_cbc {3} else {1},
         _ => 0xFFFF_FFFF,
     }
+}
+
+fn vecu8_from_file(path_ptr: *const c_char) -> std::io::Result<Vec<u8>>
+{
+    if path_ptr.is_null() {
+        return Err(std::io::Error::new(std::io::ErrorKind::Other, "oh no!"));
+    }
+    let path_str = match unsafe { CStr::from_ptr(path_ptr).to_str() } {
+        Ok(path) => path,
+        Err(_e) => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "oh no!")),
+    };
+    fs::read(path_str)
 }
 
 /*
@@ -884,55 +897,107 @@ if inData is not a multiple of blockSize, then addPadding80 will be done and out
 /* Acc to ref. manual, V2.00 uses chaining, while V3.00 does not !
 https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Cipher_Block_Chaining_(CBC)
 
-78F469F086E43DF9737F183185FD9B2D6E10A13FA6E983D15FC131A3E31F996C
 */
 #[allow(non_snake_case)]
-pub fn cry_pso_7_4_3_6_2A_sym_encrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> c_int
+pub fn sym_endecrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> c_int
 {
-    assert!([8u8, 16].contains(&crypt_sym.block_size));
-    assert!([BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5,
-        BLOCKCIPHER_PAD_TYPE_PKCS5, BLOCKCIPHER_PAD_TYPE_ANSIX9_23/*, BLOCKCIPHER_PAD_TYPE_W3C*/].contains(&crypt_sym.pad_type));
-    let Len1 = std::cmp::min(crypt_sym.indata_len, crypt_sym.indata.len());
-    let Len0 = (Len1/usize::from(crypt_sym.block_size)) * usize::from(crypt_sym.block_size);
-    let Len2 = multipleGreaterEqual(usize::from(crypt_sym.block_size), Len1+
-        if [BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5].contains(&crypt_sym.pad_type) {0} else {1});
-    assert!(Len1 == 0    || crypt_sym.outdata.len() >= Len1);
-    assert!(Len1 == Len2 || crypt_sym.outdata.len() >= Len2);
-    let mut inDataRem = Vec::with_capacity(usize::from(crypt_sym.block_size));
-    if Len1 != Len2 {
-        inDataRem.extend_from_slice(&crypt_sym.indata[Len0..Len1]); // no copying if Len0==Len1
-        inDataRem.extend_from_slice(trailing_blockcipher_padding_calculate(crypt_sym.block_size, crypt_sym.pad_type, (Len1-Len0) as u8).as_slice() );
-        assert_eq!(inDataRem.len(), usize::from(crypt_sym.block_size));
+    let file = CStr::from_bytes_with_nul(CRATE).unwrap();
+    let fun  = CStr::from_bytes_with_nul(b"sym_endecrypt\0").unwrap();
+    if cfg!(log) {
+        let fmt_enc  = CStr::from_bytes_with_nul(b"called for encryption\0").unwrap();
+        let fmt_dec  = CStr::from_bytes_with_nul(b"called for decryption\0").unwrap();
+        wr_do_log(card.ctx, file, line!(), fun,if crypt_sym.encrypt {fmt_enc} else {fmt_dec});
     }
 
+    let indata_len;
+    let indata_ptr;
+    let vec_in;
+
+    if !crypt_sym.infile.is_null() {
+        vec_in = match vecu8_from_file(crypt_sym.infile) {
+            Ok(vec) => vec,
+            Err(e) => return e.raw_os_error().unwrap(),
+        };
+        indata_len = vec_in.len();
+        indata_ptr = vec_in.as_ptr();
+    }
+    else {
+        indata_len = std::cmp::min(crypt_sym.indata_len, crypt_sym.indata.len());
+        indata_ptr = crypt_sym.indata.as_ptr();
+    }
+/* */
+    if cfg!(log) {
+        let fmt  = CStr::from_bytes_with_nul(b"called with indata_len: %zu, first 16 bytes: %s\0").unwrap();
+        wr_do_log_tu(card.ctx, file, line!(), fun, indata_len, unsafe {sc_dump_hex(indata_ptr, 16)}, fmt);
+    }
+/* */
     let mut rv;
-    #[cfg(not(any(v0_15_0, v0_16_0)))] // due to SC_ALGORITHM_AES
-    let mut env = sc_security_env {
-        operation: SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
-        flags    : (SC_SEC_ENV_KEY_REF_PRESENT | SC_SEC_ENV_ALG_REF_PRESENT | SC_SEC_ENV_ALG_PRESENT).into(),
-        algorithm: if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else {SC_ALGORITHM_3DES /*TODO should I ever consider supporting SC_ALGORITHM_DES*/},
-        key_ref: [crypt_sym.key_ref, 0,0,0,0,0,0,0],
-        key_ref_len: 1,
-        algorithm_ref: algo_ref_cos5_sym_SEDO(if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else {SC_ALGORITHM_3DES}, crypt_sym.cbc),
-
-        ..Default::default()
-    };
-    #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0)))]
-    { env.flags |= SC_SEC_ENV_KEY_REF_SYMMETRIC as c_ulong; }
-    #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-    {
-        if (env.algorithm & SC_ALGORITHM_AES) > 0 {
-            if !crypt_sym.cbc { env.algorithm_flags |= SC_ALGORITHM_AES_ECB; }
-            else {
-                if crypt_sym.pad_type == BLOCKCIPHER_PAD_TYPE_PKCS5
-                              { env.algorithm_flags |= SC_ALGORITHM_AES_CBC_PAD; }
-                else
-                              { env.algorithm_flags |= SC_ALGORITHM_AES_CBC; }
-            }
-        }
+    let block_size = usize::from(crypt_sym.block_size);
+    let Len1 = indata_len;
+    let Len0 = /*multipleLessEqual*/ (Len1/block_size) * block_size;
+    let Len2 = multipleGreaterEqual(block_size, Len1+
+        if !crypt_sym.encrypt || [BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5].contains(&crypt_sym.pad_type) {0} else {1});
+    if !crypt_sym.encrypt {
+        assert_eq!(Len1, Len0);
+        assert_eq!(Len1, Len2);
     }
 
+    let outdata_len;
+    let outdata_ptr;
+    let mut vec_out = Vec::new();
+
+    if !crypt_sym.outfile.is_null() {
+        vec_out.resize(Len2, 0u8);
+        outdata_len = Len2;
+        outdata_ptr = vec_out.as_mut_ptr();
+    }
+    else {
+        outdata_len = std::cmp::min(crypt_sym.outdata_len, crypt_sym.outdata.len());
+        outdata_ptr = crypt_sym.outdata.as_mut_ptr();
+    }
+// if {} else {}
+    if !crypt_sym.infile.is_null() && !crypt_sym.outfile.is_null()
+    { assert_ne!(crypt_sym.infile, crypt_sym.outfile); } // FIXME doesn't work for symbolic links: the check is meant for using copy_nonoverlapping
+    assert!(Len1 == 0    || outdata_len >= Len1);
+    assert!(Len1 == Len2 || outdata_len == Len2);
+    let mut inDataRem = Vec::with_capacity(block_size);
+    if crypt_sym.encrypt && Len1 != Len2 {
+        inDataRem.resize(Len1-Len0, 0u8);
+        unsafe { std::ptr::copy_nonoverlapping(indata_ptr.add(Len0), inDataRem.as_mut_ptr(), Len1-Len0) };
+        inDataRem.extend_from_slice(trailing_blockcipher_padding_calculate(crypt_sym.block_size, crypt_sym.pad_type, (Len1-Len0) as u8).as_slice() );
+        assert_eq!(inDataRem.len(), block_size);
+    }
+
+
+    #[cfg(not(any(v0_15_0, v0_16_0)))] // due to SC_ALGORITHM_AES
+    {
     if crypt_sym.perform_mse {
+        /* Security Environment */
+        let mut env = sc_security_env {
+            operation: if crypt_sym.encrypt {SC_SEC_OPERATION_ENCIPHER_SYMMETRIC} else {SC_SEC_OPERATION_DECIPHER_SYMMETRIC},
+            flags    : (SC_SEC_ENV_KEY_REF_PRESENT | SC_SEC_ENV_ALG_REF_PRESENT | SC_SEC_ENV_ALG_PRESENT).into(),
+            algorithm: if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else {SC_ALGORITHM_3DES /*TODO should I ever consider supporting SC_ALGORITHM_DES*/},
+            key_ref: [crypt_sym.key_ref, 0,0,0,0,0,0,0],
+            key_ref_len: 1,
+            algorithm_ref: algo_ref_cos5_sym_SEDO(if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else {SC_ALGORITHM_3DES}, crypt_sym.cbc),
+
+            ..Default::default()
+        };
+        #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0)))]
+            { env.flags |= SC_SEC_ENV_KEY_REF_SYMMETRIC as c_ulong; }
+        #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+            {
+                if (env.algorithm & SC_ALGORITHM_AES) > 0 {
+                    if !crypt_sym.cbc { env.algorithm_flags |= SC_ALGORITHM_AES_ECB; }
+                    else {
+                        if crypt_sym.pad_type == BLOCKCIPHER_PAD_TYPE_PKCS5
+                        { env.algorithm_flags |= SC_ALGORITHM_AES_CBC_PAD; }
+                        else
+                        { env.algorithm_flags |= SC_ALGORITHM_AES_CBC; }
+                    }
+                }
+            }
+
         rv = acos5_64_set_security_env(card, &env, 0);
         if rv < 0 {
             /*
@@ -942,80 +1007,86 @@ pub fn cry_pso_7_4_3_6_2A_sym_encrypt(card: &mut sc_card, crypt_sym: &mut CardCt
             */
             return rv;
         }
-    }
+    }}
 
-    /* encrypt */
-    let max_send = 255-crypt_sym.block_size+1;
-    let command : [u8; 7] = [0u8, 0x2A, 0x84, 0x80, 0x01, 0xFF, 0xFF];
+    /* encrypt / decrypt */
+    let max_send = 256usize - block_size;
+    let command : [u8; 7] = [if !crypt_sym.cbc || (Len1==Len2 && Len1<=max_send) {0u8} else {0x10u8}, 0x2A,
+        if crypt_sym.encrypt {0x84u8} else {0x80u8}, if crypt_sym.encrypt {0x80u8} else {0x84u8}, 0x01, 0xFF, 0xFF];
     let mut apdu = Default::default();
     rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
     assert_eq!(apdu.cse, SC_APDU_CASE_4_SHORT);
     let mut cnt = 0usize; // counting apdu.resplen bytes received;
 
-    while cnt < Len0 {
-        apdu.data = unsafe { crypt_sym.indata.as_ptr().add(cnt) };
-        apdu.datalen = std::cmp::min(usize::from(max_send), Len0-cnt);
+    while cnt < Len0 || (cnt == Len0 && Len1 != Len2) {
+        if cnt < Len0 {
+            if !crypt_sym.encrypt || (crypt_sym.cbc && Len1==Len2 && Len0-cnt<=max_send) { apdu.cla  = 0; }
+            apdu.data = unsafe { indata_ptr.add(cnt) };
+            apdu.datalen = std::cmp::min(max_send, Len0-cnt);
+        }
+        else {
+            apdu.cla  = 0;
+            apdu.data    = inDataRem.as_ptr();
+            apdu.datalen = inDataRem.len();
+        }
         apdu.lc = apdu.datalen;
         apdu.le = apdu.datalen;
-        apdu.resp = unsafe { crypt_sym.outdata.as_mut_ptr().add(cnt) };
-        apdu.resplen = crypt_sym.outdata.len()-cnt;
+        apdu.resp = unsafe { outdata_ptr.add(cnt) };
+        apdu.resplen = outdata_len-cnt;
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
-        if rv != SC_SUCCESS {
-            return rv;
-        }
+        if rv != SC_SUCCESS  { return rv; }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
-        if rv != SC_SUCCESS {
-            return rv;
-        }
-        if apdu.resplen == 0 {
-            return -1;
-        }
+        if rv != SC_SUCCESS  { return rv; }
+        if apdu.resplen == 0 { return SC_ERROR_KEYPAD_MSG_TOO_LONG; }
         assert_eq!(apdu.datalen, apdu.resplen);
         cnt += apdu.datalen;
+    }
+/*
+    if Len1 != Len2 {
+        apdu.cla  = 0;
+        apdu.data    = inDataRem.as_ptr();
+        apdu.datalen = inDataRem.len();
+
+        apdu.lc = apdu.datalen;
+        apdu.le = apdu.datalen;
+        apdu.resp = unsafe { outdata_ptr.add(cnt) };
+        apdu.resplen = outdata_len-cnt;
+        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
+        if rv != SC_SUCCESS  { return rv; }
+        rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+        if rv != SC_SUCCESS  { return rv; }
+        if apdu.resplen == 0 { return SC_ERROR_KEYPAD_MSG_TOO_LONG; }
+        assert_eq!(apdu.datalen, apdu.resplen);
+        cnt += apdu.datalen;
+    }
+*/
+    if crypt_sym.encrypt {
+        crypt_sym.outdata_len = cnt;
+    }
+    else {
+        let mut last_block_values = [0u8; 16];
+        unsafe { std::ptr::copy_nonoverlapping(outdata_ptr.add(cnt-block_size), last_block_values.as_mut_ptr(), block_size) };
+
+        crypt_sym.outdata_len = cnt-trailing_blockcipher_padding_get_length(crypt_sym.block_size, crypt_sym.pad_type,
+            &last_block_values[..block_size]).unwrap() as usize;
+        if !crypt_sym.outfile.is_null() { vec_out.truncate(crypt_sym.outdata_len); }
     }
 
-    if Len1 != Len2 {
-        apdu.data = inDataRem.as_ptr();
-        apdu.datalen = inDataRem.len();
-        apdu.lc = apdu.datalen;
-        apdu.le = apdu.datalen;
-        apdu.resp = unsafe { crypt_sym.outdata.as_mut_ptr().add(cnt) };
-        apdu.resplen = crypt_sym.outdata.len()-cnt;
-//            cla = cnt+max_send<Len && doCBCmode ? ubyte(0x10) : ubyte(0);
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
-        if rv != SC_SUCCESS {
-            return rv;
+    if !crypt_sym.outfile.is_null() {
+        let path = unsafe { CStr::from_ptr(crypt_sym.outfile) };
+        let path_str = match path.to_str() {
+            Ok(path_str) => path_str,
+            Err(e) => return e.valid_up_to() as c_int,
+        };
+        match fs::write(path_str, vec_out) {
+            Ok(_) => (),
+            Err(e) => return e.raw_os_error().unwrap(),
         }
-        rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
-        if rv != SC_SUCCESS {
-            return rv;
-        }
-        if apdu.resplen == 0 {
-            return -1;
-        }
-        assert_eq!(apdu.datalen, apdu.resplen);
-        cnt += apdu.datalen;
     }
+
     cnt as c_int
 }
-
-/*
-#[allow(non_snake_case)]
-pub fn cry_pso_7_4_3_7_2A_sym_decrypt(
-    card: &mut sc_card,
-    inData:  &    [c_uchar], // unpadded raw data
-    outData: &mut [c_uchar], // Len: a multiple of blockSize
-    blockSize:  c_uchar,
-    pad_type:   c_uchar
-//    bool doCBCmode=true, /* otherwise handled as ECB*/
-//    const scope ubyte[] tlv = null, // the same that was used for encryption; assuming that allows decrypzion as well
-//ub2 fid = [ubyte(0),ubyte(0)] // any DF for that verification was done already
-) -> c_int
-{ // the implem. is the same as for cry_pso_7_4_3_6_2A_sym_encrypt, except "PSO_P1P2.decrypt"
-0
-}
-*/
 
 
 pub fn get_files_hashmap_info(card: &mut sc_card, key: u16) -> Result<[u8; 32], c_int>

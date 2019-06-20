@@ -1,3 +1,5 @@
+see also file:///usr/share/doc/opensc/tools.html#opensc-tool
+
 OKAY$ opensc-tool --version
 No Git revision info available
 

@@ -79,8 +79,8 @@ pub const FDB_LINEAR_VARIABLE_EF : u8 = 0x04; // Linear-Variable EF == opensc-sy
 pub const FDB_CYCLIC_EF          : u8 = 0x06; // Cyclic EF          == opensc-sys.types.SC_FILE_EF_CYCLIC
 /* Internal EF */
 pub const FDB_RSA_KEY_EF         : u8 = 0x09; // RSA Key EF, for private and public key file; distinguish by PKCS15_FILE_TYPE_RSAPRIVATEKEY or PKCS15_FILE_TYPE_RSAPUBLICKEY
-pub const FDB_CHV_EF             : u8 = 0x0A; // CHV EF, for the pin file, max 1 only in each DF, max 1 file only in each DF
-pub const FDB_SYMMETRIC_KEY_EF   : u8 = 0x0C; // Symmetric Key EF,         max 1 only in each DF, max 1 file only in each DF;  PKCS15_FILE_TYPE_SECRETKEY
+pub const FDB_CHV_EF             : u8 = 0x0A; // CHV EF, for the pin file, max 1 file only in each DF
+pub const FDB_SYMMETRIC_KEY_EF   : u8 = 0x0C; // Symmetric Key EF,         max 1 file only in each DF;  PKCS15_FILE_TYPE_SECRETKEY
 pub const FDB_PURSE_EF           : u8 = 0x0E; // Purse EF, since ACOS5-64 v3.00
 /* Proprietary internal EF */
 pub const FDB_SE_FILE            : u8 = 0x1C; // Security Environment File, exactly 1 file only in each DF; DF's header/FCI points to this
@@ -103,6 +103,7 @@ pub const SM_MODE_NONE           : u8 = 0; // SM is not enforced/impossible as o
 pub const SM_MODE_CCT            : u8 = 1; // SM is enforced, providing Authenticity, specified by a  Cryptographic Checksum Template
 pub const SM_MODE_CCT_AND_CT_SYM : u8 = 2; // SM is enforced, providing Authenticity and Confidentiality, specified by a  Cryptographic Checksum Template and Confidentiality Template (ref. key for sym. algorithm)
 
+                                                 /* PKCS #15 DF types, see pkcs15.rs */
 pub const PKCS15_FILE_TYPE_PRKDF         : u8 =  SC_PKCS15_PRKDF;         // = 0,
 pub const PKCS15_FILE_TYPE_PUKDF         : u8 =  SC_PKCS15_PUKDF;         // = 1,
 pub const PKCS15_FILE_TYPE_PUKDF_TRUSTED : u8 =  SC_PKCS15_PUKDF_TRUSTED; // = 2,   USES DETECTION LIKE PKCS15_FILE_TYPE_PUKDF !
@@ -143,8 +144,8 @@ pub const BLOCKCIPHER_PAD_TYPE_ANSIX9_23          : u8 =  4; // If N padding byt
 // BLOCKCIPHER_PAD_TYPE_W3C is not recommended
 //b const BLOCKCIPHER_PAD_TYPE_W3C                : u8 =  5; // If N padding bytes are required (1 < N ≤ B Blocksize) set the last byte as N and all the preceding N-1 padding bytes as arbitrary byte values.
 
-pub const SC_SEC_ENV_PARAM_DES_ECB           : c_uint = 3;
-pub const SC_SEC_ENV_PARAM_DES_CBC           : c_uint = 4;
+//pub const SC_SEC_ENV_PARAM_DES_ECB           : c_uint = 3;
+//pub const SC_SEC_ENV_PARAM_DES_CBC           : c_uint = 4;
 
 /* see opensc-sys: opensc.rs
 pub const SC_SEC_OPERATION_DECIPHER            : c_int = 0x0001;
@@ -323,16 +324,19 @@ impl Default for CardCtl_generate_crypt_asym {
 }
 
 
-// struct for SC_CARDCTL_ENCRYPT_SYM // data: *mut CardCtl_crypt_sym, do_encrypt_sym
+
+// struct for SC_CARDCTL_ACOS5_ENCRYPT_SYM and SC_CARDCTL_ACOS5_DECRYPT_SYM// data: *mut CardCtl_crypt_sym, do_encrypt_sym
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct CardCtl_crypt_sym {
+    /* input is from : infile xor indata, i.e. assert!(logical_xor(indata_len > 0, !infile.is_null() )); */
     pub infile       : *const c_char, //  path/to/file where the indata may be read from, interpreted as an [c_uchar]; if!= null has preference over indata
-    pub indata       : [c_uchar; 64],
+    pub indata       : [c_uchar; 528],
     pub indata_len   : usize,
     pub outfile      : *const c_char, //  path/to/file where the outdata may be written to, interpreted as an [c_uchar]; if!= null has preference over outdata
-    pub outdata      : [c_uchar; 80],
+    pub outdata      : [c_uchar; 544],
     pub outdata_len  : usize,
+    /* until OpenSC v0.20.0  iv is [0u8; 16], then use sc_sec_env_param and SC_SEC_ENV_PARAM_IV */
     pub iv           : [c_uchar; 16],
     pub iv_len       : usize, // 0==unused or equal to block_size, i.e. 16 for AES, else 8
 
@@ -344,7 +348,7 @@ pub struct CardCtl_crypt_sym {
 //    pub use_sess_key : bool, // if true, the session key will be used and key_ref ignored
     pub local        : bool, // whether local or global key to use; used to select MF or appDF where the key file resides
     pub cbc          : bool, // true: CBC Mode, false: ECB
-    pub enc_dec      : bool, // true: encrypt,  false: decrypt
+    pub encrypt      : bool, // true: encrypt,  false: decrypt
     pub perform_mse  : bool, // IN parameter, whether MSE Manage Security Env. shall be done (here) prior to crypto operation
 }
 
@@ -352,10 +356,10 @@ impl Default for CardCtl_crypt_sym {
     fn default() -> CardCtl_crypt_sym {
         CardCtl_crypt_sym {
             infile: std::ptr::null(),
-            indata: [0u8; 64],
+            indata: [0u8; 528],
             indata_len: 0,
             outfile: std::ptr::null(),
-            outdata: [0u8; 80],
+            outdata: [0u8; 544],
             outdata_len: 0,
             iv: [0u8; 16],
             iv_len: 0,
@@ -366,7 +370,7 @@ impl Default for CardCtl_crypt_sym {
 //            use_sess_key: false,
             local: true,
             cbc: true,
-            enc_dec: true,
+            encrypt: true,
             perform_mse: false,
         }
     }
