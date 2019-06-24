@@ -33,14 +33,15 @@ fn main() {
                 "0.17.0" => println!("cargo:rustc-cfg=v0_17_0"),
                 "0.18.0" => println!("cargo:rustc-cfg=v0_18_0"),
                 "0.19.0" => println!("cargo:rustc-cfg=v0_19_0"),
-                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"), // experimental only: it's git-master, Latest commit 65a86b8, defined as version 0.20.0
+                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"), // experimental only: it's git-master, Latest commit e7a8c00566bc2ff8384b7b02f73d780a201e1af6, defined as version 0.20.0
                 _ => ()
             }
         }
         Err(_e) => panic!("No pkg-config found for opensc library") // "{}", e.description()
     };
-/* in case of non-availability of pkg-config or failure of above (possibly adapt next line for path_to of /path_to/libopensc.so|dll/|dylib):
-    println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");
+/* in case of non-availability of pkg-config or failure of above (possibly adapt next line for path_to of /path_to/libopensc.so|dylib|lib; for Windows, the path to import library .lib):
+//  println!("cargo:rustc-link-search=native=/path/to/opensc-sys/windows-x86_64/lib/v0_19_0"); // Windows, the directory that contains opensc.lib
+    println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");                      // Posix,   the directory that contains libopensc.so/libopensc.dylib
     println!("cargo:rustc-link-lib=opensc");
     println!("cargo:rustc-cfg=v0_19_0"); //  <= or whatever version the installed OpenSC package is
 */

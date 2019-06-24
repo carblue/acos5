@@ -26,7 +26,7 @@
 use std::os::raw::{c_int, c_void, c_uint, c_uchar, c_char, c_ulong};
 use std::ffi::{/*CString,*/ CStr};
 use std::fs;//::{read/*, write*/};
-//use std::io;
+use std::ptr::copy_nonoverlapping;
 
 use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env,
                          sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_get_iso7816_driver, sc_file_free, sc_read_record,
@@ -41,7 +41,8 @@ use opensc_sys::opensc::{SC_ALGORITHM_AES};
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0)))]
 use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-use opensc_sys::opensc::{SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB};
+use opensc_sys::opensc::{SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, sc_sec_env_param,
+                         SC_SEC_ENV_PARAM_IV};
 
 
 use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_MAX_PATH_SIZE, sc_file_t,
@@ -125,19 +126,21 @@ pub fn track_iso7816_select_file(card: &mut sc_card, path: &sc_path, file_out: *
         rv == SC_ERROR_CARD_CMD_FAILED ||
         rv == SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
 */
-        let file_id = u16_from_array_begin(&path.value[0..2]);
-        let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-        if file_out.is_null() {
-        // TODO
-        }
-        else {
+        if path.value[0..2] != [0x3Fu8, 0xFF][..] {
+            let file_id = u16_from_array_begin(&path.value[0..2]);
+            let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+            if file_out.is_null() {
+                // TODO
+            }
+            else {
 
+            }
+            assert!(dp.files.contains_key(&file_id));
+            let dp_files_value = &dp.files[&file_id];
+            card.cache.current_path.value = dp_files_value.0;
+            card.cache.current_path.len   = dp_files_value.1[1] as usize;
+            card.drv_data = Box::into_raw(dp) as *mut c_void;
         }
-assert!(dp.files.contains_key(&file_id));
-        let dp_files_value = &dp.files[&file_id];
-        card.cache.current_path.value = dp_files_value.0;
-        card.cache.current_path.len   = dp_files_value.1[1] as usize;
-        card.drv_data = Box::into_raw(dp) as *mut c_void;
     }
 
     #[cfg(log)]
@@ -899,10 +902,10 @@ https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Cipher_Block_Chaini
 
 */
 #[allow(non_snake_case)]
-pub fn sym_endecrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> c_int
+pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> c_int
 {
     let file = CStr::from_bytes_with_nul(CRATE).unwrap();
-    let fun  = CStr::from_bytes_with_nul(b"sym_endecrypt\0").unwrap();
+    let fun  = CStr::from_bytes_with_nul(b"sym_en_decrypt\0").unwrap();
     if cfg!(log) {
         let fmt_enc  = CStr::from_bytes_with_nul(b"called for encryption\0").unwrap();
         let fmt_dec  = CStr::from_bytes_with_nul(b"called for decryption\0").unwrap();
@@ -911,13 +914,18 @@ pub fn sym_endecrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> c
 
     let indata_len;
     let indata_ptr;
-    let vec_in;
+    let mut vec_in = Vec::new();
 
     if !crypt_sym.infile.is_null() {
-        vec_in = match vecu8_from_file(crypt_sym.infile) {
+        /* for encryption with cbc, prepend blocksize zero bytes (due to the cos5 bug, we can't decrypt these first blocksize bytes,
+           thus our effective message begins at pos 16 and we discard those first 16 excessive bytes on decryption */
+//        if crypt_sym.encrypt && crypt_sym.cbc {
+//            vec_in = vec![0; usize::from(crypt_sym.block_size)];
+//        }
+        vec_in.extend_from_slice(match vecu8_from_file(crypt_sym.infile) {
             Ok(vec) => vec,
             Err(e) => return e.raw_os_error().unwrap(),
-        };
+        }.as_ref());
         indata_len = vec_in.len();
         indata_ptr = vec_in.as_ptr();
     }
@@ -925,12 +933,7 @@ pub fn sym_endecrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> c
         indata_len = std::cmp::min(crypt_sym.indata_len, crypt_sym.indata.len());
         indata_ptr = crypt_sym.indata.as_ptr();
     }
-/* */
-    if cfg!(log) {
-        let fmt  = CStr::from_bytes_with_nul(b"called with indata_len: %zu, first 16 bytes: %s\0").unwrap();
-        wr_do_log_tu(card.ctx, file, line!(), fun, indata_len, unsafe {sc_dump_hex(indata_ptr, 16)}, fmt);
-    }
-/* */
+
     let mut rv;
     let block_size = usize::from(crypt_sym.block_size);
     let Len1 = indata_len;
@@ -955,7 +958,16 @@ pub fn sym_endecrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> c
         outdata_len = std::cmp::min(crypt_sym.outdata_len, crypt_sym.outdata.len());
         outdata_ptr = crypt_sym.outdata.as_mut_ptr();
     }
-// if {} else {}
+/* */
+    if cfg!(log) {
+        assert!(indata_len >= 32);
+        let fmt  = CStr::from_bytes_with_nul(b"called with indata_len: %zu, first 16 bytes: %s\0").unwrap();
+        wr_do_log_tu(card.ctx, file, line!(), fun, indata_len, unsafe {sc_dump_hex(indata_ptr, 32)}, fmt);
+        let fmt  = CStr::from_bytes_with_nul(b"called with infile_name: %s, outfile_name: %s\0").unwrap();
+        wr_do_log_tt(card.ctx, file, line!(), fun, crypt_sym.infile, crypt_sym.outfile, fmt);
+    }
+/* */
+
     if !crypt_sym.infile.is_null() && !crypt_sym.outfile.is_null()
     { assert_ne!(crypt_sym.infile, crypt_sym.outfile); } // FIXME doesn't work for symbolic links: the check is meant for using copy_nonoverlapping
     assert!(Len1 == 0    || outdata_len >= Len1);
@@ -963,17 +975,19 @@ pub fn sym_endecrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> c
     let mut inDataRem = Vec::with_capacity(block_size);
     if crypt_sym.encrypt && Len1 != Len2 {
         inDataRem.resize(Len1-Len0, 0u8);
-        unsafe { std::ptr::copy_nonoverlapping(indata_ptr.add(Len0), inDataRem.as_mut_ptr(), Len1-Len0) };
+        unsafe { copy_nonoverlapping(indata_ptr.add(Len0), inDataRem.as_mut_ptr(), Len1-Len0) };
         inDataRem.extend_from_slice(trailing_blockcipher_padding_calculate(crypt_sym.block_size, crypt_sym.pad_type, (Len1-Len0) as u8).as_slice() );
         assert_eq!(inDataRem.len(), block_size);
     }
 
-
+    let mut env : sc_security_env =  Default::default();
     #[cfg(not(any(v0_15_0, v0_16_0)))] // due to SC_ALGORITHM_AES
     {
     if crypt_sym.perform_mse {
         /* Security Environment */
-        let mut env = sc_security_env {
+        #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+        let sec_env_param;
+        env = sc_security_env {
             operation: if crypt_sym.encrypt {SC_SEC_OPERATION_ENCIPHER_SYMMETRIC} else {SC_SEC_OPERATION_DECIPHER_SYMMETRIC},
             flags    : (SC_SEC_ENV_KEY_REF_PRESENT | SC_SEC_ENV_ALG_REF_PRESENT | SC_SEC_ENV_ALG_PRESENT).into(),
             algorithm: if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else {SC_ALGORITHM_3DES /*TODO should I ever consider supporting SC_ALGORITHM_DES*/},
@@ -996,8 +1010,17 @@ pub fn sym_endecrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> c
                         { env.algorithm_flags |= SC_ALGORITHM_AES_CBC; }
                     }
                 }
-            }
 
+                if crypt_sym.iv_len != 0 {
+                    assert_eq!(crypt_sym.iv_len, block_size);
+                    sec_env_param = sc_sec_env_param {
+                        param_type: SC_SEC_ENV_PARAM_IV,
+                        value: crypt_sym.iv.as_mut_ptr() as *mut c_void,
+                        value_len: crypt_sym.iv_len as c_uint
+                    };
+                    env.params[0] = sec_env_param;
+                }
+            }
         rv = acos5_64_set_security_env(card, &env, 0);
         if rv < 0 {
             /*
@@ -1010,6 +1033,7 @@ pub fn sym_endecrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> c
     }}
 
     /* encrypt / decrypt */
+    let mut first = true;
     let max_send = 256usize - block_size;
     let command : [u8; 7] = [if !crypt_sym.cbc || (Len1==Len2 && Len1<=max_send) {0u8} else {0x10u8}, 0x2A,
         if crypt_sym.encrypt {0x84u8} else {0x80u8}, if crypt_sym.encrypt {0x80u8} else {0x84u8}, 0x01, 0xFF, 0xFF];
@@ -1018,12 +1042,40 @@ pub fn sym_endecrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> c
     assert_eq!(rv, SC_SUCCESS);
     assert_eq!(apdu.cse, SC_APDU_CASE_4_SHORT);
     let mut cnt = 0usize; // counting apdu.resplen bytes received;
+    let mut path = Default::default();
+    //thread '<unnamed>' panicked at 'assertion failed: path_out.len >= 4', src/path.rs:169:5
+    unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3FFF\0").unwrap().as_ptr(), &mut path); } // type = SC_PATH_TYPE_PATH; 3FFF is the current DF
+    path.type_ = SC_PATH_TYPE_FILE_ID; // required for 3FFF
 
     while cnt < Len0 || (cnt == Len0 && Len1 != Len2) {
+        if first { first = false; }
+        else if crypt_sym.cbc && !crypt_sym.encrypt {
+            rv = unsafe { sc_select_file(card, &path, std::ptr::null_mut()) }; // clear accumulated CRT
+            assert_eq!(rv, SC_SUCCESS);
+            rv = acos5_64_set_security_env(card, &env, 0);
+            if rv < 0 {
+                /*
+
+				tlv_new[posIV..posIV+blockSize] = inData[cnt-blockSize..cnt];
+
+                  mixin (log!(__FUNCTION__,  "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
+                  hstat.SetString(IUP_TITLE, "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
+                  return IUP_DEFAULT;
+                */
+                return rv;
+            }
+        }
         if cnt < Len0 {
-            if !crypt_sym.encrypt || (crypt_sym.cbc && Len1==Len2 && Len0-cnt<=max_send) { apdu.cla  = 0; }
+            if crypt_sym.cbc && Len1==Len2 && Len0-cnt<=max_send { apdu.cla  = 0; }
             apdu.data = unsafe { indata_ptr.add(cnt) };
             apdu.datalen = std::cmp::min(max_send, Len0-cnt);
+            #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+            {
+                /* correct IV for next loop cycle */
+                if crypt_sym.cbc && !crypt_sym.encrypt {
+                    env.params[0].value = unsafe { indata_ptr.add(cnt + apdu.datalen - block_size) as *mut c_void };
+                }
+            }
         }
         else {
             apdu.cla  = 0;
@@ -1042,35 +1094,22 @@ pub fn sym_endecrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> c
         assert_eq!(apdu.datalen, apdu.resplen);
         cnt += apdu.datalen;
     }
-/*
-    if Len1 != Len2 {
-        apdu.cla  = 0;
-        apdu.data    = inDataRem.as_ptr();
-        apdu.datalen = inDataRem.len();
 
-        apdu.lc = apdu.datalen;
-        apdu.le = apdu.datalen;
-        apdu.resp = unsafe { outdata_ptr.add(cnt) };
-        apdu.resplen = outdata_len-cnt;
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
-        if rv != SC_SUCCESS  { return rv; }
-        rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
-        if rv != SC_SUCCESS  { return rv; }
-        if apdu.resplen == 0 { return SC_ERROR_KEYPAD_MSG_TOO_LONG; }
-        assert_eq!(apdu.datalen, apdu.resplen);
-        cnt += apdu.datalen;
-    }
-*/
     if crypt_sym.encrypt {
         crypt_sym.outdata_len = cnt;
     }
     else {
         let mut last_block_values = [0u8; 16];
-        unsafe { std::ptr::copy_nonoverlapping(outdata_ptr.add(cnt-block_size), last_block_values.as_mut_ptr(), block_size) };
+        unsafe { copy_nonoverlapping(outdata_ptr.add(cnt-block_size), last_block_values.as_mut_ptr(), block_size) };
 
         crypt_sym.outdata_len = cnt-trailing_blockcipher_padding_get_length(crypt_sym.block_size, crypt_sym.pad_type,
             &last_block_values[..block_size]).unwrap() as usize;
-        if !crypt_sym.outfile.is_null() { vec_out.truncate(crypt_sym.outdata_len); }
+        if !crypt_sym.outfile.is_null() {
+            vec_out.truncate(crypt_sym.outdata_len);
+//            if crypt_sym.cbc {
+//                vec_out.drain(..block_size);
+//            }
+        }
     }
 
     if !crypt_sym.outfile.is_null() {

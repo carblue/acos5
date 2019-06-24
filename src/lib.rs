@@ -62,7 +62,7 @@ use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0)))]
 use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_PSS};
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-use opensc_sys::opensc::{sc_sec_env_param, SC_SEC_ENV_PARAM_IV, SC_ALGORITHM_AES_FLAGS, SC_SEC_ENV_MAX_PARAMS,
+use opensc_sys::opensc::{SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM_TARGET_FILE, SC_ALGORITHM_AES_FLAGS,
                          SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB/*, SC_SEC_OPERATION_WRAP, SC_SEC_OPERATION_UNWRAP*/};
 
 use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_PATH_TYPE_FILE_ID, sc_file_t, SC_MAX_ATR_SIZE, */
@@ -113,7 +113,7 @@ use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_arra
     pin_get_policy, track_iso7816_select_file, acos5_64_atrs_supported,
                       /*encrypt_public_rsa,*/ get_sec_env, set_sec_env, /*get_rsa_caps,*/
     get_is_running_cmd_long_response, set_is_running_cmd_long_response, is_any_of_di_by_len,
-    sym_endecrypt,
+    sym_en_decrypt,
     generate_asym, encrypt_asym, get_files_hashmap_info, update_hashmap,
     logical_xor
 };
@@ -1205,11 +1205,11 @@ extern "C" fn acos5_64_card_ctl(card: *mut sc_card, command: c_ulong, data: *mut
                    ![8u8, 16].contains(&crypt_sym_data.block_size)  ||
                    ![BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5,
                         BLOCKCIPHER_PAD_TYPE_PKCS5, BLOCKCIPHER_PAD_TYPE_ANSIX9_23/*, BLOCKCIPHER_PAD_TYPE_W3C*/]
-                        .contains(&crypt_sym_data.pad_type)  ||
-                   crypt_sym_data.iv != [0u8; 16]
+                        .contains(&crypt_sym_data.pad_type)
+//                    || crypt_sym_data.iv != [0u8; 16]
                 { return SC_ERROR_INVALID_ARGUMENTS; }
 
-                let rv = sym_endecrypt(card_ref_mut, crypt_sym_data);
+                let rv = sym_en_decrypt(card_ref_mut, crypt_sym_data);
                 if rv > 0 {SC_SUCCESS} else {SC_ERROR_KEYPAD_MSG_TOO_LONG}
             },
         _   => SC_ERROR_NO_CARD_SUPPORT
@@ -2227,9 +2227,23 @@ extern "C" fn acos5_64_set_security_env(card: *mut sc_card, env: *const sc_secur
                 { vec.truncate(vec.len()-10); }
             }
 
-            /*  transferring the iv is missing below 0.20.0
+            /*  transferring the iv is missing below 0.20.0 */
             #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
             {
+                for sec_env_param in env_ref.params.iter() {
+                    match sec_env_param.param_type {
+                        SC_SEC_ENV_PARAM_IV=> {
+                            assert!(vec.len() >= 16);
+                            assert_eq!(vec[15] as c_uint, sec_env_param.value_len);
+                            assert_eq!(vec.len(), 16+sec_env_param.value_len as usize);
+                            unsafe { copy_nonoverlapping(sec_env_param.value as *const c_uchar, vec.as_mut_ptr().add(16), sec_env_param.value_len as usize) };
+                        },
+                        SC_SEC_ENV_PARAM_TARGET_FILE=> { continue; }
+                        _ => { break; },
+                    }
+                }
+/* * /
+
 //                env_ref.algorithm_flags = if crypt_sym.cbc {if crypt_sym.pad_type==BLOCKCIPHER_PAD_TYPE_PKCS5 {SC_ALGORITHM_AES_CBC_PAD} else {SC_ALGORITHM_AES_CBC} } else {SC_ALGORITHM_AES_ECB};
 //                env_ref.params[0] = sc_sec_env_param { param_type: SC_SEC_ENV_PARAM_IV, value: crypt_sym.iv.as_mut_ptr() as *mut c_void, value_len: crypt_sym.iv_len.into() };
                 // for 3DES/DES use this to select CBC/ECB: with param_type: SC_SEC_ENV_PARAM_DES_ECB or SC_SEC_ENV_PARAM_DES_CBC
@@ -2244,9 +2258,8 @@ pub const SC_SEC_ENV_PARAM_DES_ECB           : c_uint = 3;
 pub const SC_SEC_ENV_PARAM_DES_CBC           : c_uint = 4;
     #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
     pub params :          [sc_sec_env_param; SC_SEC_ENV_MAX_PARAMS],
-
+/ * */
             }
-            */
 
             vec[ 4] = (vec.len()-5) as u8;
             vec[10] = env_ref.algorithm_ref as c_uchar;
