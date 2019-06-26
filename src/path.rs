@@ -72,6 +72,7 @@ pub fn current_path_df(card: &mut sc_card) -> &[u8]
  */
 pub fn is_search_rule1_match(path_target: &[u8], current_path_df: &[u8]) -> bool
 {
+    if path_target.len()==2 && path_target==&[0x3Fu8, 0xFF][..] { return true; }
     path_target == current_path_df
 }
 

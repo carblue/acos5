@@ -511,7 +511,7 @@ extern "C" fn acos5_64_init(card: *mut sc_card) -> c_int
     unsafe{sc_format_path(CStr::from_bytes_with_nul(b"3F00\0").unwrap().as_ptr(), &mut card_ref_mut.cache.current_path);} // type = SC_PATH_TYPE_PATH;
     card_ref_mut.cla  = 0x00;                                        // int      default APDU class (interindustry)
     card_ref_mut.max_send_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE; // 0x0FF; // 0x0FFFF for usb-reader, 0x0FF for chip/card;  Max Lc supported by the card
-    card_ref_mut.max_recv_size = SC_READER_SHORT_APDU_MAX_RECV_SIZE; // reduced as long as iso7816_read_binary is used: 0==0x100 is not understood // 0x100; // 0x10000 for usb-reader, 0x100 for chip/card;  Max Le supported by the card, decipher (in chaining mode) with a 4096-bit key returns 2 chunks of 256 bytes each !!
+    card_ref_mut.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE;//SC_READER_SHORT_APDU_MAX_RECV_SIZE; // reduced as long as iso7816_read_binary is used: 0==0x100 is not understood // 0x100; // 0x10000 for usb-reader, 0x100 for chip/card;  Max Le supported by the card, decipher (in chaining mode) with a 4096-bit key returns 2 chunks of 256 bytes each !!
 
     /* possibly more SC_CARD_CAP_* apply, TODO clarify */
     card_ref_mut.caps    = (SC_CARD_CAP_RNG | SC_CARD_CAP_USE_FCI_AC) as c_ulong;
@@ -909,10 +909,6 @@ SEQUENCE (5 elem)
     }
 
     println!("Hashmap: {:?}", files);
-
-    let iso_ops: sc_card_operations  = unsafe { *(*sc_get_iso7816_driver()).ops };
-    let y :  Box<sc_card_operations> = Box::new(iso_ops);
-    iso_ops_ptr: Box::into_raw(y), // *mut sc_card_operations
 
     let rv = check_file_system(card_ref_mut);
 */
@@ -1421,6 +1417,7 @@ extern "C" fn acos5_64_get_response(card: *mut sc_card, count: *mut usize, buf: 
     unsafe { sc_do_log(card_rm.ctx, SC_LOG_DEBUG_NORMAL, file_str.as_ptr(), line!() as i32, func.as_ptr(),
                        format.as_ptr(), *count) };
 
+    card_rm.max_recv_size = SC_READER_SHORT_APDU_MAX_RECV_SIZE;
     /* request at most max_recv_size bytes */
 //    let mrs = me_get_max_recv_size(card_rm);
 //    assert_eq!(mrs, 256);
@@ -1455,6 +1452,7 @@ println!("### acos5_64_get_response returned apdu.sw1: {:X}, apdu.sw2: {:X}   Un
         #[cfg(log)]
         unsafe { sc_do_log(card_rm.ctx, SC_LOG_DEBUG_NORMAL, file_str.as_ptr(), line!() as i32, func.as_ptr(),
                            format_1.as_ptr(), *count, rv) };
+        card_rm.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE;
         return rv;
     }
     if !(apdu.sw1==0x6A && apdu.sw2==0x88) && apdu.resplen == 0 {
@@ -1463,6 +1461,7 @@ println!("### acos5_64_get_response returned apdu.sw1: {:X}, apdu.sw2: {:X}   Un
         #[cfg(log)]
         unsafe { sc_do_log(card_rm.ctx, SC_LOG_DEBUG_NORMAL, file_str.as_ptr(), line!() as i32, func.as_ptr(),
                            format_1.as_ptr(), *count, rv) };
+        card_rm.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE;
         return rv;
     }
 
@@ -1495,6 +1494,8 @@ println!("### acos5_64_get_response returned apdu.sw1: {:X}, apdu.sw2: {:X}   Un
     #[cfg(log)]
     unsafe { sc_do_log(card_rm.ctx, SC_LOG_DEBUG_NORMAL, file_str.as_ptr(), line!() as i32, func.as_ptr(),
                        format_1.as_ptr(), *count, rv) };
+
+    card_rm.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE;
     rv
 }
 
@@ -1875,7 +1876,6 @@ extern "C" fn acos5_64_get_data(card_ptr: *mut sc_card, offset: c_uint, buf: *mu
         card.cla = 0;
     }
     else {
-        set_is_running_cmd_long_response(card, true); // switch to false is done by acos5_64_get_response
         /* retrieve the raw content of currently selected RSA pub file (this is a code fragment from acos5_64_read_public_key) */
         let command : [u8; 5] = [0x80, 0xCA, 0x00, 0x00, 0xFF];
         let mut apdu : sc_apdu = Default::default();
@@ -1895,7 +1895,12 @@ extern "C" fn acos5_64_get_data(card_ptr: *mut sc_card, offset: c_uint, buf: *mu
             rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
             if rv != SC_SUCCESS || apdu.resplen == 0 {
                 if cfg!(log) {
-                    wr_do_log(card.ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"sc_transmit_apdu failed or probably non-readable file\0").unwrap());
+                    if apdu.sw1==0x69 && apdu.sw1==0x82 {
+                        wr_do_log(card.ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"non-readable file\0").unwrap());
+                    }
+                    else {
+                        wr_do_log(card.ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"sc_transmit_apdu failed or some other error\0").unwrap());
+                    }
                 }
                 return rv;
             }
@@ -1921,7 +1926,7 @@ extern "C" fn acos5_64_read_public_key(card: *mut sc_card, algorithm: c_uint, ke
     }
     let card_ref     : &sc_card     = unsafe { &*card };
 //    let card_ref_mut : &mut sc_card = unsafe { &mut *card };
-    let key_path_ref : &sc_path = unsafe { &*key_path };
+//    let key_path_ref : &sc_path = unsafe { &*key_path };
 
     let file_str = CStr::from_bytes_with_nul(CRATE).unwrap();
     let func     = CStr::from_bytes_with_nul(b"acos5_64_read_public_key\0").unwrap();
@@ -1968,6 +1973,7 @@ extern "C" fn acos5_64_read_public_key(card: *mut sc_card, algorithm: c_uint, ke
         return rv;
     }
 
+    // TODO use instead : acos5_64_get_data
     /* retrieve the raw content of currently selected RSA pub file */
     let command : [u8; 5] = [0x80, 0xCA, 0x00, 0x00, 0xFF];
     let mut apdu : sc_apdu = Default::default();
@@ -2003,7 +2009,7 @@ extern "C" fn acos5_64_read_public_key(card: *mut sc_card, algorithm: c_uint, ke
      */
     if  rbuf[0] != 0 ||
         rbuf[1] != ((modulus_length+8)/128) as u8 ||   /* encode_key_RSA_ModulusBitLen(modulus_length) */
-        rbuf[2] != key_path_ref.value[key_path_ref.len-2] /* FIXME RSAKEYID_CONVENTION */ ||
+//        rbuf[2] != key_path_ref.value[key_path_ref.len-2] /* FIXME RSAKEYID_CONVENTION */ ||
 //        rbuf[3] != ( (key_path_ref.value[key_path_ref.len-1] as u16 +0xC0u16)       & 0xFFu16) as u8 /* FIXME RSAKEYID_CONVENTION */ ||
        (rbuf[4] & 3u8) != 3u8
     {
@@ -2051,22 +2057,6 @@ extern "C" fn acos5_64_read_public_key(card: *mut sc_card, algorithm: c_uint, ke
 }
 
 
-/*
-#[cfg(    any(v0_15_0, v0_16_0, v0_17_0))]
-pub const SC_SEC_ENV_KEY_REF_ASYMMETRIC      : c_uint = 0x0008;
-#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0)))]
-pub const SC_SEC_ENV_KEY_REF_SYMMETRIC       : c_uint = 0x0008;
-*/
-/*
-SC_SEC_OPERATION_DERIVE
-SC_SEC_OPERATION_GENERATE_RSAPRIVATE
-SC_SEC_OPERATION_GENERATE_RSAPUBLIC
-SC_SEC_OPERATION_SIGN
-SC_SEC_OPERATION_DECIPHER
-SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC
-SC_SEC_OPERATION_ENCIPHER_SYMMETRIC
-SC_SEC_OPERATION_DECIPHER_SYMMETRIC
-*/
 extern "C" fn acos5_64_set_security_env(card: *mut sc_card, env: *const sc_security_env, _se_num: c_int) -> c_int
 {
     if card.is_null() || env.is_null() {

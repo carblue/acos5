@@ -41,7 +41,7 @@ app default {
 ...
     card_driver acos5_64 {
         # module, the (/path/to/) filename of the driver library. /path/to/ is dispensable if it's in a 'standard library search path'
-        module = "/something/like/path/to/acos5_64/target/release/libacos5_64.so";
+        module = /something/like/path/to/acos5_64/target/release/libacos5_64.so;
     }
 ...
 .........
@@ -129,7 +129,7 @@ Also missing is support of Secure Messaging. Don't expect this to come soon (not
 Being an external driver for OpenSC has these important implications:
 1. The feature of OpenSC to load external modules/libraries (during runtime) is a very nice one and comes with a split of functionality: OpenSC loads the mandatory 'driver' library and optionally other libraries:<br>
    a) driver is 'acos5_64', provided by this repo as libacos5_64.so/dll/dylib<br>
-   b) pkcs15init for 'acos5_64'. This repo does exist, but it's empty, to be implemented when driver is close to completition. The functionality is dedicated to card initialization and among others generating new RSA key pair<br>
+   b) pkcs15init for 'acos5_64'. This repo does exist, but doesn't supply much functionality currently, to be implemented when driver is close to completition. The functionality is dedicated to card initialization and among others generating new RSA key pair. Library's mere existance and configuration in opensc.conf is required for acos5_64_gui.<br>
    c) sm (Secure Messaging support) for 'acos5_64', provided by repo https://github.com/carblue/acos5_64_sm as libacos5_64_sm.so/dll/dylib.
       This repo doesn't yet exist and will be the last one to be implemented
 2. There is repo https://github.com/carblue/opensc-sys. All of the former libraries depend on this binding to libopensc.so/dll transparently, but You should know these subtleties:
@@ -138,7 +138,7 @@ Being an external driver for OpenSC has these important implications:
    The binding covers that by private/public declarations or no declarations for such functions, thus technically OpenSC is supported since it's version 0.15.0, but
    practically for building a driver since 0.17.0 (a workaround for building a driver for 0.15.0/0.16.0 is to either patch OpenSC code's export and rebuild it or add missing functions to the driver code Yourself (file missing_exports.rs; IIRC the missing one is _sc_match_atr and everything about AES)
    The soname of libopensc depends on versions, thus all build.rs will link to libopensc.so/dll/dylib, which may have to be created as a symbolic link first.
-   **It's highly recommended to consult the repo
+   **It's highly recommended to consult that repo and test it's operational readiness, see next 3.**
 
 3. The user should identify the OpenSC binary version installed on the system (e.g. run opensc-tool -i)
    and verify, that the installed version matches one that the binding does support
