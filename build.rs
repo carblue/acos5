@@ -4,6 +4,10 @@ extern crate pkg_config;
 
 fn main() {
 /*
+   General note for Linux/(macOS?) :
+   The path /usr/lib/x86_64-linux-gnu used here is exemplary only: It's where my Kubuntu distro places OpenSC library files, and relative to that path other stuff as well.
+   That path may be different for other distros/or following OpenSC's ./configure --prefix=/usr option, it will be /usl/lib or possibly /usr/local/lib  or whatever
+
    If not existing in the standard library search path, create a symbolic link there, named libopensc.so
    (Windows: opensc.lib), targeting the relevant object: With Linux, that's (depending on OpenSC version)
    something like libopensc.so.5 or libopensc.so.6 or ...
@@ -11,7 +15,7 @@ fn main() {
 
 /* pkg_config-based-adaption to installed OpenSC release version
    with file /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc in place:
-   This will print to stdout (for (K)ubuntu):
+   This will print to stdout (for (K)ubuntu) some required arguments for the linker/compiler:
    cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu
    cargo:rustc-link-lib=opensc
    cargo:rustc-cfg=v0_19_0   <= or whatever version the installed OpenSC package is
@@ -33,13 +37,14 @@ fn main() {
                 "0.17.0" => println!("cargo:rustc-cfg=v0_17_0"),
                 "0.18.0" => println!("cargo:rustc-cfg=v0_18_0"),
                 "0.19.0" => println!("cargo:rustc-cfg=v0_19_0"),
-                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"), // experimental only: it's git-master, Latest commit e7a8c00566bc2ff8384b7b02f73d780a201e1af6, defined as version 0.20.0
+                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"), // experimental only: it's git-master, Latest commit 130e9bb068401ec78461777695f3e3273fcc4a13, defined as version 0.20.0
                 _ => ()
             }
         }
         Err(_e) => panic!("No pkg-config found for opensc library") // "{}", e.description()
     };
-/* in case of non-availability of pkg-config or failure of above (possibly adapt next line for path_to of /path_to/libopensc.so|dylib|lib; for Windows, the path to import library .lib):
+/* in case of non-availability of pkg-config or failure of above, uncomment this block, comment-out the previous
+   (possibly adapt next line for path_to of /path_to/libopensc.so|dylib|lib; for Windows, the path to import library .lib):
 //  println!("cargo:rustc-link-search=native=/path/to/opensc-sys/windows-x86_64/lib/v0_19_0"); // Windows, the directory that contains opensc.lib
     println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");                      // Posix,   the directory that contains libopensc.so/libopensc.dylib
     println!("cargo:rustc-link-lib=opensc");

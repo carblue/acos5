@@ -24,7 +24,9 @@ use std::os::raw::{c_int, c_uint /*, c_void, c_char, c_uchar*/};
 use std::ffi::{/*CString,*/ CStr};
 
 use opensc_sys::opensc::{sc_transmit_apdu, sc_card, sc_bytes2apdu_wrapper};
-use opensc_sys::types::{/*sc_path, sc_file,*/ sc_apdu, sc_serial_number, SC_MAX_SERIALNR/*, SC_MAX_PATH_SIZE*/};
+use opensc_sys::types::{/*sc_path, sc_file,*/ sc_apdu, sc_serial_number, SC_MAX_SERIALNR/*, SC_MAX_PATH_SIZE*/,
+                        SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT
+};
 use opensc_sys::log::{sc_do_log, SC_LOG_DEBUG_NORMAL};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_KEYPAD_MSG_TOO_LONG/*, SC_ERROR_FILE_NOT_FOUND*/};
 
@@ -51,6 +53,7 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, c_int>
     let mut apdu : sc_apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
     assert!(len_card_serial_number <= SC_MAX_SERIALNR);
 
     let mut serial : sc_serial_number = Default::default();
@@ -82,6 +85,7 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<usize, c_int>
     let mut apdu : sc_apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_1);
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     if rv != SC_SUCCESS || apdu.sw1 != 0x90 {
         let format = CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5-64 'Get Card Info: Operation Number of files \
@@ -106,6 +110,7 @@ pub fn get_file_info(card: &mut sc_card, reference: u8) -> Result<[u8; 8], c_int
     let mut apdu : sc_apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
     let mut rbuf = [0u8; 8];
     apdu.resp    =  rbuf.as_mut_ptr();
     apdu.resplen =  rbuf.len();
@@ -132,6 +137,7 @@ pub fn get_free_space(card: &mut sc_card) -> Result<c_uint, c_int>
     let mut apdu : sc_apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
 
     let mut rbuf = [0u8; 2];
     apdu.resp = rbuf.as_mut_ptr();
@@ -160,6 +166,7 @@ pub fn get_ident_self(card: &mut sc_card) -> Result<bool, c_int>
     let mut apdu : sc_apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_1);
 
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     if rv != SC_SUCCESS || apdu.sw1 != 0x95 || apdu.sw2 != 0x40 {
@@ -193,6 +200,7 @@ pub fn get_cos_version(card: &mut sc_card) -> Result<[u8; 8], c_int>
     let mut apdu : sc_apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
     let mut rbuf = [0u8; 8];
     apdu.resp    =  rbuf.as_mut_ptr();
     apdu.resplen =  rbuf.len();
@@ -221,6 +229,7 @@ pub fn get_manufacture_date(card: &mut sc_card) -> Result<c_uint, c_int>
     let mut apdu : sc_apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
 
     let mut rbuf = [0u8; 4];
     apdu.resp = rbuf.as_mut_ptr();
@@ -250,6 +259,7 @@ pub fn get_rom_sha1(card: &mut sc_card) -> Result<[u8; 20], c_int>
     let mut apdu : sc_apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
     let mut rbuf = [0u8; 20];
     apdu.resp    =  rbuf.as_mut_ptr();
     apdu.resplen =  rbuf.len();
@@ -278,6 +288,7 @@ pub fn get_op_mode_byte(card: &mut sc_card) -> Result<c_uint, c_int>
     let mut apdu : sc_apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_1);
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     if rv != SC_SUCCESS || apdu.sw1 != 0x90  || (apdu.sw2 != 0 && apdu.sw2 != 1 && apdu.sw2 != 2 && apdu.sw2 != 16) {
         let format = CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5-64 'Get Card Info: Operation Mode Byte' \
@@ -309,6 +320,7 @@ pub fn get_fips_compliance(card: &mut sc_card) -> Result<bool, c_int> // is_FIPS
     let mut apdu : sc_apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_1);
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     if rv != SC_SUCCESS {
         let format = CStr::from_bytes_with_nul(b"sc_transmit_apdu failed\0").unwrap();
@@ -340,6 +352,7 @@ pub fn get_pin_auth_state(card: &mut sc_card, reference: u8) -> Result<bool, c_i
     let mut apdu : sc_apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
 
     let mut rbuf = [0u8; 1];
     apdu.resp = rbuf.as_mut_ptr();
@@ -369,6 +382,7 @@ pub fn get_key_auth_state(card: &mut sc_card, reference: u8) -> Result<bool, c_i
     let mut apdu : sc_apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
 
     let mut rbuf = [0u8; 1];
     apdu.resp = rbuf.as_mut_ptr();

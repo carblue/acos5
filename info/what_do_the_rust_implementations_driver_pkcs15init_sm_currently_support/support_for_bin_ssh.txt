@@ -3,9 +3,10 @@ https://help.github.com/en/articles/which-remote-url-should-i-use
 https://help.github.com/en/articles/changing-a-remotes-url
 https://gist.github.com/developius/c81f021eb5c5916013dc
 
-That does work with the current driver implementation !
+ssh (with RSA key) does work with the current driver implementation !
 
-user@host:~$ cat /etc/ssh/ssh_config 
+My openssh client configuration:
+user@host:~$ cat /etc/ssh/ssh_config
 
 # This is the ssh client system-wide configuration file.  See
 # ssh_config(5) for more information.  This file provides defaults for
@@ -59,7 +60,7 @@ Host *
     GSSAPIAuthentication yes
     PKCS11Provider /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so # this saves specifying the module with option -I
 
-    
+
 ssh
 ===
 If You want to test ssh and don't have a target to connect to:
@@ -70,18 +71,173 @@ Check key's fingerprint shown by GitHub, compare to the one in acos5_gui content
 Then use GitHub's ssh testing facility:
 
 user@host:~$ ssh -T git@github.com
-Enter PIN for 'User (CTM64_C0C640A1B2C3)':                                                                                                                                                                            
+Enter PIN for 'User (CTM64_C0C640A1B2C3)':
 Hi carblue! You've successfully authenticated, but GitHub does not provide shell access.
 
-user@host:~$ ssh-add -s /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so 
-Enter passphrase for PKCS#11:                                                                                                                                                                                         
-Card added: /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so                                                                                                                                                                
+user@host:~$ ssh-add -s /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so
+Enter passphrase for PKCS#11:
+Card added: /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so
 
 user@host:~$ ssh-add -l
 4095 SHA256:ysU6n8cD+7ts9ZcGoxo96K46aNI9RGb2lZRSXXGUTtc /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so (RSA)
 4096 SHA256:c7cH3XNHkfJ4jQ2gsiwWyU/bshW9HObw7oXIkybLLnw /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so (RSA)
-4095 SHA256:bHjQrSs4HE/n1hdSrSOr6nA0zFATvfrn97tMw/+jJqY /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so (RSA)
+4095 SHA256:QLbSP5l+auye1ED8guCJe1Mo26iAj/kXtcEt0SBTUKk /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so (RSA)
+4096 SHA256:YAoRBaFNFu96hfL+OoFiedXiKvy1xdB+0BA/UIG/GCg /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so (RSA)
 
-user@host:~$ ssh-add -e /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so                                                                                                                          
+Once again a connect to git@github.com, but now with more verbosity (I have 4 RSA keys on my token, 1 of which is known to github; unluckily, the matching one is the last of the 4 tested;
+/home/user/.ssh/ has no files except known_hosts):
+
+user@host:~$ ssh -Tvv git@github.com
+OpenSSH_7.6p1 Ubuntu-4ubuntu0.3, OpenSSL 1.0.2n  7 Dec 2017
+debug1: Reading configuration data /etc/ssh/ssh_config
+debug1: /etc/ssh/ssh_config line 19: Applying options for *
+debug2: resolving "github.com" port 22
+debug2: ssh_connect_direct: needpriv 0
+debug1: Connecting to github.com [140.82.118.3] port 22.
+debug1: Connection established.
+debug1: provider /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so: manufacturerID <OpenSC Project> cryptokiVersion 2.20 libraryDescription <OpenSC smartcard framework> libraryVersion 0.19
+debug1: provider /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so slot 0: label <User (CTM64_C0C640A1B2C3)> manufacturerID <Advanced Card Systems Ltd.> model <PKCS#15> serial <C0C640A1B2C3> flags 0x40d
+debug1: have 1 keys
+debug1: have 2 keys
+debug1: have 3 keys
+debug1: have 4 keys
+debug1: pkcs11_provider_unref: 0x562698fd3c70 refcount 5
+debug1: pkcs11_provider_unref: 0x562698fd3c70 refcount 5
+debug1: key_load_public: No such file or directory
+debug1: identity file /home/user/.ssh/id_rsa type -1
+debug1: key_load_public: No such file or directory
+debug1: identity file /home/user/.ssh/id_rsa-cert type -1
+debug1: key_load_public: No such file or directory
+debug1: identity file /home/user/.ssh/id_dsa type -1
+debug1: key_load_public: No such file or directory
+debug1: identity file /home/user/.ssh/id_dsa-cert type -1
+debug1: key_load_public: No such file or directory
+debug1: identity file /home/user/.ssh/id_ecdsa type -1
+debug1: key_load_public: No such file or directory
+debug1: identity file /home/user/.ssh/id_ecdsa-cert type -1
+debug1: key_load_public: No such file or directory
+debug1: identity file /home/user/.ssh/id_ed25519 type -1
+debug1: key_load_public: No such file or directory
+debug1: identity file /home/user/.ssh/id_ed25519-cert type -1
+debug1: Local version string SSH-2.0-OpenSSH_7.6p1 Ubuntu-4ubuntu0.3
+debug1: Remote protocol version 2.0, remote software version babeld-93408c70
+debug1: no match: babeld-93408c70
+debug2: fd 3 setting O_NONBLOCK
+debug1: Authenticating to github.com:22 as 'git'
+debug1: SSH2_MSG_KEXINIT sent
+debug1: SSH2_MSG_KEXINIT received
+debug2: local client KEXINIT proposal
+debug2: KEX algorithms: curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha256,diffie-hellman-group14-sha1,ext-info-c
+debug2: host key algorithms: ssh-rsa-cert-v01@openssh.com,rsa-sha2-512,rsa-sha2-256,ssh-rsa,ecdsa-sha2-nistp256-cert-v01@openssh.com,ecdsa-sha2-nistp384-cert-v01@openssh.com,ecdsa-sha2-nistp521-cert-v01@openssh.com,ssh-ed25519-cert-v01@openssh.com,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,ssh-ed25519
+debug2: ciphers ctos: chacha20-poly1305@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com
+debug2: ciphers stoc: chacha20-poly1305@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com
+debug2: MACs ctos: umac-64-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha1-etm@openssh.com,umac-64@openssh.com,umac-128@openssh.com,hmac-sha2-256,hmac-sha2-512,hmac-sha1
+debug2: MACs stoc: umac-64-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha1-etm@openssh.com,umac-64@openssh.com,umac-128@openssh.com,hmac-sha2-256,hmac-sha2-512,hmac-sha1
+debug2: compression ctos: none,zlib@openssh.com,zlib
+debug2: compression stoc: none,zlib@openssh.com,zlib
+debug2: languages ctos:
+debug2: languages stoc:
+debug2: first_kex_follows 0
+debug2: reserved 0
+debug2: peer server KEXINIT proposal
+debug2: KEX algorithms: curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256
+debug2: host key algorithms: ssh-dss,rsa-sha2-512,rsa-sha2-256,ssh-rsa
+debug2: ciphers ctos: chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr,aes256-cbc,aes192-cbc,aes128-cbc
+debug2: ciphers stoc: chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr,aes256-cbc,aes192-cbc,aes128-cbc
+debug2: MACs ctos: hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha1-etm@openssh.com,hmac-sha2-256,hmac-sha2-512,hmac-sha1
+debug2: MACs stoc: hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha1-etm@openssh.com,hmac-sha2-256,hmac-sha2-512,hmac-sha1
+debug2: compression ctos: none,zlib,zlib@openssh.com
+debug2: compression stoc: none,zlib,zlib@openssh.com
+debug2: languages ctos:
+debug2: languages stoc:
+debug2: first_kex_follows 0
+debug2: reserved 0
+debug1: kex: algorithm: curve25519-sha256
+debug1: kex: host key algorithm: rsa-sha2-512
+debug1: kex: server->client cipher: chacha20-poly1305@openssh.com MAC: <implicit> compression: none
+debug1: kex: client->server cipher: chacha20-poly1305@openssh.com MAC: <implicit> compression: none
+debug1: expecting SSH2_MSG_KEX_ECDH_REPLY
+debug1: Server host key: ssh-rsa SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
+debug1: Host 'github.com' is known and matches the RSA host key.
+debug1: Found key in /home/user/.ssh/known_hosts:1
+debug2: set_newkeys: mode 1
+debug1: rekey after 134217728 blocks
+debug1: SSH2_MSG_NEWKEYS sent
+debug1: expecting SSH2_MSG_NEWKEYS
+debug1: SSH2_MSG_NEWKEYS received
+debug2: set_newkeys: mode 0
+debug1: rekey after 134217728 blocks
+debug2: key: /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so (0x562699030940), agent
+debug2: key: /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so (0x562699030df0), agent
+debug2: key: /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so (0x562699031280), agent
+debug2: key: /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so (0x562699031710), agent
+debug2: key: /home/user/.ssh/id_rsa ((nil)), explicit
+debug2: key: /home/user/.ssh/id_dsa ((nil)), explicit
+debug2: key: /home/user/.ssh/id_ecdsa ((nil)), explicit
+debug2: key: /home/user/.ssh/id_ed25519 ((nil)), explicit
+debug1: SSH2_MSG_EXT_INFO received
+debug1: kex_input_ext_info: server-sig-algs=<ssh-ed25519,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,ssh-rsa,rsa-sha2-512,rsa-sha2-256,ssh-dss>
+debug2: service_accept: ssh-userauth
+debug1: SSH2_MSG_SERVICE_ACCEPT received
+debug1: Authentications that can continue: publickey
+debug1: Next authentication method: publickey
+debug1: Offering public key: RSA SHA256:ysU6n8cD+7ts9ZcGoxo96K46aNI9RGb2lZRSXXGUTtc /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so
+debug2: we sent a publickey packet, wait for reply
+debug1: Authentications that can continue: publickey
+debug1: Offering public key: RSA SHA256:c7cH3XNHkfJ4jQ2gsiwWyU/bshW9HObw7oXIkybLLnw /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so
+debug2: we sent a publickey packet, wait for reply
+debug1: Authentications that can continue: publickey
+debug1: Offering public key: RSA SHA256:QLbSP5l+auye1ED8guCJe1Mo26iAj/kXtcEt0SBTUKk /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so
+debug2: we sent a publickey packet, wait for reply
+debug1: Server accepts key: pkalg ssh-rsa blen 534
+debug2: input_userauth_pk_ok: fp SHA256:QLbSP5l+auye1ED8guCJe1Mo26iAj/kXtcEt0SBTUKk
+debug1: pkcs11_provider_unref: 0x562698fd3c70 refcount 5
+debug1: pkcs11_provider_unref: 0x562698fd3c70 refcount 4
+debug1: pkcs11_provider_unref: 0x562698fd3c70 refcount 3
+debug1: pkcs11_provider_unref: 0x562698fd3c70 refcount 2
+debug1: Authentication succeeded (publickey).
+Authenticated to github.com ([140.82.118.3]:22).
+debug1: channel 0: new [client-session]
+debug2: channel 0: send open
+debug1: Entering interactive session.
+debug1: pledge: network
+debug2: channel_input_open_confirmation: channel 0: callback start
+debug2: fd 3 setting TCP_NODELAY
+debug2: client_session2_setup: id 0
+debug1: Sending environment.
+debug1: Sending env LANG = de_DE.UTF-8
+debug2: channel 0: request env confirm 0
+debug2: channel 0: request shell confirm 1
+debug2: channel_input_open_confirmation: channel 0: callback done
+debug2: channel 0: open confirm rwindow 32000 rmax 35000
+debug2: channel_input_status_confirm: type 99 id 0
+debug2: shell request accepted on channel 0
+debug2: channel 0: rcvd ext data 89
+Hi carblue! You've successfully authenticated, but GitHub does not provide shell access.
+debug2: channel 0: written 89 to efd 9
+debug1: client_input_channel_req: channel 0 rtype exit-status reply 0
+debug2: channel 0: rcvd eof
+debug2: channel 0: output open -> drain
+debug2: channel 0: obuf empty
+debug2: channel 0: close_write
+debug2: channel 0: output drain -> closed
+debug2: channel 0: rcvd close
+debug2: channel 0: close_read
+debug2: channel 0: input open -> closed
+debug2: channel 0: almost dead
+debug2: channel 0: gc: notify user
+debug2: channel 0: gc: user detached
+debug2: channel 0: send close
+debug2: channel 0: is dead
+debug2: channel 0: garbage collecting
+debug1: channel 0: free: client-session, nchannels 1
+Transferred: sent 4628, received 2540 bytes, in 0.3 seconds
+Bytes per second: sent 17236.0, received 9459.7
+debug1: Exit status 1
+
+
+user@host:~$ ssh-add -e /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so
 Card removed: /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so
+
+
 

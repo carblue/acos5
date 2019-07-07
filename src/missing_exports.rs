@@ -308,7 +308,7 @@ pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: c_uint, caps: c_uint,
         }
         else {
             if cfg!(log) { // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "unsupported algorithm");
-                wrc_do_log_sds(ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"unsupported algorithm\0").unwrap().as_ptr(),
+                wr_do_log_sds(ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"unsupported algorithm\0").unwrap().as_ptr(),
                               SC_ERROR_NOT_SUPPORTED, unsafe { sc_strerror(SC_ERROR_NOT_SUPPORTED) },
                               CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap() );
             }

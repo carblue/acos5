@@ -28,14 +28,12 @@ use std::ffi::{/*CString,*/ CStr};
 use std::fs;//::{read/*, write*/};
 use std::ptr::copy_nonoverlapping;
 
-use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env,
-                         sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_file_free, sc_read_record,
-                         sc_format_path, sc_select_file, sc_check_sw, SC_ALGORITHM_RSA_RAW,
-                         SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE, //sc_verify,
+use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_file_free,
+                         sc_read_record, sc_format_path, sc_select_file, sc_check_sw, SC_ALGORITHM_RSA_RAW,
+                         SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
                          SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA,
                          SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES,
-                         sc_format_apdu, sc_file_new//, sc_get_iso7816_driver
-};
+                         sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_verify};
 #[cfg(not(any(v0_15_0, v0_16_0)))]
 use opensc_sys::opensc::{SC_ALGORITHM_AES};
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0)))]
@@ -51,7 +49,7 @@ use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_MAX_PATH_SIZE, sc
                         SC_APDU_FLAGS_CHAINING,
                         SC_APDU_CASE_1, /*SC_APDU_CASE_2_SHORT,*/ SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT,
                         SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
-                        SC_APDU_CASE_2_SHORT
+                        SC_APDU_CASE_2_SHORT, SC_AC_OP_READ, SC_AC_CHV, SC_AC_AUT/*, SC_AC_UNKNOWN*/
 };
 use opensc_sys::log::{sc_do_log, sc_dump_hex, SC_LOG_DEBUG_NORMAL};
 use opensc_sys::errors::{sc_strerror, /*SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKNOWN, SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_NOT_SUPPORTED, */
@@ -503,6 +501,49 @@ pub fn select_file_by_path(card: &mut sc_card, path: &sc_path, file_out: *mut *m
     SC_SUCCESS
 }
 
+#[allow(non_snake_case)]
+fn get_known_sec_env_entry_V3_FIPS(is_local: bool, rec_nr: c_uint, buf: &mut [u8])
+{
+    assert_eq!(buf.len(), 33);
+    assert!( is_local || [1, 2].contains(&rec_nr));
+    assert!(!is_local || [1, 2, 3, 4, 5].contains(&rec_nr));
+
+    if !is_local {
+       match  rec_nr {
+           /* SEID #1: Security Officer Key 0x01 must be authenticated. */
+           1 => { buf.copy_from_slice(&[0x80u8, 0x01, 0x01,  0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x80,
+                  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]) },
+           /* SEID #2: Security Officer Key 0x01 must be authenticated and command must be in Secure Messaging mode (using Key 0x02). */
+           2 => { buf.copy_from_slice(&[0x80u8, 0x01, 0x02,  0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x80,
+                                                                  0xB4, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
+                                                                  0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30 ]) },
+           _ => (),
+       }
+    }
+    else {
+        match  rec_nr {
+            /* SEID #1: Security Officer Key 0x01 must be authenticated. */
+            1 => { buf.copy_from_slice(&[0x80u8, 0x01, 0x01,  0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x80,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]) },
+            /* SEID #2: Security Officer Key 0x01 must be authenticated and command must be in Secure Messaging mode (using Key 0x02). */
+            2 => { buf.copy_from_slice(&[0x80u8, 0x01, 0x02,  0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x80,
+                                                                   0xB4, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
+                                                                   0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30 ]) },
+            /* SEID #3: User PIN must be verified. */
+            3 => { buf.copy_from_slice(&[0x80u8, 0x01, 0x03,  0xA4, 0x06, 0x83, 0x01, 0x81, 0x95, 0x01, 0x08,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]) },
+            /* SEID #4: User PIN must be verified and use Secure Messaging with Encryption Key (using Key 0x02). */
+            4 => { buf.copy_from_slice(&[0x80u8, 0x01, 0x04,  0xA4, 0x06, 0x83, 0x01, 0x81, 0x95, 0x01, 0x08,
+                                                                   0xB4, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
+                                                                   0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30 ]) },
+            /* SEID #5: Use under Secure Messaging with Encryption Key (using Key 0x02). */
+            5 => { buf.copy_from_slice(&[0x80u8, 0x01, 0x05,  0xB4, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
+                                                                   0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
+                   0, 0, 0, 0, 0, 0, 0, 0 ]) },
+            _ => (),
+        }
+    }
+}
 
 /*
  * What it does
@@ -536,38 +577,44 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path, only_se_df: bool/*, depth: c
         /* file_out_ptr_mut has the only purpose to invoke scb8 retrieval */
         let mut file_out_ptr_mut = std::ptr::null_mut();
         let mut rv = acos5_64_select_file(card, path, &mut file_out_ptr_mut);
-        if !file_out_ptr_mut.is_null() {
-            unsafe { sc_file_free(file_out_ptr_mut) };
-        }
         assert_eq!(rv, SC_SUCCESS);
+        assert!(!file_out_ptr_mut.is_null());
+        let acl_entry_read_method = unsafe { (*sc_file_get_acl_entry(file_out_ptr_mut, SC_AC_OP_READ)).method };
+        unsafe { sc_file_free(file_out_ptr_mut) };
+
+        let is_local =  path.len>=6;
+        /* SC_AC_CHV is the case for my Nano, experimentally */
+        if card.type_== SC_CARD_TYPE_ACOS5_64_V3 && [SC_AC_CHV /*, SC_AC_AUT*/].contains(&acl_entry_read_method) {
+            let mut tries_left = 0;
+            let pin = if is_local { [0x31u8, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38] }  // User pin, local
+                              else       { [0x38u8, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31] }; // SO_PIN, global
+            rv = unsafe { sc_verify(card, SC_AC_CHV, if is_local {0x81} else {0x01}, pin.as_ptr(), pin.len(), &mut tries_left) };
+            assert_eq!(rv, SC_SUCCESS);
+        }
+
         let mut vec_seinfo : Vec<SeInfo> = Vec::new();
         for rec_nr in 1..1+nor {
-            let buf = &mut [0u8; 255];
-            rv = unsafe { sc_read_record(card, rec_nr, buf.as_mut_ptr(), mrl, SC_RECORD_BY_REC_NR as c_ulong) };
-/* * /
-// TODO temporary if SE file is pin-protected for READ
-if rv < 0 && card.type_== SC_CARD_TYPE_ACOS5_64_V3  // currently has SO_PIN same as User pin
-{
-    let pin = [0x31u8, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]; //if path.len>4 { [0x31u8, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38] }
-//                     else           { [0x38u8, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31] };
-    let mut tries_left : c_int = 0;
-    rv = unsafe { sc_verify(card, SC_AC_CHV, if path.len>4 {0x81} else {0x01}, pin.as_ptr(), pin.len(), &mut tries_left) };
-    assert!(rv == 0);
-    rv = unsafe { sc_read_record(card, rec_nr, buf.as_mut_ptr(), mrl, SC_RECORD_BY_REC_NR as c_ulong) };
-}
-/ * */
-            assert!(rv >= 0);
-            if rv >= 1 && buf[0] == 0 || rv >= 3 && buf[2] == 0 {
-                break;
+            let mut buf = [0u8; 255];
+            /* The case for V3 being FIPS-compliant, see 9.0. FIPS Mode File System Requirements: Don't read but take known entries */
+            if card.type_== SC_CARD_TYPE_ACOS5_64_V3 && SC_AC_AUT==acl_entry_read_method {
+                get_known_sec_env_entry_V3_FIPS(is_local, rec_nr, &mut buf[..33]);
             }
-            if rv >= 3 {
-                assert_eq!(rec_nr, buf[2] as u32); // not really required but recommended
+            else {
+                rv = unsafe { sc_read_record(card, rec_nr, buf.as_mut_ptr(), mrl, SC_RECORD_BY_REC_NR as c_ulong) };
+                assert!(rv >= 0);
+                if rv >= 1 && buf[0] == 0 || rv >= 3 && buf[2] == 0 { // "empty" record
+                    break;
+                }
+                if rv >= 3 {
+                    assert_eq!(rec_nr, buf[2] as u32 /*se id*/); // not really required but recommended: enforces, that se id x(>0) is stored in record indexed x (beginning with index 1)
+                }
             }
-            let mut seinfo : SeInfo = Default::default();
+            let mut seinfo = Default::default();
             let rv = se_parse_crts(buf[2] as c_int,&buf[3..], &mut seinfo);
             assert!(rv > 0);
             vec_seinfo.push(seinfo);
         }
+
         assert!(path.len >= 4);
         let file_id_dir = u16_from_array_begin(&path.value[path.len-4..path.len-2]);
 
@@ -1181,12 +1228,18 @@ fn multipleGreaterEqual(multiplier: usize, x: usize) -> usize
 
 #[allow(non_snake_case)]
 #[cfg(not(any(v0_15_0, v0_16_0)))]
-fn algo_ref_cos5_sym_SEDO(algo: c_uint, op_mode_cbc: bool) -> c_uint
+/* op_mode_cbc: true  => cbc
+   op_mode_cbc: false => ecb
+
+   encrypt:     true  => encrypt
+   encrypt:     false => decrypt
+*/
+fn algo_ref_cos5_sym_MSE(algo: c_uint, op_mode_cbc: bool, encrypt: bool) -> c_uint
 {
     match algo {
-        SC_ALGORITHM_AES => if op_mode_cbc {6} else {4},
         SC_ALGORITHM_3DES=> if op_mode_cbc {2} else {0},
         SC_ALGORITHM_DES => if op_mode_cbc {3} else {1},
+        SC_ALGORITHM_AES => if op_mode_cbc {if encrypt {6} else {7}} else {if encrypt {4} else {5}},
         _ => 0xFFFF_FFFF,
     }
 }
@@ -1300,7 +1353,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
             algorithm: if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else {SC_ALGORITHM_3DES /*TODO should I ever consider supporting SC_ALGORITHM_DES*/},
             key_ref: [crypt_sym.key_ref, 0,0,0,0,0,0,0],
             key_ref_len: 1,
-            algorithm_ref: algo_ref_cos5_sym_SEDO(if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else {SC_ALGORITHM_3DES}, crypt_sym.cbc),
+            algorithm_ref: algo_ref_cos5_sym_MSE(if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else {SC_ALGORITHM_3DES}, crypt_sym.cbc, crypt_sym.encrypt),
 
             ..Default::default()
         };
