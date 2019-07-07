@@ -882,7 +882,7 @@ user@host:~$ p11tool --list-mechanisms pkcs11:model=CTM64;manufacturer=Advanced%
 [0x1102] CKM_DES3_ECB_ENCRYPT_DATA  <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't; for use with the C_DeriveKey function.
 [0x1103] CKM_DES3_CBC_ENCRYPT_DATA  <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't; for use with the C_DeriveKey function.
 [0x1104] CKM_AES_ECB_ENCRYPT_DATA   <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't; for use with the C_DeriveKey function.
-[0x1105] CKM_AES_CBC_ENCRYPT_DATA   <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't; for use with the C_DeriveKey function. 
+[0x1105] CKM_AES_CBC_ENCRYPT_DATA   <= libacospkcs11.so supports this, but opensc-pkcs11.so doesn't; for use with the C_DeriveKey function.
   [0x0040] CKM_SHA256_RSA_PKCS
   [0x0006] CKM_SHA1_RSA_PKCS
 [0x80000001] UNKNOWN                some CKM_VENDOR_DEFINED ?
@@ -1524,10 +1524,10 @@ println!("### acos5_64_get_response returned apdu.sw1: {:X}, apdu.sw2: {:X}   Un
 }
 
 /*
- * What it does
+ * Get data from card's RNG; as card's command supplies a fixed number of 8 bytes, some administration is required for count!= multiple of 8
  * @apiNote
- * @param
- * @return
+ * @param count how many bytes are requested from RNG
+ * @return MUST return the number of challenge bytes stored to buf
  */
 extern "C" fn acos5_64_get_challenge(card: *mut sc_card, buf: *mut c_uchar, count: usize) -> c_int
 {
@@ -1538,9 +1538,9 @@ extern "C" fn acos5_64_get_challenge(card: *mut sc_card, buf: *mut c_uchar, coun
     let card_ref_mut = unsafe { &mut *card };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun = CStr::from_bytes_with_nul(b"acos5_64_get_challenge\0").unwrap();
-    let fmt = CStr::from_bytes_with_nul(CALLED).unwrap();
+    let fmt = CStr::from_bytes_with_nul(b"called with request for %zu bytes\0").unwrap();
     if cfg!(log) {
-        wr_do_log(card_ref_mut.ctx, f_log, line!(), fun, fmt);
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, count, fmt);
     }
     let func_ptr = unsafe { (*(*sc_get_iso7816_driver()).ops).get_challenge.unwrap() };
     let is_count_multiple8 =  count%8 == 0;
@@ -1549,18 +1549,23 @@ extern "C" fn acos5_64_get_challenge(card: *mut sc_card, buf: *mut c_uchar, coun
     for i in 0..loop_count {
         if i+1<loop_count || is_count_multiple8 {
             let rv = unsafe { func_ptr(card, buf.add(i*8), 8) };
-            if rv != SC_SUCCESS { return rv; }
+            if rv != 8 { return rv; }
             len_rem -= 8;
         }
         else {
             assert!(len_rem>0 && len_rem<8);
             let mut buf_temp = [0u8; 8];
-            let rv = unsafe { func_ptr(card, buf_temp.as_mut_ptr(), 8) }; // buf.add(i*8)
-            if rv != SC_SUCCESS { return rv; }
+            let rv = unsafe { func_ptr(card, buf_temp.as_mut_ptr(), 8) };
+            if rv != 8 { return rv; }
             unsafe { copy_nonoverlapping(buf_temp.as_ptr(), buf.add(i*8), len_rem) };
         }
     }
-    SC_SUCCESS
+/*
+    if cfg!(log) {
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, count, CStr::from_bytes_with_nul(b"returning with requested %zu bytes supplied\0").unwrap());
+    }
+*/
+    count as c_int
 }
 
 /* currently refers to pins only, but what about authenticated keys
