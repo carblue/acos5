@@ -74,7 +74,7 @@ what to be shown in opensc-tool -f
 For SAE (Security Attributes Expanded), TODO
 */
 
-use std::os::raw::{c_ulong, c_int, c_void};
+use std::os::raw::{c_ulong, c_int, c_uint, c_void};
 
 use opensc_sys::opensc::{sc_card, sc_file_add_acl_entry};
 use opensc_sys::types::{sc_file, sc_crt, SC_AC_NONE, SC_AC_UNKNOWN, SC_AC_NEVER, SC_AC_CHV, SC_AC_AUT, SC_AC_PRO,
@@ -177,7 +177,7 @@ fn se_get_reference(card: &mut sc_card, file_id: c_int, se_reference: u8, search
             None => { result = 0; },
             Some(vec_seinfo) => {
                 for elem in vec_seinfo {
-                    if elem.reference == se_reference as c_int {
+                    if elem.reference == se_reference as c_uint {
                         for j in 0..elem.crts_len {
                             if elem.crts[j].tag   != search_template.tag   { continue; }
                             if elem.crts[j].usage != search_template.usage { continue; }
@@ -216,7 +216,7 @@ fn se_get_reference(card: &mut sc_card, file_id: c_int, se_reference: u8, search
  * @param
  * @return
  */
-pub fn se_parse_crts(/*card: &mut sc_card,*/ reference: c_int, data: &[u8], se_info_node: &mut SeInfo) -> c_int
+pub fn se_parse_crts(/*card: &mut sc_card,*/ reference: c_uint, data: &[u8], se_info_node: &mut SeInfo) -> c_int
 {
     if data.len() == 0 || data[0] == 0 {
         return 0;

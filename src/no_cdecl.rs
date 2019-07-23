@@ -18,8 +18,7 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-//extern crate bitintr;
-//use bitintr::Popcnt;
+//use super::bitintr::Popcnt;
 
 //#![feature(const_fn)]
 
@@ -29,7 +28,7 @@ use std::fs;//::{read/*, write*/};
 use std::ptr::copy_nonoverlapping;
 
 use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_file_free,
-                         sc_read_record, sc_format_path, sc_select_file, sc_check_sw, SC_ALGORITHM_RSA_RAW,
+                         sc_read_record, sc_format_path, sc_select_file, sc_check_sw, SC_ALGORITHM_RSA_PAD_PKCS1,
                          SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
                          SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA,
                          SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES,
@@ -610,7 +609,7 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path, only_se_df: bool/*, depth: c
                 }
             }
             let mut seinfo = Default::default();
-            let rv = se_parse_crts(buf[2] as c_int,&buf[3..], &mut seinfo);
+            let rv = se_parse_crts(buf[2] as c_uint,&buf[3..], &mut seinfo);
             assert!(rv > 0);
             vec_seinfo.push(seinfo);
         }
@@ -683,8 +682,8 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path, only_se_df: bool/*, depth: c
 }
 
 
-/*
- * convert_bytes_tag_fcp_sac_to_scb_array expands the "compressed" tag_fcp_sac (0x8C) bytes from card file/director's
+/* SCB: Security Condition Byte
+ * convert_bytes_tag_fcp_sac_to_scb_array expands the (possibly) "compressed" tag_fcp_sac (0x8C) bytes from card file/director's
  * header to a 'standard' 8 byte SCB array, interpreting the AM byte (AMB);
  * The position of a SCB within the array is related to a command/operation, that is controlled by this byte
  * The value of SCB refers to a record id in Security Environment file, that stores details of conditions that must be
@@ -698,7 +697,7 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path, only_se_df: bool/*, depth: c
  * Maybe later integrate this in acos5_64_process_fci
  * @param  bytes_tag_fcp_sac IN  the TLV's V bytes readable from file header for tag 0x8C, same order from left to right;
  *                               number of bytes: min: 0, max. 8
- *                               If there are >= 1 bytes, the first is AM
+ *                               If there are >= 1 bytes, the first is AM (telling by 1 bits which bytes will follow)
  * @param  scb8          OUT     8 SecurityConditionBytes, from leftmost (index 0)'READ'/'Delete_Child' to
  *                               (6)'SC_AC_OP_DELETE_SELF', (7)'unused'
  *
@@ -714,8 +713,8 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path, only_se_df: bool/*, depth: c
 pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Result<[u8; 8], c_int>
 {
 //   assert_eq!(0b0101_1010u16.popcnt(), 4);
-    let mut scb8 = [0u8; 8];
-    scb8[7] = 0xFF; // though not expected to be accidentally set, it get's overriden to NEVER: it's not used by ACOS
+    let mut scb8 = [0u8; 8]; // if AM has no 1 bit for a command/operation, then it's : always allowed
+    scb8[7] = 0xFF; // though not expected to be accidentally set, it get's overridden to NEVER: it's not used by ACOS
 
     if bytes_tag_fcp_sac.len() == 0 {
         return Ok(scb8);
@@ -852,7 +851,7 @@ pub fn set_rsa_caps(card: &mut sc_card, value: c_uint)
     card.drv_data = Box::into_raw(dp) as *mut c_void;
 }
 */
-/*
+
 pub fn get_rsa_caps(card: &mut sc_card) -> c_uint
 {
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
@@ -860,13 +859,13 @@ pub fn get_rsa_caps(card: &mut sc_card) -> c_uint
     card.drv_data = Box::into_raw(dp) as *mut c_void;
     result
 }
-*/
+
 pub fn set_sec_env(card: &mut sc_card, value: &sc_security_env)
 {
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     dp.sec_env = *value;
     // if sc_get_encoding_flags evaluates: secure algorithm flags == 0x0, then set SC_ALGORITHM_RSA_RAW
-    dp.sec_env.algorithm_flags = std::cmp::max(dp.sec_env.algorithm_flags, SC_ALGORITHM_RSA_RAW);
+    dp.sec_env.algorithm_flags = std::cmp::max(dp.sec_env.algorithm_flags, SC_ALGORITHM_RSA_PAD_PKCS1);
     card.drv_data = Box::into_raw(dp) as *mut c_void;
 }
 
@@ -1084,14 +1083,59 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
 
 
 /*
-  The EMSA-PKCS1-v1_5 DigestInfo prefix (all content excluding the trailing hash) is known, same the length of hash
+  The EMSA-PKCS1-v1_5 DigestInfo digestAlgorithm (all content excluding the trailing hash) is known, same the length of hash
   guess by length of known length of DigestInfo, whether the input likely is a DigestInfo and NOT some other raw data
 */
-pub fn is_any_of_di_by_len(len: usize) -> bool
+#[allow(non_snake_case)]
+pub fn is_any_known_digestAlgorithm(digest_info: &[u8]) -> bool
 {
-   let known_len = [34u8, 35, 47, 51, 67, 83];
+   let known_len = [47usize, 51, 67, 83];
+/*
+RFC 8017                      PKCS #1 v2.2                 November 2016
+
+
+               DigestInfo ::= SEQUENCE {
+                   digestAlgorithm AlgorithmIdentifier,
+                   digest OCTET STRING
+               }
+
+   Notes:
+
+   1.  For the nine hash functions mentioned in Appendix B.1, the DER
+       encoding T of the DigestInfo value is equal to the following:
+   ... MD2 and MD5 will be omitted
+    //   sha1     sha256  +sha1  +sha224  +sha256  +sha384  +sha512
+    if ![20usize, 32,     35,    47,      51,      67,      83, outlen].contains(&data_len) {
+        return SC_ERROR_WRONG_PADDING;
+    }
+
+    #[allow(non_snake_case)]
+    let digestAlgorithm_sha1   = [0x30u8, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x04, 0x14];
+    #[allow(non_snake_case)]
+    let digestAlgorithm_sha256 = [0x30u8, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20];
+*/
+    #[allow(non_snake_case)]
+    let digestAlgorithm_sha224     = [0x30, 0x2d, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x04, 0x05, 0x00, 0x04, 0x1c];
+    #[allow(non_snake_case)]
+    let digestAlgorithm_sha512_224 = [0x30, 0x2d, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x05, 0x05, 0x00, 0x04, 0x1c];
+    #[allow(non_snake_case)]
+    let digestAlgorithm_sha512_256 = [0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x06, 0x05, 0x00, 0x04, 0x20];
+    #[allow(non_snake_case)]
+    let digestAlgorithm_sha384     = [0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30];
+    #[allow(non_snake_case)]
+    let digestAlgorithm_sha512     = [0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40];
+
     for i in 0..known_len.len() {
-        if known_len[i] as usize == len { return true; }
+        if known_len[i] == digest_info.len() {
+            match digest_info.len() {
+                47 => { if digest_info[..19] == digestAlgorithm_sha224 || digest_info[..19] == digestAlgorithm_sha512_224 { return true;}},
+                51 => { if digest_info[..19] == digestAlgorithm_sha512_256 { return true;}},
+                67 => { if digest_info[..19] == digestAlgorithm_sha384 { return true;}},
+                83 => { if digest_info[..19] == digestAlgorithm_sha512 { return true;}},
+                _  => (),
+            };
+            break;
+        }
     }
     false
 }

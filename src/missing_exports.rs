@@ -33,16 +33,15 @@ see file src/libopensc/libopensc.exports
 1. Try to convince OpenSC to make that callable from libopensc.so/opensc.dll
 2. In the meantime, for the external driver, that code must be duplicated here in Rust
 */
-extern crate libc;
 
-use libc::{realloc,/* free*/};
-use std::ffi::CStr;
+use libc::{realloc};
+//use std::ffi::CStr;
 use std::os::raw::{c_int, c_uint, c_void};
 
-use opensc_sys::opensc::{sc_context, sc_card, sc_algorithm_info, SC_CARD_CAP_APDU_EXT, SC_PROTO_T0,
-                         SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
-                         SC_ALGORITHM_EC, sc_compare_oid,
-                         SC_ALGORITHM_RSA_PAD_NONE, SC_ALGORITHM_RSA_PAD_PKCS1,
+use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, SC_CARD_CAP_APDU_EXT,
+                         SC_READER_SHORT_APDU_MAX_RECV_SIZE, //SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_PROTO_T0,
+                         SC_ALGORITHM_EC, sc_compare_oid
+/*                      ,SC_ALGORITHM_RSA_PAD_NONE, SC_ALGORITHM_RSA_PAD_PKCS1,
                          SC_ALGORITHM_RSA_HASH_NONE,
                          SC_ALGORITHM_RSA_HASH_MD5,
                          SC_ALGORITHM_RSA_HASH_SHA1,
@@ -51,34 +50,30 @@ use opensc_sys::opensc::{sc_context, sc_card, sc_algorithm_info, SC_CARD_CAP_APD
                          SC_ALGORITHM_RSA_HASH_SHA512,
                          SC_ALGORITHM_RSA_HASH_SHA224,
                          SC_ALGORITHM_RSA_HASH_RIPEMD160,
-                         SC_ALGORITHM_RSA_HASH_MD5_SHA1
+                         SC_ALGORITHM_RSA_HASH_MD5_SHA1*/
 };
 //#[cfg(not(any(v0_15_0, v0_16_0)))]
 //use opensc_sys::opensc::{SC_ALGORITHM_AES};
 
-#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0)))]
-use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_PSS};
+//#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0)))]
+//use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_PSS};
 
-#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-use opensc_sys::opensc::{SC_ALGORITHM_AES, SC_ALGORITHM_AES_FLAGS, SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_RSA_RAW,
-                         SC_ALGORITHM_RSA_HASHES};
+//#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+//use opensc_sys::opensc::{SC_ALGORITHM_AES, SC_ALGORITHM_AES_FLAGS, SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_RSA_RAW,
+//                         SC_ALGORITHM_RSA_HASHES};
 
-#[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
-use opensc_sys::opensc::{SC_ALGORITHM_RAW_MASK, SC_ALGORITHM_RSA_PADS};
+//#[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
+//use opensc_sys::opensc::{SC_ALGORITHM_RAW_MASK, SC_ALGORITHM_RSA_PADS};
 
-use opensc_sys::errors::{sc_strerror, SC_SUCCESS, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL, SC_ERROR_OUT_OF_MEMORY,
-                         SC_ERROR_NOT_SUPPORTED
+use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL, SC_ERROR_OUT_OF_MEMORY
+//                        ,SC_ERROR_NOT_SUPPORTED, sc_strerror,
 //                         , SC_ERROR_KEYPAD_MSG_TOO_LONG
 };
 
 use opensc_sys::types::{sc_object_id};
 
-//use opensc_sys::log::{sc_do_log, SC_LOG_DEBUG_NORMAL};
-//#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-//use opensc_sys::log::{sc_do_log_color};
-
-use crate::constants_types::*;
-use crate::wrappers::*;
+//use crate::constants_types::*;
+//use crate::wrappers::*;
 
 
 /* for acos5_64_get_response only */
@@ -103,6 +98,7 @@ pub fn me_get_max_recv_size(card: &sc_card) -> usize
     max_recv_size
 }
 
+/*
 /* no usage currently */
 pub fn me_get_max_send_size(card: &sc_card) -> usize
 { // an equivalent copy of sc_get_max_send_size
@@ -124,6 +120,7 @@ pub fn me_get_max_send_size(card: &sc_card) -> usize
     }
     max_send_size
 }
+*/
 
 fn me_card_add_algorithm(card: &mut sc_card, info: &sc_algorithm_info) -> c_int
 {
@@ -171,7 +168,7 @@ pub fn me_card_find_alg(card: &mut sc_card,
     std::ptr::null_mut() as *mut sc_algorithm_info
 }
 
-
+/*
 /**
  * Get the necessary padding and sec. env. flags.
  * @param  ctx     IN  sc_context object
@@ -322,7 +319,7 @@ pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: c_uint, caps: c_uint,
     }
     SC_SUCCESS
 } // pub fn me_get_encoding_flags
-
+*/
 
 /* Signature schemes supported natively by ACOS5-64:
 ISO 9796-2 scheme 1 padding  http://www.sarm.am/docs/ISO_IEC_9796-2_2002(E)-Character_PDF_document.pdf

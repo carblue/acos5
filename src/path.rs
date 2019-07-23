@@ -37,7 +37,7 @@ use crate::constants_types::*;
  */
 pub fn current_path_df(card: &mut sc_card) -> &[u8]
 {
-    let len = card.cache.current_path.len; // crash location TODO How it's possible to get here with  0==card.cache.current_path.len
+    let len = card.cache.current_path.len;
     assert!(len>=2);
     let file_id = u16_from_array_begin(&card.cache.current_path.value[len-2..len]);
 
@@ -189,10 +189,10 @@ pub fn cut_path(card: &mut sc_card, path_in: &sc_path, path_out: &mut sc_path) -
 }
 
 
-// TODO tests for other 'is_search_ruleX_match()' functions
 #[cfg(test)]
 mod tests {
-    use super::{is_search_rule1_match};
+    use super::{is_search_rule1_match, is_search_rule2_match, is_search_rule3_match,
+                is_search_rule4_match, is_search_rule5_match, is_search_rule6_match};
 
     /* select_file target is the currently selected DF */
     #[test]
@@ -200,5 +200,53 @@ mod tests {
         let path_target            = &[0x3Fu8, 0, 0x41, 0, 0x43, 0, 0x43, 5];
         let path_current_df        = &[0x3Fu8, 0, 0x41, 0, 0x43, 0];
         assert_eq!(is_search_rule1_match(path_target, path_current_df), false);
+    }
+
+    /* select_file target is a EF/DF located (directly) within currently selected DF */
+    #[test]
+    fn test_is_search_rule2_match() {
+        let path_target            = &[0x3Fu8, 0, 0x41, 0, 0x43, 0, 0x43, 5];
+        let path_current_df        = &[0x3Fu8, 0, 0x41, 0, 0x43, 0];
+        assert_eq!(is_search_rule2_match(path_target, path_current_df), true);
+
+        let path_current_df        = &[0x3Fu8, 0, 0x41, 0];
+        assert_eq!(is_search_rule2_match(path_target, path_current_df), false);
+    }
+
+    /* select_file target is the parent DF of currently selected DF */
+    #[test]
+    fn test_is_search_rule3_match() {
+        let path_target            = &[0x3Fu8, 0, 0x41, 0];
+        let path_current_df        = &[0x3Fu8, 0, 0x41, 0, 0x43, 0];
+        assert_eq!(is_search_rule3_match(path_target, path_current_df), true);
+
+        let path_target            = &[0x3Fu8, 0, 0x41, 0, 0x41, 1];
+        assert_eq!(is_search_rule3_match(path_target, path_current_df), false);
+
+        let path_target            = &[0x3Fu8, 0];
+        let path_current_df        = &[0x3Fu8, 0, 0x41, 0];
+        assert_eq!(is_search_rule3_match(path_target, path_current_df), true);
+    }
+
+    /* select_file target is a EF/DF located (directly) within the parent DF of currently selected DF */
+    #[test]
+    fn test_is_search_rule4_match() {
+        let path_target            = &[0x3Fu8, 0, 0x41, 0, 0x41, 1];
+        let path_current_df        = &[0x3Fu8, 0, 0x41, 0, 0x43, 0];
+        assert_eq!(is_search_rule4_match(path_target, path_current_df), true);
+    }
+
+    /* select_file target is MF */
+    #[test]
+    fn test_is_search_rule5_match() {
+        assert_eq!(is_search_rule5_match(&[0x3Fu8, 0]), true);
+        assert_eq!(is_search_rule5_match(&[0x3Fu8, 0, 0x41, 0]), false);
+    }
+
+    /* select_file target is a EF/DF located (directly) within MF */
+    #[test]
+    fn test_is_search_rule6_match() {
+        assert_eq!(is_search_rule6_match(&[0x3Fu8, 0, 0x41, 0]), true);
+        assert_eq!(is_search_rule6_match(&[0x3Fu8, 0, 0x41, 0, 0x41, 1]), false);
     }
 }

@@ -1,12 +1,12 @@
 [package]
 name = "acos5_64"
-version = "0.1.0"
+version = "0.0.13"
 authors = ["carblue <bluecars@posteo.eu>"]
 edition = "2018"
 
 [dependencies]
 libc = "0.2"
-opensc-sys = { git = "https://github.com/carblue/opensc-sys" }
+opensc-sys = { git = "https://github.com/carblue/opensc-sys", rev = "704d9ce" }
 
 [build-dependencies]
 pkg-config = "0.3"

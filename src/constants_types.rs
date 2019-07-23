@@ -27,6 +27,9 @@ use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUST
                          SC_PKCS15_SKDF, SC_PKCS15_CDF, SC_PKCS15_CDF_TRUSTED, SC_PKCS15_CDF_USEFUL,
                          SC_PKCS15_DODF, SC_PKCS15_AODF};
 
+#[cfg(enable_acos5_64_ui)]
+use crate::user_consent::ui_context;
+
 // for an internal driver these 2 will move to cards.h
 pub const SC_CARD_TYPE_ACOS5_64_V2 : i32 = 16003;
 pub const SC_CARD_TYPE_ACOS5_64_V3 : i32 = 16004;
@@ -55,6 +58,7 @@ pub const CALLED              : &[u8;   7] = b"called\0";
 pub const RETURNING           : &[u8;  10] = b"returning\0";
 pub const RETURNING_INT_CSTR  : &[u8;  25] = b"returning with: %d (%s)\n\0";
 pub const RETURNING_INT       : &[u8;  20] = b"returning with: %d\n\0";
+//pub const USER_CONSENT_CMD_NIX : &[u8;  18] = b"/usr/bin/pinentry\0";
 
 //pub const V_0_0_0   : &[u8; 6] = b"0.0.0\0";
 //pub const V_0_15_0  : &[u8; 7] = b"0.15.0\0";
@@ -381,7 +385,7 @@ impl Default for CardCtl_crypt_sym {
 #[repr(C)]
 #[derive(Debug, Copy, Clone,  PartialEq)]
 pub struct SeInfo {
-    pub reference  : c_int, // the SE file's record no == stored id in record  TODO check if this can be typed c_uint
+    pub reference  : c_uint, // the SE file's record no == stored id in record
     pub crts_len   : usize,                       /* what is used actually in crts */
     pub crts       : [sc_crt; SC_MAX_CRTS_IN_SE], // align(8) // SC_MAX_CRTS_IN_SE==12
 }
@@ -417,6 +421,8 @@ pub struct DataPrivate { // see settings in acos5_64_init
      */
     pub is_running_cmd_long_response : bool,
     /*  is_running_compute_signature: false, // maybe, acos5_64_decipher will need to know, that it was called by acos5_64_compute_signature */
+    #[cfg(enable_acos5_64_ui)]
+    pub ui_ctx : ui_context,
 }
 
 

@@ -7,8 +7,8 @@ OKAY$ opensc-tool --info
 OpenSC 0.17.0 [gcc  7.3.0]
 Enabled features: locking zlib readline openssl pcsc(libpcsclite.so.1)
 
-OpenSC 0.19.0 [gcc  7.4.0]                                                                                           
-Enabled features: locking zlib readline openssl pcsc(libpcsclite.so.1)                                               
+OpenSC 0.19.0 [gcc  7.4.0]
+Enabled features: locking zlib readline openssl pcsc(libpcsclite.so.1)
 
 OKAY$ opensc-tool --atr
 Using reader with a card: ACS CryptoMate64 00 00
@@ -38,44 +38,44 @@ Configured card drivers:
   default          Default driver for unknown cards
 
 OKAY$ opensc-tool --list-files
-Using reader with a card: ACS CryptoMate64 00 00                                                                                                                                                                                    
+Using reader with a card: ACS CryptoMate64 00 00
 3f00 type: DF, size: 0
-select[NONE] lock[NONE] delete[NONE] create[NONE] rehab[NONE] inval[NONE] list[NONE] 
+select[NONE] lock[NONE] delete[NONE] create[NONE] rehab[NONE] inval[NONE] list[NONE]
 prop: 83:02:3F:00:88:01:00:8A:01:01:82:02:3F:00:8D:02:00:03:84:00:8C:00:AB:00
 
   3f000001 type: iEF, ef structure: linear-fixed, size: 21
-  read[NEVR] update[CHV1] erase[CHV1] write[CHV1] rehab[CHV1] inval[CHV1] 
+  read[NEVR] update[CHV1] erase[CHV1] write[CHV1] rehab[CHV1] inval[CHV1]
   prop: 83:02:00:01:88:01:01:8A:01:05:82:06:0A:00:00:15:00:01:8C:08:7F:01:FF:01:01:FF:01:FF:AB:00
 
   3f000002 type: iEF, ef structure: linear-variable, size: 148
-  read[NEVR] update[CHV1] erase[CHV1] write[CHV1] rehab[CHV1] inval[CHV1] 
+  read[NEVR] update[CHV1] erase[CHV1] write[CHV1] rehab[CHV1] inval[CHV1]
   prop: 83:02:00:02:88:01:02:8A:01:05:82:06:0C:00:00:25:00:04:8C:08:7F:01:FF:01:01:01:01:FF:AB:00
 
   3f000003 type: iEF, ef structure: linear-variable, size: 48
-  read[NONE] update[CHV1] erase[CHV1] write[CHV1] rehab[CHV1] inval[CHV1] 
+  read[NONE] update[CHV1] erase[CHV1] write[CHV1] rehab[CHV1] inval[CHV1]
   prop: 83:02:00:03:88:01:03:8A:01:05:82:06:1C:00:00:30:00:01:8C:08:7F:01:FF:01:01:00:01:00:AB:00
 
   3f002f00 type: wEF, ef structure: transparent, size: 33
-  read[NONE] update[CHV1] erase[CHV1] write[CHV1] rehab[CHV1] inval[CHV1] 
+  read[NONE] update[CHV1] erase[CHV1] write[CHV1] rehab[CHV1] inval[CHV1]
   prop: 83:02:2F:00:88:01:00:8A:01:05:82:02:01:00:80:02:00:21:8C:08:7F:01:FF:01:01:FF:01:00:AB:00
 
 00000000: 61 1F 4F 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 a.O.ACOSPKCS-15v
 00000010: 31 2E 30 30 50 05 65 43 65 72 74 51 04 3F 00 41 1.00P.eCertQ.?.A
 00000020: 00                                              .
   3f004100 [ACOSPKCS-15v1.00] type: DF, size: 0
-  select[NONE] lock[NEVR] delete[CHV129] create[CHV129] rehab[NONE] inval[CHV129] list[NONE] 
+  select[NONE] lock[NEVR] delete[CHV129] create[CHV129] rehab[NONE] inval[CHV129] list[NONE]
   prop: 83:02:41:00:88:01:00:8A:01:05:82:02:38:00:8D:02:41:03:84:10:41:43:4F:53:50:4B:43:53:2D:31:35:76:31:2E:30:30:8C:08:7F:03:FF:00:01:01:01:01:AB:00
 ...
 
 
 OKAY$ opensc-tool --send-apdu 00:A4:00:00:02:3F:00
 Using reader with a card: ACS CryptoMate64 00 00
-Sending: 00 A4 00 00 02 3F 00 
+Sending: 00 A4 00 00 02 3F 00
 Received (SW1=0x90, SW2=0x00)
 
 UNTESTED$ opensc-tool --reader <arg>
 
-UNTESTED$ opensc-tool --reset [arg] 
+UNTESTED$ opensc-tool --reset [arg]
 
 UNTESTED$ opensc-tool --card-driver <arg>
 
@@ -114,6 +114,22 @@ Flags:
 Algorithm: 3des             <= there is some bug: that should be aes
 Key length: 256
 Flags:
+
+Once PR #1729 gets merged to OpenSC.git.master, the last 3 entries will be printed correctly:
+
+Algorithm: aes
+Key length: 128
+Flags:
+
+Algorithm: aes
+Key length: 192
+Flags:
+
+Algorithm: aes
+Key length: 256
+Flags:
+
+
 
 UNTESTED$ opensc-tool --wait
 

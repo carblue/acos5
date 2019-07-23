@@ -4,14 +4,17 @@
 
 # acos5_64
 
-Driver for ACS ACOS5-64 Smart Card/CryptoMate64/CryptoMate Nano; external module operating within the OpenSC framework (min. version 0.17.0).
+Driver for ACS ACOS5-64 Smart Card / CryptoMate64 / CryptoMate Nano; external module operating within the OpenSC framework (min. version 0.17.0).
 
+[ACOS5-64 Smart Card](https://www.acs.com.hk/en/products/308/acos5-64-v3.00-cryptographic-card-contact "ACOS5-64 Cryptographic Card (Contact) - Advanced Card Systems Ltd.")<br>
+[ACOS5-64 USB Token](https://www.acs.com.hk/en/products/414/cryptomate-nano-cryptographic-usb-tokens "ACOS5-64 CryptoMate Nano Cryptographic USB Token - Advanced Card Systems Ltd.")<br>
+https://changelog.complete.org/archives/9358-first-steps-with-smartcards-under-linux-and-android-hard-but-it-works<br>
 https://github.com/OpenSC/OpenSC/wiki<br>
 https://www.rust-lang.org/learn/get-started<br>
 If Rust/cargo is not required anymore, uninstall with: rustup self uninstall
 
 Look into build.rs first for some details about the libopensc binary (version etc.).<br>
-The prerequisite required to be installed is evident: OpenSC packages (Ubuntu: opensc, which depends on opensc-pkcs11).<br>
+The prerequisite required to be installed is evident: OpenSC packages (e.g. Ubuntu: opensc, which depends on (required) opensc-pkcs11).<br>
 Whether or not You intend to build the OpenSC binaries from sources, it's recommended to read the first 100 lines of [opensc-sys.lib.rs](https://github.com/carblue/opensc-sys/blob/master/src/lib.rs "https://github.com/carblue/opensc-sys/blob/master/src/lib.rs")<br>
 The opensc-sys binding should be tested to be operational.
 
@@ -40,14 +43,19 @@ app default {
     # }
 ...
     card_driver acos5_64 {
-        # module, the (/path/to/) filename of the driver library .so/.dll/.dylib. /path/to/ is dispensable if it's in a 'standard library search path'
+        # module, the (/path/to/) filename of the driver library .so/.dll/.dylib. /path/to/ is dispensable if filename is in a 'standard library search path'
         module = /something/like/path/to/acos5_64/target/release/libacos5_64.so;
+
+        # Disable / enable enquiry popup when performing a
+        # signature or RSA decrypt operation with ACOS5-64.
+        # Only used if compiled with cfg=enable_acos5_64_ui:
+        # user_consent_enabled = yes;  # set to no to disable
     }
 ...
 .........
     #card_drivers = npa, internal;
 ...
-    card_drivers = acos5_64, npa, internal;
+    card_drivers = acos5_64, npa, internal; # for a painless start use  card_drivers = acos5_64, default;
 ...
 }
 ```
@@ -84,3 +92,11 @@ Sadly OpenSC nowhere states, what is the PKCS#15 version it does support, and I 
 The only way to know what OpenSC supports related to PKCS#15 is looking into the sources (it's spread over a couple of files, locate with grep -rnw sc_copy_asn1_entry and/or grep -rnw sc_format_asn1_entry) or alternatively look at [PKCS15.asn](https://github.com/carblue/acos5_64_gui/blob/master/source/PKCS15.asn "https://github.com/carblue/acos5_64_gui/blob/master/source/PKCS15.asn").<br>
 That PKCS15.asn is based on a published ASN.1 module `pkcs-15v1_1.asn` tailored to what current OpenSC version 0.19.0, ACOS5-64 and [libtasn1](https://www.gnu.org/software/libtasn1 "https://www.gnu.org/software/libtasn1") support. libtasn1 doesn't support classes/parameters, thus some 'unrolling' was done in there. acos5_64_gui uses that PKCS15.asn in order to detect, what is the type of ASN.1 DER data in card files (e.g. EF.AODF or EF.PrKDF or EF.Cert or ...), whether it's PKCS#15-compliant and display/decode/encode. That works (at least for my card content).
 
+"user consent"<br>
+This is a feature to constrain usage of token's RSA private keys: Only when the user allows  RSA private key usage case by case, then `acos5_64_compute_signature` and `acos5_64_decipher` are allowed to proceed operating for RSA private keys.<br>
+Independent from that, the RSA private key files should be created with "never allowed to read" and "allowed to perform crypto operations only after some condition fulfilled, like verify a pin" and that pin should be the same as the one required for a User Login.<br>
+I deem this feature invaluable, as many applications start asking for the User Login Pin, but never tell what they will do with that permission. Unconstrained, they could likely do everything after a Login.<br>
+How this works: First the driver must be compiled with "cfg=enable_acos5_64_ui" (see build.rs, other conditional compilation settings). This - as a default - enables this feature.
+The graphical part of this feature is based on [IUP](https://www.tecgraf.puc-rio.br/iup "https://www.tecgraf.puc-rio.br/iup"), thus that must be installed and the last 3 lines in build.rs must be activated (meaning removing leading //):<br>
+The one that contains cargo:rustc-cfg=enable_acos5_64_ui, the next where to find that library, and the last one that names the iup library to link. The same must be applied for acos5_64_pkcs15init's build.rs if that is installed.<br>
+That's it, except via opensc.conf the enabled status can be overridden by specifying user_consent_enabled = no;
