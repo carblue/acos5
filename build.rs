@@ -1,4 +1,4 @@
-/* build.rs */
+/* build.rs, identical for driver acos5_64 and acos5_64_pkcs15init */
 
 extern crate pkg_config;
 
@@ -39,7 +39,7 @@ fn main() {
                 "0.17.0" => println!("cargo:rustc-cfg=v0_17_0"),
                 "0.18.0" => println!("cargo:rustc-cfg=v0_18_0"),
                 "0.19.0" => println!("cargo:rustc-cfg=v0_19_0"),
-                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"), // experimental only: it's git-master, Latest commit d14cf97d7a6ea6e10d7a94b2cf0fac15f6dca9b8, defined as version 0.20.0 in config.h
+                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"), // experimental only: it's git-master, Latest commit af8f96500903f9de7278ff557ded899e6d805983, defined as version 0.20.0 in config.h
                 _ => ()
             }
         }
@@ -56,6 +56,6 @@ fn main() {
     /* other conditionaĺ compilation settings */
     println!("cargo:rustc-cfg=log"); // enables acos5_64 log output to file debug_file, set in opensc.conf (e.g. debug_file = "/tmp/opensc-debug.log";). Otherwise the driver will be almost quiet referring that
 //    println!("cargo:rustc-cfg=enable_acos5_64_ui"); // enables acos5_64 to ask for user consent prior to using RSA private keys (for sign, decrypt)
-//    println!("cargo:rustc-link-search=native=/usr/lib"); // specifies where libiup.so/dylib/dll is located
 //    println!("cargo:rustc-link-lib=iup"); // specifies linking libiup.so/dylib or compiling on Windows with import library iup.lib
+//    println!("cargo:rustc-link-search=native=/usr/lib"); // specifies where libiup.so/dylib/dll is located
 }

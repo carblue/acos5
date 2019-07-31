@@ -1435,6 +1435,12 @@ extern "C" fn acos5_64_create_file(card: *mut sc_card, file: *mut sc_file) -> c_
     if card.is_null() || file.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
+    let file_ref = unsafe { & *file };
+    if file_ref.id == 0 || file_ref.type_attr.is_null() || file_ref.type_attr_len == 0 ||
+                           file_ref.sec_attr.is_null()  || file_ref.sec_attr_len == 0 {
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+
     let card_ref_mut = unsafe { &mut *card };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun   = CStr::from_bytes_with_nul(b"acos5_64_create_file\0").unwrap();

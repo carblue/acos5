@@ -46,10 +46,10 @@ app default {
         # module, the (/path/to/) filename of the driver library .so/.dll/.dylib. /path/to/ is dispensable if filename is in a 'standard library search path'
         module = /something/like/path/to/acos5_64/target/release/libacos5_64.so;
 
-        # Disable / enable enquiry popup when performing a
-        # signature or RSA decrypt operation with ACOS5-64.
-        # Only used if compiled with cfg=enable_acos5_64_ui:
-        # user_consent_enabled = yes;  # set to no to disable
+        # Disable / enable enquiry popup when performing a signature or RSA decrypt operation with ACOS5-64.
+        # Operational only if compiled with cfg=enable_acos5_64_ui:
+        # user_consent_enabled = yes; # anything starting with letter t or y (case-insensitive) get's interpreted as true/yes, otherwise false/no
+        # When the dialog/popup window is shown: Answer with NO in order to decline the RSA key usage; YES or closing the window [X] means accepting RSA key usage
     }
 ...
 .........
@@ -98,5 +98,5 @@ Independent from that, the RSA private key files should be created with "never a
 I deem this feature invaluable, as many applications start asking for the User Login Pin, but never tell what they will do with that permission. Unconstrained, they could likely do everything after a Login.<br>
 How this works: First the driver must be compiled with "cfg=enable_acos5_64_ui" (see build.rs, other conditional compilation settings). This - as a default - enables this feature.
 The graphical part of this feature is based on [IUP](https://www.tecgraf.puc-rio.br/iup "https://www.tecgraf.puc-rio.br/iup"), thus that must be installed and the last 3 lines in build.rs must be activated (meaning removing leading //):<br>
-The one that contains cargo:rustc-cfg=enable_acos5_64_ui, the next where to find that library, and the last one that names the iup library to link. The same must be applied for acos5_64_pkcs15init's build.rs if that is installed.<br>
+The one that contains cargo:rustc-cfg=enable_acos5_64_ui, the next that names the iup library to link, and the last one where to find that library. The same must be applied for acos5_64_pkcs15init's build.rs if that is installed.<br>
 That's it, except via opensc.conf the enabled status can be overridden by specifying user_consent_enabled = no;
