@@ -34,13 +34,13 @@ fn main() {
     match pkg_config::Config::new().atleast_version("0.17.0").probe("opensc") {
         Ok(lib) => {
             match lib.version.as_str() {
-//                "0.15.0" => println!("cargo:rustc-cfg=v0_15_0"), // an impl. will need to care for function _sc_match_atr and more
+//                "0.15.0" => println!("cargo:rustc-cfg=v0_15_0"), // an impl. will need to care for function _sc_match_atr and more; OpenSC supports secret keys (anything else but RSA) since v0_17_0
 //                "0.16.0" => println!("cargo:rustc-cfg=v0_16_0"), // dito
                 "0.17.0" => println!("cargo:rustc-cfg=v0_17_0"),
                 "0.18.0" => println!("cargo:rustc-cfg=v0_18_0"),
                 "0.19.0" => println!("cargo:rustc-cfg=v0_19_0"),
-                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"), // experimental only: it's git-master, Latest commit af8f96500903f9de7278ff557ded899e6d805983, defined as version 0.20.0 in config.h
-                _ => ()
+                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"), // experimental only: it's git-master, Latest commit 426772298a3a496ea8cbf7c234adf35ba386e04c, defined as version 0.20.0 in config.h
+                _ => panic!("No matching version found for opensc library"),
             }
         }
         Err(_e) => panic!("No pkg-config found for opensc library") // "{}", e.description()

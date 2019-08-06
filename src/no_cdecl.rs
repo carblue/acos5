@@ -788,9 +788,9 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
     SC_SUCCESS
 }
 
-pub /*const*/ fn acos5_64_atrs_supported() -> [sc_atr_table; 3]
+pub /*const*/ fn acos5_64_atrs_supported() -> [sc_atr_table; 4]
 {
-    let acos5_64_atrs: [sc_atr_table; 3] = [
+    let acos5_64_atrs = [
         sc_atr_table {
             atr:     CStr::from_bytes_with_nul(ATR_V2).unwrap().as_ptr(),
             atrmask: CStr::from_bytes_with_nul(ATR_MASK).unwrap().as_ptr(),
@@ -804,6 +804,14 @@ pub /*const*/ fn acos5_64_atrs_supported() -> [sc_atr_table; 3]
             atrmask: CStr::from_bytes_with_nul(ATR_MASK).unwrap().as_ptr(),
             name:    CStr::from_bytes_with_nul(NAME_V3).unwrap().as_ptr(),
             type_: SC_CARD_TYPE_ACOS5_64_V3,
+            flags: 0,
+            card_atr: std::ptr::null_mut(),
+        },
+        sc_atr_table {
+            atr:     CStr::from_bytes_with_nul(ATR_EVO).unwrap().as_ptr(),
+            atrmask: CStr::from_bytes_with_nul(ATR_MASK).unwrap().as_ptr(),
+            name:    CStr::from_bytes_with_nul(NAME_EVO).unwrap().as_ptr(),
+            type_: SC_CARD_TYPE_ACOS5_64_EVO,
             flags: 0,
             card_atr: std::ptr::null_mut(),
         },
@@ -1040,11 +1048,7 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
         env.file_ref.value[1] = (data.file_id_priv & 0xFF) as c_uchar;
         rv = acos5_64_set_security_env(card, &env, 0);
         if rv < 0 {
-/*
-                mixin (log!(__FUNCTION__,  "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPRIVATE"));
-                hstat.SetString(IUP_TITLE, "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPRIVATE");
-                return IUP_DEFAULT;
-*/
+/* mixin (log!(__FUNCTION__,  "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPRIVATE")); */
             return rv;
         }
 
@@ -1059,16 +1063,13 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
         env.file_ref.value[1] = (data.file_id_pub & 0xFF) as c_uchar;
         rv = acos5_64_set_security_env(card, &env, 0);
         if rv < 0 {
-/*
-                mixin (log!(__FUNCTION__,  "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
-                hstat.SetString(IUP_TITLE, "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
-                return IUP_DEFAULT;
-*/
+/* mixin (log!(__FUNCTION__,  "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC")); */
             return rv;
         }
     }
     let mut command = [0u8, 0x46, 0,0,18, data.key_len_code, data.key_priv_type_code, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
     if data.exponent_std { command[4] = 2; }
+    else { unsafe {copy_nonoverlapping(data.exponent.as_ptr(), command.as_mut_ptr().add(7), data.exponent.len())}; }
     let mut apdu = Default::default();
     rv = sc_bytes2apdu_wrapper(card.ctx, &command[.. if data.exponent_std  {command.len()-16} else {command.len()}], &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
@@ -1077,7 +1078,6 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
     unsafe { sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, f_log.as_ptr(), line!() as c_int, fun.as_ptr(), fmt.as_ptr(),
                        sc_dump_hex(command.as_ptr(), 7)) };
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
-//    data.op_success = rv==SC_SUCCESS;
     rv
 }
 

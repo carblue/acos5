@@ -4,14 +4,17 @@
 
 # acos5_64
 
-Driver for ACS ACOS5-64 Smart Card / CryptoMate64 / CryptoMate Nano; external module operating within the OpenSC framework (min. version 0.17.0).
+Driver for ACOS5-64 Smart Card / CryptoMate64 / CryptoMate Nano (Advanced Card Systems); external module operating within the OpenSC framework (min. version 0.17.0).<br>
+Hardware supported: V2.00 and V3.00. The new ACOS5-EVO is not yet available to me and untested.
 
-[ACOS5-64 Smart Card](https://www.acs.com.hk/en/products/308/acos5-64-v3.00-cryptographic-card-contact "ACOS5-64 Cryptographic Card (Contact) - Advanced Card Systems Ltd.")<br>
-[ACOS5-64 USB Token](https://www.acs.com.hk/en/products/414/cryptomate-nano-cryptographic-usb-tokens "ACOS5-64 CryptoMate Nano Cryptographic USB Token - Advanced Card Systems Ltd.")<br>
+[ACOS5-64 Smart Card](https://www.acs.com.hk/en/products/308/acos5-64-v3.00-cryptographic-card-contact "ACOS5-64 Cryptographic Card (Contact) - Advanced Card Systems Ltd.") (V3.00)<br>
+[ACOS5-64 USB Token](https://www.acs.com.hk/en/products/414/cryptomate-nano-cryptographic-usb-tokens "ACOS5-64 CryptoMate Nano Cryptographic USB Token - Advanced Card Systems Ltd.") (V3.00)<br>
+[ACOS5 EVO](https://www.acs.com.hk/en/press-release/2579/acs-launches-acos5-evo-cryptographic-smart-card)<br>
+The reference manual for V2.00, REF-ACOS5-64-1.07.pdf, is available on request from  info@acs.com.hk<br>
+The reference manual for V3.00, REF-ACOS5-64-2.07.pdf, is available on request from  info@acs.com.hk<br>
 https://changelog.complete.org/archives/9358-first-steps-with-smartcards-under-linux-and-android-hard-but-it-works<br>
 https://github.com/OpenSC/OpenSC/wiki<br>
-https://www.rust-lang.org/learn/get-started<br>
-If Rust/cargo is not required anymore, uninstall with: rustup self uninstall
+https://www.rust-lang.org/learn/get-started. If Rust/cargo is not required anymore, uninstall with: rustup self uninstall
 
 Look into build.rs first for some details about the libopensc binary (version etc.).<br>
 The prerequisite required to be installed is evident: OpenSC packages (e.g. Ubuntu: opensc, which depends on (required) opensc-pkcs11).<br>
@@ -60,7 +63,7 @@ app default {
 }
 ```
 
-You'll probably also want [acos5_64_pkcs15init](https://github.com/carblue/acos5_64_pkcs15init "https://github.com/carblue/acos5_64_pkcs15init"), an optional library that supplements driver 'acos5_64' with some specific PKCS#15 related functionality.<br>
+You'll probably also want [acos5_64_pkcs15init](https://github.com/carblue/acos5_64_pkcs15init "https://github.com/carblue/acos5_64_pkcs15init"), an optional library that supplements driver 'acos5_64' with some specific PKCS#15 related functionality (it doesn't supply much currently, yet it's non-optional for [acos5_64_gui](https://github.com/carblue/acos5_64_gui "https://github.com/carblue/acos5_64_gui")).<br>
 
 The third in the trio will be acos5_64_sm, an optional library that supplements driver 'acos5_64' with Secure Messaging support.
 

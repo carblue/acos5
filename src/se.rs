@@ -167,7 +167,7 @@ fn se_get_reference(card: &mut sc_card, file_id: c_int, se_reference: u8, search
     if dp.files.contains_key(&file_id) {
         let fdb        = dp.files[&file_id].1[0];
         let path_len = dp.files[&file_id].1[1] as usize;
-        let file_id_dir = if fdb & 0x38 == 0x38 { file_id }
+        let file_id_dir = if is_DFMF(fdb) { file_id }
                                 else {
                                     let tmp = &dp.files[&file_id].0[path_len-4..path_len-2];
                                     u16_from_array_begin(tmp)

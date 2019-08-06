@@ -79,56 +79,41 @@ UNTESTED$ opensc-tool --reset [arg]
 
 UNTESTED$ opensc-tool --card-driver <arg>
 
-OKAY$ opensc-tool --list-algorithms
+OKAY$ $ opensc-tool --list-algorithms
 Using reader with a card: ACS CryptoMate64 00 00
 Algorithm: rsa
 Key length: 512
-Flags: onboard key generation padding ( none ) hashes ( )
+Flags: onboard key generation padding ( pkcs1 ) hashes ( )
 
 Algorithm: rsa
 Key length: 768
-Flags: onboard key generation padding ( none ) hashes ( )
+Flags: onboard key generation padding ( pkcs1 ) hashes ( )
 
 ...
 
 Algorithm: rsa
 Key length: 3840
-Flags: onboard key generation padding ( none ) hashes ( )
+Flags: onboard key generation padding ( pkcs1 ) hashes ( )
 
 Algorithm: rsa
 Key length: 4096
-Flags: onboard key generation padding ( none ) hashes ( )
+Flags: onboard key generation padding ( pkcs1 ) hashes ( )
 
 Algorithm: 3des
 Key length: 192
 Flags:
 
-Algorithm: 3des             <= there is some bug: that should be aes
+Algorithm: aes             <= until PR #1729 merged to OpenSC.git.master, there was a bug that printed 3des (instead of correct aes)
 Key length: 128
 Flags:
 
-Algorithm: 3des             <= there is some bug: that should be aes
+Algorithm: aes             <= until PR #1729 merged to OpenSC.git.master, there was a bug that printed 3des (instead of correct aes)
 Key length: 192
 Flags:
 
-Algorithm: 3des             <= there is some bug: that should be aes
+Algorithm: aes             <= until PR #1729 merged to OpenSC.git.master, there was a bug that printed 3des (instead of correct aes)
 Key length: 256
 Flags:
-
-Once PR #1729 gets merged to OpenSC.git.master, the last 3 entries will be printed correctly:
-
-Algorithm: aes
-Key length: 128
-Flags:
-
-Algorithm: aes
-Key length: 192
-Flags:
-
-Algorithm: aes
-Key length: 256
-Flags:
-
 
 
 UNTESTED$ opensc-tool --wait

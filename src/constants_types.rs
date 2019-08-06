@@ -18,10 +18,10 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-use std::os::raw::{c_uchar, c_int, c_uint, c_char};
+use std::os::raw::{c_uchar, c_int, c_uint, c_char, c_void};
 use std::collections::HashMap;
 
-use opensc_sys::opensc::{sc_security_env};
+use opensc_sys::opensc::{sc_card, sc_security_env};
 use opensc_sys::types::{sc_crt, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
 use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUSTED,
                          SC_PKCS15_SKDF, SC_PKCS15_CDF, SC_PKCS15_CDF_TRUSTED, SC_PKCS15_CDF_USEFUL,
@@ -30,15 +30,18 @@ use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUST
 #[cfg(enable_acos5_64_ui)]
 use crate::user_consent::ui_context;
 
-// for an internal driver these 2 will move to cards.h
-pub const SC_CARD_TYPE_ACOS5_64_V2 : i32 = 16003;
-pub const SC_CARD_TYPE_ACOS5_64_V3 : i32 = 16004;
+// for an internal driver these 3 will move to cards.h
+pub const SC_CARD_TYPE_ACOS5_64_V2  : i32 = 16003;
+pub const SC_CARD_TYPE_ACOS5_64_V3  : i32 = 16004;
+pub const SC_CARD_TYPE_ACOS5_64_EVO : i32 = 16005;
 
 pub const ATR_V2   : &[u8; 57] = b"3b:be:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00\0"; // Using reader with a card: ACS CryptoMate64 00 00
 pub const ATR_V3   : &[u8; 57] = b"3b:be:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00\0"; // Using reader with a card: ACS CryptoMate (T2) 00 00  ; this is CryptoMate Nano
+pub const ATR_EVO  : &[u8; 57] = b"3b:9e:96:80:01:41:05:40:00:00:00:00:00:00:00:00:00:90:00\0"; // unknown currently
 pub const ATR_MASK : &[u8; 57] = b"FF:FF:FF:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF\0";
 pub const NAME_V2  : &[u8; 43] = b"ACOS5-64 v2.00: Smart Card or CryptoMate64\0";
 pub const NAME_V3  : &[u8; 46] = b"ACOS5-64 v3.00: Smart Card or CryptoMate Nano\0";
+pub const NAME_EVO : &[u8; 47] = b"ACOS5-64 EVO: Smart Card EVO or CryptoMate EVO\0";
 
 pub const CARD_DRV_NAME       : &[u8;  96] = b"'acos5_64', suitable for ACOS5-64 v2.00 and v3.00 (Smart Card / CryptoMate64 / CryptoMate Nano)\0";
 pub const CARD_DRV_SHORT_NAME : &[u8;   9] = b"acos5_64\0";
@@ -58,7 +61,7 @@ pub const CALLED              : &[u8;   7] = b"called\0";
 pub const RETURNING           : &[u8;  10] = b"returning\0";
 pub const RETURNING_INT_CSTR  : &[u8;  25] = b"returning with: %d (%s)\n\0";
 pub const RETURNING_INT       : &[u8;  20] = b"returning with: %d\n\0";
-//pub const USER_CONSENT_CMD_NIX : &[u8;  18] = b"/usr/bin/pinentry\0";
+//pub const USER_CONSENT_CMD_NIX : &[u8;  18] = b"/usr/bin/pinentry\0"; // substituted by IUP
 
 //pub const V_0_0_0   : &[u8; 6] = b"0.0.0\0";
 //pub const V_0_15_0  : &[u8; 7] = b"0.15.0\0";
@@ -66,12 +69,13 @@ pub const RETURNING_INT       : &[u8;  20] = b"returning with: %d\n\0";
 //pub const V_0_17_0  : &[u8; 7] = b"0.17.0\0";
 //pub const V_0_18_0  : &[u8; 7] = b"0.18.0\0";
 //pub const V_0_19_0  : &[u8; 7] = b"0.19.0\0";
+//pub const V_0_20_0  : &[u8; 7] = b"0.20.0\0";
 
 // iso7816 ReservedFutureUse tags used by acos, that are not part of iso7816.h/rs
 //pub const ISO7816_RFU_TAG_FCP_SFI  : u8 = 0x88;  /* L:1,    V: Short File Identifier (SFI). 5 LSbs of File ID if unspecified. Applies to: Any file */
 pub const ISO7816_RFU_TAG_FCP_SAC  : u8 = 0x8C;    /* L:0-8,  V: Security Attribute Compact (SAC). Applies to: Any file */
 pub const ISO7816_RFU_TAG_FCP_SEID : u8 = 0x8D;    /* L:2,    V: Security Environment File identifier (SE File associated with this DF). Applies to: DFs */
-//pub const ISO7816_RFU_TAG_FCP_SAE  : u8 = 0xAB;  /* L:0-32, V: Security Attribute Extended (SAE). Applies to: DFs */
+pub const ISO7816_RFU_TAG_FCP_SAE  : u8 = 0xAB;    /* L:0-32, V: Security Attribute Extended (SAE). Applies to: DF s */
 
 //ACOS5 File Descriptor Bytes, the proprietary encoding of file types, the first within V of Tag ISO7816_TAG_FCP_TYPE:
 pub const FDB_MF                 : u8 = 0x3F; // Master File     MF
@@ -86,6 +90,7 @@ pub const FDB_RSA_KEY_EF         : u8 = 0x09; // RSA Key EF, for private and pub
 pub const FDB_CHV_EF             : u8 = 0x0A; // CHV EF, for the pin file, max 1 file only in each DF
 pub const FDB_SYMMETRIC_KEY_EF   : u8 = 0x0C; // Symmetric Key EF,         max 1 file only in each DF;  PKCS15_FILE_TYPE_SECRETKEY
 pub const FDB_PURSE_EF           : u8 = 0x0E; // Purse EF, since ACOS5-64 v3.00
+pub const FDB_ECC_KEY_EF         : u8 = 0x19; // Elliptic Curve Cryptography Key EF, for private and public key file; distinguish by PKCS15_FILE_TYPE_ECCPRIVATEKEY or PKCS15_FILE_TYPE_ECCPUBLICKEY
 /* Proprietary internal EF */
 pub const FDB_SE_FILE            : u8 = 0x1C; // Security Environment File, exactly 1 file only in each DF; DF's header/FCI points to this
 
@@ -101,6 +106,9 @@ pub const CRT_TAG_CT_SYM  : u32 = 0xB8+0; // Confidentiality Template      : AND
 pub const CRT_TAG_CT      : u32 = 0xB8;   // Confidentiality Template
 pub const CRT_TAG_CCT     : u32 = 0xB4;   // Cryptographic Checksum Templ. : AND: UQB, Algorithm  ;    OR: ID_Pin_Key_Local_Global, HP_Key_Session  ; OPT: Initial_Vector
 pub const CRT_TAG_NA      : u32 = 0x00;   // N/A unknown
+//5.4.6. Key Agreement Template
+//The KAT defines which parameters to use in key derivation operations.
+//pub const CRT_TAG_KAT     : u32 =
 
 // the following bytes indicate, whether an SC Byte encodes Secure Messaging, it does't guarantee, that the referred command allows SM at all
 pub const SM_MODE_NONE           : u8 = 0; // SM is not enforced/impossible as of SCB setting
@@ -126,6 +134,9 @@ pub const PKCS15_FILE_TYPE_APPDF         : u8 =  14; // file 0x4100  (arbitrary,
 
 pub const PKCS15_FILE_TYPE_RSAPRIVATEKEY : u8 =  16;
 pub const PKCS15_FILE_TYPE_RSAPUBLICKEY  : u8 =  9;  // e.g. file 0x4131  (arbitrary, when readable by read_public_key, asn1-der-encoded public RSA key file) RSA_PUB
+pub const PKCS15_FILE_TYPE_ECCPRIVATEKEY : u8 =  20;
+pub const PKCS15_FILE_TYPE_ECCPUBLICKEY  : u8 =  21;
+
 pub const PKCS15_FILE_TYPE_SECRETKEY     : u8 =  17; // iEF with cos5
 pub const PKCS15_FILE_TYPE_CERT          : u8 =  15;
 pub const PKCS15_FILE_TYPE_DATA          : u8 =  19;
@@ -135,6 +146,7 @@ pub const PKCS15_FILE_TYPE_NONE          : u8 =  0xFF; // should not happen to e
 pub const RSAPUB_MAX_LEN           : usize = 5 + 16 + 512; // the max. file size requirement for RSA public key (4096 bit == 512 byte; 16 byte is the max. public exponent length)
 pub const RSAPRIV_MAX_LEN_STD      : usize = 5 +      512; // the max. file size requirement for RSA private key (non-CRT)
 pub const RSAPRIV_MAX_LEN_CRT      : usize = 5 +   5* 256; // the max. file size requirement for RSA private key stored in CRT manner
+
 
 //https://cryptosys.net/pki/manpki/pki_paddingschemes.html
 // don't use BLOCKCIPHER_PAD_TYPE_ZEROES, if it's required to retrieve the message length exactly
@@ -204,18 +216,22 @@ pub const SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE     : c_uint =  0x0000_001A; // d
 pub const SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE      : c_uint =  0x0000_001B; // data: *mut CardCtlAuthState,  get_pin_auth_state
 pub const SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE      : c_uint =  0x0000_001C; // data: *mut CardCtlAuthState,  get_key_auth_state
 
-pub const SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO   : c_uint =  0x0000_0020; // data: null
-pub const SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO   : c_uint =  0x0000_0021; // data: *mut CardCtlArray32,  get_files_hashmap_info
+pub const SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO   : c_uint =  0x0000_001E; // data: null
+pub const SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO   : c_uint =  0x0000_001F; // data: *mut CardCtlArray32,  get_files_hashmap_info
 
-pub const SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST  : c_uint =  0x0000_0022; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting excluded
-pub const SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE : c_uint =  0x0000_0023; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting excluded
-pub const SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST_MSE  : c_uint =  0x0000_0024; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting included
-pub const SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE_MSE : c_uint =  0x0000_0025; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting included
+pub const SC_CARDCTL_ACOS5_SDO_CREATE              : c_uint =  0x0000_0020; // data: *mut sc_file
+pub const SC_CARDCTL_ACOS5_SDO_DELETE              : c_uint =  0x0000_0021; // data:
+pub const SC_CARDCTL_ACOS5_SDO_STORE               : c_uint =  0x0000_0022; // data:
 
-pub const SC_CARDCTL_ACOS5_ENCRYPT_SYM             : c_uint =  0x0000_0026; // data: *mut CardCtl_crypt_sym,  do_encrypt_sym
-pub const SC_CARDCTL_ACOS5_ENCRYPT_ASYM            : c_uint =  0x0000_0027; // data: *mut CardCtl_crypt_asym, do_encrypt_asym; Signature verification with public key
-pub const SC_CARDCTL_ACOS5_DECRYPT_SYM             : c_uint =  0x0000_0028; // data: *mut CardCtl_crypt_sym,  do_decrypt_sym
-////pub const SC_CARDCTL_ACOS5_DECRYPT_ASYM        : c_uint =  0x0000_0029; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
+pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST  : c_uint =  0x0000_0023; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting excluded
+pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE : c_uint =  0x0000_0024; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting excluded
+pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST_MSE  : c_uint =  0x0000_0025; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting included
+pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE_MSE : c_uint =  0x0000_0026; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting included
+
+pub const SC_CARDCTL_ACOS5_ENCRYPT_SYM             : c_uint =  0x0000_0027; // data: *mut CardCtl_crypt_sym,  do_encrypt_sym
+pub const SC_CARDCTL_ACOS5_ENCRYPT_ASYM            : c_uint =  0x0000_0028; // data: *mut CardCtl_crypt_asym, do_encrypt_asym; Signature verification with public key
+pub const SC_CARDCTL_ACOS5_DECRYPT_SYM             : c_uint =  0x0000_0029; // data: *mut CardCtl_crypt_sym,  do_decrypt_sym
+////pub const SC_CARDCTL_ACOS5_DECRYPT_ASYM        : c_uint =  0x0000_002A; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
 
 
 /* more related to acos5_64_pkcs15init */
@@ -322,7 +338,6 @@ impl Default for CardCtl_generate_crypt_asym {
             key_len_code: 0x20,    // 4096 bit
             key_priv_type_code: 6, // CRT, sign+decrypt
             perform_mse: false,
-//            op_success: false
         }
     }
 }
@@ -420,6 +435,9 @@ pub struct DataPrivate { // see settings in acos5_64_init
          false: acos5_64_get_response behaves (exactly?) like iso7816_get_response
      */
     pub is_running_cmd_long_response : bool,
+    pub do_generate_rsa_crt : bool,         // whether RSA private key file shall be generated in ChineseRemainderTheorem-style
+    pub do_generate_rsa_add_decrypt : bool, // whether RSA private key file shall be generated adding decrypt iff sign is requested
+    pub do_generate_rsa_standard_pub_exponent : bool, // whether RSA key pair will contain the "standard" public exponent e=0x010001==65537; otherwise the user supplied 16 byte exponent will be used
     /*  is_running_compute_signature: false, // maybe, acos5_64_decipher will need to know, that it was called by acos5_64_compute_signature */
     #[cfg(enable_acos5_64_ui)]
     pub ui_ctx : ui_context,
@@ -450,4 +468,19 @@ pub fn u32_from_array_begin(array: &[u8]) -> u32
 {
     assert!(array.len()>=4);
     (array[0] as u32) << 24  |  (array[1] as u32) << 16  |  (array[2] as u32) << 8  |  array[3] as u32
+}
+
+pub fn set_crt(card: &mut sc_card, value: bool)
+{
+    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    dp.do_generate_rsa_crt = value;
+    card.drv_data = Box::into_raw(dp) as *mut c_void;
+}
+
+pub fn get_crt(card: &mut sc_card) -> bool
+{
+    let dp : Box<DataPrivate> = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let result = dp.do_generate_rsa_crt;
+    card.drv_data = Box::into_raw(dp) as *mut c_void;
+    result
 }

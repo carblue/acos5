@@ -25,7 +25,7 @@
 
  https://help.github.com/en/articles/changing-a-remotes-url
 
- Table 4 - Data within a command-response pair
+ Table 4 - Data within a command-response pair : APDU case
 Case     Command data     Expected response data
 1         No data             No data
 2         No data             Data
@@ -108,7 +108,8 @@ use opensc_sys::cardctl::{SC_CARDCTL_GET_SERIALNR, SC_CARDCTL_LIFECYCLE_SET};
 use opensc_sys::asn1::{sc_asn1_find_tag, sc_asn1_put_tag/*, sc_asn1_skip_tag, sc_asn1_read_tag, sc_asn1_print_tags*/};
 use opensc_sys::iso7816::{ISO7816_TAG_FCP_TYPE, ISO7816_TAG_FCP_LCS,  ISO7816_TAG_FCP, ISO7816_TAG_FCP_SIZE,
                           ISO7816_TAG_FCP_FID};
-use opensc_sys::pkcs15::{sc_pkcs15_pubkey_rsa, sc_pkcs15_bignum, sc_pkcs15_encode_pubkey_rsa};
+use opensc_sys::pkcs15::{sc_pkcs15_pubkey_rsa, sc_pkcs15_bignum, sc_pkcs15_encode_pubkey_rsa, sc_pkcs15_bind,
+                         sc_pkcs15_unbind, sc_pkcs15_auth_info, sc_pkcs15_get_objects, SC_PKCS15_TYPE_AUTH_PIN, sc_pkcs15_object}; // , SC_PKCS15_AODF
 
 #[allow(dead_code)]
 pub mod    cmd_card_info;
@@ -639,6 +640,9 @@ extern "C" fn acos5_64_init(card: *mut sc_card) -> c_int
         rsa_caps: rsa_algo_flags,
         is_running_init: true,
         is_running_cmd_long_response: false,
+        do_generate_rsa_crt: true,
+        do_generate_rsa_add_decrypt: true,
+        do_generate_rsa_standard_pub_exponent: true,
         #[cfg(enable_acos5_64_ui)]
         ui_ctx: Default::default(),
     } );
@@ -687,6 +691,7 @@ extern "C" fn acos5_64_finish(card: *mut sc_card) -> c_int
     if cfg!(log) {
         wr_do_log(card_ref.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
+//    acos5_64_logout(card);
     /* some testing code, unrelated (to acos5_64_finish) */
 /*
         let mut path = Default::default();
@@ -1034,7 +1039,12 @@ extern "C" fn acos5_64_card_ctl(card: *mut sc_card, command: c_ulong, data: *mut
                 update_hashmap(card_ref_mut);
                 SC_SUCCESS
             },
-        SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST =>
+        SC_CARDCTL_ACOS5_SDO_CREATE =>
+            if data.is_null() { SC_ERROR_INVALID_ARGUMENTS }
+            else {
+                acos5_64_create_file(card, data as *mut sc_file)
+            },
+        SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST =>
             if data.is_null() { SC_ERROR_INVALID_ARGUMENTS }
             else {
                 let generate_crypt_asym_data = unsafe { &mut *(data as *mut CardCtl_generate_crypt_asym) };
@@ -1389,10 +1399,7 @@ extern "C" fn acos5_64_get_challenge(card: *mut sc_card, buf: *mut c_uchar, coun
     count as c_int
 }
 
-/* currently refers to pins only, but what about authenticated keys
-cos5 needs to know the pinReference s, exactly what is in AODF. PinAttributes . pinReference  [0] Reference DEFAULT 0,
-*/
-//#[allow(dead_code)]
+/* currently refers to pins only, but what about authenticated keys */
 extern "C" fn acos5_64_logout(card: *mut sc_card) -> c_int
 {
     if card.is_null() {
@@ -1406,15 +1413,27 @@ extern "C" fn acos5_64_logout(card: *mut sc_card) -> c_int
     }
 
     // FIXME content of pin_references are 'hard-coded' here: they are known via AODF
-    let pin_references = &[0x81u8, 1][..];
+//    let pin_references = &[0x81u8, 1][..];
     let command = [0x80u8, 0x2E, 0x00, 0x00];
     let mut apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card_ref_mut.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
     assert_eq!(apdu.cse, SC_APDU_CASE_1);
 
-    for pin_reference in pin_references {
-        apdu.p2 = *pin_reference;
+    let aid = std::ptr::null_mut();
+    let mut p15card = std::ptr::null_mut();
+    rv = unsafe { sc_pkcs15_bind(card, aid, &mut p15card) };
+    if rv < SC_SUCCESS {
+        if cfg!(log) {
+            wr_do_log(card_ref_mut.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"failed: sc_pkcs15_bind\0").unwrap());
+        }
+    }
+    assert!(!p15card.is_null());
+    let mut p15objects : [*mut sc_pkcs15_object; 10] = [std::ptr::null_mut(); 10];
+    let nn_objs = unsafe { sc_pkcs15_get_objects(p15card, SC_PKCS15_TYPE_AUTH_PIN, &mut p15objects[0], 10) } as usize;
+    for i in 0..nn_objs {
+        let auth_info_ref = unsafe { &*((*p15objects[i]).data as *mut sc_pkcs15_auth_info) };
+        apdu.p2 = unsafe { auth_info_ref.attrs.pin.reference } as u8; //*pin_reference;
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
         if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 {
             if cfg!(log) {
@@ -1422,6 +1441,12 @@ extern "C" fn acos5_64_logout(card: *mut sc_card) -> c_int
                     (b"sc_transmit_apdu or ACOS5-64 'Logout' failed\0").unwrap());
             }
             return SC_ERROR_KEYPAD_MSG_TOO_LONG;
+        }
+    }
+    rv = unsafe { sc_pkcs15_unbind(p15card) }; // calls sc_pkcs15_pincache_clear
+    if rv < SC_SUCCESS {
+        if cfg!(log) {
+            wr_do_log(card_ref_mut.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"failed: sc_pkcs15_unbind\0").unwrap());
         }
     }
     SC_SUCCESS
@@ -1457,15 +1482,22 @@ extern "C" fn acos5_64_create_file(card: *mut sc_card, file: *mut sc_file) -> c_
         }
     }
     else {
-        let file_ref  = unsafe { & *file };
-        let buf : [u8; 2] = [((file_ref.id >> 8) as u8) & 0xFF, (file_ref.id & 0xFF) as u8];
+//        let file_ref  = unsafe { & *file };
+//        let buf : [u8; 2] = [((file_ref.id >> 8) as u8) & 0xFF, (file_ref.id & 0xFF) as u8];
+//        let file_id = file_ref.id as u16; //u16_from_array_begin(&buf[..]);
         let mut dp = unsafe { Box::from_raw(card_ref_mut.drv_data as *mut DataPrivate) };
-        let file_id = u16_from_array_begin(&buf[..]);
-        dp.files.entry(file_id).or_insert(([0u8;SC_MAX_PATH_SIZE], [0u8; 8], None, None));
+        let mut x = dp.files.entry(file_ref.id as u16).or_insert(([0u8;SC_MAX_PATH_SIZE], [9u8, 0, 0, 0, 0, 0, 0xFF, 5], None, None));
+        x.0 = file_ref.path.value;
+//      x.1[0] = 0x09;
+        x.1[1] = file_ref.path.len as c_uchar;
+        x.1[2] = file_ref.path.value[file_ref.path.len-2];
+        x.1[3] = file_ref.path.value[file_ref.path.len-1];
+        x.1[4] = ((file_ref.size >> 8) & 0xFF) as c_uchar;
+        x.1[5] = ( file_ref.size       & 0xFF) as c_uchar;
 
         card_ref_mut.drv_data = Box::into_raw(dp) as *mut c_void;
         if cfg!(log) {
-            wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_id,
+            wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.id,
                         CStr::from_bytes_with_nul(b"file_id %04X added to hashmap\0").unwrap());
         }
     }
@@ -1500,6 +1532,9 @@ extern "C" fn acos5_64_delete_file(card: *mut sc_card, path: *const sc_path) -> 
         let rm_result = dp.files.remove(&file_id);
         assert!(rm_result.is_some());
         card_ref_mut.drv_data = Box::into_raw(dp) as *mut c_void;
+        assert!(card_ref_mut.cache.current_path.len > 2);
+//        card_ref_mut.cache.current_path.value =
+        card_ref_mut.cache.current_path.len   -= 2;
         if cfg!(log) {
             wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_id,
                         CStr::from_bytes_with_nul(b"file_id %04X deleted from hashmap\0").unwrap());
@@ -1726,6 +1761,9 @@ extern "C" fn acos5_64_process_fci(card: *mut sc_card, file: *mut sc_file,
         if dp_files_value_ref_mut.2.is_none() {
             dp_files_value_ref_mut.2  = Some(scb8);
         }
+        if dp_files_value_ref_mut.1[0] == FDB_RSA_KEY_EF && dp_files_value_ref_mut.1[6] == 0xFF {
+            dp_files_value_ref_mut.1[6] = if scb8[0] == 0xFF {PKCS15_FILE_TYPE_RSAPRIVATEKEY} else {PKCS15_FILE_TYPE_RSAPUBLICKEY};
+        }
         if dp_files_value_ref_mut.1[0] == FDB_MF && dp_files_value_ref_mut.1[4..] == [0u8, 0, 0xFF, 0xFF] { // correct the initially unknown/incorrect lcsi setting
             let mut len_bytes_tag_fcp_lcs = 0usize;
             let     ptr_bytes_tag_fcp_lcs = unsafe { sc_asn1_find_tag(card_ref.ctx, buf, buflen,
@@ -1803,6 +1841,11 @@ extern "C" fn acos5_64_construct_fci(card: *mut sc_card, file: *const sc_file,
                              p, *outlen_ref_mut-ptr_diff_sum, &mut p) };
     ptr_diff_sum += 2+file_ref.type_attr_len;
 
+    /* 3 bytes will be written for tag ISO7816_TAG_FCP_LCS (0x8A) */
+    buf[0] = 5; // skip cos5 command "Activate File" and create as activated
+    unsafe { sc_asn1_put_tag(ISO7816_TAG_FCP_LCS as c_uint, buf.as_ptr(), 1, p, *outlen_ref_mut-ptr_diff_sum, &mut p) };
+    ptr_diff_sum += 3;
+
     if [FDB_TRANSPARENT_EF, FDB_RSA_KEY_EF].contains(&fdb) { // any non-record-based, non-DF/MF fdb
         /* 4 bytes will be written for tag ISO7816_TAG_FCP_SIZE (0x80) */
         assert!(file_ref.size > 0);
@@ -1821,21 +1864,6 @@ extern "C" fn acos5_64_construct_fci(card: *mut sc_card, file: *const sc_file,
     unsafe { *out.add(1) = (ptr_diff_sum-2) as c_uchar; };
     *outlen_ref_mut = ptr_diff_sum;
 
-    // Writes a TL or TLV byte sequences
-    // @param  tag      IN     Tag to be written\
-    // @param  data     INIF   V to be written. If data is NULL or datalen is zero, then the data field will not be written.
-    //                         This is helpful for constructed structures.\
-    // @param  datalen  IN     L (V's/data's length) to be written\
-    // @param  out      OUTIF  if != NULL, the start address for: TLV bytes to be written; the underlying  buffer
-    //                         should  be sized sufficiently to receive the complete TLV\
-    //                         if == NULL or outlen==0, then @return will be the length of bytes that would be written;\
-    // @param  outlen   IN     Number of bytes available within the underlying buffer of out to be written\
-    // @param  ptr      OUTIF  Receiving address for: Pointer, pointing past TLV written, i.e. location of the next
-    //                         possible ASN.1 object\
-    // @return          0 or (condition see @param out) the number of bytes that would be written\
-    // @test available
-//    pub fn sc_asn1_put_tag(tag: c_uint, data: *const c_uchar, datalen: usize, out: *mut c_uchar, outlen: usize,
-//                           ptr: *mut *mut c_uchar) -> c_int;
 
     /*
             else {
