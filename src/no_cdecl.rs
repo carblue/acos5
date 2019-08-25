@@ -1,5 +1,5 @@
 /*
-* no_cdecl.rs: Driver 'acos5_64' - Miscellaneous functions referring to sc_path or sc_path.value
+* no_cdecl.rs: Driver 'acos5_64' - Miscellaneous functions
  *
  * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
@@ -582,6 +582,7 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path, only_se_df: bool/*, depth: c
         unsafe { sc_file_free(file_out_ptr_mut) };
 
         let is_local =  path.len>=6;
+/*
         /* SC_AC_CHV is the case for my Nano, experimentally */
         if card.type_== SC_CARD_TYPE_ACOS5_64_V3 && [SC_AC_CHV /*, SC_AC_AUT*/].contains(&acl_entry_read_method) {
             let mut tries_left = 0;
@@ -590,7 +591,7 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path, only_se_df: bool/*, depth: c
             rv = unsafe { sc_verify(card, SC_AC_CHV, if is_local {0x81} else {0x01}, pin.as_ptr(), pin.len(), &mut tries_left) };
             assert_eq!(rv, SC_SUCCESS);
         }
-
+*/
         let mut vec_seinfo : Vec<SeInfo> = Vec::new();
         for rec_nr in 1..1+nor {
             let mut buf = [0u8; 255];
@@ -1539,6 +1540,12 @@ pub fn get_files_hashmap_info(card: &mut sc_card, key: u16) -> Result<[u8; 32], 
     let mut rbuf = [0u8; 32];
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
 /*
+A0 2F 30 0E 0C 05 45 43 6B 65 79 03 02 06 C0 04 01 01 30 0F 04 01 09 03 03 06 20 40 03 02 03 B8 02 01 09 A1 0C 30 0A 30 08 04 06 3F 00 41 00 41 F9
+A0 2C 30 0B 0C 05 45 43 6B 65 79 03 02 06 40 30 0F 04 01 09 03 03 06 02 00 03 02 03 09 02 01 09 A1 0C 30 0A 30 08 04 06 3F 00 41 00 41 39
+
+temporary only: acos5_64_gui expects the 32 bytes in another order, which is done here, i.e. provide in rbuf what acos5_64_gui expects
+temporary only: files 0x4139 and 0x41F9 (an RSA key pair on my CryptoMate64) experimentally will pretend to acos5_64_gui to be ECC key pair files, in order to test detection
+
 alias  TreeTypeFS = tree_k_ary.Tree!ub32; // 8 bytes + length of pathlen_max considered (, here SC_MAX_PATH_SIZE = 16) + 8 bytes SAC (file access conditions)
                             path                    File Info       scb8                SeInfo
 pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, Option<Vec<SeInfo>>);
@@ -1550,6 +1557,16 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
         {
             let dst = &mut rbuf[ 0.. 8];
             dst.copy_from_slice(&dp_files_value_ref.1);
+/*
+            if key == 0x4139 {
+                rbuf[0] = FDB_ECC_KEY_EF;
+                rbuf[6] = PKCS15_FILE_TYPE_ECCPUBLICKEY;
+            }
+            else if key == 0x41F9 {
+                rbuf[0] = FDB_ECC_KEY_EF;
+                rbuf[6] = PKCS15_FILE_TYPE_ECCPRIVATEKEY;
+            }
+*/
         }
         {
             let dst = &mut rbuf[ 8..24];

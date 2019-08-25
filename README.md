@@ -16,12 +16,32 @@ https://changelog.complete.org/archives/9358-first-steps-with-smartcards-under-l
 https://github.com/OpenSC/OpenSC/wiki<br>
 https://www.rust-lang.org/learn/get-started. If Rust/cargo is not required anymore, uninstall with: rustup self uninstall
 
-Look into build.rs first for some details about the libopensc binary (version etc.).<br>
+Look into build.rs first for some details about the libopensc binary (version etc.) and pkg-config.<br>
+
 The prerequisite required to be installed is evident: OpenSC packages (e.g. Ubuntu: opensc, which depends on (required) opensc-pkcs11).<br>
 Whether or not You intend to build the OpenSC binaries from sources, it's recommended to read the first 100 lines of [opensc-sys.lib.rs](https://github.com/carblue/opensc-sys/blob/master/src/lib.rs "https://github.com/carblue/opensc-sys/blob/master/src/lib.rs")<br>
 The opensc-sys binding should be tested to be operational.
 
-Compile as usual with Rust<br>
+Another "weak prerequisite" is pkg-config package installed. It's used in file build.rs to adapt the code to the OpenSC version installed, i.e. a driver build will always be tied to a specific OpenSC version and needs to be rebuilt whenever the OpenSC version changes (before that, change opensc.pc to the new Version). There is a way to make the adaption work without pkg-config by editing build.rs, see comments in file build.rs.
+The adaption based on pkg-config needs a file opensc.pc to be created on Your system. No distro supplys that, but a file opensc-pkcs11.pc. Copy that as file opensc.pc into the same directory location and change the content (see after <- what to change where; don't change anything else e.g. if Your libdir is different from mine on Kubuntu, that's fine and specific for Your OS). The last 2 lines are what processing build.rs via pkg-config will utilize from opensc.pc:
+
+```
+prefix=/usr
+exec_prefix=${prefix}
+libdir=/usr/lib/x86_64-linux-gnu
+includedir=${prefix}/include
+
+Name: OpenSC smartcard framework
+Description: OpenSC PKCS#11 module        <- Description: OpenSC library
+Version: 0.19.0
+Libs: -L${libdir} -lopensc-pkcs11         <- Libs: -L${libdir} -lopensc
+
+```
+
+There is an optional prerequisite: IUP installed, if You want the feature "user consent", see in the end.
+
+
+Build the driver binary as usual with Rust<br>
 `user@host:~/path/to/acos5_64$ cargo build --release`<br>
 `optionally, if no debug info is required for better backtrace infos: user@host:~/path/to/acos5_64$ strip --strip-all target/release/libacos5_64.so`
 
@@ -99,7 +119,7 @@ That PKCS15.asn is based on a published ASN.1 module `pkcs-15v1_1.asn` tailored 
 This is a feature to constrain usage of token's RSA private keys: Only when the user allows  RSA private key usage case by case, then `acos5_64_compute_signature` and `acos5_64_decipher` are allowed to proceed operating for RSA private keys.<br>
 Independent from that, the RSA private key files should be created with "never allowed to read" and "allowed to perform crypto operations only after some condition fulfilled, like verify a pin" and that pin should be the same as the one required for a User Login.<br>
 I deem this feature invaluable, as many applications start asking for the User Login Pin, but never tell what they will do with that permission. Unconstrained, they could likely do everything after a Login.<br>
-How this works: First the driver must be compiled with "cfg=enable_acos5_64_ui" (see build.rs, other conditional compilation settings). This - as a default - enables this feature.
+How this works: First the driver must be compiled with "cfg=enable_acos5_64_ui" (see file build.rs, other conditional compilation settings). This - as a default - enables this feature.
 The graphical part of this feature is based on [IUP](https://www.tecgraf.puc-rio.br/iup "https://www.tecgraf.puc-rio.br/iup"), thus that must be installed and the last 3 lines in build.rs must be activated (meaning removing leading //):<br>
 The one that contains cargo:rustc-cfg=enable_acos5_64_ui, the next that names the iup library to link, and the last one where to find that library. The same must be applied for acos5_64_pkcs15init's build.rs if that is installed.<br>
 That's it, except via opensc.conf the enabled status can be overridden by specifying user_consent_enabled = no;
