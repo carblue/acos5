@@ -626,6 +626,12 @@ extern "C" fn acos5_64_init(card: *mut sc_card) -> c_int
         assert!(!me_card_find_alg(card_ref_mut, SC_ALGORITHM_AES, 256, std::ptr::null_mut() as *mut c_void).is_null());
     }
 ////////////////////////////////////////
+    /* stores serialnr in card.serialnr, required for enum_dir */
+    match get_serialnr(card_ref_mut) {
+        Ok(_val) => (),
+        Err(e) => return e,
+    };
+////////////////////////////////////////
     let mut files : HashMap<KeyTypeFiles, ValueTypeFiles> = HashMap::with_capacity(50);
     files.insert(0x3F00, (
         [0u8; SC_MAX_PATH_SIZE],
@@ -691,6 +697,7 @@ extern "C" fn acos5_64_finish(card: *mut sc_card) -> c_int
     if cfg!(log) {
         wr_do_log(card_ref.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
+////////////////////
 //    acos5_64_logout(card);
     /* some testing code, unrelated (to acos5_64_finish) */
 /*
@@ -766,7 +773,7 @@ extern "C" fn acos5_64_finish(card: *mut sc_card) -> c_int
         let mut rv =  unsafe { sc_select_file(card_ref_mut, &path, std::ptr::null_mut()/*file: *mut *mut sc_file*/) };
         assert_eq!(rv, SC_SUCCESS);
         let mut tries_left= 0i32;
-        rv = unsafe { sc_verify(card_ref_mut, SC_AC_CHV, 0x81, [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38].as_ptr(), 8, &mut tries_left) };
+//        rv = unsafe { sc_verify(card_ref_mut, SC_AC_CHV, 0x81, [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38].as_ptr(), 8, &mut tries_left) };
         assert_eq!(rv, SC_SUCCESS);
 
         let mut crypt_sym = CardCtl_crypt_sym {

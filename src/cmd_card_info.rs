@@ -31,6 +31,7 @@ use opensc_sys::log::{sc_do_log, SC_LOG_DEBUG_NORMAL};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_KEYPAD_MSG_TOO_LONG/*, SC_ERROR_FILE_NOT_FOUND*/};
 
 use crate::constants_types::*;
+use crate::wrappers::*;
 //use super::{acos5_64_select_file};
 
 /*
@@ -41,16 +42,18 @@ use crate::constants_types::*;
  */
 pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, c_int>
 {
-    let file_str = CStr::from_bytes_with_nul(CRATE).unwrap();
-    let func     = CStr::from_bytes_with_nul(b"get_serialnr\0").unwrap();
-    let format   = CStr::from_bytes_with_nul(CALLED).unwrap();
+    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
+    let fun   = CStr::from_bytes_with_nul(b"get_serialnr\0").unwrap();
     #[cfg(log)]
-    unsafe {sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, file_str.as_ptr(), line!() as i32, func.as_ptr(), format.as_ptr())};
+    wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
 
+    if card.serialnr.len > 0 {
+        return Ok(card.serialnr);
+    }
     let len_card_serial_number = if card.type_ == SC_CARD_TYPE_ACOS5_64_V3 {8u8} else {6u8};
     let command = [0x80u8, 0x14, 0x00, 0x00, len_card_serial_number];
     let len_card_serial_number = len_card_serial_number as usize;
-    let mut apdu : sc_apdu = Default::default();
+    let mut apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
     assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
@@ -61,14 +64,13 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, c_int>
     apdu.resplen = SC_MAX_SERIALNR;
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 || apdu.resplen < len_card_serial_number {
-        let format = CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5-64 'Get Card Info: Serial Number' failed\0")
-                     .unwrap();
         #[cfg(log)]
-        unsafe { sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, file_str.as_ptr(), line!() as i32, func.as_ptr(),
-                           format.as_ptr()) };
+        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5-64 'Get Card Info: Serial Number' failed\0").unwrap());
         return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
     }
     serial.len = len_card_serial_number;
+    card.serialnr = sc_serial_number { value: serial.value, len: serial.len, iin: card.serialnr.iin };
+
     Ok(serial)
 }
 

@@ -12,6 +12,7 @@ Hardware supported: V2.00 and V3.00. The new ACOS5-EVO is not yet available to m
 [ACOS5 EVO](https://www.acs.com.hk/en/press-release/2579/acs-launches-acos5-evo-cryptographic-smart-card)<br>
 The reference manual for V2.00, REF-ACOS5-64-1.07.pdf, is available on request from  info@acs.com.hk<br>
 The reference manual for V3.00, REF-ACOS5-64-2.07.pdf, is available on request from  info@acs.com.hk<br>
+https://archive.fosdem.org/2018/schedule/event/smartcards_in_linux/attachments/slides/2265/export/events/attachments/smartcards_in_linux/slides/2265/smart_cards_slides.pdf<br>
 https://changelog.complete.org/archives/9358-first-steps-with-smartcards-under-linux-and-android-hard-but-it-works<br>
 https://github.com/OpenSC/OpenSC/wiki<br>
 https://www.rust-lang.org/learn/get-started. If Rust/cargo is not required anymore, uninstall with: rustup self uninstall
@@ -97,6 +98,8 @@ Without infos from the Security Environment File likely errors with return statu
 A template how to do the source code change is function `get_known_sec_env_entry_V3_FIPS` in no_cdecl.rs, which does exactly that for V3 cards being FIPS-compliant (where the Security Environment Files mindless are required to be read-protected, but their content is known and published in the reference manual).
 If there are problems with this issue, I can assist with that, provided that I can deduce that a serious attempt was made to solve that on Your own by reading the reference manual and my assistance is NOT just replacing reading that.
 
+Another way to tackle the "Security Environment File is read-protected" problem is: Introduce Your PINs into the code in acos5_64/src/no_cdecl.rs: function enum_dir, the block that contains is_wrong_acs_initialized.<br>
+It starts with the cards serial no.and the individual pins to be adjusted and whether the card is erroneously initialized by client kit.
 
 The driver has this peculiarity, which adds ~ 1 second to it's start-up time:<br>
 It scans the card for duplicate file id s.<br>
@@ -123,3 +126,20 @@ How this works: First the driver must be compiled with "cfg=enable_acos5_64_ui" 
 The graphical part of this feature is based on [IUP](https://www.tecgraf.puc-rio.br/iup "https://www.tecgraf.puc-rio.br/iup"), thus that must be installed and the last 3 lines in build.rs must be activated (meaning removing leading //):<br>
 The one that contains cargo:rustc-cfg=enable_acos5_64_ui, the next that names the iup library to link, and the last one where to find that library. The same must be applied for acos5_64_pkcs15init's build.rs if that is installed.<br>
 That's it, except via opensc.conf the enabled status can be overridden by specifying user_consent_enabled = no;
+
+Card was initialized by ACS Client Kit?<br>
+What a pity! You payed money for something that claims to create a PKCS#15 conforming file system (which is required for OpenSC and thus this driver), but it doesn't !<br>
+You will have to change/edit files. Ask Advanced Card Systems if they will do that for You or how to do it.<br>
+The entry in MF's Security Environment File is wrong: Thus You won't be able to use the SOPIN in that directory (and You can't change that), thus You can't read MF's Security Environment File and won't know Access rights in MF directory<br>
+
+Even the primary file for PKCS#15 is wrong: File 0x2F00 must specify the application path as absolute path, i.e. starting from 0x3F00. I.e. 2 more bytes must be stored in file 0x2F00 but they don't fit into the available file size. Deleting the file and recreating it: No way, ACS-initialization doesn't allow deletion. End of the story, You're stuck.<br>
+The ACS Client Kits that I know, do define 1 application directory 0x3F004100 and content therein like a Pin file 0x3F0041004101, a Security environment File 0x3F0041004103 (read protected), 16 RSA Key pair files, a gigantic-sized Certificate File 0x3F0041004110 and no space left for additional files to be created by Yourself.<br>
+The empty file 0x3F0041005031 means, Your card has no User Pin nor SOPIN (known to PKCS#15), no keys for sym. algos, no RSA key pairs etc. but definitely Your card has those files. A lot of things can't be changed at all because they are protected to be NEVER changeable.<br>
+You will very likely have to remove everything and create the file system from scratch (more details in the reference manual).<br>
+[acos5_64_pkcs15init](https://github.com/carblue/acos5_64_pkcs15init "https://github.com/carblue/acos5_64_pkcs15init") is the module dedicated to support card initialization, but currently it's limited to support:<br>
+pkcs15-init --erase-card --so-pin  sopin(4..8 bytes, e.g. 12345678)<br>
+This will remove everything from the card including MF and let You change the Operation Mode Byte (recommended for V3.00)<br>
+
+In order to see what's the crap on Your freshly ACS-initialized card and puzzle about what most files are for, it's recommended to run<br>
+$ opensc-tool -f<br>
+or use tool [acos5_64_gui](https://github.com/carblue/acos5_64_gui "https://github.com/carblue/acos5_64_gui") (acos5_64_gui will internally simulate a correct file 0x2F00, if necessary).

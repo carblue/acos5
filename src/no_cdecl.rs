@@ -44,15 +44,14 @@ use opensc_sys::opensc::{SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGO
 
 use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_MAX_PATH_SIZE, sc_file_t,
     SC_MAX_ATR_SIZE, SC_FILE_TYPE_DF,  */  sc_path, sc_file, sc_apdu, SC_PATH_TYPE_FILE_ID/*, SC_PATH_TYPE_PATH*/,
-                        SC_MAX_APDU_BUFFER_SIZE, SC_MAX_PATH_SIZE, //SC_AC_CHV,
-                        SC_APDU_FLAGS_CHAINING,
+                        SC_MAX_APDU_BUFFER_SIZE, SC_MAX_PATH_SIZE, SC_APDU_FLAGS_CHAINING,
                         SC_APDU_CASE_1, /*SC_APDU_CASE_2_SHORT,*/ SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT,
                         SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
-                        SC_APDU_CASE_2_SHORT, SC_AC_OP_READ, SC_AC_CHV, SC_AC_AUT/*, SC_AC_UNKNOWN*/
+                        SC_APDU_CASE_2_SHORT, SC_AC_OP_READ, SC_AC_CHV, SC_AC_AUT, SC_AC_NONE/*, SC_AC_UNKNOWN*/
 };
 use opensc_sys::log::{sc_do_log, sc_dump_hex, SC_LOG_DEBUG_NORMAL};
 use opensc_sys::errors::{sc_strerror, /*SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKNOWN, SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_NOT_SUPPORTED, */
-                         SC_SUCCESS, SC_ERROR_INVALID_ARGUMENTS,
+                         SC_SUCCESS, SC_ERROR_INVALID_ARGUMENTS, //SC_ERROR_KEYPAD_TIMEOUT,
                          SC_ERROR_KEYPAD_MSG_TOO_LONG/*, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL*/
 ,SC_ERROR_WRONG_LENGTH, SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT_FOUND, SC_ERROR_INCORRECT_PARAMETERS,
 SC_ERROR_OUT_OF_MEMORY, SC_ERROR_UNKNOWN_DATA_RECEIVED
@@ -582,37 +581,62 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path, only_se_df: bool/*, depth: c
         unsafe { sc_file_free(file_out_ptr_mut) };
 
         let is_local =  path.len>=6;
-/*
-        /* SC_AC_CHV is the case for my Nano, experimentally */
-        if card.type_== SC_CARD_TYPE_ACOS5_64_V3 && [SC_AC_CHV /*, SC_AC_AUT*/].contains(&acl_entry_read_method) {
-            let mut tries_left = 0;
-            let pin = if is_local { [0x31u8, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38] }  // User pin, local
-                              else       { [0x38u8, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31] }; // SO_PIN, global
-            rv = unsafe { sc_verify(card, SC_AC_CHV, if is_local {0x81} else {0x01}, pin.as_ptr(), pin.len(), &mut tries_left) };
-            assert_eq!(rv, SC_SUCCESS);
+//      let len /*_card_serial_number*/ = if card.type_ == SC_CARD_TYPE_ACOS5_64_V3 {8u8} else {6u8};
+        let mut pin_verified = false;
+
+        if SC_AC_CHV == acl_entry_read_method {
+            /* card.type_== SC_CARD_TYPE_ACOS5_64_V2 have 6 byte serial numbers, SC_CARD_TYPE_ACOS5_64_V3 have 8 byte.
+              We are comparing based on 8 bytes, thus append 2 zero bytes for SC_CARD_TYPE_ACOS5_64_V2 when comparing here;
+               also, the pin ids may be different from local 0x81 or global 0x01 used here (to be adjusted) */
+            if card.serialnr.value[..8]==[0xFFu8, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA,  0,0][..] { // this is only for serialnr: FF EE DD CC BB AA of a SC_CARD_TYPE_ACOS5_64_V2
+                let mut tries_left = 0;
+                let pin_user:  [u8; 8] = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]; // User pin, local  12345678
+                let pin_admin: [u8; 8] = [0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31]; // SO_PIN, global   87654321
+                let mut pin_user_verified  = false;
+                let mut pin_admin_verified = false;
+                let is_wrong_acs_initialized = true;
+                if is_local {
+                    rv = unsafe { sc_verify(card, SC_AC_CHV, 0x80|1, pin_user.as_ptr(), pin_user.len(), &mut tries_left) };
+                    pin_user_verified =  rv==SC_SUCCESS;// assert_eq!(rv, SC_SUCCESS);
+                    println!("Pin verification performed for ser.num [0xFFu8, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA,  0,0] and sec. env. file {:X}, resulting in pin_user_verified={}", file_id, pin_user_verified);
+                }
+                else if !is_wrong_acs_initialized {
+                    rv = unsafe { sc_verify(card, SC_AC_CHV, 1, pin_admin.as_ptr(), pin_admin.len(), &mut tries_left) };
+                    pin_admin_verified =  rv==SC_SUCCESS;// assert_eq!(rv, SC_SUCCESS);
+                    println!("Pin verification performed for ser.num [0xFFu8, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA,  0,0] and sec. env. file {:X}, resulting in pin_admin_verified={}", file_id, pin_admin_verified);
+                }
+                pin_verified = pin_user_verified || pin_admin_verified;
+            }
+            else if card.serialnr.value[..8]==[0xFFu8, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA,  9,8][..] { // this example is for a SC_CARD_TYPE_ACOS5_64_V3
+                /* same as before for another Serial no. */
+            }
         }
-*/
+
         let mut vec_seinfo : Vec<SeInfo> = Vec::new();
-        for rec_nr in 1..1+nor {
-            let mut buf = [0u8; 255];
-            /* The case for V3 being FIPS-compliant, see 9.0. FIPS Mode File System Requirements: Don't read but take known entries */
-            if card.type_== SC_CARD_TYPE_ACOS5_64_V3 && SC_AC_AUT==acl_entry_read_method {
-                get_known_sec_env_entry_V3_FIPS(is_local, rec_nr, &mut buf[..33]);
-            }
-            else {
-                rv = unsafe { sc_read_record(card, rec_nr, buf.as_mut_ptr(), mrl, SC_RECORD_BY_REC_NR as c_ulong) };
-                assert!(rv >= 0);
-                if rv >= 1 && buf[0] == 0 || rv >= 3 && buf[2] == 0 { // "empty" record
-                    break;
+        if (card.type_== SC_CARD_TYPE_ACOS5_64_V3  &&  SC_AC_AUT==acl_entry_read_method) ||
+             SC_AC_NONE == acl_entry_read_method ||
+            (SC_AC_CHV  == acl_entry_read_method && pin_verified) {
+            for rec_nr in 1..1+nor {
+                let mut buf = [0u8; 255];
+                /* The case for V3 being FIPS-compliant, see 9.0. FIPS Mode File System Requirements: Don't read but take known entries */
+                if card.type_== SC_CARD_TYPE_ACOS5_64_V3  &&  SC_AC_AUT==acl_entry_read_method {
+                    get_known_sec_env_entry_V3_FIPS(is_local, rec_nr, &mut buf[..33]);
                 }
-                if rv >= 3 {
-                    assert_eq!(rec_nr, buf[2] as u32 /*se id*/); // not really required but recommended: enforces, that se id x(>0) is stored in record indexed x (beginning with index 1)
+                else {
+                    rv = unsafe { sc_read_record(card, rec_nr, buf.as_mut_ptr(), mrl, SC_RECORD_BY_REC_NR as c_ulong) };
+                    assert!(rv >= 0);
+                    if rv >= 1 && buf[0] == 0 || rv >= 3 && buf[2] == 0 { // "empty" record
+                        break;
+                    }
+                    if rv >= 3 {
+                        assert_eq!(rec_nr, buf[2] as u32 /*se id*/); // not really required but recommended: enforces, that se id x(>0) is stored in record indexed x (beginning with index 1)
+                    }
                 }
+                let mut seinfo = Default::default();
+                let rv = se_parse_crts(buf[2] as c_uint,&buf[3..], &mut seinfo);
+                assert!(rv > 0);
+                vec_seinfo.push(seinfo);
             }
-            let mut seinfo = Default::default();
-            let rv = se_parse_crts(buf[2] as c_uint,&buf[3..], &mut seinfo);
-            assert!(rv > 0);
-            vec_seinfo.push(seinfo);
         }
 
         assert!(path.len >= 4);
