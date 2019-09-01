@@ -23,10 +23,11 @@ use std::ffi::{CStr};
 
 use opensc_sys::opensc::{sc_card};
 use opensc_sys::types::{sc_path, SC_MAX_PATH_SIZE};
-use opensc_sys::log::{sc_do_log, sc_dump_hex, SC_LOG_DEBUG_NORMAL};
+use opensc_sys::log::{sc_dump_hex};
 use opensc_sys::errors::{SC_SUCCESS};
 
 use crate::constants_types::*;
+use crate::wrappers::*;
 
 
 /*
@@ -62,6 +63,17 @@ pub fn current_path_df(card: &mut sc_card) -> &[u8]
 
    There is another built-in search strategy for DF
 */
+
+/* select_file target is what is currently selected already (potentially superfluous select) */
+/*
+ * What it does
+ * @apiNote
+ * @param
+ * @return
+ */
+pub fn is_search_rule0_match(path_target: &[u8], current_path_ef: &[u8]) -> bool {
+    path_target == current_path_ef
+}
 
 /* select_file target is the currently selected DF */
 /*
@@ -144,6 +156,24 @@ pub fn is_search_rule6_match(path_target: &[u8]) -> bool
     path_target.len() == 4 && &path_target[..2] == &[0x3Fu8, 0][..]
 }
 
+/* select_file target is known to be non-selectable (reserved or erroneous file id) */
+/*
+ * What it does
+ * @apiNote
+ * @param
+ * @return
+ */
+pub fn is_impossible_file_match(path_target: &sc_path) -> bool {
+    let len = path_target.len;
+    assert!(len>=2);
+    let file_id = u16_from_array_begin(&path_target.value[len-2..len]);
+    match file_id {
+        0 => true,
+        0xFFFF => true,
+        _ => false,
+    }
+}
+
 /*
 The task of cut_path:
 Truncate as much as possible from the path to be selected for performance reasons (less select s issued)
@@ -156,35 +186,33 @@ It's rarely called and implements just those remaining cases that came across so
  * @param
  * @return
  */
-pub fn cut_path(card: &mut sc_card, path_in: &sc_path, path_out: &mut sc_path) -> c_int
+pub fn cut_path(card: &mut sc_card, path: &mut sc_path) -> c_int
 {
-    let file_str = CStr::from_bytes_with_nul(CRATE).unwrap();
-    let func     = CStr::from_bytes_with_nul(b"cut_path\0").unwrap();
-    let format_1   = CStr::from_bytes_with_nul(b"                    called.    in_type: %d,   in_value: %s\0").unwrap();
-    let format_3   = CStr::from_bytes_with_nul(b"                 returning:   out_type: %d,  out_value: %s\0").unwrap();
+    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
+    let fun     = CStr::from_bytes_with_nul(b"cut_path\0").unwrap();
+    let fmt_1   = CStr::from_bytes_with_nul(b"                    called.    in_type: %d,   in_value: %s\0").unwrap();
+    let fmt_3   = CStr::from_bytes_with_nul(b"                 returning:   out_type: %d,  out_value: %s\0").unwrap();
     #[cfg(log)]
-    unsafe { sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, file_str.as_ptr(), line!() as i32, func.as_ptr(),
-                       format_1.as_ptr(), path_in.type_,
-                       sc_dump_hex(path_in.value.as_ptr(), path_in.len) ) };
+    wr_do_log_tu(card.ctx, f_log, line!(), fun, path.type_, unsafe{sc_dump_hex(path.value.as_ptr(), path.len)}, fmt_1);
 
-    assert!(path_out.len>=4);
+    assert!(card.cache.current_path.len>=2);
+    assert!(path.len>=4);
     let c_path = &card.cache.current_path.value[..card.cache.current_path.len];
-    let t_path = &mut path_out.value[..path_out.len];
+    let t_path = &mut path.value[..path.len];
 
-    if  c_path[0..2] == t_path[0..2] &&
-        c_path[2..4] != t_path[2..4] { // In principle it's_search_rule6_match: true, but path_target.len() > 4
-        for i in 2..path_out.len { // shift left in path.value
-            t_path[i-2] = t_path[i];
+    if  c_path[0..2] == t_path[0..2] {
+        if c_path.len()==2 || c_path[2..4] != t_path[2..4] { // In principle it's_search_rule6_match: true, but path_target.len() > 4
+            for i in 2..path.len { // shift left in path.value
+                t_path[i-2] = t_path[i];
+            }
+            t_path[path.len-2] = 0;
+            t_path[path.len-1] = 0;
+            path.len -= 2;
         }
-        t_path[path_out.len-2] = 0;
-        t_path[path_out.len-1] = 0;
-        path_out.len -= 2;
     }
 
     #[cfg(log)]
-    unsafe { sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, file_str.as_ptr(), line!() as i32, func.as_ptr(),
-                       format_3.as_ptr(), path_out.type_,
-                       sc_dump_hex(path_out.value.as_ptr(), path_out.len) ) };
+    wr_do_log_tu(card.ctx, f_log, line!(), fun, path.type_, unsafe{sc_dump_hex(path.value.as_ptr(), path.len)}, fmt_3);
     SC_SUCCESS
 }
 

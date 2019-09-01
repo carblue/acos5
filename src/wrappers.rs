@@ -44,6 +44,11 @@ pub fn wr_do_log_tt<T>(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CS
     unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg1, arg2) };
 }
 
+pub fn wr_do_log_ttt<T>(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: T, arg2: T, arg3: T, fmt: &CStr)
+{
+    unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg1, arg2, arg3) };
+}
+
 pub fn wr_do_log_tu<T,U>(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: T, arg2: U, fmt: &CStr)
 {
     unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg1, arg2) };

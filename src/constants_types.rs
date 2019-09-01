@@ -233,6 +233,7 @@ pub const SC_CARDCTL_ACOS5_ENCRYPT_ASYM            : c_uint =  0x0000_0028; // d
 pub const SC_CARDCTL_ACOS5_DECRYPT_SYM             : c_uint =  0x0000_0029; // data: *mut CardCtl_crypt_sym,  do_decrypt_sym
 ////pub const SC_CARDCTL_ACOS5_DECRYPT_ASYM        : c_uint =  0x0000_002A; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
 
+pub const SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM    : c_uint =  0x0000_002B; // data: *mut CardCtlArray20,  create_mf_file_system
 
 /* more related to acos5_64_pkcs15init */
 /* more related to acos5_64_sm */
@@ -428,6 +429,7 @@ pub struct DataPrivate { // see settings in acos5_64_init
     pub sec_env : sc_security_env, // remember the input of last call to acos5_64_set_security_env; especially algorithm_flags will be required in compute_signature
 //  pub sec_env_algo_flags : c_uint, // remember the padding scheme etc. selected for RSA; required in acos5_64_set_security_env
     pub rsa_caps : c_uint, // remember how the rsa_algo_flags where set for _sc_card_add_rsa_alg
+    pub does_mf_exist : bool,
     pub is_running_init : bool, // true as long as acos5_64_init runs: It may be used to control behavior of acos5_64_list_files (lazily filling hashmap)
     /* some commands like sign, decipher etc. may supply > 256 bytes to get_response, but the exact number will not be known (the only info is 0x6100),
        thus guessing, there are another 256 bytes will be turned on with: true; guessing is limited to those commands, that turn on this feature.

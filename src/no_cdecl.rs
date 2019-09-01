@@ -32,7 +32,7 @@ use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_
                          SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
                          SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA,
                          SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES,
-                         sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_verify};
+                         sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_verify/*, sc_get_iso7816_driver*/};
 #[cfg(not(any(v0_15_0, v0_16_0)))]
 use opensc_sys::opensc::{SC_ALGORITHM_AES};
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0)))]
@@ -41,14 +41,13 @@ use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
 use opensc_sys::opensc::{SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, sc_sec_env_param,
                          SC_SEC_ENV_PARAM_IV};
 
-
 use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_MAX_PATH_SIZE, sc_file_t,
     SC_MAX_ATR_SIZE, SC_FILE_TYPE_DF,  */  sc_path, sc_file, sc_apdu, SC_PATH_TYPE_FILE_ID/*, SC_PATH_TYPE_PATH*/,
                         SC_MAX_APDU_BUFFER_SIZE, SC_MAX_PATH_SIZE, SC_APDU_FLAGS_CHAINING,
                         SC_APDU_CASE_1, /*SC_APDU_CASE_2_SHORT,*/ SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT,
                         SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
-                        SC_APDU_CASE_2_SHORT, SC_AC_OP_READ, SC_AC_CHV, SC_AC_AUT, SC_AC_NONE/*, SC_AC_UNKNOWN*/
-};
+                        SC_APDU_CASE_2_SHORT, SC_AC_OP_READ, SC_AC_CHV, SC_AC_AUT, SC_AC_NONE,/*, SC_AC_UNKNOWN*/
+                        sc_acl_entry, SC_MAX_AC_OPS};
 use opensc_sys::log::{sc_do_log, sc_dump_hex, SC_LOG_DEBUG_NORMAL};
 use opensc_sys::errors::{sc_strerror, /*SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKNOWN, SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_NOT_SUPPORTED, */
                          SC_SUCCESS, SC_ERROR_INVALID_ARGUMENTS, //SC_ERROR_KEYPAD_TIMEOUT,
@@ -101,10 +100,21 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path: &sc_path, file_o
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"iso7816_select_file_replacement\0").unwrap();
 /*
-    if (card == NULL || in_path == NULL) {
-        return SC_ERROR_INVALID_ARGUMENTS;
-    }
+    #[cfg(log)]
+    unsafe { sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, file_str.as_ptr(), line!() as i32, func.as_ptr(),
+                           format_1.as_ptr(), card.cache.current_path.type_,
+                           sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len) ) };
 */
+    if cfg!(log)  &&  !file_out.is_null() {
+        wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe{*file_out},
+                    CStr::from_bytes_with_nul(b"called with *file_out: %p\n\0").unwrap())
+    }
+
+    /*
+        if (card == NULL || in_path == NULL) {
+            return SC_ERROR_INVALID_ARGUMENTS;
+        }
+    */
 
     let ctx = card.ctx;
     unsafe { copy_nonoverlapping(in_path.value.as_ptr(), path, in_path.len) }; // memcpy(path, in_path->value, in_path->len);
@@ -348,7 +358,8 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path: &sc_path, file_o
                 }
                 return r;
             }
-            unsafe { (*file).path = *in_path };
+            let mut file_rm = unsafe { &mut *file };
+            file_rm.path = *in_path;
 /*
             if card->ops->process_fci == NULL {
                 sc_file_free(file);
@@ -360,6 +371,8 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path: &sc_path, file_o
             if r == SC_SUCCESS {
                 acos5_64_process_fci(card, file, buffer, buffer_len); // card->ops->process_fci(card, file, buffer, buffer_len);
             }
+            assert!(file_rm.prop_attr_len>0);
+            assert!(!file_rm.prop_attr.is_null());
             unsafe { *file_out = file };
         },
         _ => {
@@ -470,7 +483,7 @@ pub fn track_iso7816_select_file(card: &mut sc_card, path: &sc_path, file_out: *
 pub fn select_file_by_path(card: &mut sc_card, path: &sc_path, file_out: *mut *mut sc_file) -> c_int
 {
     let mut path1 = sc_path { ..*path };
-    let rv = cut_path(card, path, &mut path1);
+    let rv = cut_path(card/*, path*/, &mut path1);
     if rv != SC_SUCCESS {
         return rv;
     }
@@ -486,12 +499,14 @@ pub fn select_file_by_path(card: &mut sc_card, path: &sc_path, file_out: *mut *m
         path2.value[0] = path1.value[i*2  ];
         path2.value[1] = path1.value[i*2+1];
         let rv = track_iso7816_select_file(card, &path2, file_out);
+/*
         unsafe {
             if (i+1)<len/2 && !file_out.is_null() && !(*file_out).is_null() {
                 sc_file_free(*file_out);
                 *file_out = std::ptr::null_mut();
             }
         }
+*/
         if rv != SC_SUCCESS {
             return rv;
         }
@@ -566,11 +581,13 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path, only_se_df: bool/*, depth: c
     dp_files_value.0    = path.value;
     dp_files_value.1[1] = path.len as u8;
     /* assumes meaningful values in dp_files_value.1 */
-    let mrl = dp_files_value.1[4] as usize;
-    let nor  = dp_files_value.1[5] as c_uint;
+    let mrl = dp_files_value.1[4] as usize;  // MRL: Max. Record Length
+    let nor  = dp_files_value.1[5] as c_uint; // NOR: Number Of Records
     card.drv_data = Box::into_raw(dp) as *mut c_void;
 
-    if only_se_df  &&  fdb == FDB_SE_FILE && mrl>0 && nor>0
+    let is_se_file_only =  fdb == FDB_SE_FILE && only_se_df;
+
+    if is_se_file_only && mrl>0 && nor>0
     {
         /* file_out_ptr_mut has the only purpose to invoke scb8 retrieval */
         let mut file_out_ptr_mut = std::ptr::null_mut();
@@ -578,7 +595,9 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path, only_se_df: bool/*, depth: c
         assert_eq!(rv, SC_SUCCESS);
         assert!(!file_out_ptr_mut.is_null());
         let acl_entry_read_method = unsafe { (*sc_file_get_acl_entry(file_out_ptr_mut, SC_AC_OP_READ)).method };
-        unsafe { sc_file_free(file_out_ptr_mut) };
+        if !file_out_ptr_mut.is_null() {
+            unsafe { sc_file_free(file_out_ptr_mut) };
+        }
 
         let is_local =  path.len>=6;
 //      let len /*_card_serial_number*/ = if card.type_ == SC_CARD_TYPE_ACOS5_64_V3 {8u8} else {6u8};
@@ -647,26 +666,6 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path, only_se_df: bool/*, depth: c
         dp_files_value.3 = Some(vec_seinfo);
         card.drv_data = Box::into_raw(dp) as *mut c_void;
     }
-    else if !only_se_df  &&  !is_DFMF(fdb)  &&  fdb != FDB_SE_FILE
-    {
-        /* file_out_ptr_mut has the only purpose to invoke scb8 retrieval */
-        let mut file_out_ptr_mut = std::ptr::null_mut();
-        let rv = acos5_64_select_file(card, path, &mut file_out_ptr_mut);
-        if !file_out_ptr_mut.is_null() {
-            unsafe { sc_file_free(file_out_ptr_mut) };
-        }
-        assert_eq!(rv, SC_SUCCESS);
-
-        if fdb==FDB_RSA_KEY_EF {// && dp.files[&file_id].2.is_some() && dp.files[&file_id].2.unwrap()[0]==0
-            let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-
-            if let Some(x) = dp.files.get_mut(&file_id) {
-                /* how to distinguish RSAPUB from RSAPRIV without reading ? Assume unconditionally allowed to read: RSAPUB*/
-                (*x).1[6] = if (*x).2.unwrap()[0] == 0 {PKCS15_FILE_TYPE_RSAPUBLICKEY} else {PKCS15_FILE_TYPE_RSAPRIVATEKEY};
-            }
-            card.drv_data = Box::into_raw(dp) as *mut c_void;
-        }
-    }
     else if is_DFMF(fdb)
     {
         assert!(path.len <= SC_MAX_PATH_SIZE);
@@ -676,7 +675,59 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path, only_se_df: bool/*, depth: c
         if !file_out_ptr_mut.is_null() {
             unsafe { sc_file_free(file_out_ptr_mut) };
         }
-        assert_eq!(rv, SC_SUCCESS);
+        if rv < 0 && path.len==2 && path.value[0]==0x3F && path.value[1]==0 {
+            let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+            dp.does_mf_exist = false;
+            card.drv_data = Box::into_raw(dp) as *mut c_void;
+
+            /* Try to read EEPROM address: If successful, card is uninitialized */
+            let command = [0u8, 0xB0, 0xC1, 0x84, 1];
+            let mut apdu = Default::default();
+            let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
+            assert_eq!(rv, SC_SUCCESS);
+            assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
+
+            let mut card_life_cycle_byte = 0xFFu8;
+            apdu.resp = &mut card_life_cycle_byte;
+            apdu.resplen = 1;
+            rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
+            if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 || apdu.resplen == 0 {
+                wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5-64 'Get Card Life Cycle Byte' failed\0").unwrap());
+                return SC_ERROR_KEYPAD_MSG_TOO_LONG;
+            }
+
+            /* The meaning of operation_mode_byte depends on card type:
+               V2.00:  0 (default factory setting): 64k mode, any other is: Emulated 32K mode
+               V3.00:  0 (default factory setting): FIPS mode, 1: Emulated 32K mode, 2: 64k mode, 16: NSH-1 mode
+            */
+            let mut operation_mode_byte = 0xFFu8; // also called compatibility byte
+            apdu.p2 = 0x91;
+            apdu.resp = &mut operation_mode_byte;
+            apdu.resplen = 1;
+            rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
+            if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 || apdu.resplen == 0 {
+                wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5-64 'Get Operation Mode Byte' failed\0").unwrap());
+                return SC_ERROR_KEYPAD_MSG_TOO_LONG;
+            }
+
+            let mut zeroize_card_disable_byte = 0xFFu8;
+            apdu.p2 = 0x92;
+            apdu.resp = &mut zeroize_card_disable_byte;
+            apdu.resplen = 1;
+            rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
+            if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 || apdu.resplen == 0 {
+                wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5-64 'Get Zeroize Card Disable Flag' failed\0").unwrap());
+                return SC_ERROR_KEYPAD_MSG_TOO_LONG;
+            }
+
+            println!("### There is no MF: The card is uninitialized/virgin/in factory state ### (Card Life Cycle Byte is 0x{:X}, Operation Mode Byte is 0x{:X}, Zeroize Card Disable Byte is 0x{:X})", card_life_cycle_byte, operation_mode_byte, zeroize_card_disable_byte);
+            wr_do_log_ttt(card.ctx, f_log, line!(), fun, card_life_cycle_byte, operation_mode_byte, zeroize_card_disable_byte, CStr::from_bytes_with_nul(
+                b"### There is no MF: The card is uninitialized/virgin/in factory state ### (Card Life Cycle Byte is 0x%02X, Operation Mode Byte is 0x%02X, Zeroize Card Disable Byte is 0x%02X)\0").unwrap());
+            return SC_SUCCESS;
+        }
+        else {
+            assert_eq!(rv, SC_SUCCESS);
+        }
         if path.len == 16 {
 //            if cfg!(log) {}
             let fmt  = CStr::from_bytes_with_nul(b"### enum_dir: couldn't visit all files due to OpenSC path.len limit.\
@@ -701,6 +752,30 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path, only_se_df: bool/*, depth: c
 //              assert_eq!(tmp_path.len, ((depth+2)*2) as usize);
                 enum_dir(card, &tmp_path, only_se_df/*, depth + 1*/);
             }
+        }
+    }
+    else
+    {
+        if [FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&fdb) {
+            /* file_out_ptr_mut has the only purpose to invoke scb8 retrieval */
+            let mut file_out_ptr_mut = std::ptr::null_mut();
+            let rv = acos5_64_select_file(card, path, &mut file_out_ptr_mut);
+            if !file_out_ptr_mut.is_null() {
+                unsafe { sc_file_free(file_out_ptr_mut) };
+            }
+            assert_eq!(rv, SC_SUCCESS);
+
+            let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+            if let Some(x) = dp.files.get_mut(&file_id) {
+                /* how to distinguish RSAPUB from RSAPRIV without reading ? Assume unconditionally allowed to read: RSAPUB*/
+                if fdb == FDB_RSA_KEY_EF {
+                    (*x).1[6] = if (*x).2.unwrap()[0] == 0 {PKCS15_FILE_TYPE_RSAPUBLICKEY} else {PKCS15_FILE_TYPE_RSAPRIVATEKEY};
+                }
+                else {
+                    (*x).1[6] = if (*x).2.unwrap()[0] == 0 {PKCS15_FILE_TYPE_ECCPUBLICKEY} else {PKCS15_FILE_TYPE_ECCPRIVATEKEY};
+                }
+            }
+            card.drv_data = Box::into_raw(dp) as *mut c_void;
         }
     }
     SC_SUCCESS
@@ -760,6 +835,12 @@ pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Resul
         }
     }
     Ok(scb8)
+}
+
+pub fn convert_acl_array_to_bytes_tag_fcp_sac(_acl: &[*mut sc_acl_entry; SC_MAX_AC_OPS]) -> Result<[u8; 8], c_int>
+{
+    let result = [0x7Fu8,0,0,0,0,0,0,0]; // first byte for leght used
+    Ok(result)
 }
 
 
@@ -1653,7 +1734,124 @@ pub fn update_hashmap(card: &mut sc_card) {
     }
 }
 
+pub fn create_mf_file_system(card: &mut sc_card, sopin: &[u8], sopuk: &[u8]) {
+    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
+    let fun  = CStr::from_bytes_with_nul(b"create_mf_file_system\0").unwrap();
+    if cfg!(log) {
+        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+    }
+//    assert_eq!(0,1);
+    /* set operation mode byte to 64K mode */
+    if [SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3].contains(&card.type_) {
+        let cmd = [0u8, 0xD6, 0xC1, 0x91, 1,  if card.type_==SC_CARD_TYPE_ACOS5_64_V3 {2} else {0}];
+        let mut apdu = Default::default();
+        assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+        assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
+        assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
+    }
+    else {
+        assert_eq!(0,1);
+    }
+    assert_eq!(8, sopin.len());
+    assert_eq!(8, sopuk.len());
+println!("SOPIN: {}  {:X?}", sopin.len(), sopin);
+println!("SOPUK: {}  {:X?}", sopuk.len(), sopuk);
+    /*
+SOPIN: 8  [38, 37, 36, 35, 34, 33, 32, 31]
+SOPUK: 8  [31, 32, 33, 34, 35, 36, 37, 38]
+*/
+//0x3F00  MF, creation
+    let cmd = [0x00u8,0xE0,0x00,0x00,0x1B,0x62,0x19, 0x83,0x02,  0x3F,0x00,  0x82, 0x02, 0x3F, 0x00,  0x8D, 0x02, 0x00, 0x03,                    0x8A, 0x01, 0x01,  0x8C, 0x08, 0x7F, 0xFF, 0xFF, 0x01, 0x01, 0x01, 0x01, 0x01];
+    let mut apdu = Default::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
+    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
+//0x0001  Pin file of MF, creation
+    let cmd = [0x00u8,0xE0,0x00,0x00,0x1E,0x62,0x1C, 0x83,0x02,  0x00,0x01,  0x82, 0x06, 0x0A, 0x00, 0x00, 0x15, 0x00, 0x01,  0x88, 0x01, 0x00,  0x8A, 0x01, 0x01,  0x8C, 0x08, 0x7F, 0xFF, 0xFF, 0x01, 0x01, 0xFF, 0x01, 0xFF];
+    apdu = Default::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
+    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
+//0x0003  Security Environment File of MF, creation
+    let cmd = [0x00u8,0xE0,0x00,0x00,0x1E,0x62,0x1C, 0x83,0x02,  0x00,0x03,  0x82, 0x06, 0x1C, 0x00, 0x00, 0x30, 0x00, 0x01,  0x88, 0x01, 0x00,  0x8A, 0x01, 0x01,  0x8C, 0x08, 0x7F, 0xFF, 0xFF, 0x01, 0x01, 0x01, 0x01, 0x00];
+    apdu = Default::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
+    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
+//0x2F00  EF.DIR, creation
+    let cmd = [0x00u8,0xE0,0x00,0x00,0x1E,0x62,0x1C, 0x83,0x02,  0x2F,0x00,  0x82, 0x02, 0x01, 0x00, 0x80, 0x02, 0x00, 0x30,  0x88, 0x01, 0x00,  0x8A, 0x01, 0x01,  0x8C, 0x08, 0x7F, 0x01, 0xFF, 0x01, 0x01, 0xFF, 0x00, 0x00];
+    apdu = Default::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
+    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
+//0x3F00  MF, selection
+    let cmd = [0x00u8, 0xA4, 0x00, 0x00, 0x02, 0x3F, 0x00];
+    apdu = Default::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
+    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
+//0x0001  Pin file of MF, selection, populate record #1, activation
+    let cmd = [0x00u8, 0xA4, 0x00, 0x00, 0x02, 0x00, 0x01];
+    apdu = Default::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
+    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
 
+    let cmd = [0x00u8, 0xDC, 0x01, 0x04, 0x15, 0xC1, 0x88, 0x08, sopin[0],sopin[1],sopin[2],sopin[3],sopin[4],sopin[5],sopin[6],sopin[7],
+                                                             0x88, 0x08, sopuk[0],sopuk[1],sopuk[2],sopuk[3],sopuk[4],sopuk[5],sopuk[6],sopuk[7]];
+    apdu = Default::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
+    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
+
+    let cmd = [0x00u8, 0x44, 0x00, 0x00, 0x02, 0x00, 0x01];
+    apdu = Default::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
+    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
+/*
+// next is the original ACS setting/content for EF.DIR; I corrected to "absolute path" to DF.PKCS#15
+    //init_entry(0,3,36, cast(immutable(ubyte)[])hexString!"00 D6 00 00 1F   61 1D 4F 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 50 05 65 43 65 72 74 51 02       41 00", cast(immutable(ubyte)[])hexString!"90 00"),  // EF(DIR) 2F00 ->      4100
+    reinit_entry(0,3,38, cast(immutable(ubyte)[])hexString!"00 D6 00 00 21   61 1F 4F 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 50 05 65 43 65 72 74 51 04 3F 00 41 00", cast(immutable(ubyte)[])hexString!"90 00"),  // EF(DIR) 2F00 -> 3F00/4100
+
+    reinit_entry(0,3,  7, cast(immutable(ubyte)[])hexString!"00 44 00 00 02  2F00", cast(immutable(ubyte)[])hexString!"90 00"),
+*/
+//0x0003  Security Environment File of MF, selection, populate record #1, activation
+    let cmd = [0x00u8, 0xA4, 0x00, 0x00, 0x02, 0x00, 0x03];
+    apdu = Default::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
+    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
+
+    let cmd = [0x00u8, 0xDC, 0x01, 0x04, 0x0B, 0x80, 0x01, 0x01, 0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x08];
+    apdu = Default::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
+    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
+
+    let cmd = [0x00u8, 0x44, 0x00, 0x00, 0x02, 0x00, 0x03];
+    apdu = Default::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
+    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
+//0x2F00  EF.DIR, left empty, selection, no content, activation
+    let cmd = [0x00u8, 0xA4, 0x00, 0x00, 0x02, 0x2F, 0x00];
+    apdu = Default::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
+    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
+
+    let cmd = [0x00u8, 0x44, 0x00, 0x00, 0x02, 0x2F, 0x00];
+    apdu = Default::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
+    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
+
+
+    if cfg!(log) {
+        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(RETURNING).unwrap());
+    }
+}
 
 #[cfg(test)]
 mod tests {
