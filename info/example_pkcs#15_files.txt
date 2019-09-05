@@ -1,0 +1,580 @@
+This is just an example: My PKCS#15 files, with some bytes zeroed, like serial no. (which is 6 bytes long for token used), some labels, but such that content still can be inspected with e.g. https://lapo.it/asn1js
+The ASN.1 structure shown from content DER data got processed by libtasn, based on ASN.1 module https://github.com/carblue/acos5_64_gui/blob/master/source/PKCS15.asn with tool acos5_64_gui
+
+The file system, as far as they are system files, or PKCS#15 files or referred to by PKCS#15 files:
+
+ 3F00     MF
+ 3F000001 PIN file SOPIN/SOPUK
+ 3F000002 unused key file
+ 3F000003 Security Environment File for MF
+ 3F002F00
+ 3F004100
+ 3F0041004101 PIN file USERPIN/USERPUK
+ 3F0041004102 key file for sym. algos AES/3DES
+ 3F0041004103 Security Environment for this directory
+ 3F0041004111
+ 3F0041004112
+ 3F0041004113
+ 3F0041004114
+ 3F0041004115
+ 3F0041005031
+ 3F0041005032
+ 3F0041005155 leftover reinstalled, that may be ? required by ACS PKCS#11 driver or tools
+ 3F0041004129 leftover reinstalled, that may be ? required by ACS PKCS#11 driver or tools
+ 3F00410041F1 RSA
+ 3F0041004131 RSA
+ 3F00410041F2 RSA
+ 3F0041004132 RSA
+ 3F00410041F3 RSA
+ 3F0041004133 RSA
+ 3F00410041F4 RSA
+ 3F0041004134 RSA
+ 3F0041004120 Cert
+ 3F0041004121 Cert
+
+
+PIN files
+
+File 0x3F000001  within MF:
+===========================
+
+Header/meta infos (FCI):
+6F 18 83 02 3F 00 88 01 00 8A 01 01 82 02 3F 00 8D 02 00 03 84 00 8C 00 AB 00
+6F 1E 83 02 00 01 88 01 01 8A 01 05 82 06 0A 00 00 15 00 01 8C 08 7F 01 FF 01 01 FF 01 FF AB 00
+
+
+File 0x3F0041004101  within Application directory:
+==================================================
+
+Header/meta infos (FCI):
+6F 30 83 02 41 00 88 01 00 8A 01 05 82 02 38 00 8D 02 41 03 84 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 8C 08 7F 03 FF 00 01 01 01 01 AB 00
+6F 1E 83 02 41 01 88 01 01 8A 01 05 82 06 0A 00 00 15 00 01 8C 08 7F 03 FF 00 FF FF 01 FF AB 00
+
+
+Sym. key files
+
+File 0x3F000002  within MF:
+===========================
+
+Header/meta infos (FCI):
+6F 18 83 02 3F 00 88 01 00 8A 01 01 82 02 3F 00 8D 02 00 03 84 00 8C 00 AB 00
+6F 1E 83 02 00 02 88 01 02 8A 01 05 82 06 0C 00 00 25 00 04 8C 08 7F 01 FF 01 01 01 01 FF AB 00
+
+
+File 0x3F0041004102  within Application directory:
+==================================================
+
+Header/meta infos (FCI):
+6F 30 83 02 41 00 88 01 00 8A 01 05 82 02 38 00 8D 02 41 03 84 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 8C 08 7F 03 FF 00 01 01 01 01 AB 00
+6F 1E 83 02 41 02 88 01 02 8A 01 05 82 06 0C 00 00 25 00 0C 8C 08 7F 03 FF 00 FF 01 01 FF AB 00
+
+
+Security Environment Files
+
+File 0x3F000003  for MF:
+========================
+
+Header/meta infos (FCI):
+6F 18 83 02 3F 00 88 01 00 8A 01 01 82 02 3F 00 8D 02 00 03 84 00 8C 00 AB 00
+6F 1E 83 02 00 03 88 01 03 8A 01 05 82 06 1C 00 00 30 00 01 8C 08 7F 01 FF 01 01 00 01 00 AB 00
+
+Content:
+Record 1
+80 01 01 A4 06 83 01 01 95 01 08
+
+
+File 0x3F0041004103  for Application directory 0x3F004100:
+==========================================================
+
+Header/meta infos (FCI):
+6F 30 83 02 41 00 88 01 00 8A 01 05 82 02 38 00 8D 02 41 03 84 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 8C 08 7F 03 FF 00 01 01 01 01 AB 00
+6F 1E 83 02 41 03 88 01 03 8A 01 05 82 06 1C 00 00 38 00 08 8C 08 7F 03 FF 00 FF 00 03 00 AB 00
+
+Content:
+Record 1
+80 01 01 A4 06 83 01 81 95 01 08
+Record 2
+80 01 02 B4 09 83 01 01 95 01 08 80 01 02 B8 09 83 01 01 95 01 08 80 01 02 A4 06 83 01 81 95 01 08
+Record 3
+80 01 03 A4 06 83 01 01 95 01 08
+Record 4
+80 01 04 A4 09 83 01 01 83 01 81 95 01 08
+Record 5
+80 01 05 B4 08 84 00 95 01 30 80 01 02 A4 06 83 01 81 95 01 80
+Record 6
+80 01 06 B4 08 84 00 95 01 30 80 01 02 B8 08 84 00 95 01 30 80 01 02 A4 06 83 01 81 95 01 80
+Record 7
+Record 8
+
+### ATTENTION: Don't use records like my #5 and #6 above: They are tailored for Secure Messaging, which is not implemented currently     ###
+### Usage would be Security Condition byte values 0x45 or 0x46 for/behind tag 0x8C or 0xAB in FCI , referring to those records mentioned ###
+
+
+
+PKCS#15 Files
+
+
+File 0x3F002F00  EF.DIR:
+========================
+
+Header/meta infos (FCI):
+6F 18 83 02 3F 00 88 01 00 8A 01 01 82 02 3F 00 8D 02 00 03 84 00 8C 00 AB 00
+6F 1E 83 02 2F 00 88 01 00 8A 01 05 82 02 01 00 80 02 00 21 8C 08 7F 01 FF 01 01 FF 01 00 AB 00
+
+Content:
+61 1F 4F 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 50 05 65 43 65 72 74 51 04 3F 00 41 00
+
+name: dirRecord  type: SEQUENCE
+  name: aid  type: OCT_STR  value: 41434f53504b43532d313576312e3030 => ACOSPKCS-15v1.00
+  name: label  type: UTF8_STR  value: eCert
+  name: path  type: OCT_STR  value: 3f004100
+
+
+Application directory is 0x3F004100
+
+
+File 0x3F0041005031  EF.ODF:
+============================
+
+Header/meta infos (FCI):
+6F 30 83 02 41 00 88 01 00 8A 01 05 82 02 38 00 8D 02 41 03 84 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 8C 08 7F 03 FF 00 01 01 01 01 AB 00
+6F 1E 83 02 50 31 88 01 21 8A 01 05 82 02 01 00 80 02 00 6C 8C 08 7F 03 FF 00 03 FF 00 00 AB 00
+
+Content:
+A8 0A 30 08 04 06 3F 00 41 00 41 11 A0 0A 30 08 04 06 3F 00 41 00 41 12 A1 0A 30 08 04 06 3F 00 41 00 41 13 A3 0A 30 08 04 06 3F 00 41 00 41 14
+A4 0A 30 08 04 06 3F 00 41 00 41 15
+
+name: pkcs15Objects  type: CHOICE
+  name: authObjects  type: CHOICE
+    name: path  type: SEQUENCE
+      name: path  type: OCT_STR  value: 3f0041004111
+
+name: pkcs15Objects  type: CHOICE
+  name: privateKeys  type: CHOICE
+    name: path  type: SEQUENCE
+      name: path  type: OCT_STR  value: 3f0041004112
+
+name: pkcs15Objects  type: CHOICE
+  name: publicKeys  type: CHOICE
+    name: path  type: SEQUENCE
+      name: path  type: OCT_STR  value: 3f0041004113
+
+name: pkcs15Objects  type: CHOICE
+  name: secretKeys  type: CHOICE
+    name: path  type: SEQUENCE
+      name: path  type: OCT_STR  value: 3f0041004114
+
+name: pkcs15Objects  type: CHOICE
+  name: certificates  type: CHOICE
+    name: path  type: SEQUENCE
+      name: path  type: OCT_STR  value: 3f0041004115
+
+
+File 0x3F0041005032  EF.TOKENINFO:
+==================================
+
+Header/meta infos (FCI):
+6F 30 83 02 41 00 88 01 00 8A 01 05 82 02 38 00 8D 02 41 03 84 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 8C 08 7F 03 FF 00 01 01 01 01 AB 00
+6F 1E 83 02 50 32 88 01 22 8A 01 05 82 02 01 00 80 02 00 C0 8C 08 7F 03 FF 00 03 FF 00 00 AB 00
+
+Content:
+30 3F 02 01 01 04 06 00 00 00 00 00 00 0C 1A 41 64 76 61 6E 63 65 64 20 43 61 72 64 20 53 79 73 74 65 6D 73 20 4C 74 64 2E 80 12 43 54 4D 36 34
+5F 30 30 30 30 30 30 30 30 30 30 30 30 03 02 04 20
+
+name: tokenInfo  type: SEQUENCE
+  name: version  type: INTEGER  value: 0x01
+  name: serialNumber  type: OCT_STR  value: 000000000000
+  name: manufacturerID  type: UTF8_STR  value: Advanced Card Systems Ltd.
+  name: label  type: UTF8_STR  value: CTM64_000000000000
+  name: tokenflags  type: BIT_STR  value(4): 20  ->  0010
+
+
+File 0x3F0041004111  EF.AODF:
+=============================
+
+Header/meta infos (FCI):
+6F 30 83 02 41 00 88 01 00 8A 01 05 82 02 38 00 8D 02 41 03 84 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 8C 08 7F 03 FF 00 01 01 01 01 AB 00
+6F 1E 83 02 41 11 88 01 11 8A 01 01 82 02 01 00 80 02 00 80 8C 08 7F 03 FF 00 03 FF 00 00 AB 00
+
+Content:
+30 35 30 0A 0C 04 55 73 65 72 03 02 06 C0 30 03 04 01 01 A1 22 30 20 03 03 04 CC 00 0A 01 01 02 01 04 02 01 08 02 01 08 80 02 00 81 04 01 FF 30
+06 04 04 3F 00 41 00 30 30 30 08 0C 02 53 4F 03 02 06 C0 30 03 04 01 02 A1 1F 30 1D 03 03 04 8F 00 0A 01 01 02 01 04 02 01 08 02 01 08 80 01 01
+04 01 FF 30 04 04 02 3F 00
+
+name: authObj  type: CHOICE
+  name: pinAuthObj  type: SEQUENCE
+    name: commonObjectAttributes  type: SEQUENCE
+      name: label  type: UTF8_STR  value: User
+      name: flags  type: BIT_STR  value(2): c0  ->  11
+    name: commonAuthenticationObjectAttributes  type: SEQUENCE
+      name: authId  type: OCT_STR  value: 01
+    name: pinAttributes  type: SEQUENCE
+      name: pinFlags  type: BIT_STR  value(12): cc00  ->  110011000000
+      name: pinType  type: ENUMERATED  value: 0x01
+      name: minLength  type: INTEGER  value: 0x04
+      name: storedLength  type: INTEGER  value: 0x08
+      name: maxLength  type: INTEGER  value: 0x08
+      name: pinReference  type: INTEGER  value: 0x0081
+        name: NULL  type: DEFAULT  value: 0
+      name: padChar  type: OCT_STR  value: ff
+      name: path  type: SEQUENCE
+        name: path  type: OCT_STR  value: 3f004100
+
+name: authObj  type: CHOICE
+  name: pinAuthObj  type: SEQUENCE
+    name: commonObjectAttributes  type: SEQUENCE
+      name: label  type: UTF8_STR  value: SO
+      name: flags  type: BIT_STR  value(2): c0  ->  11
+    name: commonAuthenticationObjectAttributes  type: SEQUENCE
+      name: authId  type: OCT_STR  value: 02
+    name: pinAttributes  type: SEQUENCE
+      name: pinFlags  type: BIT_STR  value(12): 8f00  ->  100011110000
+      name: pinType  type: ENUMERATED  value: 0x01
+      name: minLength  type: INTEGER  value: 0x04
+      name: storedLength  type: INTEGER  value: 0x08
+      name: maxLength  type: INTEGER  value: 0x08
+      name: pinReference  type: INTEGER  value: 0x01
+        name: NULL  type: DEFAULT  value: 0
+      name: padChar  type: OCT_STR  value: ff
+      name: path  type: SEQUENCE
+        name: path  type: OCT_STR  value: 3f00
+
+File 0x3F0041004112  EF.PrKDF:
+==============================
+
+Header/meta infos (FCI):
+6F 30 83 02 41 00 88 01 00 8A 01 05 82 02 38 00 8D 02 41 03 84 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 8C 08 7F 03 FF 00 01 01 01 01 AB 00
+6F 1E 83 02 41 12 88 01 12 8A 01 01 82 02 01 00 80 02 03 00 8C 08 7F 03 FF 00 03 FF 00 00 AB 00
+
+Content:
+30 31 30 0F 0C 06 43 41 72 6F 6F 74 03 02 06 C0 04 01 01 30 0C 04 01 03 03 03 06 20 40 03 02 03 B8 A1 10 30 0E 30 08 04 06 3F 00 41 00 41 F1 02
+02 10 00 30 32 30 10 0C 07 43 41 69 6E 74 65 72 03 02 06 C0 04 01 01 30 0C 04 01 04 03 03 06 20 40 03 02 03 B8 A1 10 30 0E 30 08 04 06 3F 00 41
+00 41 F2 02 02 10 00 30 37 30 15 0C 0C 00 00 00 00 00 00 00 00 00 00 00 00 03 02 06 C0 04 01 01 30 0C 04 01 05 03 03 06 60 00 03 02 03 B8 A1 10
+30 0E 30 08 04 06 3F 00 41 00 41 F3 02 02 10 00 30 30 30 0E 0C 05 00 00 00 00 00 03 02 06 C0 04 01 01 30 0C 04 01 06 03 03 06 60 00 03 02 03 B8
+A1 10 30 0E 30 08 04 06 3F 00 41 00 41 F4 02 02 10 00
+
+name: privateRSAKey  type: SEQUENCE
+  name: commonObjectAttributes  type: SEQUENCE
+    name: label  type: UTF8_STR  value: CAroot
+    name: flags  type: BIT_STR  value(2): c0  ->  11
+    name: authId  type: OCT_STR  value: 01
+  name: commonKeyAttributes  type: SEQUENCE
+    name: iD  type: OCT_STR  value: 03
+    name: usage  type: BIT_STR  value(10): 2040  ->  0010000001
+    name: native  type: BOOLEAN
+      name: NULL  type: DEFAULT  value: TRUE
+    name: accessFlags  type: BIT_STR  value(5): b8  ->  10111
+  name: privateRSAKeyAttributes  type: SEQUENCE
+    name: value  type: CHOICE
+      name: indirect  type: CHOICE
+        name: path  type: SEQUENCE
+          name: path  type: OCT_STR  value: 3f00410041f1
+    name: modulusLength  type: INTEGER  value: 0x1000
+
+name: privateRSAKey  type: SEQUENCE
+  name: commonObjectAttributes  type: SEQUENCE
+    name: label  type: UTF8_STR  value: CAinter
+    name: flags  type: BIT_STR  value(2): c0  ->  11
+    name: authId  type: OCT_STR  value: 01
+  name: commonKeyAttributes  type: SEQUENCE
+    name: iD  type: OCT_STR  value: 04
+    name: usage  type: BIT_STR  value(10): 2040  ->  0010000001
+    name: native  type: BOOLEAN
+      name: NULL  type: DEFAULT  value: TRUE
+    name: accessFlags  type: BIT_STR  value(5): b8  ->  10111
+  name: privateRSAKeyAttributes  type: SEQUENCE
+    name: value  type: CHOICE
+      name: indirect  type: CHOICE
+        name: path  type: SEQUENCE
+          name: path  type: OCT_STR  value: 3f00410041f2
+    name: modulusLength  type: INTEGER  value: 0x1000
+
+name: privateRSAKey  type: SEQUENCE
+  name: commonObjectAttributes  type: SEQUENCE
+    name: label  type: UTF8_STR  value:
+    name: flags  type: BIT_STR  value(2): c0  ->  11
+    name: authId  type: OCT_STR  value: 01
+  name: commonKeyAttributes  type: SEQUENCE
+    name: iD  type: OCT_STR  value: 05
+    name: usage  type: BIT_STR  value(10): 6000  ->  0110000000
+    name: native  type: BOOLEAN
+      name: NULL  type: DEFAULT  value: TRUE
+    name: accessFlags  type: BIT_STR  value(5): b8  ->  10111
+  name: privateRSAKeyAttributes  type: SEQUENCE
+    name: value  type: CHOICE
+      name: indirect  type: CHOICE
+        name: path  type: SEQUENCE
+          name: path  type: OCT_STR  value: 3f00410041f3
+    name: modulusLength  type: INTEGER  value: 0x1000
+
+name: privateRSAKey  type: SEQUENCE
+  name: commonObjectAttributes  type: SEQUENCE
+    name: label  type: UTF8_STR  value:
+    name: flags  type: BIT_STR  value(2): c0  ->  11
+    name: authId  type: OCT_STR  value: 01
+  name: commonKeyAttributes  type: SEQUENCE
+    name: iD  type: OCT_STR  value: 06
+    name: usage  type: BIT_STR  value(10): 6000  ->  0110000000
+    name: native  type: BOOLEAN
+      name: NULL  type: DEFAULT  value: TRUE
+    name: accessFlags  type: BIT_STR  value(5): b8  ->  10111
+  name: privateRSAKeyAttributes  type: SEQUENCE
+    name: value  type: CHOICE
+      name: indirect  type: CHOICE
+        name: path  type: SEQUENCE
+          name: path  type: OCT_STR  value: 3f00410041f4
+    name: modulusLength  type: INTEGER  value: 0x1000
+
+
+File 0x3F0041004113  EF.PuKDF:
+==============================
+
+Header/meta infos (FCI):
+6F 30 83 02 41 00 88 01 00 8A 01 05 82 02 38 00 8D 02 41 03 84 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 8C 08 7F 03 FF 00 01 01 01 01 AB 00
+6F 1E 83 02 41 13 88 01 13 8A 01 01 82 02 01 00 80 02 06 00 8C 08 7F 03 FF 00 03 FF 00 00 AB 00
+
+Content:
+30 2D 30 0C 0C 06 43 41 72 6F 6F 74 03 02 06 40 30 0B 04 01 03 03 02 01 02 03 02 03 48 A1 10 30 0E 30 08 04 06 3F 00 41 00 41 31 02 02 10 00 30
+2E 30 0D 0C 07 43 41 69 6E 74 65 72 03 02 06 40 30 0B 04 01 04 03 02 01 02 03 02 03 48 A1 10 30 0E 30 08 04 06 3F 00 41 00 41 32 02 02 10 00 30
+34 30 12 0C 0C 00 00 00 00 00 00 00 00 00 00 00 00 03 02 06 40 30 0C 04 01 05 03 03 06 82 00 03 02 03 48 A1 10 30 0E 30 08 04 06 3F 00 41 00 41
+33 02 02 10 00 30 2D 30 0B 0C 05 00 00 00 00 00 03 02 06 40 30 0C 04 01 06 03 03 06 82 00 03 02 03 48 A1 10 30 0E 30 08 04 06 3F 00 41 00 41 34
+02 02 10 00
+
+name: publicRSAKey  type: SEQUENCE
+  name: commonObjectAttributes  type: SEQUENCE
+    name: label  type: UTF8_STR  value: CAroot
+    name: flags  type: BIT_STR  value(2): 40  ->  01
+  name: commonKeyAttributes  type: SEQUENCE
+    name: iD  type: OCT_STR  value: 03
+    name: usage  type: BIT_STR  value(7): 02  ->  0000001
+    name: native  type: BOOLEAN
+      name: NULL  type: DEFAULT  value: TRUE
+    name: accessFlags  type: BIT_STR  value(5): 48  ->  01001
+  name: publicRSAKeyAttributes  type: SEQUENCE
+    name: value  type: CHOICE
+      name: indirect  type: CHOICE
+        name: path  type: SEQUENCE
+          name: path  type: OCT_STR  value: 3f0041004131
+    name: modulusLength  type: INTEGER  value: 0x1000
+
+name: publicRSAKey  type: SEQUENCE
+  name: commonObjectAttributes  type: SEQUENCE
+    name: label  type: UTF8_STR  value: CAinter
+    name: flags  type: BIT_STR  value(2): 40  ->  01
+  name: commonKeyAttributes  type: SEQUENCE
+    name: iD  type: OCT_STR  value: 04
+    name: usage  type: BIT_STR  value(7): 02  ->  0000001
+    name: native  type: BOOLEAN
+      name: NULL  type: DEFAULT  value: TRUE
+    name: accessFlags  type: BIT_STR  value(5): 48  ->  01001
+  name: publicRSAKeyAttributes  type: SEQUENCE
+    name: value  type: CHOICE
+      name: indirect  type: CHOICE
+        name: path  type: SEQUENCE
+          name: path  type: OCT_STR  value: 3f0041004132
+    name: modulusLength  type: INTEGER  value: 0x1000
+
+name: publicRSAKey  type: SEQUENCE
+  name: commonObjectAttributes  type: SEQUENCE
+    name: label  type: UTF8_STR  value:
+    name: flags  type: BIT_STR  value(2): 40  ->  01
+  name: commonKeyAttributes  type: SEQUENCE
+    name: iD  type: OCT_STR  value: 05
+    name: usage  type: BIT_STR  value(10): 8200  ->  1000001000
+    name: native  type: BOOLEAN
+      name: NULL  type: DEFAULT  value: TRUE
+    name: accessFlags  type: BIT_STR  value(5): 48  ->  01001
+  name: publicRSAKeyAttributes  type: SEQUENCE
+    name: value  type: CHOICE
+      name: indirect  type: CHOICE
+        name: path  type: SEQUENCE
+          name: path  type: OCT_STR  value: 3f0041004133
+    name: modulusLength  type: INTEGER  value: 0x1000
+
+name: publicRSAKey  type: SEQUENCE
+  name: commonObjectAttributes  type: SEQUENCE
+    name: label  type: UTF8_STR  value:
+    name: flags  type: BIT_STR  value(2): 40  ->  01
+  name: commonKeyAttributes  type: SEQUENCE
+    name: iD  type: OCT_STR  value: 06
+    name: usage  type: BIT_STR  value(10): 8200  ->  1000001000
+    name: native  type: BOOLEAN
+      name: NULL  type: DEFAULT  value: TRUE
+    name: accessFlags  type: BIT_STR  value(5): 48  ->  01001
+  name: publicRSAKeyAttributes  type: SEQUENCE
+    name: value  type: CHOICE
+      name: indirect  type: CHOICE
+        name: path  type: SEQUENCE
+          name: path  type: OCT_STR  value: 3f0041004134
+    name: modulusLength  type: INTEGER  value: 0x1000
+
+
+File 0x3F0041004114  EF.SKDF:
+=============================
+
+Header/meta infos (FCI):
+6F 30 83 02 41 00 88 01 00 8A 01 05 82 02 38 00 8D 02 41 03 84 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 8C 08 7F 03 FF 00 01 01 01 01 AB 00
+6F 1E 83 02 41 14 88 01 14 8A 01 01 82 02 01 00 80 02 01 00 8C 08 7F 03 FF 00 03 FF 00 00 AB 00
+
+Content:
+A4 3A 30 0C 0C 03 53 4D 31 03 02 06 C0 04 01 01 30 10 04 01 01 03 03 06 C0 00 03 02 03 B0 02 02 00 81 A0 04 02 02 00 C0 A1 12 30 10 30 0E 04 06
+3F 00 41 00 41 02 02 01 01 80 01 00 A4 3A 30 0C 0C 03 53 4D 32 03 02 06 C0 04 01 01 30 10 04 01 02 03 03 06 C0 00 03 02 03 B0 02 02 00 82 A0 04
+02 02 00 C0 A1 12 30 10 30 0E 04 06 3F 00 41 00 41 02 02 01 02 80 01 00 30 3B 30 0D 0C 04 4B 65 79 33 03 02 06 C0 04 01 01 30 10 04 01 07 03 03
+06 CC 00 03 02 03 B0 02 02 00 83 A0 04 02 02 01 00 A1 12 30 10 30 0E 04 06 3F 00 41 00 41 02 02 01 03 80 01 00
+
+name: secretKey  type: CHOICE
+  name: des3Key  type: SEQUENCE
+    name: commonObjectAttributes  type: SEQUENCE
+      name: label  type: UTF8_STR  value: SM1
+      name: flags  type: BIT_STR  value(2): c0  ->  11
+      name: authId  type: OCT_STR  value: 01
+    name: commonKeyAttributes  type: SEQUENCE
+      name: iD  type: OCT_STR  value: 01
+      name: usage  type: BIT_STR  value(10): c000  ->  1100000000
+      name: native  type: BOOLEAN
+        name: NULL  type: DEFAULT  value: TRUE
+      name: accessFlags  type: BIT_STR  value(5): b0  ->  10110
+      name: keyReference  type: INTEGER  value: 0x0081
+    name: commonSecretKeyAttributes  type: SEQUENCE
+      name: keyLen  type: INTEGER  value: 0x00c0
+    name: genericSecretKeyAttributes  type: SEQUENCE
+      name: value  type: CHOICE
+        name: indirect  type: CHOICE
+          name: path  type: SEQUENCE
+            name: path  type: OCT_STR  value: 3f0041004102
+            name: index  type: INTEGER  value: 0x01
+            name: length  type: INTEGER  value: 0x00
+
+name: secretKey  type: CHOICE
+  name: des3Key  type: SEQUENCE
+    name: commonObjectAttributes  type: SEQUENCE
+      name: label  type: UTF8_STR  value: SM2
+      name: flags  type: BIT_STR  value(2): c0  ->  11
+      name: authId  type: OCT_STR  value: 01
+    name: commonKeyAttributes  type: SEQUENCE
+      name: iD  type: OCT_STR  value: 02
+      name: usage  type: BIT_STR  value(10): c000  ->  1100000000
+      name: native  type: BOOLEAN
+        name: NULL  type: DEFAULT  value: TRUE
+      name: accessFlags  type: BIT_STR  value(5): b0  ->  10110
+      name: keyReference  type: INTEGER  value: 0x0082
+    name: commonSecretKeyAttributes  type: SEQUENCE
+      name: keyLen  type: INTEGER  value: 0x00c0
+    name: genericSecretKeyAttributes  type: SEQUENCE
+      name: value  type: CHOICE
+        name: indirect  type: CHOICE
+          name: path  type: SEQUENCE
+            name: path  type: OCT_STR  value: 3f0041004102
+            name: index  type: INTEGER  value: 0x02
+            name: length  type: INTEGER  value: 0x00
+
+name: secretKey  type: CHOICE
+  name: genericSecretKey  type: SEQUENCE
+    name: commonObjectAttributes  type: SEQUENCE
+      name: label  type: UTF8_STR  value: Key3
+      name: flags  type: BIT_STR  value(2): c0  ->  11
+      name: authId  type: OCT_STR  value: 01
+    name: commonKeyAttributes  type: SEQUENCE
+      name: iD  type: OCT_STR  value: 07
+      name: usage  type: BIT_STR  value(10): cc00  ->  1100110000
+      name: native  type: BOOLEAN
+        name: NULL  type: DEFAULT  value: TRUE
+      name: accessFlags  type: BIT_STR  value(5): b0  ->  10110
+      name: keyReference  type: INTEGER  value: 0x0083
+    name: commonSecretKeyAttributes  type: SEQUENCE
+      name: keyLen  type: INTEGER  value: 0x0100
+    name: genericSecretKeyAttributes  type: SEQUENCE
+      name: value  type: CHOICE
+        name: indirect  type: CHOICE
+          name: path  type: SEQUENCE
+            name: path  type: OCT_STR  value: 3f0041004102
+            name: index  type: INTEGER  value: 0x03
+            name: length  type: INTEGER  value: 0x00
+
+
+File 0x3F0041004115  EF.CDF:
+============================
+
+Header/meta infos (FCI):
+6F 30 83 02 41 00 88 01 00 8A 01 05 82 02 38 00 8D 02 41 03 84 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 8C 08 7F 03 FF 00 01 01 01 01 AB 00
+6F 1E 83 02 41 15 88 01 15 8A 01 01 82 02 01 00 80 02 01 00 8C 08 7F 03 FF 00 03 FF 00 00 AB 00
+
+Content:
+30 27 30 12 0C 0C 63 62 40 70 6F 73 74 65 6F 2E 64 65 03 02 06 40 30 03 04 01 05 A1 0C 30 0A 30 08 04 06 3F 00 41 00 41 20 30 28 30 13 0C 0D 62
+6C 75 65 40 61 72 63 6F 72 2E 64 65 03 02 06 40 30 03 04 01 06 A1 0C 30 0A 30 08 04 06 3F 00 41 00 41 21
+
+name: x509Certificate  type: SEQUENCE
+  name: commonObjectAttributes  type: SEQUENCE
+    name: label  type: UTF8_STR  value:
+    name: flags  type: BIT_STR  value(2): 40  ->  01
+  name: commonCertificateAttributes  type: SEQUENCE
+    name: iD  type: OCT_STR  value: 05
+    name: authority  type: BOOLEAN
+      name: NULL  type: DEFAULT  value: FALSE
+    name: implicitTrust  type: BOOLEAN
+      name: NULL  type: DEFAULT  value: FALSE
+  name: x509CertificateAttributes  type: SEQUENCE
+    name: value  type: CHOICE
+      name: indirect  type: CHOICE
+        name: path  type: SEQUENCE
+          name: path  type: OCT_STR  value: 3f0041004120
+
+name: x509Certificate  type: SEQUENCE
+  name: commonObjectAttributes  type: SEQUENCE
+    name: label  type: UTF8_STR  value:
+    name: flags  type: BIT_STR  value(2): 40  ->  01
+  name: commonCertificateAttributes  type: SEQUENCE
+    name: iD  type: OCT_STR  value: 06
+    name: authority  type: BOOLEAN
+      name: NULL  type: DEFAULT  value: FALSE
+    name: implicitTrust  type: BOOLEAN
+      name: NULL  type: DEFAULT  value: FALSE
+  name: x509CertificateAttributes  type: SEQUENCE
+    name: value  type: CHOICE
+      name: indirect  type: CHOICE
+        name: path  type: SEQUENCE
+          name: path  type: OCT_STR  value: 3f0041004121
+
+
+
+exemplary an RSA public key file, 0x3F0041004134
+================================================
+
+Header/meta infos (FCI):
+6F 30 83 02 41 00 88 01 00 8A 01 05 82 02 38 00 8D 02 41 03 84 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 8C 08 7F 03 FF 00 01 01 01 01 AB 00
+6F 1E 83 02 41 34 88 01 14 8A 01 05 82 02 09 00 80 02 02 15 8C 08 7F 01 FF 00 01 00 01 00 AB 00
+
+Content:
+
+00 20 41 F4 03 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 01 8C E5 32 04 85 14 2D 34 3F FF 1F 7A 25 79 D5 37 BF 0D 9F 38 2D 75 95 5A 6B 22 A3
+71 22 27 D2 B8 29 BF 67 F1 44 A6 AE 87 52 D9 73 7D 78 EB 67 A0 B9 3C 0D 6C 5C 26 43 A4 FA F2 8F 22 CB 9B 8B 65 4C C6 87 15 5C 6B 04 26 15 FB 6D
+48 EF 21 FD 3B C1 F7 95 6F 88 28 91 CD 38 74 49 A2 91 02 53 88 9E 64 2B 01 B9 01 21 DF B9 CD E6 58 63 D0 A5 6E 5E 1E DD E3 D3 FD A2 F8 3F DD 52
+F9 08 F3 0A C1 0B A0 80 35 C1 80 91 19 98 04 25 95 A4 63 37 1E 91 8A 69 F7 25 54 52 3F 62 9E B6 39 22 75 75 7B EB E5 6F 96 0E FE 5C F5 EB CD FA
+49 90 E4 15 18 0F C4 9C 86 3D 72 EF 9E DA C9 81 99 BB A7 65 8A D5 05 86 CF DD 5E 76 97 69 F7 C3 85 89 94 40 D7 CF 9A 42 10 34 1B 26 8E 24 C3 B0
+58 5C 07 FE 06 01 CE B2 EF 58 40 22 13 8B 6B 96 19 0A 83 87 FF B1 E0 2D D6 5D 6E CA 0F 23 84 A8 39 65 6B D1 3F 97 ED B5 69 F1 27 59 0E 8A 0C 78
+4A C2 8A 4A 33 30 37 C4 78 8F 2A FD 4E 54 64 85 BF F4 44 E6 00 F9 9F AF E5 3B 83 6B 55 7A 9C 24 BB 2F E4 E0 00 DA 10 4B D8 C4 42 CF A4 94 FC 04
+15 60 54 16 D4 E5 87 A7 B9 5E B8 88 EA D7 E1 00 83 9A 96 B5 8D 18 7E 5F 07 E5 E5 E1 BB 88 AE 9A 94 1F 77 55 6E 9F C2 D0 0F B7 D2 61 87 2A 6B 61
+17 0D 32 DC 0B DE 18 1A 61 8F 3D 9A 30 6E 3E 81 E3 DB 87 5C 8B FA 10 11 9D 79 61 C4 91 E8 E8 98 B9 89 8A BF C3 BB 48 B1 98 F6 9C B8 85 E5 A0 6A
+3E 03 C7 2E 35 A9 EC 87 C4 88 9D 23 8C 5F 4C 77 A9 08 25 8C C4 5D 1F 54 17 26 F2 2D 3C 77 D0 C7 54 FD 2E 6F 84 76 2A B8 5B 52 A5 E5 C2 54 2F 2B
+EC 62 C4 48 F7 AD 43 71 BF 14 C1 F8 F7 B5 03 BD 97 F1 45 6D 4D C2 49 AE FE 75 A2 EF 10 44 1B 1C 6E 66 93 99 D8 AB 6E 77 45 47 8D AF 01 06 0C A5
+04 69 FF 2A D3
+
+This is a valid 4096 bit public RSA key with file id 0x 4134 (it's partner private key file id is 0x 41F4) :
+
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCM5TIEhRQtND//H3oledU3vw2fOC11lVprIqNxIifSuCm/Z/FEpq6HUtlzfXjrZ6C5PA1sXCZDpPryjyLLm4tlTMaHFVxrBCYV+21I7yH9O8H3lW+IKJHNOHRJopECU4ieZCsBuQEh37nN5lhj0KVuXh7d49P9ovg/3VL5CPMKwQuggDXBgJEZmAQllaRjNx6Rimn3JVRSP2KetjkidXV76+Vvlg7+XPXrzfpJkOQVGA/EnIY9cu+e2smBmbunZYrVBYbP3V52l2n3w4WJlEDXz5pCEDQbJo4kw7BYXAf+BgHOsu9YQCITi2uWGQqDh/+x4C3WXW7KDyOEqDlla9E/l+21afEnWQ6KDHhKwopKMzA3xHiPKv1OVGSFv/RE5gD5n6/lO4NrVXqcJLsv5OAA2hBL2MRCz6SU/AQVYFQW1OWHp7leuIjq1+EAg5qWtY0Yfl8H5eXhu4iumpQfd1Vun8LQD7fSYYcqa2EXDTLcC94YGmGPPZowbj6B49uHXIv6EBGdeWHEkejomLmJir/Du0ixmPacuIXloGo+A8cuNansh8SInSOMX0x3qQgljMRdH1QXJvItPHfQx1T9Lm+Ediq4W1Kl5cJULyvsYsRI961Dcb8Uwfj3tQO9l/FFbU3CSa7+daLvEEQbHG5mk5nYq253RUeNrwEGDKUEaf8q0w==  comment_file_4134
+
+The fingerprint (MD5) is: b35d6fd0d07ad8c9e7c5f2d54c3bc9ed
+
+The fingerprint (SHA256) base64-encoded is: YAoRBaFNFu96hfL+OoFiedXiKvy1xdB+0BA/UIG/GCg=
+
+-----BEGIN RSA PUBLIC KEY-----
+MIICCgKCAgEAjOUyBIUULTQ//x96JXnVN78NnzgtdZVaayKjcSIn0rgpv2fxRKauh1LZc31462eguTwNbFwmQ6T68o8iy5uLZUzGhxVcawQmFfttSO8h/TvB95VviCiRzTh0SaKRAlOInmQrAbkBId+5zeZYY9Clbl4e3ePT/aL4P91S+QjzCsELoIA1wYCRGZgEJZWkYzcekYpp9yVUUj9inrY5InV1e+vlb5YO/lz16836SZDkFRgPxJyGPXLvntrJgZm7p2WK1QWGz91edpdp98OFiZRA18+aQhA0GyaOJMOwWFwH/gYBzrLvWEAiE4trlhkKg4f/seAt1l1uyg8jhKg5ZWvRP5fttWnxJ1kOigx4SsKKSjMwN8R4jyr9TlRkhb/0ROYA+Z+v5TuDa1V6nCS7L+TgANoQS9jEQs+klPwEFWBUFtTlh6e5XriI6tfhAIOalrWNGH5fB+Xl4buIrpqUH3dVbp/C0A+30mGHKmthFw0y3AveGBphjz2aMG4+gePbh1yL+hARnXlhxJHo6Ji5iYq/w7tIsZj2nLiF5aBqPgPHLjWp7IfEiJ0jjF9Md6kIJYzEXR9UFybyLTx30MdU/S5vhHYquFtSpeXCVC8r7GLESPetQ3G/FMH497UDvZfxRW1Nwkmu/nWi7xBEGxxuZpOZ2Ktud0VHja8BBgylBGn/KtMCAwEAAQ==
+-----END RSA PUBLIC KEY-----
+
+
+name: raw  type: SEQUENCE
+  name: modulus  type: INTEGER  value: 0x008ce5320485142d343fff1f7a2579d537bf0d9f382d75955a6b22a3712227d2b829bf67f144a6ae8752d9737d78eb67a0b93c0d6c5c2643a4faf28f22cb9b8b654cc687155c6b042615fb6d48ef21fd3bc1f7956f882891cd387449a2910253889e642b01b90121dfb9cde65863d0a56e5e1edde3d3fda2f83fdd52f908f30ac10ba08035c180911998042595a463371e918a69f72554523f629eb6392275757bebe56f960efe5cf5ebcdfa4990e415180fc49c863d72ef9edac98199bba7658ad50586cfdd5e769769f7c385899440d7cf9a4210341b268e24c3b0585c07fe0601ceb2ef584022138b6b96190a8387ffb1e02dd65d6eca0f2384a839656bd13f97edb569f127590e8a0c784ac28a4a333037c4788f2afd4e546485bff444e600f99fafe53b836b557a9c24bb2fe4e000da104bd8c442cfa494fc0415605416d4e587a7b95eb888ead7e100839a96b58d187e5f07e5e5e1bb88ae9a941f77556e9fc2d00fb7d261872a6b61170d32dc0bde181a618f3d9a306e3e81e3db875c8bfa10119d7961c491e8e898b9898abfc3bb48b198f69cb885e5a06a3e03c72e35a9ec87c4889d238c5f4c77a908258cc45d1f541726f22d3c77d0c754fd2e6f84762ab85b52a5e5c2542f2bec62c448f7ad4371bf14c1f8f7b503bd97f1456d4dc249aefe75a2ef10441b1c6e669399d8ab6e7745478daf01060ca50469ff2ad3
+  name: publicExponent  type: INTEGER  value: 0x010001
+
+
+Cert files: Import the DER-formatted certs directly into (separate) files, sized appropriately

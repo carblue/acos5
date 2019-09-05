@@ -46,7 +46,14 @@ pub fn current_path_df(card: &mut sc_card) -> &[u8]
     assert!(dp.files.contains_key(&file_id));
     let fdb = (&dp.files[&file_id]).1[0];
     card.drv_data = Box::into_raw(dp) as *mut c_void;
-
+    if ![FDB_MF, FDB_DF, FDB_TRANSPARENT_EF, FDB_LINEAR_FIXED_EF, FDB_LINEAR_VARIABLE_EF, FDB_CYCLIC_EF, FDB_SE_FILE,
+        FDB_RSA_KEY_EF, FDB_CHV_EF, FDB_SYMMETRIC_KEY_EF, FDB_PURSE_EF, FDB_ECC_KEY_EF].contains(&fdb) {
+        let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
+        let fun   = CStr::from_bytes_with_nul(b"current_path_df\0").unwrap();
+        let fmt   = CStr::from_bytes_with_nul(b"### fdb: %d is incorrect ##################################\0").unwrap();
+        #[cfg(log)]
+        wr_do_log_t(card.ctx, f_log, line!(), fun, fdb, fmt);
+    }
     &card.cache.current_path.value[.. len - if is_DFMF(fdb) {0} else {2}]
 }
 
@@ -190,8 +197,8 @@ pub fn cut_path(card: &mut sc_card, path: &mut sc_path) -> c_int
 {
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun     = CStr::from_bytes_with_nul(b"cut_path\0").unwrap();
-    let fmt_1   = CStr::from_bytes_with_nul(b"                    called.    in_type: %d,   in_value: %s\0").unwrap();
-    let fmt_3   = CStr::from_bytes_with_nul(b"                 returning:   out_type: %d,  out_value: %s\0").unwrap();
+    let fmt_1   = CStr::from_bytes_with_nul(b"                     called.   in_type: %d,   in_value: %s\0").unwrap();
+    let fmt_3   = CStr::from_bytes_with_nul(b"                  returning:  out_type: %d,  out_value: %s\0").unwrap();
     #[cfg(log)]
     wr_do_log_tu(card.ctx, f_log, line!(), fun, path.type_, unsafe{sc_dump_hex(path.value.as_ptr(), path.len)}, fmt_1);
 
@@ -199,9 +206,35 @@ pub fn cut_path(card: &mut sc_card, path: &mut sc_path) -> c_int
     assert!(path.len>=4);
     let c_path = &card.cache.current_path.value[..card.cache.current_path.len];
     let t_path = &mut path.value[..path.len];
+    if c_path == t_path {
+        t_path[0] = t_path[t_path.len()-2];
+        t_path[1] = t_path[t_path.len()-1];
+        path.len = 2;
+        return SC_SUCCESS;
+    }
 
-    if  c_path[0..2] == t_path[0..2] {
-        if c_path.len()==2 || c_path[2..4] != t_path[2..4] { // In principle it's_search_rule6_match: true, but path_target.len() > 4
+    if c_path.len()>=4 && t_path.len()>=4 && c_path[0..4] == t_path[0..4] {
+        if c_path.len() < t_path.len() { // In principle it's_search_rule6_match: true, but path_target.len() > 4
+            for i in 4..path.len { // shift left in path.value
+                t_path[i-4] = t_path[i];
+            }
+            t_path[path.len-4] = 0;
+            t_path[path.len-3] = 0;
+            t_path[path.len-2] = 0;
+            t_path[path.len-1] = 0;
+            path.len -= 4;
+        }
+        else {
+            for i in 2..path.len { // shift left in path.value
+                t_path[i-2] = t_path[i];
+            }
+            t_path[path.len-2] = 0;
+            t_path[path.len-1] = 0;
+            path.len -= 2;
+        }
+    }
+    else if  c_path[0..2] == t_path[0..2] {
+        if c_path.len() <= t_path.len() { // In principle it's_search_rule6_match: true, but path_target.len() > 4
             for i in 2..path.len { // shift left in path.value
                 t_path[i-2] = t_path[i];
             }

@@ -80,11 +80,12 @@ use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
 use opensc_sys::opensc::{SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM_TARGET_FILE, SC_ALGORITHM_AES_FLAGS,
                          SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB/*, SC_SEC_OPERATION_WRAP, SC_SEC_OPERATION_UNWRAP*/};
 
-use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_PATH_TYPE_FILE_ID, sc_file_t, SC_MAX_ATR_SIZE, */
-    sc_apdu, sc_path, sc_file, sc_serial_number, SC_PATH_TYPE_PATH, SC_FILE_TYPE_INTERNAL_EF, SC_MAX_PATH_SIZE,
-//    SC_PATH_TYPE_PATH_PROT, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT, SC_PATH_TYPE_FILE_ID, SC_MAX_CRTS_IN_SE,
-    /* SC_AC_UNKNOWN, SC_AC_NEVER, SC_AC_PRO, SC_AC_AUT, sc_crt,*/ //SC_AC_CHV,
-    SC_FILE_TYPE_DF, SC_FILE_EF_TRANSPARENT, SC_AC_NONE, SC_AC_KEY_REF_NONE,
+use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, sc_file_t, SC_MAX_ATR_SIZE, */
+    sc_apdu, sc_path, sc_file, sc_serial_number, SC_PATH_TYPE_PATH, SC_MAX_PATH_SIZE, SC_PATH_TYPE_FILE_ID,
+                        SC_PATH_TYPE_PATH_PROT, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
+    /* SC_AC_UNKNOWN, SC_AC_NEVER, SC_AC_PRO, SC_AC_AUT, sc_crt, SC_AC_CHV, SC_FILE_EF_LINEAR_FIXED, SC_MAX_CRTS_IN_SE,*/
+    SC_FILE_TYPE_DF, SC_FILE_TYPE_INTERNAL_EF, //SC_FILE_TYPE_WORKING_EF, SC_FILE_TYPE_BSO,
+    SC_FILE_EF_TRANSPARENT, SC_AC_NONE, SC_AC_KEY_REF_NONE,
     SC_AC_OP_LIST_FILES,
     SC_AC_OP_SELECT,
     SC_AC_OP_DELETE, SC_AC_OP_CREATE_EF, SC_AC_OP_CREATE_DF, SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK,
@@ -107,7 +108,7 @@ use opensc_sys::log::{sc_do_log, sc_dump_hex, SC_LOG_DEBUG_NORMAL};
 use opensc_sys::cardctl::{SC_CARDCTL_GET_SERIALNR, SC_CARDCTL_LIFECYCLE_SET};
 use opensc_sys::asn1::{sc_asn1_find_tag, sc_asn1_put_tag/*, sc_asn1_skip_tag, sc_asn1_read_tag, sc_asn1_print_tags*/};
 use opensc_sys::iso7816::{ISO7816_TAG_FCP_TYPE, ISO7816_TAG_FCP_LCS,  ISO7816_TAG_FCP, ISO7816_TAG_FCP_SIZE,
-                          ISO7816_TAG_FCP_FID};
+                          ISO7816_TAG_FCP_FID, ISO7816_TAG_FCP_DF_NAME};
 use opensc_sys::pkcs15::{sc_pkcs15_pubkey_rsa, sc_pkcs15_bignum, sc_pkcs15_encode_pubkey_rsa, sc_pkcs15_bind,
                          sc_pkcs15_unbind, sc_pkcs15_auth_info, sc_pkcs15_get_objects, SC_PKCS15_TYPE_AUTH_PIN, sc_pkcs15_object}; // , SC_PKCS15_AODF
 
@@ -133,8 +134,10 @@ use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_arra
     get_is_running_cmd_long_response, set_is_running_cmd_long_response, is_any_known_digestAlgorithm,
     sym_en_decrypt,
     generate_asym, encrypt_asym, get_files_hashmap_info, update_hashmap,
-    logical_xor, create_mf_file_system//, convert_acl_array_to_bytes_tag_fcp_sac
+    logical_xor, create_mf_file_system, convert_acl_array_to_bytes_tag_fcp_sac,
+    ACL_CATEGORY_DF_MF, ACL_CATEGORY_EF_CHV, ACL_CATEGORY_KEY, ACL_CATEGORY_SE
 };
+
 // choose new name ? denoting, that there are rust-mangled, non-externC functions, that don't relate to se
 // (security environment) nor relate to sm (secure messaging) nor relate to pkcs15/pkcs15-init
 
@@ -647,9 +650,13 @@ extern "C" fn acos5_64_init(card: *mut sc_card) -> c_int
         does_mf_exist: true, // just an assumption; will be set in enum_dir
         is_running_init: true,
         is_running_cmd_long_response: false,
+        /*  is_running_compute_signature: false, // maybe, acos5_64_decipher will need to know, that it was called by acos5_64_compute_signature */
         do_generate_rsa_crt: true,
         do_generate_rsa_add_decrypt: true,
         do_generate_rsa_standard_pub_exponent: true,
+        is_key_pair_created_and_valid_for_generation: false,
+        file_id_key_pair_priv: 0,
+        file_id_key_pair_pub:  0,
         #[cfg(enable_acos5_64_ui)]
         ui_ctx: Default::default(),
     } );
@@ -712,14 +719,9 @@ extern "C" fn acos5_64_finish(card: *mut sc_card) -> c_int
         assert_eq!(rv, SC_SUCCESS);
 
         let file_ref_mut = unsafe { &mut *sc_file_new() };
-        // file MUST have assigned 'type_attr' and 'sec_attr', id,
+        // file MUST have assigned id, size and record-length
         file_ref_mut.id = 0x4104;
-        file_ref_mut.type_attr_len = 6;
-        file_ref_mut.type_attr = unsafe { libc::malloc(file_ref_mut.type_attr_len) as *mut c_uchar };
-        unsafe { copy_nonoverlapping([0x02u8, 0x00, 0x00, 0x15, 0x00, 0x01].as_ptr(), file_ref_mut.type_attr, file_ref_mut.type_attr_len) };
-        file_ref_mut.sec_attr_len = 8;
-        file_ref_mut.sec_attr = unsafe { libc::malloc(file_ref_mut.sec_attr_len) as *mut c_uchar };
-        unsafe { copy_nonoverlapping([0x7Fu8, 0x03, 0xFF, 0x00, 0xFF, 0xFF, 0x01, 0xFF].as_ptr(), file_ref_mut.sec_attr, file_ref_mut.sec_attr_len) };
+        file_ref_mut.type_2;
 
     //    let mut outlen = 86usize;
     //    let mut out = [0u8; 86];
@@ -744,13 +746,7 @@ extern "C" fn acos5_64_finish(card: *mut sc_card) -> c_int
 
            let file_ref_mut = unsafe { &mut *sc_file_new() };
            file_ref_mut.id = 0x4101;
-           file_ref_mut.type_attr_len = 6;
-           file_ref_mut.type_attr = unsafe { libc::malloc(file_ref_mut.type_attr_len) as *mut c_uchar };
-           unsafe { copy_nonoverlapping([0x0Au8, 0x00, 0x00, 0x15, 0x00, 0x01].as_ptr(), file_ref_mut.type_attr, file_ref_mut.type_attr_len) };
-       // file MUST have assigned 'type_attr' and 'sec_attr'
-           file_ref_mut.sec_attr_len = 8;
-           file_ref_mut.sec_attr = unsafe { libc::malloc(file_ref_mut.sec_attr_len) as *mut c_uchar };
-           unsafe { copy_nonoverlapping([0x7Fu8, 0x03, 0xFF, 0x00, 0xFF, 0xFF, 0x01, 0xFF].as_ptr(), file_ref_mut.sec_attr, file_ref_mut.sec_attr_len) };
+           file_ref_mut.type_ = 0x0A;
 
            let mut outlen = 86usize;
            let mut out = [0u8; 86];
@@ -1195,7 +1191,7 @@ To clear the accumulated CRT’s, issue a SELECT FILE command
     let card_ref = unsafe { & *card };
     let path_ref = unsafe { & *path };
 
-    if card_ref_mut.cache.current_path.len==0 || path_ref.len==0 { // first setting of  card.cache.current_path.len  done in acos5_64_init
+    if card_ref_mut.cache.current_path.len==0 || path_ref.len==0 || (path_ref.type_==SC_PATH_TYPE_FILE_ID && path_ref.len!=2) { // first setting of  card.cache.current_path.len  done in acos5_64_init
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     assert!(path_ref.len>=2);
@@ -1215,6 +1211,7 @@ To clear the accumulated CRT’s, issue a SELECT FILE command
                        && path_ref.value[1]==0x28 { return SC_ERROR_NOT_ALLOWED; }
 //    card.c:812:sc_select_file: called; type=1, path=e828bd080fa000000167455349474e::
     if is_impossible_file_match(path_ref) { return SC_ERROR_NOT_ALLOWED; }
+
     if path_ref.type_ == SC_PATH_TYPE_PATH {
         let len = path_ref.len;
         let path_target = &path_ref.value[..len];
@@ -1275,16 +1272,13 @@ true (select_file target is a EF/DF located (directly) within the parent DF of c
 
     let rv = match path_ref.type_ {
         SC_PATH_TYPE_PATH        =>  select_file_by_path(card_ref_mut, path_ref, file_out),
-/*
-            SC_PATH_TYPE_PATH_PROT | SC_PATH_TYPE_FROM_CURRENT | SC_PATH_TYPE_PARENT
-                                          => SC_ERROR_KEYPAD_MSG_TOO_LONG,
-*/
+        SC_PATH_TYPE_PATH_PROT | SC_PATH_TYPE_FROM_CURRENT | SC_PATH_TYPE_PARENT
+            => SC_ERROR_KEYPAD_MSG_TOO_LONG,
             /* for SC_PATH_TYPE_FILE_ID and SC_PATH_TYPE_DF_NAME : */
-        _        =>  track_iso7816_select_file(card_ref_mut, path_ref, file_out),
+        _   =>  track_iso7816_select_file(card_ref_mut, path_ref, file_out),
     };
     rv
 }
-
 /*
 Specific Return Status Code of cos5 Get Response
 SW1 SW2   Definition
@@ -1529,9 +1523,9 @@ extern "C" fn acos5_64_create_file(card: *mut sc_card, file: *mut sc_file) -> c_
             return SC_ERROR_INVALID_ARGUMENTS;
         }
         let mut dp = unsafe { Box::from_raw(card_ref_mut.drv_data as *mut DataPrivate) };
-        let mut x = dp.files.entry(file_ref.id as u16).or_insert(([0u8;SC_MAX_PATH_SIZE], [0u8, 0, 0, 0, 0, 0, 0xFF, 5], None, None));
+        let mut x = dp.files.entry(file_ref.id as u16).or_insert(([0u8;SC_MAX_PATH_SIZE], [0u8, 0, 0, 0, 0, 0, 0xFF, 1], None, None));
         x.0 = file_ref.path.value;
-        x.1[0] = 0x09;
+        x.1[0] = file_ref.type_ as c_uchar;
         x.1[1] = file_ref.path.len as c_uchar;
         x.1[2] = file_ref.path.value[file_ref.path.len-2];
         x.1[3] = file_ref.path.value[file_ref.path.len-1];
@@ -1829,13 +1823,26 @@ extern "C" fn acos5_64_process_fci(card: *mut sc_card, file: *mut sc_file,
 
 
 // assembles the byte string/data part for file creation via command "Create File"
-// file MUST have assigned 'type_attr' and 'sec_attr' (for SAC)
-// TODO special treatment for DF/MF is missing: mandatory ISO7816_RFU_TAG_FCP_SEID, optional ISO7816_RFU_TAG_FCP_SAE, optional ISO7816_TAG_FCP_DF_NAME
+// TODO special treatment for DF/MF is missing: optional ISO7816_RFU_TAG_FCP_SAE
+// TODO special treatment for record based files is missing: ISO7816_TAG_FCP_TYPE specifying MRL and NOR
 //#[allow(dead_code)]
 extern "C" fn acos5_64_construct_fci(card: *mut sc_card, file: *const sc_file,
                                      out: *mut c_uchar, outlen: *mut usize) -> c_int
 {
-/*
+/* file 5032 createdby OpenSC  pkcs15-init  --create-pkcs15 --so-pin 87654321
+30 56 02 01 00 04 06 30 AB 40 68 81 C7 0C 23 68 74 74 70 73 3A 2F 2F 67 69 74 68 75 62 2E 63 6F 6D 2F 63 61 72 62 6C 75 65 2F 61 63 6F 73 35 5F
+36 34 80 0D 41 43 4F 53 35 2D 36 34 20 43 61 72 64 03 02 04 10 A5 11 18 0F 32 30 31 39 30 39 30 31 31 38 30 37 34 37 5A 00 00 00 00
+
+SEQUENCE (6 elem)
+  INTEGER 0
+  OCTET STRING (6 byte) 30AB406881C7
+  UTF8String https://github.com/carblue/acos5_64
+  [0] ACOS5-64 Card
+  BIT STRING (4 bit) 0001
+  [5] (1 elem)
+    GeneralizedTime 2019-09-01 18:07:47 UTC
+
+
 6F 16  83 02 2F 00   82 02 01 00  80 02 00 21  8C 08 7F 01 FF 01 01 FF 01 00
 6F 30  83 02 41 00 88 01 00 8A 01 05 82 02 38 00 8D 02 41 03 84 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 8C 08 7F 03 FF 00 01 01 01 01 AB 00
 
@@ -1873,80 +1880,73 @@ extern "C" fn acos5_64_construct_fci(card: *mut sc_card, file: *const sc_file,
                      CStr::from_bytes_with_nul(b"name: %zu, %s\0").unwrap());
 
         wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.type_, CStr::from_bytes_with_nul(b"type_: %u\0").unwrap());
-        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.ef_structure, CStr::from_bytes_with_nul(b"ef_structure: %u\0").unwrap());
-        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.status, CStr::from_bytes_with_nul(b"status: %u\0").unwrap());
-        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.shareable, CStr::from_bytes_with_nul(b"shareable: %u\0").unwrap());
+
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.id, CStr::from_bytes_with_nul(b"id: 0x%X\0").unwrap());
+
         wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.size, CStr::from_bytes_with_nul(b"size: %zu\0").unwrap());
-        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.id, CStr::from_bytes_with_nul(b"id: %d\0").unwrap());
-        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.sid, CStr::from_bytes_with_nul(b"sid: %d\0").unwrap());
 
-        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[1], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_LOCK]: %p\0").unwrap());
-        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[8], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_DELETE_SELF]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.ef_structure, CStr::from_bytes_with_nul(b"ef_structure: %u\0").unwrap());
+//        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.status, CStr::from_bytes_with_nul(b"status: %u\0").unwrap());
+//        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.shareable, CStr::from_bytes_with_nul(b"shareable: %u\0").unwrap());
+//        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.sid, CStr::from_bytes_with_nul(b"sid: %d\0").unwrap());
+//        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.prop_attr_len, CStr::from_bytes_with_nul(b"prop_attr_len: %zu\0").unwrap());
+/*
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[ 0], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_SELECT]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[ 1], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_LOCK]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[ 2], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_DELETE]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[ 3], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_CREATE]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[ 4], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_REHABILITATE]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[ 5], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_INVALIDATE]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[ 6], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_LIST_FILES]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[ 7], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_CRYPTO]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[ 8], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_DELETE_SELF]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[ 9], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_PSO_DECRYPT]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[10], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_PSO_ENCRYPT]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[11], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_PSO_COMPUTE_SIGNATURE]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[12], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_PSO_VERIFY_SIGNATURE]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[13], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_PSO_COMPUTE_CHECKSUM]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[14], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_PSO_VERIFY_CHECKSUM]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[15], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_INTERNAL_AUTHENTICATE]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[16], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_EXTERNAL_AUTHENTICATE]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[17], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_PIN_DEFINE]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[18], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_PIN_CHANGE]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[19], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_PIN_RESET]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[20], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_ACTIVATE]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[21], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_DEACTIVATE]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[22], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_READ]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[23], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_UPDATE]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[24], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_WRITE]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[25], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_RESIZE]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[26], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_GENERATE]: %p\0").unwrap());
         wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[27], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_CREATE_EF]: %p\0").unwrap());
-
-        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.sec_attr_len, CStr::from_bytes_with_nul(b"sec_attr_len: %zu\0").unwrap());
-        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.prop_attr_len, CStr::from_bytes_with_nul(b"prop_attr_len: %zu\0").unwrap());
-        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.type_attr_len, CStr::from_bytes_with_nul(b"type_attr_len: %zu\0").unwrap());
-        /*
-        reinit_entry(0,3,55, /*§§ 4100  DF.PKCS#15*/cast(immutable(ubyte)[])hexString!"00 E0 00 00 32 62 30 83 02  4100  82 02  38  00   8D 02 41 03 88 01 00 8A 01 01 8C 08 7F FF FF 01 01 01 01 01   AB 00 84 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30"
-
-P:19725; T:0x139763032080256 00:00:39.127 [pkcs15-init] acos5_64:1861:acos5_64_construct_fci: path: 4, 3F004100
-P:19725; T:0x139763032080256 00:00:39.127 [pkcs15-init] acos5_64:1864:acos5_64_construct_fci: name: 16, 41434F53504B43532D313576312E3030
-P:19725; T:0x139763032080256 00:00:39.127 [pkcs15-init] acos5_64:1867:acos5_64_construct_fci: type_: 4
-P:19725; T:0x139763032080256 00:00:39.127 [pkcs15-init] acos5_64:1868:acos5_64_construct_fci: ef_structure: 0
-P:19725; T:0x139763032080256 00:00:39.127 [pkcs15-init] acos5_64:1869:acos5_64_construct_fci: status: 0
-P:19725; T:0x139763032080256 00:00:39.127 [pkcs15-init] acos5_64:1870:acos5_64_construct_fci: shareable: 0
-P:19725; T:0x139763032080256 00:00:39.127 [pkcs15-init] acos5_64:1871:acos5_64_construct_fci: size: 5000
-P:19725; T:0x139763032080256 00:00:39.127 [pkcs15-init] acos5_64:1872:acos5_64_construct_fci: id: 16640
-P:19725; T:0x139763032080256 00:00:39.127 [pkcs15-init] acos5_64:1873:acos5_64_construct_fci: sid: 0
-P:19725; T:0x139763032080256 00:00:39.127 [pkcs15-init] acos5_64:1875:acos5_64_construct_fci: acl[SC_AC_OP_LOCK]: 0x1
-P:19725; T:0x139763032080256 00:00:39.127 [pkcs15-init] acos5_64:1876:acos5_64_construct_fci: acl[SC_AC_OP_DELETE_SELF]: 0x2
-P:19725; T:0x139763032080256 00:00:39.127 [pkcs15-init] acos5_64:1877:acos5_64_construct_fci: acl[SC_AC_OP_CREATE_EF]: 0x55d929246a50
-P:19725; T:0x139763032080256 00:00:39.127 [pkcs15-init] acos5_64:1879:acos5_64_construct_fci: sec_attr_len: 0
-P:19725; T:0x139763032080256 00:00:39.127 [pkcs15-init] acos5_64:1880:acos5_64_construct_fci: prop_attr_len: 0
-P:19725; T:0x139763032080256 00:00:39.127 [pkcs15-init] acos5_64:1881:acos5_64_construct_fci: type_attr_len: 0
-
-        pub struct sc_file {
-            pub path : sc_path ,
-            pub name : [c_uchar; SC_MAX_AID_SIZE /*16usize*/], /* DF name */
-            pub namelen : usize, /* length of DF name */
-
-            pub type_        : c_uint, /* See constant values defined above */  // binding: name changed from type to type_
-            pub ef_structure : c_uint, /* See constant values defined above */
-            pub status       : c_uint, /* See constant values defined above */
-            pub shareable    : c_uint, /* true(1), false(0) according to ISO 7816-4:2005 Table 14 */
-            pub size         : usize,  /* Size of file (in bytes) */
-            pub id           : c_int,  /* file identifier (2 bytes) */
-            pub sid          : c_int,  /* short EF identifier (1 byte) */
-            pub acl          : [*mut sc_acl_entry; SC_MAX_AC_OPS], /* Access Control List */
-
-            #[cfg(    any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0))]
-            pub record_length : c_int, /* In case of fixed-length or cyclic EF */
-            #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-            pub record_length : usize, /* In case of fixed-length or cyclic EF */
-            #[cfg(    any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0))]
-            pub record_count  : c_int, /* Valid, if not transparent EF or DF */
-            #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-            pub record_count  : usize, /* Valid, if not transparent EF or DF */
-
-            pub sec_attr      : *mut c_uchar, /* security data in proprietary format. tag '86' */
-            pub sec_attr_len  : usize,
-
-            pub prop_attr     : *mut c_uchar, /* proprietary information. tag '85'*/
-            pub prop_attr_len : usize,
-
-            pub type_attr     : *mut c_uchar, /* file descriptor data. tag '82'.
-                replaces the file's type information (DF, EF, ...) */
-            pub type_attr_len : usize,
-
-            pub encoded_content     : *mut c_uchar, /* file's content encoded to be used in the file creation command */
-            pub encoded_content_len : usize, /* size of file's encoded content in bytes */
-
-            pub magic : c_uint,
-        }
-        */
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[28], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_CREATE_DF]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[29], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_ADMIN]: %p\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, file_ref.acl[30], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_PIN_USE]: %p\0").unwrap());
+*/
     }
+    /* file type in profile to be entered aus FDB: File Descriptor Byte */
+    let acl_category = match file_ref.type_ as u8 {
+        FDB_DF | FDB_MF => ACL_CATEGORY_DF_MF,
+        FDB_TRANSPARENT_EF |
+        FDB_LINEAR_FIXED_EF |
+        FDB_LINEAR_VARIABLE_EF |
+        FDB_CYCLIC_EF |
+        FDB_CHV_EF => ACL_CATEGORY_EF_CHV,
+        FDB_RSA_KEY_EF |
+        FDB_ECC_KEY_EF |
+        FDB_SYMMETRIC_KEY_EF => ACL_CATEGORY_KEY,
+        FDB_SE_FILE=> ACL_CATEGORY_SE,
+        _  => {
+println!("Non-match in let acl_category. file_ref.type_: {}", file_ref.type_);
+            return -1
+        }, // this includes FDB_PURSE_EF: unknown acl_category
+    };
 
+    let bytes_tag_fcp_sac = match convert_acl_array_to_bytes_tag_fcp_sac(&file_ref.acl, acl_category) {
+        Ok(val) => val,
+        Err(e) => return e,
+    };
+//println!("bytes_tag_fcp_sac: {:X?}", bytes_tag_fcp_sac); // bytes_tag_fcp_sac: [7F, 1, FF, 1, 1, 1, 1, 1]
     let mut buf = [0u8; 2];
     let mut ptr_diff_sum : usize = 0; // difference/distance of p and out   #![feature(ptr_offset_from)]
 	let mut p = out;
@@ -1955,80 +1955,56 @@ P:19725; T:0x139763032080256 00:00:39.127 [pkcs15-init] acos5_64:1881:acos5_64_c
     ptr_diff_sum += 2;
 
     /* 4 bytes will be written for tag ISO7816_TAG_FCP_FID (0x83)  MANDATORY */
-    buf[0] = ((file_ref.id >> 8) as u8) & 0xFF;
+    buf[0] = (file_ref.id >> 8) as u8;
     buf[1] = (file_ref.id & 0xFF) as u8;
     unsafe { sc_asn1_put_tag(ISO7816_TAG_FCP_FID as c_uint, buf.as_ptr(), 2, p, *outlen_ref_mut-ptr_diff_sum, &mut p) };
     ptr_diff_sum += 4;
 
     /* 1 or 5 bytes will be written for tag ISO7816_TAG_FCP_TYPE (0x82) MANDATORY */
-    assert!(!file_ref.type_attr.is_null() && file_ref.type_attr_len > 0 && file_ref.type_attr_len <= 6); // e.g.  {82 06} 0A 00 00 15 00 01
-    let fdb = unsafe { *file_ref.type_attr };
-    unsafe { sc_asn1_put_tag(ISO7816_TAG_FCP_TYPE as c_uint, file_ref.type_attr, file_ref.type_attr_len,
-                             p, *outlen_ref_mut-ptr_diff_sum, &mut p) };
-    ptr_diff_sum += 2+file_ref.type_attr_len;
+    //  e.g.  {82 06} 0A 00 00 15 00 01
+    let fdb = file_ref.type_ as u8;
+    buf[0] = fdb;
+    buf[1] = 0;
+    unsafe { sc_asn1_put_tag(ISO7816_TAG_FCP_TYPE as c_uint, buf.as_ptr(), 2, p, *outlen_ref_mut-ptr_diff_sum, &mut p) };
+    ptr_diff_sum += 4;
 
     /* 3 bytes will be written for tag ISO7816_TAG_FCP_LCS (0x8A) */
-    buf[0] = 5; // skip cos5 command "Activate File" and create as activated
+    buf[0] = 1; // skip cos5 command "Activate File" and create as activated
     unsafe { sc_asn1_put_tag(ISO7816_TAG_FCP_LCS as c_uint, buf.as_ptr(), 1, p, *outlen_ref_mut-ptr_diff_sum, &mut p) };
     ptr_diff_sum += 3;
 
-    if [FDB_TRANSPARENT_EF, FDB_RSA_KEY_EF].contains(&fdb) { // any non-record-based, non-DF/MF fdb
+    if [FDB_TRANSPARENT_EF, FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&fdb) { // any non-record-based, non-DF/MF fdb
         /* 4 bytes will be written for tag ISO7816_TAG_FCP_SIZE (0x80) */
         assert!(file_ref.size > 0);
-        buf[0] = ((file_ref.size >> 8) as u8) & 0xFF;
+        buf[0] = (file_ref.size >> 8) as u8;
         buf[1] = (file_ref.size & 0xFF) as u8;
         unsafe { sc_asn1_put_tag(ISO7816_TAG_FCP_SIZE as c_uint, buf.as_ptr(), 2, p, *outlen_ref_mut-ptr_diff_sum, &mut p) };
         ptr_diff_sum += 4;
     }
 
     /*  bytes will be written for tag ISO7816_RFU_TAG_FCP_SAC (0x8C) MANDATORY */
-    assert!(!file_ref.sec_attr.is_null() && file_ref.sec_attr_len > 0 && file_ref.sec_attr_len <= 9); // e.g.  {8C 08} 7F 03 FF 00 FF FF 01 FF
-    unsafe { sc_asn1_put_tag(ISO7816_RFU_TAG_FCP_SAC as c_uint, file_ref.sec_attr, file_ref.sec_attr_len,
+    unsafe { sc_asn1_put_tag(ISO7816_RFU_TAG_FCP_SAC as c_uint, bytes_tag_fcp_sac.as_ptr(), bytes_tag_fcp_sac.len(),
                              p, *outlen_ref_mut-ptr_diff_sum, &mut p) };
-    ptr_diff_sum += 2+file_ref.sec_attr_len;
+    ptr_diff_sum += 2+bytes_tag_fcp_sac.len();
+
+    if is_DFMF(fdb) {
+        /* 4 bytes will be written for tag ISO7816_RFU_TAG_FCP_SEID (0x8D) */
+        buf[0] = ((file_ref.id+3) >> 8) as u8;
+        buf[1] = ((file_ref.id+3) & 0xFF) as u8;
+        unsafe { sc_asn1_put_tag(ISO7816_RFU_TAG_FCP_SEID as c_uint, buf.as_ptr(), 2, p, *outlen_ref_mut-ptr_diff_sum, &mut p) };
+        ptr_diff_sum += 4;
+
+        if file_ref.namelen>0 {
+            /* bytes will be written for tag ISO7816_TAG_FCP_DF_NAME (0x84) */
+            unsafe { sc_asn1_put_tag(ISO7816_TAG_FCP_DF_NAME as c_uint, file_ref.name.as_ptr(), file_ref.namelen, p, *outlen_ref_mut-ptr_diff_sum, &mut p) };
+            ptr_diff_sum += 2+file_ref.namelen;
+        }
+        //ISO7816_RFU_TAG_FCP_SAE
+    }
 
     unsafe { *out.add(1) = (ptr_diff_sum-2) as c_uchar; };
     *outlen_ref_mut = ptr_diff_sum;
 
-
-    /*
-            else {
-                buf[0] = file->shareable ? 0x40 : 0;
-                switch (file->type) {
-                case SC_FILE_TYPE_INTERNAL_EF:
-                    buf[0] |= 0x08;
-                    /* fall through */
-                case SC_FILE_TYPE_WORKING_EF:
-                    buf[0] |= file->ef_structure & 7;
-                    break;
-                case SC_FILE_TYPE_DF:
-                    buf[0] |= 0x38;
-                    break;
-                default:
-                    return SC_ERROR_NOT_SUPPORTED;
-                }
-                sc_asn1_put_tag(0x82, buf, 1, p, *outlen - (p - out), &p);
-            }
-    */
-    /* 0x84 = DF name */
-/*
-    if (file->prop_attr_len) {
-                assert(sizeof(buf) >= file->prop_attr_len);
-                memcpy(buf, file->prop_attr, file->prop_attr_len);
-                sc_asn1_put_tag(0x85, buf, file->prop_attr_len,
-                        p, *outlen - (p - out), &p);
-    }
-    if (file->sec_attr_len) {
-                assert(sizeof(buf) >= file->sec_attr_len);
-                memcpy(buf, file->sec_attr, file->sec_attr_len);
-                sc_asn1_put_tag(0x86, buf, file->sec_attr_len,
-                        p, *outlen - (p - out), &p);
-    }
-    out[1] = p - out - 2;
-
-    *outlen = p - out;
-    return 0;
-*/
     if cfg!(log) {
         wr_do_log(card_ref_mut.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(RETURNING).unwrap());
     }
@@ -2177,8 +2153,19 @@ extern "C" fn acos5_64_get_data(card_ptr: *mut sc_card, offset: c_uint, buf: *mu
  * @param
  * @return
  */
+/// Reads an RSA or EC public key file and outputs formatted as DER
+///
+/// @param  card       INOUT
+/// @param  algorithm  IN     Number of bytes available in buf from position buf onwards\
+/// @param  key_path   OUT    Receiving address for: Class\
+/// @param  tag_out  OUT    Receiving address for: Tag\
+/// @param  taglen   OUT    Receiving address for: Number of bytes available in V\
+/// @return          SC_SUCCESS or error code\
+/// On error, buf may have been set to NULL, and (except on SC_ERROR_ASN1_END_OF_CONTENTS) no OUT param get's set\
+/// OUT tag_out and taglen are guaranteed to have values set on SC_SUCCESS (cla_out only, if also (buf[0] != 0xff && buf[0] != 0))\
+
 extern "C" fn acos5_64_read_public_key(card: *mut sc_card, algorithm: c_uint, key_path: *mut sc_path,
-     key_reference: c_uint, modulus_length: c_uint, out: *mut *mut c_uchar, out_len: *mut usize) -> c_int
+     _key_reference: c_uint, modulus_length: c_uint, out: *mut *mut c_uchar, out_len: *mut usize) -> c_int
 {
     if card.is_null() || key_path.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
@@ -2209,7 +2196,7 @@ extern "C" fn acos5_64_read_public_key(card: *mut sc_card, algorithm: c_uint, ke
     let fmt = CStr::from_bytes_with_nul(b"read public key(ref:%i; modulus_length:%i; modulus_bytes:%zu)\0").unwrap();
     if cfg!(log) {
         unsafe { sc_do_log(card_ref.ctx, SC_LOG_DEBUG_NORMAL, f_log.as_ptr(), line!() as i32, fun.as_ptr(),
-                           fmt.as_ptr(), key_reference, modulus_length, mlbyte); }
+                           fmt.as_ptr(), _key_reference, modulus_length, mlbyte); }
     }
 
     let mut file_out_ptr_mut: *mut sc_file = std::ptr::null_mut();
@@ -2265,7 +2252,7 @@ extern "C" fn acos5_64_read_public_key(card: *mut sc_card, algorithm: c_uint, ke
     {
         if cfg!(log) {
             wr_do_log(card_ref.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul
-                      (b"failed: check the raw content of RSA pub file\0").unwrap());
+                      (b"### failed: check the raw content of RSA pub file ###\0").unwrap());
         }
         return SC_ERROR_INCOMPATIBLE_KEY;
     }

@@ -5,7 +5,7 @@ unblock
 
 E.g. suppose we want to change our user pin in application directory 0x4100, it's stored in [3F00/4100/some_local_pinfile_existing_known_by_acos].
 
-Initially, the record of some_local_pinfile_existing_known_by_acos was filled by cmd "Update Redord" with these values (the first 5 bytes for the command, 
+Initially, the record of some_local_pinfile_existing_known_by_acos was filled by cmd "Update Redord" with these values (the first 5 bytes for the command,
 the remaining 21 as content of the record):
 hexString!"00 DC 01 04 15   C1   88 08 31 32 33 34 35 36 37 38   88 08 38 37 36 35 34 33 32 31"
 In short: The pin is specified to hold 8 bytes for user pin and  8 bytes for PUK of user pin (Unblock PIN command enabled), each with max. 8 false pin trials before blocking
@@ -61,19 +61,19 @@ PIN unblocked.
 OpenSC [3F00/4100]> unblock CHV129 3837363534333231 3132333435363738
 PIN unblocked.
 OpenSC [3F00/4100]> q
-user@host:~$ 
+user@host:~$
 
 
-user@host:~$ opensc-explorer                                                                                              
-OpenSC Explorer version 0.19.0                                                                                            
-Using reader with a card: ACS CryptoMate64 00 00                                                                          
-OpenSC [3F00]> ls                                                                                                         
-FileID  Type  Size                                                                                                        
- 0001    iEF    21                                                                                                        
- 0002    iEF   148                                                                                                        
- 0003    iEF    48                                                                                                        
- 2F00    wEF    33                                                                                                        
-[4100]    DF     0      Name: ACOSPKCS-15v1.00                                                                            
+user@host:~$ opensc-explorer
+OpenSC Explorer version 0.19.0
+Using reader with a card: ACS CryptoMate64 00 00
+OpenSC [3F00]> ls
+FileID  Type  Size
+ 0001    iEF    21
+ 0002    iEF   148
+ 0003    iEF    48
+ 2F00    wEF    33
+[4100]    DF     0      Name: ACOSPKCS-15v1.00
 OpenSC [3F00]> cd 4100
 OpenSC [3F00/4100]> ls
 FileID  Type  Size

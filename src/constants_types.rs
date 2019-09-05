@@ -224,9 +224,9 @@ pub const SC_CARDCTL_ACOS5_SDO_DELETE              : c_uint =  0x0000_0021; // d
 pub const SC_CARDCTL_ACOS5_SDO_STORE               : c_uint =  0x0000_0022; // data:
 
 pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST  : c_uint =  0x0000_0023; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting excluded
-pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE : c_uint =  0x0000_0024; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting excluded
-pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST_MSE  : c_uint =  0x0000_0025; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting included
-pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE_MSE : c_uint =  0x0000_0026; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting included
+//pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE : c_uint =  0x0000_0024; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting excluded
+//pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST_MSE  : c_uint =  0x0000_0025; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting included
+//pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE_MSE : c_uint =  0x0000_0026; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting included
 
 pub const SC_CARDCTL_ACOS5_ENCRYPT_SYM             : c_uint =  0x0000_0027; // data: *mut CardCtl_crypt_sym,  do_encrypt_sym
 pub const SC_CARDCTL_ACOS5_ENCRYPT_ASYM            : c_uint =  0x0000_0028; // data: *mut CardCtl_crypt_asym, do_encrypt_asym; Signature verification with public key
@@ -441,6 +441,9 @@ pub struct DataPrivate { // see settings in acos5_64_init
     pub do_generate_rsa_add_decrypt : bool, // whether RSA private key file shall be generated adding decrypt iff sign is requested
     pub do_generate_rsa_standard_pub_exponent : bool, // whether RSA key pair will contain the "standard" public exponent e=0x010001==65537; otherwise the user supplied 16 byte exponent will be used
     /*  is_running_compute_signature: false, // maybe, acos5_64_decipher will need to know, that it was called by acos5_64_compute_signature */
+    pub is_key_pair_created_and_valid_for_generation : bool, // set only in acos5_64_pkcs15init_create_key/acos5_64_pkcs15init_generate_key; and whether the following 2 fields contain valid file_ids, to be queried by acos5_64_pkcs15init_generate_key
+    pub file_id_key_pair_priv : u16,
+    pub file_id_key_pair_pub : u16,
     #[cfg(enable_acos5_64_ui)]
     pub ui_ctx : ui_context,
 }

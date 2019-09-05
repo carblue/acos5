@@ -7,6 +7,20 @@
 Driver for ACOS5-64 Smart Card / CryptoMate64 / CryptoMate Nano (Advanced Card Systems); external module operating within the OpenSC framework (min. version 0.17.0).<br>
 Hardware supported: V2.00 and V3.00. The new ACOS5-EVO is not yet available to me and untested.
 
+The driver is tolerably complete.<br>
+
+ Installing module [acos5_64_pkcs15init](https://github.com/carblue/acos5_64_pkcs15init "https://github.com/carblue/acos5_64_pkcs15init") is required for changing card's content like 'Creating new RSA key pair', 'Store key for sym. algo', 'Card Initialization' etc.<br>
+'acos5_64_pkcs15init' is Work in Progress.
+
+IMPORTANT<br>
+Usability of this driver depends on a Card Initialization suitable for OpenSC.<br>
+Definitely the ACS Client Kits that I know, don't initialize a card conforming to PKCS#15, and they set some file access rights non-suitable for OpenSC. It's very unlikely that You will get a card - initialized that way - working satisfyingly with OpenSC and this driver.<br>
+Thus either the Card Initialization was done manually by individual APDU commands, or some - unknown to me - suitable tool was used, or very likely the card must be reinitialized (if that is possible: see reference manual: Zeroize Card User Data Disable Flag).<br>
+Reinitialization means: Remove everything from the card such that it's in factory state again: Install [acos5_64_pkcs15init](https://github.com/carblue/acos5_64_pkcs15init "https://github.com/carblue/acos5_64_pkcs15init") and invoke:<br>
+pkcs15-init --erase-card --so-pin <arg>      e.g. pkcs15-init --erase-card --so-pin 12345678<br>
+Then use [acos5_64_gui](https://github.com/carblue/acos5_64_gui "https://github.com/carblue/acos5_64_gui") and click virgin-init. This will create MF and some basic files within MF.
+The next step is to create an application directory, e.g. 3F004100 (as the client kit does). invoke from 'acos5_64_gui' once that is ready.
+
 [ACOS5-64 Smart Card](https://www.acs.com.hk/en/products/308/acos5-64-v3.00-cryptographic-card-contact "ACOS5-64 Cryptographic Card (Contact) - Advanced Card Systems Ltd.") (V3.00)<br>
 [ACOS5-64 USB Token](https://www.acs.com.hk/en/products/414/cryptomate-nano-cryptographic-usb-tokens "ACOS5-64 CryptoMate Nano Cryptographic USB Token - Advanced Card Systems Ltd.") (V3.00)<br>
 [ACOS5 EVO](https://www.acs.com.hk/en/press-release/2579/acs-launches-acos5-evo-cryptographic-smart-card)<br>
@@ -14,7 +28,7 @@ The reference manual for V2.00, REF-ACOS5-64-1.07.pdf, is available on request f
 The reference manual for V3.00, REF-ACOS5-64-2.07.pdf, is available on request from  info@acs.com.hk<br>
 https://archive.fosdem.org/2018/schedule/event/smartcards_in_linux/attachments/slides/2265/export/events/attachments/smartcards_in_linux/slides/2265/smart_cards_slides.pdf<br>
 https://changelog.complete.org/archives/9358-first-steps-with-smartcards-under-linux-and-android-hard-but-it-works<br>
-https://github.com/OpenSC/OpenSC/wiki<br>
+https://github.com/OpenSC/OpenSC/wiki/Card-personalization<br>
 https://www.rust-lang.org/learn/get-started. If Rust/cargo is not required anymore, uninstall with: rustup self uninstall
 
 Look into build.rs first for some details about the libopensc binary (version etc.) and pkg-config.<br>
@@ -84,7 +98,7 @@ app default {
 }
 ```
 
-You'll probably also want [acos5_64_pkcs15init](https://github.com/carblue/acos5_64_pkcs15init "https://github.com/carblue/acos5_64_pkcs15init"), an optional library that supplements driver 'acos5_64' with some specific PKCS#15 related functionality (it doesn't supply much currently, yet it's non-optional for [acos5_64_gui](https://github.com/carblue/acos5_64_gui "https://github.com/carblue/acos5_64_gui")).<br>
+You'll probably also want [acos5_64_pkcs15init](https://github.com/carblue/acos5_64_pkcs15init "https://github.com/carblue/acos5_64_pkcs15init"), an optional library that supplements driver 'acos5_64' with some specific PKCS#15 related functionality (it doesn't supply much currently, yet it's mandatory for [acos5_64_gui](https://github.com/carblue/acos5_64_gui "https://github.com/carblue/acos5_64_gui")).<br>
 
 The third in the trio will be acos5_64_sm, an optional library that supplements driver 'acos5_64' with Secure Messaging support.
 
@@ -128,7 +142,7 @@ The one that contains cargo:rustc-cfg=enable_acos5_64_ui, the next that names th
 That's it, except via opensc.conf the enabled status can be overridden by specifying user_consent_enabled = no;
 
 Card was initialized by ACS Client Kit?<br>
-What a pity! You payed money for something that claims to create a PKCS#15 conforming file system (which is required for OpenSC and thus this driver), but it doesn't !<br>
+What a pity! You payed money for something that doesn't give a damn about a PKCS#15 conforming file system! PKCS#15/ISO/IEC 7816-15 is an international standard that describes/organizes file system content of smart cards and a conformance required by OpenSC and thus this driver.<br>
 You will have to change/edit files. Ask Advanced Card Systems if they will do that for You or how to do it.<br>
 The entry in MF's Security Environment File is wrong: Thus You won't be able to use the SOPIN in that directory (and You can't change that), thus You can't read MF's Security Environment File and won't know Access rights in MF directory<br>
 

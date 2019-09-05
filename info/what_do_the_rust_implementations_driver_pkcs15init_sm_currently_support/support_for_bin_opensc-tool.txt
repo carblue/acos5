@@ -37,6 +37,24 @@ Configured card drivers:
   acos5_64         driver 'acos5_64', suitable for ACOS5-64 v2.00 and v3.00 (Smart Card / CryptoMate64 / CryptoMate Nano)
   default          Default driver for unknown cards
 
+*** A remark concerning the next, opensc-tool --list-files
+*** 1. The driver stores the file header meta data/FCI to 'prop' beginning from 3. byte, Important tags are, all hex: 83, 8A, 82, 8C (, AB), see reference manual.
+*** 2. Usually this command can/will print readable content of records, but opensc-tool does index records in a way incompatible with ACOS5:
+***    This can be easily fixed in source file src/tools/opensc-tool.c:
+***    $ diff -u opensc-tool.c_orig opensc-tool.c  :
+--- opensc-tool.c_orig  2019-08-21 01:10:49.000000000 +0200
++++ opensc-tool.c       2019-09-05 11:49:07.674520315 +0200
+@@ -444,7 +444,7 @@
+                        printf("Record %"SC_FORMAT_LEN_SIZE_T"u\n", i);
+                        r = sc_lock(card);
+                        if (r == SC_SUCCESS)
+-                               r = sc_read_record(in_card, i, buf, 256, 0);
++                               r = sc_read_record(in_card, i+1, buf, 256, SC_RECORD_BY_REC_NR);
+                        sc_unlock(card);
+                        if (r > 0)
+                                util_hex_dump_asc(stdout, buf, r, 0);
+
+*** End remark
 OKAY$ opensc-tool --list-files
 Using reader with a card: ACS CryptoMate64 00 00
 3f00 type: DF, size: 0

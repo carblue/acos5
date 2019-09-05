@@ -46,8 +46,20 @@ use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_MAX_PATH_SIZE, sc
                         SC_MAX_APDU_BUFFER_SIZE, SC_MAX_PATH_SIZE, SC_APDU_FLAGS_CHAINING,
                         SC_APDU_CASE_1, /*SC_APDU_CASE_2_SHORT,*/ SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT,
                         SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
-                        SC_APDU_CASE_2_SHORT, SC_AC_OP_READ, SC_AC_CHV, SC_AC_AUT, SC_AC_NONE,/*, SC_AC_UNKNOWN*/
-                        sc_acl_entry, SC_MAX_AC_OPS};
+                        SC_APDU_CASE_2_SHORT, SC_AC_CHV, SC_AC_AUT, SC_AC_NONE, SC_AC_SCB, /*, SC_AC_UNKNOWN*/
+                        sc_acl_entry, SC_MAX_AC_OPS
+                        ,SC_AC_OP_READ
+                        ,SC_AC_OP_UPDATE
+                        ,SC_AC_OP_CRYPTO
+    ,SC_AC_OP_DELETE
+    ,SC_AC_OP_CREATE_EF
+    ,SC_AC_OP_CREATE_DF
+    ,SC_AC_OP_INVALIDATE
+    ,SC_AC_OP_REHABILITATE
+    ,SC_AC_OP_LOCK
+    ,SC_AC_OP_DELETE_SELF
+
+};
 use opensc_sys::log::{sc_do_log, sc_dump_hex, SC_LOG_DEBUG_NORMAL};
 use opensc_sys::errors::{sc_strerror, /*SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKNOWN, SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_NOT_SUPPORTED, */
                          SC_SUCCESS, SC_ERROR_INVALID_ARGUMENTS, //SC_ERROR_KEYPAD_TIMEOUT,
@@ -411,7 +423,7 @@ pub fn track_iso7816_select_file(card: &mut sc_card, path: &sc_path, file_out: *
     assert_eq!(path.len,   2);
     let file_str = CStr::from_bytes_with_nul(CRATE).unwrap();
     let func     = CStr::from_bytes_with_nul(b"track_iso7816_select_file\0").unwrap();
-    let format_1   = CStr::from_bytes_with_nul(b"   called.  curr_type: %d, curr_value: %s\0").unwrap();
+    let format_1   = CStr::from_bytes_with_nul(b"    called. curr_type: %d, curr_value: %s\0").unwrap();
     let format_2   = CStr::from_bytes_with_nul(b"              to_type: %d,   to_value: %s\0").unwrap();
     let format_3   = CStr::from_bytes_with_nul(b"returning:  curr_type: %d, curr_value: %s\0").unwrap();
     #[cfg(log)]
@@ -837,9 +849,157 @@ pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Resul
     Ok(scb8)
 }
 
-pub fn convert_acl_array_to_bytes_tag_fcp_sac(_acl: &[*mut sc_acl_entry; SC_MAX_AC_OPS]) -> Result<[u8; 8], c_int>
+pub const ACL_CATEGORY_DF_MF  : u8 =  1;
+pub const ACL_CATEGORY_EF_CHV : u8 =  2;
+pub const ACL_CATEGORY_KEY    : u8 =  3;
+pub const ACL_CATEGORY_SE     : u8 =  4;
+
+/*
+This MUST match exactly how *mut sc_acl_entry are added in acos5_64_process_fci or profile.c
+*/
+pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_AC_OPS], acl_category: c_uchar) -> Result<[u8; 8], c_int>
 {
-    let result = [0x7Fu8,0,0,0,0,0,0,0]; // first byte for leght used
+    /* some special pointers may occur: excerpt from sc_file_get_acl_entry:
+	if (p == (sc_acl_entry_t *) 1)
+		return &e_never;
+	if (p == (sc_acl_entry_t *) 2)
+		return &e_none;
+	if (p == (sc_acl_entry_t *) 3)
+		return &e_unknown;
+
+typedef struct sc_acl_entry {
+	unsigned int method;	/* See SC_AC_* */
+	unsigned int key_ref;	/* SC_AC_KEY_REF_NONE or an integer */
+
+	struct sc_crt crts[SC_MAX_CRTS_IN_SE];
+
+	struct sc_acl_entry *next;
+} sc_acl_entry_t;
+    */
+//    let _x : *mut sc_acl_entry = acl[SC_AC_OP_READ as usize];
+//    _x.is_null()
+    let mut result = [0x7Fu8,0,0,0,0,0,0,0];
+    match acl_category {
+        ACL_CATEGORY_SE => {
+            let p = acl[SC_AC_OP_READ as usize];
+            if p.is_null() {                      result[7] = 0; }
+            else if p==(1 as *mut sc_acl_entry) { result[7] = 0xFF; }
+            else if p==(2 as *mut sc_acl_entry) { result[7] = 0; }
+            else if p==(3 as *mut sc_acl_entry) { result[7] = 0xFF; }
+            else {
+
+            }
+        },
+        ACL_CATEGORY_DF_MF => {
+            let mut p = acl[SC_AC_OP_DELETE as usize];
+            if p.is_null() {                      result[7] = 0; }
+            else if p==(1 as *mut sc_acl_entry) { result[7] = 0xFF; }
+            else if p==(2 as *mut sc_acl_entry) { result[7] = 0; }
+            else if p==(3 as *mut sc_acl_entry) { result[7] = 0xFF; }
+            else {
+                let p_ref = unsafe { &*p };
+                if p_ref.method!=SC_AC_SCB { return Err(-1); }
+                result[7] = p_ref.key_ref as u8;
+            }
+            p = acl[SC_AC_OP_CREATE_EF as usize];
+            if p.is_null() {                      result[6] = 0; }
+            else if p==(1 as *mut sc_acl_entry) { result[6] = 0xFF; }
+            else if p==(2 as *mut sc_acl_entry) { result[6] = 0; }
+            else if p==(3 as *mut sc_acl_entry) { result[6] = 0xFF; }
+            else {
+                let p_ref = unsafe { &*p };
+                if p_ref.method!=SC_AC_SCB { return Err(-1); }
+                result[6] = p_ref.key_ref as u8;
+            }
+            p = acl[SC_AC_OP_CREATE_DF as usize];
+            if p.is_null() {                      result[5] = 0; }
+            else if p==(1 as *mut sc_acl_entry) { result[5] = 0xFF; }
+            else if p==(2 as *mut sc_acl_entry) { result[5] = 0; }
+            else if p==(3 as *mut sc_acl_entry) { result[5] = 0xFF; }
+            else {
+                let p_ref = unsafe { &*p };
+                if p_ref.method!=SC_AC_SCB { return Err(-1); }
+                result[5] = p_ref.key_ref as u8;
+            }
+        }
+        ACL_CATEGORY_KEY => {
+            let mut p = acl[SC_AC_OP_READ as usize];
+            if p.is_null() {                      result[7] = 0; }
+            else if p==(1 as *mut sc_acl_entry) { result[7] = 0xFF; }
+            else if p==(2 as *mut sc_acl_entry) { result[7] = 0; }
+            else if p==(3 as *mut sc_acl_entry) { result[7] = 0xFF; }
+            else {
+                let p_ref = unsafe { &*p };
+                if p_ref.method!=SC_AC_SCB { return Err(-1); }
+                result[7] = p_ref.key_ref as u8;
+            }
+            p = acl[SC_AC_OP_UPDATE as usize];
+            if p.is_null() {                      result[6] = 0; }
+            else if p==(1 as *mut sc_acl_entry) { result[6] = 0xFF; }
+            else if p==(2 as *mut sc_acl_entry) { result[6] = 0; }
+            else if p==(3 as *mut sc_acl_entry) { result[6] = 0xFF; }
+            else {
+                let p_ref = unsafe { &*p };
+                if p_ref.method!=SC_AC_SCB { return Err(-1); }
+                result[6] = p_ref.key_ref as u8;
+            }
+            p = acl[SC_AC_OP_CRYPTO as usize];
+            if p.is_null() {                      result[5] = 0; }
+            else if p==(1 as *mut sc_acl_entry) { result[5] = 0xFF; }
+            else if p==(2 as *mut sc_acl_entry) { result[5] = 0; }
+            else if p==(3 as *mut sc_acl_entry) { result[5] = 0xFF; }
+            else {
+                let p_ref = unsafe { &*p };
+                if p_ref.method!=SC_AC_SCB { return Err(-1); }
+                result[5] = p_ref.key_ref as u8;
+            }
+        }
+        _ => (),
+    };
+    let mut p = acl[SC_AC_OP_INVALIDATE as usize];
+    if p.is_null() {                      result[4] = 0; }
+    else if p==(1 as *mut sc_acl_entry) { result[4] = 0xFF; }
+    else if p==(2 as *mut sc_acl_entry) { result[4] = 0; }
+    else if p==(3 as *mut sc_acl_entry) { result[4] = 0xFF; }
+    else {
+        let p_ref = unsafe { &*p };
+        if p_ref.method!=SC_AC_SCB { return Err(-1); }
+        result[4] = p_ref.key_ref as u8;
+    }
+
+    p = acl[SC_AC_OP_REHABILITATE as usize];
+    if p.is_null() {                      result[3] = 0; }
+    else if p==(1 as *mut sc_acl_entry) { result[3] = 0xFF; }
+    else if p==(2 as *mut sc_acl_entry) { result[3] = 0; }
+    else if p==(3 as *mut sc_acl_entry) { result[3] = 0xFF; }
+    else {
+        let p_ref = unsafe { &*p };
+        if p_ref.method!=SC_AC_SCB { return Err(-1); }
+        result[3] = p_ref.key_ref as u8;
+    }
+
+    p = acl[SC_AC_OP_LOCK as usize];
+    if p.is_null() {                      result[2] = 0; }
+    else if p==(1 as *mut sc_acl_entry) { result[2] = 0xFF; }
+    else if p==(2 as *mut sc_acl_entry) { result[2] = 0; }
+    else if p==(3 as *mut sc_acl_entry) { result[2] = 0xFF; }
+    else {
+        let p_ref = unsafe { &*p };
+        if p_ref.method!=SC_AC_SCB { return Err(-1); }
+        result[2] = p_ref.key_ref as u8;
+    }
+
+    p = acl[SC_AC_OP_DELETE_SELF as usize];
+    if p.is_null() {                      result[1] = 0; }
+    else if p==(1 as *mut sc_acl_entry) { result[1] = 0xFF; }
+    else if p==(2 as *mut sc_acl_entry) { result[1] = 0; }
+    else if p==(3 as *mut sc_acl_entry) { result[1] = 0xFF; }
+    else {
+        let p_ref = unsafe { &*p };
+        if p_ref.method!=SC_AC_SCB { return Err(-1); }
+        result[1] = p_ref.key_ref as u8;
+    }
+
     Ok(result)
 }
 
@@ -1649,7 +1809,6 @@ A0 2F 30 0E 0C 05 45 43 6B 65 79 03 02 06 C0 04 01 01 30 0F 04 01 09 03 03 06 20
 A0 2C 30 0B 0C 05 45 43 6B 65 79 03 02 06 40 30 0F 04 01 09 03 03 06 02 00 03 02 03 09 02 01 09 A1 0C 30 0A 30 08 04 06 3F 00 41 00 41 39
 
 temporary only: acos5_64_gui expects the 32 bytes in another order, which is done here, i.e. provide in rbuf what acos5_64_gui expects
-temporary only: files 0x4139 and 0x41F9 (an RSA key pair on my CryptoMate64) experimentally will pretend to acos5_64_gui to be ECC key pair files, in order to test detection
 
 alias  TreeTypeFS = tree_k_ary.Tree!ub32; // 8 bytes + length of pathlen_max considered (, here SC_MAX_PATH_SIZE = 16) + 8 bytes SAC (file access conditions)
                             path                    File Info       scb8                SeInfo
@@ -1662,16 +1821,6 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
         {
             let dst = &mut rbuf[ 0.. 8];
             dst.copy_from_slice(&dp_files_value_ref.1);
-/*
-            if key == 0x4139 {
-                rbuf[0] = FDB_ECC_KEY_EF;
-                rbuf[6] = PKCS15_FILE_TYPE_ECCPUBLICKEY;
-            }
-            else if key == 0x41F9 {
-                rbuf[0] = FDB_ECC_KEY_EF;
-                rbuf[6] = PKCS15_FILE_TYPE_ECCPRIVATEKEY;
-            }
-*/
         }
         {
             let dst = &mut rbuf[ 8..24];
@@ -1784,14 +1933,16 @@ SOPUK: 8  [31, 32, 33, 34, 35, 36, 37, 38]
     assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
+
 //0x3F00  MF, selection
-    let cmd = [0x00u8, 0xA4, 0x00, 0x00, 0x02, 0x3F, 0x00];
+    let cmd = [0x00u8, 0xA4, 0x00, 0x00, 0x02, 0x3F, 0x00]; // 61 22
     apdu = Default::default();
     assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
+
 //0x0001  Pin file of MF, selection, populate record #1, activation
-    let cmd = [0x00u8, 0xA4, 0x00, 0x00, 0x02, 0x00, 0x01];
+    let cmd = [0x00u8, 0xA4, 0x00, 0x00, 0x02, 0x00, 0x01]; // 61 20
     apdu = Default::default();
     assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
@@ -1809,15 +1960,9 @@ SOPUK: 8  [31, 32, 33, 34, 35, 36, 37, 38]
     assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
-/*
-// next is the original ACS setting/content for EF.DIR; I corrected to "absolute path" to DF.PKCS#15
-    //init_entry(0,3,36, cast(immutable(ubyte)[])hexString!"00 D6 00 00 1F   61 1D 4F 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 50 05 65 43 65 72 74 51 02       41 00", cast(immutable(ubyte)[])hexString!"90 00"),  // EF(DIR) 2F00 ->      4100
-    reinit_entry(0,3,38, cast(immutable(ubyte)[])hexString!"00 D6 00 00 21   61 1F 4F 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 50 05 65 43 65 72 74 51 04 3F 00 41 00", cast(immutable(ubyte)[])hexString!"90 00"),  // EF(DIR) 2F00 -> 3F00/4100
 
-    reinit_entry(0,3,  7, cast(immutable(ubyte)[])hexString!"00 44 00 00 02  2F00", cast(immutable(ubyte)[])hexString!"90 00"),
-*/
 //0x0003  Security Environment File of MF, selection, populate record #1, activation
-    let cmd = [0x00u8, 0xA4, 0x00, 0x00, 0x02, 0x00, 0x03];
+    let cmd = [0x00u8, 0xA4, 0x00, 0x00, 0x02, 0x00, 0x03]; // 61 20
     apdu = Default::default();
     assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
@@ -1835,7 +1980,7 @@ SOPUK: 8  [31, 32, 33, 34, 35, 36, 37, 38]
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
 //0x2F00  EF.DIR, left empty, selection, no content, activation
-    let cmd = [0x00u8, 0xA4, 0x00, 0x00, 0x02, 0x2F, 0x00];
+    let cmd = [0x00u8, 0xA4, 0x00, 0x00, 0x02, 0x2F, 0x00]; // 61 20
     apdu = Default::default();
     assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);

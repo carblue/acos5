@@ -39,7 +39,7 @@ fn main() {
                 "0.17.0" => println!("cargo:rustc-cfg=v0_17_0"),
                 "0.18.0" => println!("cargo:rustc-cfg=v0_18_0"),
                 "0.19.0" => println!("cargo:rustc-cfg=v0_19_0"),
-                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"), // experimental only: it's git-master, Latest commit  f5bea7263737e294ed90754fbb43b5659e22e8c8, defined as version 0.20.0 in config.h
+                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"), // experimental only: it's git-master OpenSC-0.20.0-rc1, Latest commit 12218d4b0b295d01b81c1e915282b06da438a7f1, defined as version 0.20.0 in config.h
                 _ => panic!("No matching version found for opensc library"),
             }
         }
