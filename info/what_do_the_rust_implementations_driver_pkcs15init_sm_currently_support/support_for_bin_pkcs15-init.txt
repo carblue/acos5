@@ -1,0 +1,139 @@
+Generate a key pair
+
+$ pkcs15-init --generate-key rsa/3072 --auth-id 01 --id 08 --label testkey --key-usage sign,decrypt
+
+
+pkcs15-init -G <keyspec> -a <AuthID> --insecure {-i <ID>}
+   {-u <keyusage>}
+   {-l <privkeylabel>} {--public-key-label <pubkeylabel>}
+
+This will generate a public and private key pair.
+
+    The keyspec consist of the key type (only RSA is supported) and optinally a slash followed by the keysize in bits (defaults to 1024). E.g to generate a 1024-bit RSA key, use pkcs15-init -G rsa/1024 -a 01 -l testkey
+    Specify the AuthID of the PIN that protects this key (protect from being used without first providing a PIN in a signature or decryption operation) with -a; or specify --insecure if you want the private key to be usable without first providing a PIN.
+    Specify the ID of the key with -i, otherwise the tool will choose one.
+    Specify the usage of the private key with -u; if you add a corresponding certificate later, it should have the same key usage. (Do pkcs15-init -u help for help).
+    Specify the label (name) of the private key with -l, or accept the default label.
+    Specify the label (name) of the public key with --public-key-label, or accept the default label.
+    Depending on your card and profile option, you will be prompted to provide your SO PIN and/or PIN; if you don't want to be prompted, add them to the command line with --so-pin <SOPIN> and/or --pin <PIN>.
+
+NOTE: see the SSL engines on how to make a certificate request with the key you generated.
+
+
+
+$ pkcs15-init --erase-card --so-pin <arg> 
+
+$ pkcs15-init --version --assert-pristine
+
+
+
+Remaining not yet tested and/or implemented
+
+------------------------------------------------------------------------------------------
+$ pkcs15-init
+No action specified.                                                                                                                                                                                                                                         
+Usage: pkcs15-init [OPTIONS]                                                                                                                                                                                                                                 
+Options:                                                                                                                                                                                                                                                     
+      --version                 Print OpenSC package version                                                                                                                                                                                                 
+  -E, --erase-card              Erase the smart card
+  -C, --create-pkcs15           Creates a new PKCS #15 structure
+  -P, --store-pin               Store a new PIN/PUK on the card
+  -G, --generate-key <arg>      Generate a new key and store it on the card
+  -S, --store-private-key <arg>
+                                Store private key
+      --store-public-key <arg>  Store public key
+      --store-secret-key <arg>  Store secret key
+  -X, --store-certificate <arg>
+                                Store an X.509 certificate
+  -U, --update-certificate <arg>
+                                Update an X.509 certificate (carefull with mail decryption certs!!)
+  -W, --store-data <arg>        Store a data object
+  -D, --delete-objects <arg>    Delete object(s) (use "help" for more information)
+  -A, --change-attributes <arg>
+                                Change attribute(s) (use "help" for more information)
+      --sanity-check            Card specific sanity check and possibly update procedure
+      --erase-application <arg>
+                                Erase application with AID <arg>
+  -r, --reader <arg>            Specify which reader to use
+      --pin <arg>               Specify PIN
+      --puk <arg>               Specify unblock PIN
+      --so-pin <arg>            Specify security officer (SO) PIN
+      --so-puk <arg>            Specify unblock PIN for SO PIN
+      --no-so-pin               Do not install a SO PIN, and do not prompt for it
+      --serial <arg>            Specify the serial number of the card
+  -a, --auth-id <arg>           Specify ID of PIN to use/create
+      --puk-id <arg>            Specify ID of PUK to use/create
+      --verify-pin              Verify PIN after card binding (use with --auth-id)
+  -i, --id <arg>                Specify ID of key/certificate
+  -l, --label <arg>             Specify label of PIN/key
+      --puk-label <arg>         Specify label of PUK
+      --secret-key-algorithm <arg>
+                                Specify secret key algorithm (use with --store-secret-key)
+      --public-key-label <arg>  Specify public key label (use with --generate-key)
+      --cert-label <arg>        Specify user cert label (use with --store-private-key)
+      --application-name <arg>  Specify application name of data object (use with --store-data-object)
+      --application-id <arg>    Specify application id of data object (use with --store-data-object)
+      --aid <arg>               Specify AID of the on-card PKCS#15 application to be binded to (in hexadecimal form)
+  -o, --output-file <arg>       Output public portion of generated key to file
+  -f, --format <arg>            Specify key/cert file format: PEM (=default), DER or PKCS12
+      --passphrase <arg>        Specify passphrase for unlocking secret key
+      --authority               Mark certificate as a CA certificate
+  -u, --key-usage <arg>         Specify X.509 key usage (use "--key-usage help" for more information)
+  -F, --finalize                Finish initialization phase of the smart card
+      --update-last-update      Update 'lastUpdate' attribut of tokenInfo
+      --ignore-ca-certificates  When storing PKCS#12 ignore CA certificates
+      --update-existing         Store or update existing certificate
+      --extractable             Private key stored as an extractable key
+      --insecure                Insecure mode: do not require a PIN for private key
+  -T, --use-default-transport-keys
+                                Do not ask for transport keys if the driver thinks it knows the key
+      --use-pinpad              Do not prompt the user; if no PINs supplied, pinpad will be used
+  -p, --profile <arg>           Specify the general profile to use
+  -c, --card-profile <arg>      Specify the card profile to use
+      --options-file <arg>      Read additional command line options from file
+      --md-container-guid <arg>
+                                For a new key specify GUID for a MD container
+  -w, --wait                    Wait for card insertion
+  -h, --help                    Display this message
+  -v, --verbose                 Verbose operation. Use several times to enable debug output.
+
+  
+pkcs15-init --key-usage help
+Valid X.509 usage names (case-insensitive):
+  digitalSignature
+  nonRepudiation
+  keyEncipherment
+  dataEncipherment
+  keyAgreement
+  keyCertSign
+  cRLSign
+
+Aliases:
+  sign         digitalSignature,keyCertSign,cRLSign
+  decrypt      keyEncipherment,dataEncipherment
+
+Use commas to separate several usage names.
+Abbreviated names are okay if unique (e.g. dataEnc)
+
+
+
+//////////////////
+
+RSA key pair generate
+
+This may end up in a few simple commands send to the card or a complex series of actions required, depending on what actually shall be done:
+Upfront this: Any 'relevant' info about an RSA key pair must be described in PKCS#15 files EF.PrKDF and EF.PuKDF.
+
+The easy case is, when PKCS#15 files EF.PrKDF and EF.PuKDF, as well as the files for storing the key pair on card already exist and no parameters will change except modulus number (but not size), and d (and maybe e) will change.
+cos5 has the command "Generate RSA Key Pair" for that which needs prior setting of ControlReferenceTemplates CRT with info about the file ids to be used
+
+The other extrem case is, when none of the aforementioned files does exist:
+Empty EF.PrKDF and EF.PuKDF must be created first and connected to EF.ODF.
+Then sufficiently sized files for storing the key pair on card must be created, but where and which file ids and with which file access parameters etc. (a lot of open questions).
+Then, like in the easy case, the cos5 command "Generate RSA Key Pair" can be used.
+Finally, the PKCS#15 files EF.PrKDF and EF.PuKDF must be updated (and any of those that is to small to hold the new information, must first be deleted and recreated).
+Only then the newly created RSA key pair is ready to be used.
+
+The maximum information that can be supplied for an RSA key pair generation via an opensc tool is this:
+
+$ pkcs15-init -G rsa/3072 -a 01 -i 08 -l testkey -u sign,decrypt
