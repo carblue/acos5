@@ -27,12 +27,7 @@ use std::ffi::{/*CString,*/ CStr};
 use std::fs;//::{read/*, write*/};
 use std::ptr::copy_nonoverlapping;
 
-use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_file_free,
-                         sc_read_record, sc_format_path, sc_select_file, sc_check_sw, SC_ALGORITHM_RSA_PAD_PKCS1,
-                         SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
-                         SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA,
-                         SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES,
-                         sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_verify/*, sc_get_iso7816_driver*/};
+use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_file_free, sc_read_record, sc_format_path, sc_select_file, sc_check_sw, SC_ALGORITHM_RSA_PAD_PKCS1, SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA, SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_verify, sc_check_apdu};
 #[cfg(not(any(v0_15_0, v0_16_0)))]
 use opensc_sys::opensc::{SC_ALGORITHM_AES};
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0)))]
@@ -1334,16 +1329,18 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
         }
     }
     let mut command = [0u8, 0x46, 0,0,18, data.key_len_code, data.key_priv_type_code, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
-    if data.exponent_std { command[4] = 2; }
-    else { unsafe {copy_nonoverlapping(data.exponent.as_ptr(), command.as_mut_ptr().add(7), data.exponent.len())}; }
+    if data.do_generate_with_standard_rsa_pub_exponent { command[4] = 2; }
+    else { unsafe {copy_nonoverlapping(data.rsa_pub_exponent.as_ptr(), command.as_mut_ptr().add(7), data.rsa_pub_exponent.len())}; }
     let mut apdu = Default::default();
-    rv = sc_bytes2apdu_wrapper(card.ctx, &command[.. if data.exponent_std  {command.len()-16} else {command.len()}], &mut apdu);
+    rv = sc_bytes2apdu_wrapper(card.ctx, &command[.. command.len() - if data.do_generate_with_standard_rsa_pub_exponent {16} else {0}], &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
     assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
     let fmt  = CStr::from_bytes_with_nul(b"generate_asym: %s\0").unwrap();
     unsafe { sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, f_log.as_ptr(), line!() as c_int, fun.as_ptr(), fmt.as_ptr(),
                        sc_dump_hex(command.as_ptr(), 7)) };
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
+    if rv != SC_SUCCESS { return rv; }
+    rv = unsafe { sc_check_apdu(card, &apdu) };
     rv
 }
 

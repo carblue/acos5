@@ -646,17 +646,13 @@ extern "C" fn acos5_64_init(card: *mut sc_card) -> c_int
     let dp = Box::new( DataPrivate {
         files,
         sec_env: Default::default(),
+        generate_crypt_asym_data: Default::default(),
+        generate_asym_inject_data: Default::default(),
         rsa_caps: rsa_algo_flags,
         does_mf_exist: true, // just an assumption; will be set in enum_dir
         is_running_init: true,
         is_running_cmd_long_response: false,
         /*  is_running_compute_signature: false, // maybe, acos5_64_decipher will need to know, that it was called by acos5_64_compute_signature */
-        do_generate_rsa_crt: true,
-        do_generate_rsa_add_decrypt: true,
-        do_generate_rsa_standard_pub_exponent: true,
-        is_key_pair_created_and_valid_for_generation: false,
-        file_id_key_pair_priv: 0,
-        file_id_key_pair_pub:  0,
         #[cfg(enable_acos5_64_ui)]
         ui_ctx: Default::default(),
     } );
@@ -1052,6 +1048,19 @@ extern "C" fn acos5_64_card_ctl(card: *mut sc_card, command: c_ulong, data: *mut
             else {
                 acos5_64_create_file(card, data as *mut sc_file)
             },
+        /* this is the entry point when called by
+           1. pkcs15-init -G , because there is a call sequence profile->ops->create_key, profile->ops->generate_key in sc_pkcs15init_generate_key   and
+           2. acos5_64_gui "Generate key pair in new files" that also calls sc_pkcs15init_generate_key
+
+           Another situation to be evaluated is how to mount key pair regeneration, i.e. without prior call to profile->ops->create_key, i.e. not using sc_pkcs15init_generate_key
+           Both supply *mut CardCtl_generate_crypt_asym, but acos5_64_gui doesn't know the new file_ids, yet better knows/has specific infos about:
+    pub key_len_code : c_uchar,   // cos5 specific encoding for modulus length: key_len_code*128==modulus length canonical in bits (canonical means neglecting that possibly some MSB are not set to 1)
+    pub key_priv_type_code : c_uchar,  // as required by cos5 Generate RSA Key Pair: allowed key-usage and standard/CRT format qualification
+
+
+           Thus for 2., some mixing of data from { Box::from_raw(card.drv_data as *mut DataPrivate) } and generate_crypt_asym_data must be done, depending whether file_ids are 0
+           For 1. data from { Box::from_raw(card.drv_data as *mut DataPrivate) } and generate_crypt_asym_data are identical
+         */
         SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST =>
             if data.is_null() { SC_ERROR_INVALID_ARGUMENTS }
             else {
@@ -1548,6 +1557,10 @@ extern "C" fn acos5_64_delete_file(card: *mut sc_card, path: *const sc_path) -> 
     }
     let card_ref_mut = unsafe { &mut *card };
     let path_ref= unsafe { &*path };
+    let mut path_tmp = sc_path { len: 2, ..Default::default() };
+    path_tmp.value[0] = path_ref.value[path_ref.len-2];
+    path_tmp.value[1] = path_ref.value[path_ref.len-1];
+
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun   = CStr::from_bytes_with_nul(b"acos5_64_delete_file\0").unwrap();
     if cfg!(log) {
@@ -1555,7 +1568,7 @@ extern "C" fn acos5_64_delete_file(card: *mut sc_card, path: *const sc_path) -> 
     }
 
     let func_ptr = unsafe { (*(*sc_get_iso7816_driver()).ops).delete_file.unwrap() };
-    let rv = unsafe { func_ptr(card, path) };
+    let rv = unsafe { func_ptr(card, &path_tmp) };
     if rv != SC_SUCCESS {
         if cfg!(log) {
             wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, rv,
@@ -2252,7 +2265,7 @@ extern "C" fn acos5_64_read_public_key(card: *mut sc_card, algorithm: c_uint, ke
     {
         if cfg!(log) {
             wr_do_log(card_ref.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul
-                      (b"### failed: check the raw content of RSA pub file ###\0").unwrap());
+                      (b"### failed: check the raw content of RSA pub file: within the first 5 bytes there is content that indicates an invalid public key ###\0").unwrap());
         }
         return SC_ERROR_INCOMPATIBLE_KEY;
     }

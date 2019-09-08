@@ -224,7 +224,8 @@ pub const SC_CARDCTL_ACOS5_SDO_DELETE              : c_uint =  0x0000_0021; // d
 pub const SC_CARDCTL_ACOS5_SDO_STORE               : c_uint =  0x0000_0022; // data:
 
 pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST  : c_uint =  0x0000_0023; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting excluded
-//pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE : c_uint =  0x0000_0024; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting excluded
+//b const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE : c_uint =  0x0000_0024; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting excluded
+pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT : c_uint =  0x0000_0024; // data: *mut CardCtl_generate_asym_inject,do_generate_inject
 //pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST_MSE  : c_uint =  0x0000_0025; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting included
 //pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE_MSE : c_uint =  0x0000_0026; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting included
 
@@ -311,39 +312,71 @@ impl Default for CardCtlArray32 {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct CardCtl_generate_crypt_asym {
+    pub rsa_pub_exponent : [c_uchar; 16], // public exponent
     pub data : [c_uchar; 512],   // INOUT for crypt_asym (performs cos5  'RSA Public Key Encrypt')
     pub data_len : usize,        // len bytes used within in_data
     pub file_id_priv : u16,       // IN  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5_64.profile,
     pub file_id_pub  : u16,       // IN  if both are !=0, then the given values are preferred
-    pub exponent : [c_uchar; 16], // public exponent
-    pub exponent_std  : bool,  // whether the default exponent 0x10001 shall be used and the exponent field disregarded; otherwise all 16 bytes from exponent will be used
-    pub key_len_code  : c_uchar,  //
-    pub key_priv_type_code : c_uchar,  // as required by cos5 Generate RSA Key Pair
+    pub key_len_code : c_uchar,   // cos5 specific encoding for modulus length: key_len_code*128==modulus length canonical in bits (canonical means neglecting that possibly some MSB are not set to 1)
+    pub key_priv_type_code : c_uchar,  // as required by cos5 Generate RSA Key Pair: allowed key-usage and standard/CRT format qualification
+
+    pub do_generate_rsa_crt : bool,         // whether RSA private key file shall be generated in ChineseRemainderTheorem-style
+    pub do_generate_rsa_add_decrypt_for_sign : bool, // whether RSA private key file shall be generated adding decrypt capability iff sign is requested
+    pub do_generate_with_standard_rsa_pub_exponent : bool, // whether RSA key pair will contain the "standard" public exponent e=0x010001==65537; otherwise the user supplied 16 byte exponent will be used
+
+    pub is_key_pair_created_and_valid_for_generation : bool, // set only in acos5_64_pkcs15init_create_key/acos5_64_pkcs15init_generate_key; and whether the following 2 fields contain valid file_ids, to be queried by acos5_64_pkcs15init_generate_key
+
     pub perform_mse   : bool,     // IN parameter, whether MSE Manage Security Env. shall be done (here) prior to crypto operation
-//    pub op_success   : bool,     // OUT parameter, whether generation succeeded
-/*
-Key Length Indicator :  1 byte 0x04-0x20    dependence on SC_CARD_TYPE_ACOS5_64_V2 / SC_CARD_TYPE_ACOS5_64_V3 (FIPS)
-Private Key Type     :  1 byte 1-6 (incl. CRT or NON-CRT) dependence on SC_CARD_TYPE_ACOS5_64_V2 / SC_CARD_TYPE_ACOS5_64_V3 (FIPS)
-*/
 }
 
 impl Default for CardCtl_generate_crypt_asym {
     fn default() -> CardCtl_generate_crypt_asym {
         CardCtl_generate_crypt_asym {
-            data: [0u8; 512],
+            rsa_pub_exponent: [0; 16],
+            data: [0; 512],
             data_len: 0,
             file_id_priv: 0,
             file_id_pub: 0,
-            exponent: [0u8; 16],
-            exponent_std: true,    // the standard exponent 0x10001 will be used
-            key_len_code: 0x20,    // 4096 bit
-            key_priv_type_code: 6, // CRT, sign+decrypt
+            key_len_code: 0,
+            key_priv_type_code: 0,
+
+            do_generate_rsa_crt: false,         // whether RSA private key file shall be generated in ChineseRemainderTheorem-style
+            do_generate_rsa_add_decrypt_for_sign: false, // whether RSA private key file shall be generated adding decrypt iff sign is requested
+            do_generate_with_standard_rsa_pub_exponent: false, // whether RSA key pair will contain the "standard" public exponent e=0x010001==65537; otherwise the user supplied 16 byte exponent will be used
+                                                               // true: the standard exponent 0x10001 will be used
+            is_key_pair_created_and_valid_for_generation: false,
             perform_mse: false,
         }
     }
 }
 
+/* RSA key pair generation: using this allows specific input from acos5_64_gui and disabling file creation, while all calls will go via sc_pkcs15init_generate_key, i.e.
+   acos5_64_gui will always call sc_card_ctl(SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT) prior to sc_card_ctl(SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST) */
+#[repr(C)]
+#[derive(/*Debug,*/ Copy, Clone)]
+pub struct CardCtl_generate_asym_inject {
+    pub rsa_pub_exponent : [c_uchar; 16], // public exponent
+    pub file_id_priv : u16,       // IN  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5_64.profile,
+    pub file_id_pub  : u16,       // IN  if both are !=0, then the given values are preferred
+    pub dont_generate_rsa_crt : bool,         // whether RSA private key file shall be generated in ChineseRemainderTheorem-style
+    pub dont_generate_rsa_add_decrypt_for_sign : bool, // whether RSA private key file shall be generated adding decrypt capability iff sign is requested
+    pub dont_generate_with_standard_rsa_pub_exponent : bool, // whether RSA key pair will contain the "standard" public exponent e=0x010001==65537; otherwise the user supplied 16 byte exponent will be used
+    pub dont_create_files : bool, // if this is set to true, then the files MUST exist and set in file_id_priv and file_id_pub
+}
 
+impl Default for CardCtl_generate_asym_inject {
+    fn default() -> CardCtl_generate_asym_inject {
+        CardCtl_generate_asym_inject {
+            rsa_pub_exponent: [0; 16],
+            file_id_priv: 0,
+            file_id_pub: 0,
+            dont_generate_rsa_crt: false,
+            dont_generate_rsa_add_decrypt_for_sign: false,
+            dont_generate_with_standard_rsa_pub_exponent: false,
+            dont_create_files: false,
+        }
+    }
+}
 
 // struct for SC_CARDCTL_ACOS5_ENCRYPT_SYM and SC_CARDCTL_ACOS5_DECRYPT_SYM// data: *mut CardCtl_crypt_sym, do_encrypt_sym
 #[repr(C)]
@@ -423,10 +456,12 @@ pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, Opt
 // File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,   LCSI}
 
 #[repr(C)]
-#[derive(Debug /*, Copy*/, Clone)]
+#[derive(/*Debug, Copy,*/ Clone)]
 pub struct DataPrivate { // see settings in acos5_64_init
     pub files : HashMap< KeyTypeFiles, ValueTypeFiles >,
     pub sec_env : sc_security_env, // remember the input of last call to acos5_64_set_security_env; especially algorithm_flags will be required in compute_signature
+    pub generate_crypt_asym_data : CardCtl_generate_crypt_asym,
+    pub generate_asym_inject_data : CardCtl_generate_asym_inject,
 //  pub sec_env_algo_flags : c_uint, // remember the padding scheme etc. selected for RSA; required in acos5_64_set_security_env
     pub rsa_caps : c_uint, // remember how the rsa_algo_flags where set for _sc_card_add_rsa_alg
     pub does_mf_exist : bool,
@@ -437,13 +472,7 @@ pub struct DataPrivate { // see settings in acos5_64_init
          false: acos5_64_get_response behaves (exactly?) like iso7816_get_response
      */
     pub is_running_cmd_long_response : bool,
-    pub do_generate_rsa_crt : bool,         // whether RSA private key file shall be generated in ChineseRemainderTheorem-style
-    pub do_generate_rsa_add_decrypt : bool, // whether RSA private key file shall be generated adding decrypt iff sign is requested
-    pub do_generate_rsa_standard_pub_exponent : bool, // whether RSA key pair will contain the "standard" public exponent e=0x010001==65537; otherwise the user supplied 16 byte exponent will be used
     /*  is_running_compute_signature: false, // maybe, acos5_64_decipher will need to know, that it was called by acos5_64_compute_signature */
-    pub is_key_pair_created_and_valid_for_generation : bool, // set only in acos5_64_pkcs15init_create_key/acos5_64_pkcs15init_generate_key; and whether the following 2 fields contain valid file_ids, to be queried by acos5_64_pkcs15init_generate_key
-    pub file_id_key_pair_priv : u16,
-    pub file_id_key_pair_pub : u16,
     #[cfg(enable_acos5_64_ui)]
     pub ui_ctx : ui_context,
 }
@@ -478,14 +507,14 @@ pub fn u32_from_array_begin(array: &[u8]) -> u32
 pub fn set_crt(card: &mut sc_card, value: bool)
 {
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-    dp.do_generate_rsa_crt = value;
+    dp.generate_crypt_asym_data.do_generate_rsa_crt = value || !dp.generate_asym_inject_data.dont_generate_rsa_crt || card.type_==SC_CARD_TYPE_ACOS5_64_V3;
     card.drv_data = Box::into_raw(dp) as *mut c_void;
 }
 
 pub fn get_crt(card: &mut sc_card) -> bool
 {
     let dp : Box<DataPrivate> = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-    let result = dp.do_generate_rsa_crt;
+    let result = dp.generate_crypt_asym_data.do_generate_rsa_crt;
     card.drv_data = Box::into_raw(dp) as *mut c_void;
     result
 }

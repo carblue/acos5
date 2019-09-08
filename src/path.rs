@@ -234,14 +234,12 @@ pub fn cut_path(card: &mut sc_card, path: &mut sc_path) -> c_int
         }
     }
     else if  c_path[0..2] == t_path[0..2] {
-        if c_path.len() <= t_path.len() { // In principle it's_search_rule6_match: true, but path_target.len() > 4
-            for i in 2..path.len { // shift left in path.value
-                t_path[i-2] = t_path[i];
-            }
-            t_path[path.len-2] = 0;
-            t_path[path.len-1] = 0;
-            path.len -= 2;
+        for i in 2..path.len { // shift left in path.value
+            t_path[i-2] = t_path[i];
         }
+        t_path[path.len-2] = 0;
+        t_path[path.len-1] = 0;
+        path.len -= 2;
     }
 
     #[cfg(log)]
