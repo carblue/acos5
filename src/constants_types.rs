@@ -18,10 +18,10 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-use std::os::raw::{c_uchar, c_int, c_uint, c_char, c_void};
+use std::os::raw::{c_uchar, c_int, c_uint, c_char};
 use std::collections::HashMap;
 
-use opensc_sys::opensc::{sc_card, sc_security_env};
+use opensc_sys::opensc::{sc_security_env};
 use opensc_sys::types::{sc_crt, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
 use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUSTED,
                          SC_PKCS15_SKDF, SC_PKCS15_CDF, SC_PKCS15_CDF_TRUSTED, SC_PKCS15_CDF_USEFUL,
@@ -324,7 +324,7 @@ pub struct CardCtl_generate_crypt_asym {
     pub do_generate_rsa_add_decrypt_for_sign : bool, // whether RSA private key file shall be generated adding decrypt capability iff sign is requested
     pub do_generate_with_standard_rsa_pub_exponent : bool, // whether RSA key pair will contain the "standard" public exponent e=0x010001==65537; otherwise the user supplied 16 byte exponent will be used
 
-    pub is_key_pair_created_and_valid_for_generation : bool, // set only in acos5_64_pkcs15init_create_key/acos5_64_pkcs15init_generate_key; and whether the following 2 fields contain valid file_ids, to be queried by acos5_64_pkcs15init_generate_key
+//    pub is_key_pair_created_and_valid_for_generation : bool, // set only in acos5_64_pkcs15init_create_key/acos5_64_pkcs15init_generate_key; and whether the following 2 fields contain valid file_ids, to be queried by acos5_64_pkcs15init_generate_key
 
     pub perform_mse   : bool,     // IN parameter, whether MSE Manage Security Env. shall be done (here) prior to crypto operation
 }
@@ -344,7 +344,7 @@ impl Default for CardCtl_generate_crypt_asym {
             do_generate_rsa_add_decrypt_for_sign: false, // whether RSA private key file shall be generated adding decrypt iff sign is requested
             do_generate_with_standard_rsa_pub_exponent: false, // whether RSA key pair will contain the "standard" public exponent e=0x010001==65537; otherwise the user supplied 16 byte exponent will be used
                                                                // true: the standard exponent 0x10001 will be used
-            is_key_pair_created_and_valid_for_generation: false,
+//            is_key_pair_created_and_valid_for_generation: false,
             perform_mse: false,
         }
     }
@@ -358,7 +358,7 @@ pub struct CardCtl_generate_asym_inject {
     pub rsa_pub_exponent : [c_uchar; 16], // public exponent
     pub file_id_priv : u16,       // IN  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5_64.profile,
     pub file_id_pub  : u16,       // IN  if both are !=0, then the given values are preferred
-    pub dont_generate_rsa_crt : bool,         // whether RSA private key file shall be generated in ChineseRemainderTheorem-style
+    pub do_generate_rsa_crt : bool,         // whether RSA private key file shall be generated in ChineseRemainderTheorem-style
     pub dont_generate_rsa_add_decrypt_for_sign : bool, // whether RSA private key file shall be generated adding decrypt capability iff sign is requested
     pub dont_generate_with_standard_rsa_pub_exponent : bool, // whether RSA key pair will contain the "standard" public exponent e=0x010001==65537; otherwise the user supplied 16 byte exponent will be used
     pub dont_create_files : bool, // if this is set to true, then the files MUST exist and set in file_id_priv and file_id_pub
@@ -370,7 +370,7 @@ impl Default for CardCtl_generate_asym_inject {
             rsa_pub_exponent: [0; 16],
             file_id_priv: 0,
             file_id_pub: 0,
-            dont_generate_rsa_crt: false,
+            do_generate_rsa_crt: false,
             dont_generate_rsa_add_decrypt_for_sign: false,
             dont_generate_with_standard_rsa_pub_exponent: false,
             dont_create_files: false,
@@ -502,19 +502,4 @@ pub fn u32_from_array_begin(array: &[u8]) -> u32
 {
     assert!(array.len()>=4);
     (array[0] as u32) << 24  |  (array[1] as u32) << 16  |  (array[2] as u32) << 8  |  array[3] as u32
-}
-
-pub fn set_crt(card: &mut sc_card, value: bool)
-{
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-    dp.generate_crypt_asym_data.do_generate_rsa_crt = value || !dp.generate_asym_inject_data.dont_generate_rsa_crt || card.type_==SC_CARD_TYPE_ACOS5_64_V3;
-    card.drv_data = Box::into_raw(dp) as *mut c_void;
-}
-
-pub fn get_crt(card: &mut sc_card) -> bool
-{
-    let dp : Box<DataPrivate> = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-    let result = dp.generate_crypt_asym_data.do_generate_rsa_crt;
-    card.drv_data = Box::into_raw(dp) as *mut c_void;
-    result
 }
