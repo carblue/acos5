@@ -646,8 +646,8 @@ extern "C" fn acos5_64_init(card: *mut sc_card) -> c_int
     let dp = Box::new( DataPrivate {
         files,
         sec_env: Default::default(),
-        generate_crypt_asym_data: Default::default(),
-        generate_asym_inject_data: Default::default(),
+        agc: Default::default(),
+        agi: Default::default(),
         rsa_caps: rsa_algo_flags,
         does_mf_exist: true, // just an assumption; will be set in enum_dir
         is_running_init: true,
@@ -1048,6 +1048,22 @@ extern "C" fn acos5_64_card_ctl(card: *mut sc_card, command: c_ulong, data: *mut
             else {
                 acos5_64_create_file(card, data as *mut sc_file)
             },
+        SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET =>
+            if data.is_null() { SC_ERROR_INVALID_ARGUMENTS }
+            else {
+                let dp = unsafe { Box::from_raw(card_ref_mut.drv_data as *mut DataPrivate) };
+                unsafe { *(data as *mut CardCtl_generate_asym_inject) = dp.agi };
+                card_ref_mut.drv_data = Box::into_raw(dp) as *mut c_void;
+                SC_SUCCESS
+            },
+        SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET =>
+            if data.is_null() { SC_ERROR_INVALID_ARGUMENTS }
+            else {
+                let mut dp = unsafe { Box::from_raw(card_ref_mut.drv_data as *mut DataPrivate) };
+                dp.agi = unsafe { *(data as *mut CardCtl_generate_asym_inject) };
+                card_ref_mut.drv_data = Box::into_raw(dp) as *mut c_void;
+                SC_SUCCESS
+            },
         /* this is the entry point when called by
            1. pkcs15-init -G , because there is a call sequence profile->ops->create_key, profile->ops->generate_key in sc_pkcs15init_generate_key   and
            2. acos5_64_gui "Generate key pair in new files" that also calls sc_pkcs15init_generate_key
@@ -1061,9 +1077,16 @@ extern "C" fn acos5_64_card_ctl(card: *mut sc_card, command: c_ulong, data: *mut
            Thus for 2., some mixing of data from { Box::from_raw(card.drv_data as *mut DataPrivate) } and generate_crypt_asym_data must be done, depending whether file_ids are 0
            For 1. data from { Box::from_raw(card.drv_data as *mut DataPrivate) } and generate_crypt_asym_data are identical
          */
-        SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST =>
+        SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES =>
             if data.is_null() { SC_ERROR_INVALID_ARGUMENTS }
             else {
+/*
+                assert!(!card_ref_mut.ctx.is_null());
+                let app_name = unsafe { CStr::from_ptr((*card_ref_mut.ctx).app_name) }; // app_name: "pkcs15-init"
+                if app_name == CStr::from_bytes_with_nul(b"acos5_64_gui \0").unwrap() { println!("acos5_64_gui issued a call for cmd SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES"); }
+                println!("driver: CardCtl_generate_crypt_asym.sizeof:  {}", std::mem::size_of::<crate::constants_types::CardCtl_generate_crypt_asym>());
+                println!("driver: CardCtl_generate_asym_inject.sizeof: {}", std::mem::size_of::<crate::constants_types::CardCtl_generate_asym_inject>());
+*/
                 let generate_crypt_asym_data = unsafe { &mut *(data as *mut CardCtl_generate_crypt_asym) };
                 /* suppose select_file, authenticate, (possibly setting MSE) etc. was done already */
                 generate_asym(card_ref_mut, generate_crypt_asym_data)
