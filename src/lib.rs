@@ -129,7 +129,7 @@ use crate::missing_exports::{me_card_add_symmetric_alg, me_card_find_alg, me_get
 #[allow(dead_code)]
 pub mod    no_cdecl;
 use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_array, enum_dir,
-    pin_get_policy, track_iso7816_select_file, acos5_64_atrs_supported,
+    pin_get_policy, tracking_select_file, acos5_64_atrs_supported,
                       /*encrypt_public_rsa,*/ get_sec_env, set_sec_env,// get_rsa_caps,
     get_is_running_cmd_long_response, set_is_running_cmd_long_response, is_any_known_digestAlgorithm,
     sym_en_decrypt,
@@ -657,9 +657,10 @@ extern "C" fn acos5_64_init(card: *mut sc_card) -> c_int
         ui_ctx: Default::default(),
     } );
     card_ref_mut.drv_data = Box::into_raw(dp) as *mut c_void;
-    let mut path = Default::default();
-    unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3F00\0").unwrap().as_ptr(), &mut path); } // type = SC_PATH_TYPE_PATH;
-    rv = enum_dir(card_ref_mut, &path, true/*, 0*/); /* FIXME Doing to much here degrades performance, possibly for no value */
+
+    let mut path_mf = Default::default();
+    unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3F00\0").unwrap().as_ptr(), &mut path_mf); } // type = SC_PATH_TYPE_PATH;
+    rv = enum_dir(card_ref_mut, &path_mf, true/*, 0*/); /* FIXME Doing to much here degrades performance, possibly for no value */
     assert_eq!(rv, SC_SUCCESS);
 
     let mut dp= unsafe { Box::from_raw(card_ref_mut.drv_data as *mut DataPrivate) };
@@ -1256,49 +1257,49 @@ To clear the accumulated CRT’s, issue a SELECT FILE command
                 wr_do_log(card_ref_mut.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule1_match: \
                     true (select_file target is the currently selected DF)\0").unwrap());
             }
-            return track_iso7816_select_file(card_ref_mut, &path1, file_out)
+            return tracking_select_file(card_ref_mut, &path1, file_out)
         }
         else if is_search_rule0_match(path_target, current_path_ef) { // path_target is what is currently selected already (potentially superfluous select)
             if cfg!(log) {
                 wr_do_log(card_ref_mut.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule0_match: \
                     true (select_file target is what is currently selected already (potentially superfluous select) !!!)\0").unwrap());
             }
-            return track_iso7816_select_file(card_ref_mut, &path1, file_out)
+            return tracking_select_file(card_ref_mut, &path1, file_out)
         }
         else if is_search_rule2_match(path_target, current_path_df) { // path_target is a EF/DF located (directly) within currently selected DF: select_file MUST NOT be dropped
             if cfg!(log) {
                 wr_do_log(card_ref_mut.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule2_match: \
                     true (select_file target is a EF/DF located (directly) within currently selected DF)\0").unwrap());
             }
-            return track_iso7816_select_file(card_ref_mut, &path1, file_out)
+            return tracking_select_file(card_ref_mut, &path1, file_out)
         }
         else if is_search_rule3_match(path_target, current_path_df) {
             if cfg!(log) {
                 wr_do_log(card_ref_mut.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule3_match: \
                     true (select_file target is the parent DF of currently selected DF)\0").unwrap());
             }
-            return track_iso7816_select_file(card_ref_mut, &path1, file_out)
+            return tracking_select_file(card_ref_mut, &path1, file_out)
         }
         else if is_search_rule4_match(path_target, current_path_df) {
             if cfg!(log) {
                 wr_do_log(card_ref_mut.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule4_match: \
 true (select_file target is a EF/DF located (directly) within the parent DF of currently selected DF)\0").unwrap());
             }
-            return track_iso7816_select_file(card_ref_mut, &path1, file_out)
+            return tracking_select_file(card_ref_mut, &path1, file_out)
         }
         else if is_search_rule5_match(path_target) {
             if cfg!(log) {
                 wr_do_log(card_ref_mut.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule5_match: \
                     true (select_file target is MF)\0").unwrap());
             }
-            return track_iso7816_select_file(card_ref_mut, &path1, file_out)
+            return tracking_select_file(card_ref_mut, &path1, file_out)
         }
         else if is_search_rule6_match(path_target) {
             if cfg!(log) {
                 wr_do_log(card_ref_mut.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule6_match: \
                     true (select_file target is a EF/DF located (directly) within MF)\0").unwrap());
             }
-            return track_iso7816_select_file(card_ref_mut, &path1, file_out)
+            return tracking_select_file(card_ref_mut, &path1, file_out)
         }
     }
 
@@ -1307,7 +1308,7 @@ true (select_file target is a EF/DF located (directly) within the parent DF of c
         SC_PATH_TYPE_PATH_PROT | SC_PATH_TYPE_FROM_CURRENT | SC_PATH_TYPE_PARENT
             => SC_ERROR_KEYPAD_MSG_TOO_LONG,
             /* for SC_PATH_TYPE_FILE_ID and SC_PATH_TYPE_DF_NAME : */
-        _   =>  track_iso7816_select_file(card_ref_mut, path_ref, file_out),
+        _   =>  tracking_select_file(card_ref_mut, path_ref, file_out),
     };
     rv
 }
@@ -1536,13 +1537,24 @@ extern "C" fn acos5_64_create_file(card: *mut sc_card, file: *mut sc_file) -> c_
     let file_ref = unsafe { & *file };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun   = CStr::from_bytes_with_nul(b"acos5_64_create_file\0").unwrap();
+    let rv;
     if cfg!(log) {
         wr_do_log(card_ref_mut.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
 
+    let dp = unsafe { Box::from_raw(card_ref_mut.drv_data as *mut DataPrivate) };
+    if dp.files.contains_key(&(file_ref.id as u16)) {
+        card_ref_mut.drv_data = Box::into_raw(dp) as *mut c_void;
+        rv = SC_ERROR_NOT_ALLOWED;
+        wr_do_log_sds(card_ref_mut.ctx, f_log, line!(), fun,CStr::from_bytes_with_nul(b"### Duplicate file id disallowed by the driver ! ###\0")
+            .unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+        return rv;
+    }
+    card_ref_mut.drv_data = Box::into_raw(dp) as *mut c_void;
+
     /* iso7816_create_file calls acos5_64_construct_fci */
     let func_ptr = unsafe { (*(*sc_get_iso7816_driver()).ops).create_file.unwrap() };
-    let rv = unsafe { func_ptr(card, file) };
+    rv = unsafe { func_ptr(card, file) };
 
     if rv != SC_SUCCESS {
         if cfg!(log) {
@@ -1555,7 +1567,8 @@ extern "C" fn acos5_64_create_file(card: *mut sc_card, file: *mut sc_file) -> c_
             return SC_ERROR_INVALID_ARGUMENTS;
         }
         let mut dp = unsafe { Box::from_raw(card_ref_mut.drv_data as *mut DataPrivate) };
-        let mut x = dp.files.entry(file_ref.id as u16).or_insert(([0u8;SC_MAX_PATH_SIZE], [0u8, 0, 0, 0, 0, 0, 0xFF, 1], None, None));
+        dp.files.insert(file_ref.id as u16, ([0u8;SC_MAX_PATH_SIZE], [0u8, 0, 0, 0, 0, 0, 0xFF, 1], None, None));
+        let mut x = dp.files.get_mut(&(file_ref.id as u16)).unwrap();
         x.0 = file_ref.path.value;
         x.1[0] = file_ref.type_ as c_uchar;
         x.1[1] = file_ref.path.len as c_uchar;
@@ -1670,17 +1683,19 @@ extern "C" fn acos5_64_list_files(card: *mut sc_card, buf: *mut c_uchar, buflen:
 //                FDB_RSA_KEY_EF       => PKCS15_FILE_TYPE_RSAPRIVATEKEY, // must be corrected for public key files later on
                 _                         => PKCS15_FILE_TYPE_NONE, // the default: not relevant for PKCS#15; will be changed for some files later on
             };
-            let file_id = u16_from_array_begin(&rbuf[2..4]);
-            dp.files.entry(file_id).or_insert(([0u8;SC_MAX_PATH_SIZE], rbuf, None, None));
-/*
-            if rbuf[0]==FDB_RSA_KEY_EF && dp.files[&file_id].2.is_some() && dp.files[&file_id].2.unwrap()[0]==0 {
-                if let Some(x) = dp.files.get_mut(&file_id) {
-                    (*x).1[6] = PKCS15_FILE_TYPE_RSAPUBLICKEY;
-                }
-            }
-*/
-        }
 
+            let file_id = u16_from_array_begin(&rbuf[2..4]);
+/* */
+            if dp.is_running_init && dp.files.contains_key(&file_id) {
+                card_ref_mut.drv_data = Box::into_raw(dp) as *mut c_void;
+                let rv = SC_ERROR_NOT_ALLOWED;
+                wr_do_log_sds(card_ref_mut.ctx, f_log, line!(), fun,CStr::from_bytes_with_nul(b"### Duplicate file id disallowed by the driver ! ###\0")
+                    .unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+                return rv;
+            }
+/* */
+            dp.files.insert(file_id, ([0u8;SC_MAX_PATH_SIZE], rbuf, None, None));
+        } // for
         card_ref_mut.drv_data = Box::into_raw(dp) as *mut c_void;
     }
     (numfiles as c_int)*2
@@ -1721,9 +1736,6 @@ extern "C" fn acos5_64_process_fci(card: *mut sc_card, file: *mut sc_file,
     assert!(!card.is_null() && !file.is_null());
     let card_ref = unsafe { & *card };
     let card_ref_mut = unsafe { &mut *card };
-
-//    assert!(!file.is_null());
-//    let file_ref = unsafe { & *file };
     let file_ref_mut = unsafe { &mut *file };
 
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
@@ -1770,7 +1782,7 @@ extern "C" fn acos5_64_process_fci(card: *mut sc_card, file: *mut sc_file,
     assert!(!ptr_bytes_tag_fcp_type.is_null());
     assert!( len_bytes_tag_fcp_type >=2 );
     let fdb = unsafe { *ptr_bytes_tag_fcp_type };
-    if file_ref_mut.type_ == 0 && fdb == FDB_SE_FILE {
+    if  file_ref_mut.type_ == 0 && fdb == FDB_SE_FILE {
         file_ref_mut.type_ = SC_FILE_TYPE_INTERNAL_EF;
     }
     if file_ref_mut.type_!= SC_FILE_TYPE_DF && file_ref_mut.ef_structure != SC_FILE_EF_TRANSPARENT { // for non-transparent EF multiply MaxRecordLen and NumberOfRecords as a file size hint
@@ -1779,6 +1791,7 @@ extern "C" fn acos5_64_process_fci(card: *mut sc_card, file: *mut sc_file,
         file_ref_mut.size = unsafe { (*ptr_bytes_tag_fcp_type.offset(3) as usize) *
                                      (*ptr_bytes_tag_fcp_type.add(len_bytes_tag_fcp_type-1) as usize) };
     }
+
     let mut sefile_id = [0u8;2];
     if is_DFMF(fdb) {
         let mut len_bytes_tag_fcp_seid = 0usize;
@@ -1789,6 +1802,14 @@ extern "C" fn acos5_64_process_fci(card: *mut sc_card, file: *mut sc_file,
         sefile_id = unsafe { [*ptr_bytes_tag_fcp_seid, *ptr_bytes_tag_fcp_seid.offset(1)] };
 //        println!("sefile_id: {:?}", sefile_id);
     }
+
+    let mut len_bytes_tag_fcp_lcs = 0usize;
+    let     ptr_bytes_tag_fcp_lcs = unsafe { sc_asn1_find_tag(card_ref.ctx, buf, buflen,
+                                                      ISO7816_TAG_FCP_LCS as c_uint, &mut len_bytes_tag_fcp_lcs) };
+    assert!(  !ptr_bytes_tag_fcp_lcs.is_null());
+    assert_eq!(len_bytes_tag_fcp_lcs, 1);
+    let lcsi = unsafe { *ptr_bytes_tag_fcp_lcs };
+
 
     /* select_file is always allowed */
     assert_eq!(    SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, SC_AC_OP_SELECT,     SC_AC_NONE, SC_AC_KEY_REF_NONE as c_ulong) } );
@@ -1830,26 +1851,46 @@ extern "C" fn acos5_64_process_fci(card: *mut sc_card, file: *mut sc_file,
 
     let mut dp : Box<DataPrivate> = unsafe { Box::from_raw(card_ref_mut.drv_data as *mut DataPrivate) };
     let file_id = file_ref_mut.id as u16;
-    if dp.files.contains_key(&file_id) {
-        let dp_files_value_ref_mut = dp.files.entry(file_id).or_insert(([0u8;SC_MAX_PATH_SIZE], [0u8;8], None, None));
-        if dp_files_value_ref_mut.2.is_none() {
-            dp_files_value_ref_mut.2  = Some(scb8);
+    assert!(dp.files.contains_key(&file_id));
+    /*if dp.files.contains_key(&file_id)*/ {
+        let dp_files_value = dp.files.get_mut(&file_id).unwrap();//.entry(file_id).or_insert(([0u8;SC_MAX_PATH_SIZE], [0u8;8], None, None));
+        if dp_files_value.1[2] == 0 && dp_files_value.1[3] == 0 { // assume dp_files_value.1 wasn't provided by list_files, i.e. provided by acos5_64_create_file
+            dp_files_value.1[0] = fdb;
+//          dp_files_value.1[1] = dcb;
+            dp_files_value.1[2] = ((file_ref_mut.id >> 8) & 0xFF) as u8;
+            dp_files_value.1[3] = ( file_ref_mut.id       & 0xFF) as u8;
+            if  file_ref_mut.type_!= SC_FILE_TYPE_DF && file_ref_mut.ef_structure != SC_FILE_EF_TRANSPARENT {
+                dp_files_value.1[4] = unsafe { *ptr_bytes_tag_fcp_type.offset(3) };
+                dp_files_value.1[5] = unsafe { *ptr_bytes_tag_fcp_type.add(len_bytes_tag_fcp_type-1) };
+            }
+            else {
+                dp_files_value.1[4] = ((file_ref_mut.size >> 8) & 0xFF) as u8;
+                dp_files_value.1[5] = ( file_ref_mut.size       & 0xFF) as u8;
+            }
+//          dp_files_value.1[6] = sfi;
+            dp_files_value.1[7] = lcsi;
         }
-        if dp_files_value_ref_mut.1[0] == FDB_RSA_KEY_EF && dp_files_value_ref_mut.1[6] == 0xFF {
-            dp_files_value_ref_mut.1[6] = if scb8[0] == 0xFF {PKCS15_FILE_TYPE_RSAPRIVATEKEY} else {PKCS15_FILE_TYPE_RSAPUBLICKEY};
+        if  dp_files_value.2.is_none() {
+            dp_files_value.2  = Some(scb8);
         }
-        if dp_files_value_ref_mut.1[0] == FDB_MF && dp_files_value_ref_mut.1[4..] == [0u8, 0, 0xFF, 0xFF] { // correct the initially unknown/incorrect lcsi setting
-            let mut len_bytes_tag_fcp_lcs = 0usize;
-            let     ptr_bytes_tag_fcp_lcs = unsafe { sc_asn1_find_tag(card_ref.ctx, buf, buflen,
-                                                     ISO7816_TAG_FCP_LCS as c_uint, &mut len_bytes_tag_fcp_lcs) };
-            assert!(  !ptr_bytes_tag_fcp_lcs.is_null());
-            assert_eq!(len_bytes_tag_fcp_lcs, 1);
-            let lcsi = unsafe { *ptr_bytes_tag_fcp_lcs };
-            dp_files_value_ref_mut.1[7]  = lcsi;
+        if  dp_files_value.1[0] == FDB_RSA_KEY_EF && dp_files_value.1[6] == 0xFF {
+            /* a better, more sophisticated distinction requires more info. Here, readable or not. Possibly read first byte from file */
+            dp_files_value.1[6] = if scb8[0] != 0xFF {PKCS15_FILE_TYPE_RSAPUBLICKEY} else {PKCS15_FILE_TYPE_RSAPRIVATEKEY};
         }
-        if is_DFMF(dp_files_value_ref_mut.1[0]) && (dp_files_value_ref_mut.1[4..6] == [0u8; 2]) {
-            dp_files_value_ref_mut.1[4]  = sefile_id[0];
-            dp_files_value_ref_mut.1[5]  = sefile_id[1];
+        /*
+                    if rbuf[0]==FDB_RSA_KEY_EF && dp.files[&file_id].2.is_some() && dp.files[&file_id].2.unwrap()[0]==0 {
+                        if let Some(x) = dp.files.get_mut(&file_id) {
+                            (*x).1[6] = PKCS15_FILE_TYPE_RSAPUBLICKEY;
+                        }
+                    }
+        */
+        /* if dp_files_value.1[0] == FDB_MF && dp_files_value.1[4..] == [0u8, 0, 0xFF, 0xFF] */  // correct the initially unknown/incorrect lcsi setting
+        {
+            dp_files_value.1[7]  = lcsi;
+        }
+        if is_DFMF(dp_files_value.1[0]) && (dp_files_value.1[4..6] == [0u8; 2]) {
+            dp_files_value.1[4]  = sefile_id[0];
+            dp_files_value.1[5]  = sefile_id[1];
         }
     }
     card_ref_mut.drv_data = Box::into_raw(dp) as *mut c_void;

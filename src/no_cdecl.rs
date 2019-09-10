@@ -400,7 +400,7 @@ return SC_SUCCESS;
 }
 
 /*
-The task of track_iso7816_select_file next to SELECT:
+The task of tracking_select_file next to SELECT:
 Update card.cache.current_path such that it's always valid (pointing to the currently selected EF/DF),
 both before and after the call to iso7816_select_file (even if failing)
 
@@ -412,12 +412,12 @@ same @param and @return as iso7816_select_file
  * @param
  * @return
  */
-pub fn track_iso7816_select_file(card: &mut sc_card, path: &sc_path, file_out: *mut *mut sc_file) -> c_int
+pub fn tracking_select_file(card: &mut sc_card, path: &sc_path, file_out: *mut *mut sc_file) -> c_int
 {
     assert_eq!(path.type_, SC_PATH_TYPE_FILE_ID);
     assert_eq!(path.len,   2);
     let file_str = CStr::from_bytes_with_nul(CRATE).unwrap();
-    let func     = CStr::from_bytes_with_nul(b"track_iso7816_select_file\0").unwrap();
+    let func     = CStr::from_bytes_with_nul(b"tracking_select_file\0").unwrap();
     let format_1   = CStr::from_bytes_with_nul(b"    called. curr_type: %d, curr_value: %s\0").unwrap();
     let format_2   = CStr::from_bytes_with_nul(b"              to_type: %d,   to_value: %s\0").unwrap();
     let format_3   = CStr::from_bytes_with_nul(b"returning:  curr_type: %d, curr_value: %s\0").unwrap();
@@ -505,7 +505,7 @@ pub fn select_file_by_path(card: &mut sc_card, path: &sc_path, file_out: *mut *m
     for i in 0..len/2 {
         path2.value[0] = path1.value[i*2  ];
         path2.value[1] = path1.value[i*2+1];
-        let rv = track_iso7816_select_file(card, &path2, file_out);
+        let rv = tracking_select_file(card, &path2, file_out);
 /*
         unsafe {
             if (i+1)<len/2 && !file_out.is_null() && !(*file_out).is_null() {
@@ -565,7 +565,7 @@ fn get_known_sec_env_entry_V3_FIPS(is_local: bool, rec_nr: c_uint, buf: &mut [u8
     }
 }
 
-/*
+/* This is the first function that calls select_file
  * What it does
  * @apiNote
  * @param
@@ -583,12 +583,12 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path, only_se_df: bool/*, depth: c
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     assert!(path.len >= 2);
     let file_id = u16_from_array_begin(&path.value[path.len-2..path.len]);
-    let fdb = dp.files[&file_id].1[0];
-    let dp_files_value = dp.files.entry(file_id).or_insert(([0u8;SC_MAX_PATH_SIZE], [0u8;8], None, None));
+    let dp_files_value = dp.files.get_mut(&file_id).unwrap();
+    let fdb = dp_files_value.1[0];
     dp_files_value.0    = path.value;
     dp_files_value.1[1] = path.len as u8;
     /* assumes meaningful values in dp_files_value.1 */
-    let mrl = dp_files_value.1[4] as usize;  // MRL: Max. Record Length
+    let mrl = dp_files_value.1[4] as usize;  // MRL: Max. Record Length; this is correct only if the file is record-based
     let nor  = dp_files_value.1[5] as c_uint; // NOR: Number Of Records
     card.drv_data = Box::into_raw(dp) as *mut c_void;
 
@@ -669,7 +669,7 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path, only_se_df: bool/*, depth: c
         let file_id_dir = u16_from_array_begin(&path.value[path.len-4..path.len-2]);
 
         let mut dp : Box<DataPrivate> = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-        let dp_files_value = dp.files.entry(file_id_dir).or_insert(([0u8;SC_MAX_PATH_SIZE], [0u8;8], None, None));
+        let dp_files_value = dp.files.get_mut(&file_id_dir).unwrap();
         dp_files_value.3 = Some(vec_seinfo);
         card.drv_data = Box::into_raw(dp) as *mut c_void;
     }
@@ -1871,6 +1871,11 @@ pub fn update_hashmap(card: &mut sc_card) {
         if val.2.is_some() {
             wr_do_log_tu(card.ctx, f_log, line!(), fun, *key, unsafe { sc_dump_hex(val.1.as_ptr(), 8) }, fmt1);
             wr_do_log_tu(card.ctx, f_log, line!(), fun, *key, unsafe { sc_dump_hex(val.2.unwrap().as_ptr(), 8) }, fmt2);
+        }
+    }
+    for (key, val) in dp.files.iter() {
+        if !val.2.is_some() {
+            wr_do_log_tu(card.ctx, f_log, line!(), fun, *key, unsafe { sc_dump_hex(val.1.as_ptr(), 8) }, fmt1);
         }
     }
     card.drv_data = Box::into_raw(dp) as *mut c_void;
