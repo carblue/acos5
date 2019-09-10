@@ -1,6 +1,6 @@
 [package]
 name = "acos5_64"
-version = "0.0.19"
+version = "0.0.20"
 authors = ["carblue <bluecars@posteo.eu>"]
 edition = "2018"
 
