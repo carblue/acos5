@@ -169,6 +169,24 @@ fn se_get_reference(card: &mut sc_card, file_id: c_int, se_reference: u8, search
         let path_len = dp.files[&file_id].1[1] as usize;
         let file_id_dir = if is_DFMF(fdb) { file_id }
                                 else {
+/*
+                                    if path_len<4 {
+                                        let x = dp.files.get(&file_id).unwrap();
+                                        println!("fdb: {:X}", fdb);
+                                        println!("x.0: {:X?}", x.0);
+                                        println!("x.1: {:X?}", x.1);
+                                        if x.2.is_some() {
+                                            println!("x.2: {:X?}", x.2);
+                                        }
+                                        println!("file_id: {:X}", file_id);
+                                        println!("se_reference: {:X}", se_reference);
+                                        println!("search_template.tag: {:X}", search_template.tag);
+                                        println!("search_template.usage: {:X}", search_template.usage);
+                                        println!("search_template.algo: {:X}", search_template.algo);
+                                        println!("search_template.refs[0]: {:X}", search_template.refs[0]);
+                                    }
+*/
+                                    assert!(path_len>=4);
                                     let tmp = &dp.files[&file_id].0[path_len-4..path_len-2];
                                     u16_from_array_begin(tmp)
                                 };

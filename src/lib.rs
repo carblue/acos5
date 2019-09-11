@@ -1685,16 +1685,17 @@ extern "C" fn acos5_64_list_files(card: *mut sc_card, buf: *mut c_uchar, buflen:
             };
 
             let file_id = u16_from_array_begin(&rbuf[2..4]);
-/* */
-            if dp.is_running_init && dp.files.contains_key(&file_id) {
-                card_ref_mut.drv_data = Box::into_raw(dp) as *mut c_void;
-                let rv = SC_ERROR_NOT_ALLOWED;
-                wr_do_log_sds(card_ref_mut.ctx, f_log, line!(), fun,CStr::from_bytes_with_nul(b"### Duplicate file id disallowed by the driver ! ###\0")
-                    .unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
-                return rv;
+
+            if dp.is_running_init {
+                if dp.files.contains_key(&file_id) {
+                    card_ref_mut.drv_data = Box::into_raw(dp) as *mut c_void;
+                    let rv = SC_ERROR_NOT_ALLOWED;
+                    wr_do_log_sds(card_ref_mut.ctx, f_log, line!(), fun,CStr::from_bytes_with_nul(b"### Duplicate file id disallowed by the driver ! ###\0")
+                        .unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+                    return rv;
+                }
+                dp.files.insert(file_id, ([0u8;SC_MAX_PATH_SIZE], rbuf, None, None));
             }
-/* */
-            dp.files.insert(file_id, ([0u8;SC_MAX_PATH_SIZE], rbuf, None, None));
         } // for
         card_ref_mut.drv_data = Box::into_raw(dp) as *mut c_void;
     }
