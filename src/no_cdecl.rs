@@ -72,6 +72,7 @@ use crate::constants_types::*;
 use crate::se::se_parse_crts;
 use crate::path::cut_path;
 use crate::missing_exports::me_get_max_recv_size;
+use crate::cmd_card_info::{get_card_life_cycle_byte_EEPROM, get_op_mode_byte_EEPROM, get_zeroize_card_disable_byte_EEPROM};
 
 use super::{acos5_64_list_files, acos5_64_select_file, acos5_64_set_security_env, acos5_64_process_fci};
 
@@ -687,45 +688,19 @@ pub fn enum_dir(card: &mut sc_card, path: &sc_path, only_se_df: bool/*, depth: c
             dp.does_mf_exist = false;
             card.drv_data = Box::into_raw(dp) as *mut c_void;
 
-            /* Try to read EEPROM address: If successful, card is uninitialized */
-            let command = [0u8, 0xB0, 0xC1, 0x84, 1];
-            let mut apdu = Default::default();
-            let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
-            assert_eq!(rv, SC_SUCCESS);
-            assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
-
-            let mut card_life_cycle_byte = 0xFFu8;
-            apdu.resp = &mut card_life_cycle_byte;
-            apdu.resplen = 1;
-            rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
-            if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 || apdu.resplen == 0 {
-                wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5-64 'Get Card Life Cycle Byte' failed\0").unwrap());
-                return SC_ERROR_KEYPAD_MSG_TOO_LONG;
-            }
-
-            /* The meaning of operation_mode_byte depends on card type:
-               V2.00:  0 (default factory setting): 64k mode, any other is: Emulated 32K mode
-               V3.00:  0 (default factory setting): FIPS mode, 1: Emulated 32K mode, 2: 64k mode, 16: NSH-1 mode
-            */
-            let mut operation_mode_byte = 0xFFu8; // also called compatibility byte
-            apdu.p2 = 0x91;
-            apdu.resp = &mut operation_mode_byte;
-            apdu.resplen = 1;
-            rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
-            if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 || apdu.resplen == 0 {
-                wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5-64 'Get Operation Mode Byte' failed\0").unwrap());
-                return SC_ERROR_KEYPAD_MSG_TOO_LONG;
-            }
-
-            let mut zeroize_card_disable_byte = 0xFFu8;
-            apdu.p2 = 0x92;
-            apdu.resp = &mut zeroize_card_disable_byte;
-            apdu.resplen = 1;
-            rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
-            if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 || apdu.resplen == 0 {
-                wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5-64 'Get Zeroize Card Disable Flag' failed\0").unwrap());
-                return SC_ERROR_KEYPAD_MSG_TOO_LONG;
-            }
+            /* Try to read EEPROM addresses: If successful, card is uninitialized */
+            let card_life_cycle_byte = match get_card_life_cycle_byte_EEPROM(card) {
+                Ok(val) => val,
+                Err(error) => { return error; },
+            };
+            let operation_mode_byte = match get_op_mode_byte_EEPROM(card) {
+                Ok(val) => val,
+                Err(error) => { return error; },
+            };
+            let zeroize_card_disable_byte =  match get_zeroize_card_disable_byte_EEPROM(card) {
+                Ok(val) => val,
+                Err(error) => { return error; },
+            };
 
             println!("### There is no MF: The card is uninitialized/virgin/in factory state ### (Card Life Cycle Byte is 0x{:X}, Operation Mode Byte is 0x{:X}, Zeroize Card Disable Byte is 0x{:X})", card_life_cycle_byte, operation_mode_byte, zeroize_card_disable_byte);
             wr_do_log_ttt(card.ctx, f_log, line!(), fun, card_life_cycle_byte, operation_mode_byte, zeroize_card_disable_byte, CStr::from_bytes_with_nul(
@@ -1537,16 +1512,13 @@ fn multipleGreaterEqual(multiplier: usize, x: usize) -> usize
 #[cfg(not(any(v0_15_0, v0_16_0)))]
 /* op_mode_cbc: true  => cbc
    op_mode_cbc: false => ecb
-
-   encrypt:     true  => encrypt
-   encrypt:     false => decrypt
 */
-fn algo_ref_cos5_sym_MSE(algo: c_uint, op_mode_cbc: bool, encrypt: bool) -> c_uint
+fn algo_ref_cos5_sym_MSE(algo: c_uint, op_mode_cbc: bool) -> c_uint
 {
     match algo {
         SC_ALGORITHM_3DES=> if op_mode_cbc {2} else {0},
         SC_ALGORITHM_DES => if op_mode_cbc {3} else {1},
-        SC_ALGORITHM_AES => if op_mode_cbc {if encrypt {6} else {7}} else {if encrypt {4} else {5}},
+        SC_ALGORITHM_AES => if op_mode_cbc {6} else {4},
         _ => 0xFFFF_FFFF,
     }
 }
@@ -1647,21 +1619,19 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
         assert_eq!(inDataRem.len(), block_size);
     }
 
-    let mut env : sc_security_env =  Default::default();
     #[cfg(not(any(v0_15_0, v0_16_0)))] // due to SC_ALGORITHM_AES
     {
     if crypt_sym.perform_mse {
         /* Security Environment */
         #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
         let sec_env_param;
-        env = sc_security_env {
+        let mut env = sc_security_env {
             operation: if crypt_sym.encrypt {SC_SEC_OPERATION_ENCIPHER_SYMMETRIC} else {SC_SEC_OPERATION_DECIPHER_SYMMETRIC},
             flags    : (SC_SEC_ENV_KEY_REF_PRESENT | SC_SEC_ENV_ALG_REF_PRESENT | SC_SEC_ENV_ALG_PRESENT).into(),
-            algorithm: if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else {SC_ALGORITHM_3DES /*TODO should I ever consider supporting SC_ALGORITHM_DES*/},
+            algorithm: if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else { if crypt_sym.key_len!=64 {SC_ALGORITHM_3DES} else {SC_ALGORITHM_DES} },
             key_ref: [crypt_sym.key_ref, 0,0,0,0,0,0,0],
             key_ref_len: 1,
-            algorithm_ref: algo_ref_cos5_sym_MSE(if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else {SC_ALGORITHM_3DES}, crypt_sym.cbc, crypt_sym.encrypt),
-
+            algorithm_ref: algo_ref_cos5_sym_MSE(if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else { if crypt_sym.key_len!=64 {SC_ALGORITHM_3DES} else {SC_ALGORITHM_DES} }, crypt_sym.cbc),
             ..Default::default()
         };
         #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0)))]
@@ -1695,6 +1665,9 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
               hstat.SetString(IUP_TITLE, "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
               return IUP_DEFAULT;
             */
+            if cfg!(log) {
+                 wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+            }
             return rv;
         }
     }}
@@ -1716,21 +1689,28 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     while cnt < Len0 || (cnt == Len0 && Len1 != Len2) {
         if first { first = false; }
         else if crypt_sym.cbc && !crypt_sym.encrypt {
-            rv = unsafe { sc_select_file(card, &path, std::ptr::null_mut()) }; // clear accumulated CRT
-            assert_eq!(rv, SC_SUCCESS);
-            rv = acos5_64_set_security_env(card, &env, 0);
-            if rv < 0 {
-                /*
+            #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+            {
+                rv = unsafe { sc_select_file(card, &path, std::ptr::null_mut()) }; // clear accumulated CRT
+                assert_eq!(rv, SC_SUCCESS);
+                rv = acos5_64_set_security_env(card, &env, 0);
+                if rv < 0 {
+                    /*
 
-                tlv_new[posIV..posIV+blockSize] = inData[cnt-blockSize..cnt];
+                    tlv_new[posIV..posIV+blockSize] = inData[cnt-blockSize..cnt];
 
-                  mixin (log!(__FUNCTION__,  "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
-                  hstat.SetString(IUP_TITLE, "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
-                  return IUP_DEFAULT;
-                */
-                return rv;
+                      mixin (log!(__FUNCTION__,  "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
+                      hstat.SetString(IUP_TITLE, "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
+                      return IUP_DEFAULT;
+                    */
+                    if cfg!(log) {
+                        wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+                    }
+                    return rv;
+                }
             }
         }
+
         if cnt < Len0 {
             if crypt_sym.cbc && Len1==Len2 && Len0-cnt<=max_send { apdu.cla  = 0; }
             apdu.data = unsafe { indata_ptr.add(cnt) };
@@ -1753,10 +1733,26 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
         apdu.resp = unsafe { outdata_ptr.add(cnt) };
         apdu.resplen = outdata_len-cnt;
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
-        if rv != SC_SUCCESS  { return rv; }
+        if rv != SC_SUCCESS  {
+            if cfg!(log) {
+                wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+            }
+            return rv;
+        }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
-        if rv != SC_SUCCESS  { return rv; }
-        if apdu.resplen == 0 { return SC_ERROR_KEYPAD_MSG_TOO_LONG; }
+        if rv != SC_SUCCESS  {
+            if cfg!(log) {
+                wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+            }
+            return rv;
+        }
+        if apdu.resplen == 0 {
+            rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
+            if cfg!(log) {
+                 wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+            }
+            return rv;
+        }
         assert_eq!(apdu.datalen, apdu.resplen);
         cnt += apdu.datalen;
     }
@@ -1779,15 +1775,31 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
         let path = unsafe { CStr::from_ptr(crypt_sym.outfile) };
         let path_str = match path.to_str() {
             Ok(path_str) => path_str,
-            Err(e) => return e.valid_up_to() as c_int,
+            Err(e) => {
+                rv = e.valid_up_to() as c_int;
+                if cfg!(log) {
+                    wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+                }
+                return rv;
+            },
         };
         match fs::write(path_str, vec_out) {
             Ok(_) => (),
-            Err(e) => return e.raw_os_error().unwrap(),
+            Err(e) => {
+                rv = e.raw_os_error().unwrap();
+                if cfg!(log) {
+                    wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+                }
+                return rv;
+            },
         }
     }
 
-    crypt_sym.outdata_len as c_int
+    rv = crypt_sym.outdata_len as c_int;
+    if cfg!(log) {
+        wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+    }
+    rv
 }
 
 

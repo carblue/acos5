@@ -532,7 +532,7 @@ what can we rely on, when this get's called:
  */
 extern "C" fn acos5_64_init(card: *mut sc_card) -> c_int
 {
-    if card.is_null() {
+    if card.is_null() || unsafe { (*card).ctx.is_null() } {
         return SC_ERROR_KEYPAD_MSG_TOO_LONG;
     }
     let card_ref:         &sc_card = unsafe { &    *card };
@@ -544,6 +544,15 @@ extern "C" fn acos5_64_init(card: *mut sc_card) -> c_int
         wr_do_log_tu(card_ref.ctx, f_log, line!(), fun, card_ref.type_, unsafe {sc_dump_hex(card_ref.atr.value.as_ptr(),
         card_ref.atr.len) }, CStr::from_bytes_with_nul(b"called with card.type: %d, card.atr.value: %s\0").unwrap());
     }
+    if unsafe { !(*card_ref_mut.ctx).app_name.is_null() } {
+        let app_name = unsafe { CStr::from_ptr((*card_ref_mut.ctx).app_name) }; // app_name: "pkcs15-init"
+        if cfg!(log) {
+            wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, app_name.as_ptr(),
+                        CStr::from_bytes_with_nul(b"The driver was loaded for application: %s\0").unwrap());
+        }
+//        println!("{}", String::from("The driver was loaded for application: ") + app_name.to_str().unwrap());
+    }
+
     /* Undo 'force_card_driver = acos5_64;'  if match_card reports 'no match' */
     for elem in &acos5_64_atrs_supported() {
         if elem.atr.is_null() {
@@ -989,7 +998,7 @@ extern "C" fn acos5_64_card_ctl(card: *mut sc_card, command: c_ulong, data: *mut
                     Err(e) => return e,
                 };
                 let ptr_c_uint = data as *mut c_uint;
-                unsafe { *ptr_c_uint = op_mode_byte };
+                unsafe { *ptr_c_uint = op_mode_byte as c_uint};
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE =>
@@ -2381,9 +2390,8 @@ extern "C" fn acos5_64_set_security_env(card: *mut sc_card, env: *const sc_secur
     let env_ref   = unsafe { &    *env };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun   = CStr::from_bytes_with_nul(b"acos5_64_set_security_env\0").unwrap();
-    let fmt   = CStr::from_bytes_with_nul(CALLED).unwrap();
     if cfg!(log) {
-        wr_do_log(card_ref.ctx, f_log, line!(), fun, fmt);
+        wr_do_log(card_ref.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
 //println!("set_security_env: *env: sc_security_env: {:?}", *env_ref);
     set_sec_env(card_ref_mut, env_ref);
@@ -2392,7 +2400,11 @@ extern "C" fn acos5_64_set_security_env(card: *mut sc_card, env: *const sc_secur
     if SC_SEC_OPERATION_DERIVE == env_ref.operation
 //        || ( cfg!(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0))) && (SC_SEC_OPERATION_WRAP == env_ref.operation || SC_SEC_OPERATION_UNWRAP == env_ref.operation) )
     {
-        return SC_ERROR_NO_CARD_SUPPORT;
+        rv = SC_ERROR_NO_CARD_SUPPORT;
+        if cfg!(log) {
+            wr_do_log_tu(card_ref.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+        }
+        return rv;
     }
 
     else if (SC_SEC_OPERATION_GENERATE_RSAPRIVATE == env_ref.operation ||
@@ -2408,14 +2420,17 @@ extern "C" fn acos5_64_set_security_env(card: *mut sc_card, env: *const sc_secur
         rv = sc_bytes2apdu_wrapper(card_ref_mut.ctx, &command, &mut apdu);
         assert_eq!(rv, SC_SUCCESS);
         assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
+        rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
 //    println!("rv: {}, apdu: {:?}", rv, apdu);
-        if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 {
+        rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+        if rv != SC_SUCCESS {
             if cfg!(log) {
                 wr_do_log(card_ref_mut.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul
-                    (b"sc_transmit_apdu or 'Set SecEnv for Generate Key pair' failed\0").unwrap());
+                    (b"Set Security Environment for Generate Key pair' failed\0").unwrap());
+                wr_do_log_tu(card_ref.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) },
+                             CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
             }
-            return SC_ERROR_KEYPAD_MSG_TOO_LONG;
+            return rv;
         }
     }
 
@@ -2435,11 +2450,13 @@ extern "C" fn acos5_64_set_security_env(card: *mut sc_card, env: *const sc_secur
             rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
 //    println!("rv: {}, apdu: {:?}", rv, apdu);
             if !(rv == SC_SUCCESS && apdu.sw1 == 0x90 && apdu.sw2 == 0x00) {
+                rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
                 if cfg!(log) {
                     wr_do_log(card_ref_mut.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul
                         (b"sc_transmit_apdu or 'Set SecEnv for Sign' failed\0").unwrap());
+                    wr_do_log_tu(card_ref.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
                 }
-                return SC_ERROR_KEYPAD_MSG_TOO_LONG;
+                return rv;
             }
         }
         /* sign may need decrypt (for non-SHA1/SHA256 hashes), thus prepare for a CT as well */
@@ -2452,11 +2469,13 @@ extern "C" fn acos5_64_set_security_env(card: *mut sc_card, env: *const sc_secur
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
 //    println!("rv: {}, apdu: {:?}", rv, apdu);
         if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 {
+            rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
             if cfg!(log) {
                 wr_do_log(card_ref_mut.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul
                     (b"sc_transmit_apdu or 'Set SecEnv for Decrypt' failed\0").unwrap());
+                wr_do_log_tu(card_ref.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
             }
-            return SC_ERROR_KEYPAD_MSG_TOO_LONG;
+            return rv;
         }
     }
 
@@ -2474,41 +2493,64 @@ extern "C" fn acos5_64_set_security_env(card: *mut sc_card, env: *const sc_secur
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
 //    println!("rv: {}, apdu: {:?}", rv, apdu);
         if !(rv == SC_SUCCESS && apdu.sw1 == 0x90 && apdu.sw2 == 0x00) {
+            rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
             if cfg!(log) {
                 wr_do_log(card_ref_mut.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul
                     (b"sc_transmit_apdu or 'Set SecEnv for encrypt_asym' failed\0").unwrap());
+                wr_do_log_tu(card_ref.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
             }
-            return SC_ERROR_KEYPAD_MSG_TOO_LONG;
+            return rv;
         }
     }
-
     else if [SC_SEC_OPERATION_ENCIPHER_SYMMETRIC, SC_SEC_OPERATION_DECIPHER_SYMMETRIC].contains(&env_ref.operation)  &&
-            (env_ref.flags as c_uint & SC_SEC_ENV_KEY_REF_PRESENT) > 0 &&
-            (env_ref.flags as c_uint & SC_SEC_ENV_ALG_REF_PRESENT) > 0
+            (env_ref.flags as c_uint & SC_SEC_ENV_KEY_REF_PRESENT) > 0 && (env_ref.flags as c_uint & SC_SEC_ENV_ALG_REF_PRESENT) > 0
     {
         if cfg!(any(v0_15_0, v0_16_0)) || env_ref.key_ref_len == 0 {
-            return SC_ERROR_NOT_SUPPORTED;
+            rv = SC_ERROR_NOT_SUPPORTED;
+            if cfg!(log) {
+                wr_do_log_tu(card_ref.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+            }
+            return rv;
         }
         #[cfg(not(any(v0_15_0, v0_16_0)))]
         {
             if (env_ref.flags as c_uint & SC_SEC_ENV_ALG_PRESENT) == 0  ||
-                ![SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES].contains(&env_ref.algorithm) {
-                return SC_ERROR_NOT_SUPPORTED;
+                ![SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES].contains(&env_ref.algorithm)
+            {
+                rv = SC_ERROR_NOT_SUPPORTED;
+                if cfg!(log) {
+                    wr_do_log_tu(card_ref.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+                }
+                return rv;
             }
             #[cfg(not(    v0_17_0))]
-            { if env_ref.flags as c_uint & SC_SEC_ENV_KEY_REF_SYMMETRIC == 0 {return SC_ERROR_NOT_SUPPORTED;} }
+            {
+                if env_ref.flags as c_uint & SC_SEC_ENV_KEY_REF_SYMMETRIC == 0 {
+                    rv = SC_ERROR_NOT_SUPPORTED;
+                    if cfg!(log) {
+                        wr_do_log_tu(card_ref.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+                    }
+                    return rv;
+                }
+            }
             #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
             {
                 if (env_ref.algorithm & SC_ALGORITHM_AES) > 0 &&
                     ![SC_ALGORITHM_AES_CBC_PAD,
                       SC_ALGORITHM_AES_CBC,
                       SC_ALGORITHM_AES_ECB].contains(&env_ref.algorithm_flags)
-                { return SC_ERROR_NOT_SUPPORTED; }
+                {
+                    rv = SC_ERROR_NOT_SUPPORTED;
+                    if cfg!(log) {
+                        wr_do_log_tu(card_ref.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+                    }
+                    return rv;
+                }
             }
 
             let mut vec =   // made for cbc and blockSize == 16
                 vec![0u8,  0x22, 0x01,  0xB8, 0xFF,
-                     0x95, 0x01, 0x40,
+                     0x95, 0x01, 0xC0,
                      0x80, 0x01, 0xFF,
                      0x83, 0x01, 0xFF,
                      0x87, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -2519,7 +2561,7 @@ extern "C" fn acos5_64_set_security_env(card: *mut sc_card, env: *const sc_secur
                     { if env_ref.algorithm_flags == SC_ALGORITHM_AES_ECB {vec.truncate(vec.len()-18);} }
                 #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
                     {
-                        if [4, 5].contains(&env_ref.algorithm_ref)
+                        if [4, 5].contains(&env_ref.algorithm_ref) // AES (ECB)
                         { vec.truncate(vec.len()-18); }
                     }
             }
@@ -2527,7 +2569,7 @@ extern "C" fn acos5_64_set_security_env(card: *mut sc_card, env: *const sc_secur
                 vec.truncate(vec.len()-8);
                 let pos = vec.len()-9;
                 vec[pos] = 8; // IV has len == 8. assuming it's CBC
-                if [0, 1].contains(&env_ref.algorithm_ref)
+                if [0, 1].contains(&env_ref.algorithm_ref) // DES/3DES (ECB)
                 { vec.truncate(vec.len()-10); }
             }
 
@@ -2536,7 +2578,7 @@ extern "C" fn acos5_64_set_security_env(card: *mut sc_card, env: *const sc_secur
             {
                 for sec_env_param in env_ref.params.iter() {
                     match sec_env_param.param_type {
-                        SC_SEC_ENV_PARAM_IV=> {
+                        SC_SEC_ENV_PARAM_IV => {
                             assert!(vec.len() >= 16);
                             assert_eq!(vec[15] as c_uint, sec_env_param.value_len);
                             assert_eq!(vec.len(), 16+sec_env_param.value_len as usize);
@@ -2566,6 +2608,7 @@ pub const SC_SEC_ENV_PARAM_DES_CBC           : c_uint = 4;
             }
 
             vec[ 4] = (vec.len()-5) as u8;
+//          vec[ 7] = 0xC0;//if SC_SEC_OPERATION_ENCIPHER_SYMMETRIC == env_ref.operation {0x40} else {0x80};
             vec[10] = env_ref.algorithm_ref as c_uchar;
             vec[13] = env_ref.key_ref[0];
 
@@ -2575,17 +2618,35 @@ pub const SC_SEC_ENV_PARAM_DES_CBC           : c_uint = 4;
             assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
             rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
             if rv != SC_SUCCESS {
+                if cfg!(log) {
+                    wr_do_log_tu(card_ref.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+                }
                 return rv;
             }
             rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
             if rv != SC_SUCCESS {
+                if cfg!(log) {
+                    wr_do_log_tu(card_ref.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+                }
                 return rv;
             }
         }
     }
 
     else {
-        return SC_ERROR_NO_CARD_SUPPORT;
+        rv = SC_ERROR_NO_CARD_SUPPORT;
+        if cfg!(log) {
+//            wr_do_log_t(card_ref.ctx, f_log, line!(), fun, env_ref.flags, CStr::from_bytes_with_nul(b"env_ref.flags: %X\0").unwrap());
+//            wr_do_log_t(card_ref.ctx, f_log, line!(), fun, env_ref.operation, CStr::from_bytes_with_nul(b"env_ref.operation: %d\0").unwrap());
+//            wr_do_log_t(card_ref.ctx, f_log, line!(), fun, env_ref.algorithm, CStr::from_bytes_with_nul(b"env_ref.algorithm: %d\0").unwrap());
+//            wr_do_log_t(card_ref.ctx, f_log, line!(), fun, env_ref.algorithm_flags, CStr::from_bytes_with_nul(b"env_ref.algorithm_flags: %X\0").unwrap());
+//            wr_do_log_t(card_ref.ctx, f_log, line!(), fun, env_ref.algorithm_ref, CStr::from_bytes_with_nul(b"env_ref.algorithm_ref: %X\0").unwrap());
+            wr_do_log_tu(card_ref.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+        }
+        return rv;
+    }
+    if cfg!(log) {
+        wr_do_log_tu(card_ref.ctx, f_log, line!(), fun, SC_SUCCESS, unsafe { sc_strerror(SC_SUCCESS) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
     }
     SC_SUCCESS
 }

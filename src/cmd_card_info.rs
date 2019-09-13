@@ -20,10 +20,10 @@
 
 /* functions callable via sc_card_ctl(acos5_64_card_ctl), mostly used by acos5_64_gui */
 
-use std::os::raw::{c_int, c_uint /*, c_void, c_char, c_uchar*/};
+use std::os::raw::{c_int, c_uint, c_uchar /*, c_void, c_char*/};
 use std::ffi::{/*CString,*/ CStr};
 
-use opensc_sys::opensc::{sc_transmit_apdu, sc_card, sc_bytes2apdu_wrapper};
+use opensc_sys::opensc::{sc_transmit_apdu, sc_card, sc_bytes2apdu_wrapper, sc_check_sw};
 use opensc_sys::types::{/*sc_path, sc_file,*/ sc_apdu, sc_serial_number, SC_MAX_SERIALNR/*, SC_MAX_PATH_SIZE*/,
                         SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT
 };
@@ -278,7 +278,7 @@ pub fn get_rom_sha1(card: &mut sc_card) -> Result<[u8; 20], c_int>
 }
 
 //  V2.00 *DOES NOT* supports this command
-pub fn get_op_mode_byte(card: &mut sc_card) -> Result<c_uint, c_int>
+pub fn get_op_mode_byte(card: &mut sc_card) -> Result<c_uchar, c_int>
 {
     let file_str = CStr::from_bytes_with_nul(CRATE).unwrap();
     let func     = CStr::from_bytes_with_nul(b"get_op_mode_byte\0").unwrap();
@@ -306,7 +306,51 @@ pub fn get_op_mode_byte(card: &mut sc_card) -> Result<c_uint, c_int>
      2: 64K Mode
     16: NSH-1 Mode
 */
-    Ok(apdu.sw2)
+    Ok(apdu.sw2 as c_uchar)
+}
+
+/* This is NOT a card command, but reading from EEPROM; allowed only in stage manufacturer */
+#[allow(non_snake_case)]
+pub fn get_op_mode_byte_EEPROM(card: &mut sc_card) -> Result<c_uchar, c_int>
+{
+/*
+            /* The meaning of operation_mode_byte depends on card type:
+               V2.00:  0 (default factory setting): 64k mode, any other is: Emulated 32K mode
+               V3.00:  0 (default factory setting): FIPS mode, 1: Emulated 32K mode, 2: 64k mode, 16: NSH-1 mode
+            */
+            let mut operation_mode_byte = 0xFFu8; // also called compatibility byte
+            apdu.p2 = 0x91;
+            apdu.resp = &mut operation_mode_byte;
+            apdu.resplen = 1;
+            rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
+            rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+            if rv != SC_SUCCESS || apdu.resplen != 1 {
+                wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5-64 'Get Operation Mode Byte' failed\0").unwrap());
+                return SC_ERROR_KEYPAD_MSG_TOO_LONG;
+            }
+*/
+    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
+    let fun     = CStr::from_bytes_with_nul(b"get_op_mode_byte_EEPROM\0").unwrap();
+    let mut operation_mode_byte = 0xFFu8; // also called compatibility byte
+    let command = [0u8, 0xB0, 0xC1, 0x91, 1];
+    let mut apdu = Default::default();
+    let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
+    assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
+
+    /* The meaning of operation_mode_byte depends on card type:
+       V2.00:  0 (default factory setting): 64k mode, any other is: Emulated 32K mode
+       V3.00:  0 (default factory setting): FIPS mode, 1: Emulated 32K mode, 2: 64k mode, 16: NSH-1 mode
+    */
+    apdu.resp = &mut operation_mode_byte;
+    apdu.resplen = 1;
+    rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return Err(rv); }
+    rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+    if rv != SC_SUCCESS || apdu.resplen != 1 {
+        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5-64 'Get Operation Mode Byte' failed\0").unwrap());
+        return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
+    }
+    Ok(operation_mode_byte)
 }
 
 //  V2.00 *DOES NOT* supports this command
@@ -380,7 +424,7 @@ pub fn get_key_auth_state(card: &mut sc_card, reference: u8) -> Result<bool, c_i
     #[cfg(log)]
     unsafe {sc_do_log(card.ctx, SC_LOG_DEBUG_NORMAL, file_str.as_ptr(), line!() as i32, func.as_ptr(), format.as_ptr())};
 
-    let command = [0x80u8, 0x14, 0x0C, reference, 0x01];
+    let command = [0x80, 0x14, 0x0C, reference, 1];
     let mut apdu : sc_apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
@@ -399,4 +443,81 @@ pub fn get_key_auth_state(card: &mut sc_card, reference: u8) -> Result<bool, c_i
         return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
     }
     Ok(rbuf[0] == 1)
+}
+
+/* This is NOT a card command, but reading from EEPROM; allowed only in stage manufacturer */
+#[allow(non_snake_case)]
+pub fn get_zeroize_card_disable_byte_EEPROM(card: &mut sc_card) -> Result<c_uchar, c_int>
+{
+    /*
+            let mut zeroize_card_disable_byte = 0xFFu8;
+            apdu.p2 = 0x92;
+            apdu.resp = &mut zeroize_card_disable_byte;
+            apdu.resplen = 1;
+            rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
+            rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+            if rv != SC_SUCCESS || apdu.resplen != 1  {
+                wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5-64 'Get Zeroize Card Disable Flag' failed\0").unwrap());
+                return SC_ERROR_KEYPAD_MSG_TOO_LONG;
+            }
+    */
+    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
+    let fun     = CStr::from_bytes_with_nul(b"get_zeroize_card_disable_byte_EEPROM\0").unwrap();
+    let mut zeroize_card_disable_byte = 0xFFu8; // also called compatibility byte
+    let command = [0, 0xB0, 0xC1, 0x92, 1];
+    let mut apdu = Default::default();
+    let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
+    assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
+
+    apdu.resp = &mut zeroize_card_disable_byte;
+    apdu.resplen = 1;
+    rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return Err(rv); }
+    rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+    if rv != SC_SUCCESS || apdu.resplen != 1 {
+        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5-64 'Get Zeroize Card Disable Byte' failed\0").unwrap());
+        return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
+    }
+    Ok(zeroize_card_disable_byte)
+}
+
+/* This is NOT a card command, but reading from EEPROM; allowed only in stage manufacturer */
+#[allow(non_snake_case)]
+pub fn get_card_life_cycle_byte_EEPROM(card: &mut sc_card) -> Result<c_uchar, c_int>
+{
+/*
+let command = [0u8, 0xB0, 0xC1, 0x84, 1];
+let mut apdu = Default::default();
+let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
+assert_eq!(rv, SC_SUCCESS);
+assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
+
+let mut card_life_cycle_byte = 0xFFu8;
+apdu.resp = &mut card_life_cycle_byte;
+apdu.resplen = 1;
+rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
+rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+if rv != SC_SUCCESS || apdu.resplen != 1  {
+wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5-64 'Get Card Life Cycle Byte' failed\0").unwrap());
+return SC_ERROR_KEYPAD_MSG_TOO_LONG;
+}
+*/
+    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
+    let fun     = CStr::from_bytes_with_nul(b"get_zeroize_card_disable_byte_EEPROM\0").unwrap();
+    let mut card_life_cycle_byte = 0xFFu8;
+    let command = [0, 0xB0, 0xC1, 0x84, 1];
+    let mut apdu = Default::default();
+    let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
+    assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
+
+    apdu.resp = &mut card_life_cycle_byte;
+    apdu.resplen = 1;
+    rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return Err(rv); }
+    rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+    if rv != SC_SUCCESS || apdu.resplen != 1 {
+    wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5-64 'Get Card Life Cycle Byte' failed\0").unwrap());
+        return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
+    }
+    Ok(card_life_cycle_byte)
 }
