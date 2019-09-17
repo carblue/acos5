@@ -19,7 +19,6 @@
  */
 
 //use super::bitintr::Popcnt;
-
 //#![feature(const_fn)]
 
 use std::os::raw::{c_int, c_void, c_uint, c_uchar, c_char, c_ulong};
@@ -33,14 +32,14 @@ use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_
                          SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA, SC_SEC_ENV_KEY_REF_PRESENT,
                          SC_SEC_ENV_ALG_REF_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES,
                          sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_verify, sc_check_apdu,
-                         SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_UNWRAP, SC_SEC_OPERATION_DECIPHER};
+                         SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER};
 #[cfg(not(any(v0_15_0, v0_16_0)))]
 use opensc_sys::opensc::{SC_ALGORITHM_AES};
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0)))]
 use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
 use opensc_sys::opensc::{SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, sc_sec_env_param,
-                         SC_SEC_ENV_PARAM_IV};
+                         SC_SEC_ENV_PARAM_IV, SC_SEC_OPERATION_UNWRAP};
 
 use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_MAX_PATH_SIZE, sc_file_t,
     SC_MAX_ATR_SIZE, SC_FILE_TYPE_DF,  */  sc_path, sc_file, sc_apdu, SC_PATH_TYPE_FILE_ID/*, SC_PATH_TYPE_PATH*/,
@@ -1146,8 +1145,7 @@ pub fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
         let file_size = u16_from_array_begin(&dp.files[&file_id].1[4..6]) as u32;
         if [SC_SEC_OPERATION_SIGN,
             SC_SEC_OPERATION_DECIPHER,
-            SC_SEC_OPERATION_DECIPHER_RSAPRIVATE,
-            SC_SEC_OPERATION_UNWRAP].contains(&env_ref.operation) { //priv
+            SC_SEC_OPERATION_DECIPHER_RSAPRIVATE].contains(&env_ref.operation) { //priv
             assert!(file_size>=5);
             let x = ((file_size-5)*2)/5;
             if x*5/2 == file_size-5  &&  x % 32 == 0 { dp.sec_env_mod_len = x; }
@@ -1157,6 +1155,16 @@ pub fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
             assert!(file_size>=21);
             if (file_size-21)                 % 32 == 0 { dp.sec_env_mod_len = file_size-21; }
         }
+        else {
+        #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+        {
+            if SC_SEC_OPERATION_UNWRAP == env_ref.operation { //priv
+                assert!(file_size>=5);
+                let x = ((file_size-5)*2)/5;
+                if x*5/2 == file_size-5  &&  x % 32 == 0 { dp.sec_env_mod_len = x; }
+                else if    (file_size-5)       % 32 == 0 { dp.sec_env_mod_len = file_size-5; }
+            }
+        }}
 //println!("\nfile_id: 0x{:X}, file_size: {}, modulusLenBytes: {}", file_id, file_size, dp.sec_env_mod_len);
     }
     card.drv_data = Box::into_raw(dp) as *mut c_void;

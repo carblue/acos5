@@ -9,7 +9,7 @@ Hardware supported: V2.00 and V3.00. The new ACOS5-EVO is not yet available to m
 
 The driver is tolerably complete.<br>
 
- Installing module [acos5_64_pkcs15init](https://github.com/carblue/acos5_64_pkcs15init "https://github.com/carblue/acos5_64_pkcs15init") is required for changing card's content like 'Creating new RSA key pair', 'Store key for sym. algo', 'Card Initialization' etc.<br>
+ Installing module [acos5_64_pkcs15init](https://github.com/carblue/acos5_64_pkcs15init "https://github.com/carblue/acos5_64_pkcs15init") is required for changing card's content like 'Creating new RSA key pair' or the not yet finished implementations of 'Store key for sym. algo', 'Card Initialization' etc.<br>
 'acos5_64_pkcs15init' is Work in Progress.
 
 IMPORTANT<br>
@@ -17,28 +17,31 @@ Usability of this driver depends on a Card Initialization suitable for OpenSC.<b
 Definitely the ACS Client Kits that I know, don't initialize a card conforming to PKCS#15, and they set some file access rights non-suitable for OpenSC. It's very unlikely that You will get a card - initialized that way - working satisfyingly with OpenSC and this driver.<br>
 Thus either the Card Initialization was done manually by individual APDU commands, or some - unknown to me - suitable tool was used, or very likely the card must be reinitialized (if that is possible: see reference manual: Zeroize Card User Data Disable Flag).<br>
 Reinitialization means: Remove everything from the card such that it's in factory state again: Install [acos5_64_pkcs15init](https://github.com/carblue/acos5_64_pkcs15init "https://github.com/carblue/acos5_64_pkcs15init") and invoke:<br>
-pkcs15-init --erase-card --so-pin <arg>      e.g. pkcs15-init --erase-card --so-pin 12345678<br>
-Then use [acos5_64_gui](https://github.com/carblue/acos5_64_gui "https://github.com/carblue/acos5_64_gui") and click virgin-init. This will create MF and some basic files within MF.
-The next step is to create an application directory, e.g. 3F004100 (as the client kit does). invoke from 'acos5_64_gui' once that is ready.
+`pkcs15-init --erase-card --so-pin <arg>`      e.g. pkcs15-init --erase-card --so-pin 12345678<br>
+Then use [acos5_64_gui](https://github.com/carblue/acos5_64_gui "https://github.com/carblue/acos5_64_gui") and click virgin-init. This will create MF, some basic files within MF and write the SOPIN and SOPUK into MF's (global) PIN file 3F000001.<br>
+The next step is not yet ready implemented: Create an application directory, e.g. 3F004100 (as the client kit does) and set-up all PKCS#15 files therein and update file 3F002F00.
 
 [ACOS5-64 Smart Card](https://www.acs.com.hk/en/products/308/acos5-64-v3.00-cryptographic-card-contact "ACOS5-64 Cryptographic Card (Contact) - Advanced Card Systems Ltd.") (V3.00)<br>
 [ACOS5-64 USB Token](https://www.acs.com.hk/en/products/414/cryptomate-nano-cryptographic-usb-tokens "ACOS5-64 CryptoMate Nano Cryptographic USB Token - Advanced Card Systems Ltd.") (V3.00)<br>
 [ACOS5 EVO](https://www.acs.com.hk/en/press-release/2579/acs-launches-acos5-evo-cryptographic-smart-card)<br>
-The reference manual for V2.00, REF-ACOS5-64-1.07.pdf, is available on request from  info@acs.com.hk<br>
-The reference manual for V3.00, REF-ACOS5-64-2.07.pdf, is available on request from  info@acs.com.hk<br>
+The reference manuals: for V2.00: REF-ACOS5-64-1.07.pdf, for V3.00: REF-ACOS5-64-2.07.pdf, are available on request from  info@acs.com.hk<br>
+https://github.com/OpenSC/OpenSC/wiki/Card-personalization<br>
 https://archive.fosdem.org/2018/schedule/event/smartcards_in_linux/attachments/slides/2265/export/events/attachments/smartcards_in_linux/slides/2265/smart_cards_slides.pdf<br>
 https://changelog.complete.org/archives/9358-first-steps-with-smartcards-under-linux-and-android-hard-but-it-works<br>
-https://github.com/OpenSC/OpenSC/wiki/Card-personalization<br>
-https://www.rust-lang.org/learn/get-started. If Rust/cargo is not required anymore, uninstall with: rustup self uninstall
+https://www.rust-lang.org/learn/get-started  for rust/cargo installation via rustup. If rust/cargo is not required anymore, uninstall with: rustup self uninstall
 
 Look into build.rs first for some details about the libopensc binary (version etc.) and pkg-config.<br>
 
 The prerequisite required to be installed is evident: OpenSC packages (e.g. Ubuntu: opensc, which depends on (required) opensc-pkcs11).<br>
-Whether or not You intend to build the OpenSC binaries from sources, it's recommended to read the first 100 lines of [opensc-sys.lib.rs](https://github.com/carblue/opensc-sys/blob/master/src/lib.rs "https://github.com/carblue/opensc-sys/blob/master/src/lib.rs")<br>
-The opensc-sys binding should be tested to be operational.
+Whether or not You intend to build the OpenSC binaries from sources, it's recommended to read the first 100 lines (before the IN, OUT, INOUT topic) of [opensc-sys.lib.rs](https://github.com/carblue/opensc-sys/blob/master/src/lib.rs "https://github.com/carblue/opensc-sys/blob/master/src/lib.rs")<br>
+The opensc-sys binding should be tested to be operational, if there are errors in the following driver binary build or usage. That build will fetch and install the binding (on Linux) to<br>
+/home/user/.cargo/git/checkouts/opensc-sys-........../43ac40a<br>
+Read how to test that in [opensc-sys](https://github.com/carblue/opensc-sys "https://github.com/carblue/opensc-sys")<br>
+Likely You won't take any notice of that binding, but if there are problems, then start here: It's the very basic building block for all acos5_64* that MUST work properly and should be tested first in any error case !!!
 
-Another "weak prerequisite" is pkg-config package installed. It's used in file build.rs to adapt the code to the OpenSC version installed, i.e. a driver build will always be tied to a specific OpenSC version and needs to be rebuilt whenever the OpenSC version changes (before that, change opensc.pc to the new Version). There is a way to make the adaption work without pkg-config by editing build.rs, see comments in file build.rs.
-The adaption based on pkg-config needs a file opensc.pc to be created on Your system. No distro supplys that, but a file opensc-pkcs11.pc. Copy that as file opensc.pc into the same directory location and change the content (see after <- what to change where; don't change anything else e.g. if Your libdir is different from mine on Kubuntu, that's fine and specific for Your OS). The last 2 lines are what processing build.rs via pkg-config will utilize from opensc.pc:
+Another "weak prerequisite" is pkg-config package installed. It's used in file build.rs to adapt the code to the OpenSC version installed, i.e. a driver build (the same applies to all acos5_64* builds) will always be tied to a specific OpenSC version and needs to be rebuilt whenever the OpenSC version changes (before that, change opensc.pc to the new Version). OpenSC checks external drivers whether they were built for the actual/currently installed OpenSC version and refuse loading non-matching-version external drivers!<br>
+There is a way to make the adaption work without pkg-config by editing build.rs, see comments in file build.rs or see also: [closed issue #3](https://github.com/carblue/acos5_64/issues/3 "https://github.com/carblue/acos5_64/issues/3").<br>
+The adaption based on pkg-config needs a file opensc.pc to be created on Your system. No distro supplies that, but a file opensc-pkcs11.pc. Copy that as file opensc.pc into the same directory location and change the content (see after <- what to change where; don't change anything else e.g. if Your libdir is different from mine on Kubuntu, that's fine and specific for Your OS). The last 2 lines are what processing build.rs via pkg-config will utilize from opensc.pc:
 
 ```
 prefix=/usr
@@ -52,28 +55,36 @@ Version: 0.19.0
 Libs: -L${libdir} -lopensc-pkcs11         <- Libs: -L${libdir} -lopensc
 
 ```
+Another opensc.pc file example is in acos5_64/travis/opensc.pc: It's specific for debian/Ubuntu based distros and must be adapted as well, at least for Version:
 
 There is an optional prerequisite: IUP installed, if You want the feature "user consent", see in the end.
 
+Possibly set Your own RSA security level:<br>
+The driver (with help from acos5_64_pkcs15init module) allows generating RSA keys with modulus sizes from 512 to 3072/4096 bits (upper limit depending on FIPS operation mode, see V3.00 reference manual), i.e. that what cos5 is capable of, but it's recommended to not use a lower limit than let's say 2048 bits.
+It's recommended to bake Your lower limit into the driver and change source code: Search in src/lib.rs for the line with content:<br>
+`let     rsa_key_len_from : u32 = if is_v3_fips_compliant { 2048 } else {  512 };`<br>
+Replace 512 by an integral number for rsa_key_len_from (in bits) greater than 512 that is divisible by 256 (within given limits) like 2048 and save src/lib.rs. See also: https://en.wikipedia.org/wiki/Key_size
 
-Build the driver binary as usual with Rust<br>
+Build the driver binary as usual with Rust:<br>
 `user@host:~/path/to/acos5_64$ cargo build --release`<br>
-`optionally, if no debug info is required for better backtrace infos: user@host:~/path/to/acos5_64$ strip --strip-all target/release/libacos5_64.so`
+(Omitting --release from the build command will result in a debug driver build in directory  target/debug. When doing so, change in opensc.conf accordingly, see below.)<br>
+`optionally, if no symbol/debug info is required for better backtrace infos: user@host:~/path/to/acos5_64$ strip --strip-all target/release/libacos5_64.so`
 
 The required opensc.conf entries:<br>
+Since recently, OpenSC installs a very short opensc.conf. The long version (preprocessed, that I'm using and referring to here) is in github's/tarball's etc/opensc.conf.example.in<br>
 ......... just denotes, there is other opensc.conf content before this line<br>
 Content within ... (excluded) must be adapted (/something/like/path/to/acos5_64/target/releaseORdebug/) and added, otherwise there will be no support for ACOS5-64.<br>
-The line "card_drivers = acos5_64, npa, internal;" is just an example for OpenSC version 0.17.0: It means: Just prepend<br>
+The line "card_drivers = acos5_64, npa, internal;" is just an example from OpenSC version 0.17.0 opensc.conf: It means: Just prepend<br>
 acos5_64,<br>
 to the list of drivers specified by default and remove a leading comment character # in this line, if there is any.<br>
-When using ACOS5-64 V2.00, it's possibly also required (any release version including 0.19.0, but not current git-master) to bypass the 'acos5' internal driver somehow, thus a painless start is by using<br>
+When using ACOS5-64 V2.00, it's also required for any release version including 0.19.0 (but not current git-master or OpenSC-0.20.0-rc1) to bypass the almost non-functional 'acos5' internal driver somehow, thus a painless start is by using<br>
     card_drivers = acos5_64, default;
 
 ```
 app default {
 .........
-    #debug = 3;                           # optionally remove the leading # for temporary log output
-    # debug_file = /tmp/opensc-debug.log; # optionally remove the leading # for temporary log output and terminate debug_file=value with a ;
+    #debug = 3;                           # optionally remove the leading # for temporary log output; diver's log is available with debug = 3 (only?); meaning of the number: look at https://github.com/carblue/opensc-sys/blob/master/src/log.rs
+    # debug_file = /tmp/opensc-debug.log; # optionally remove the leading # for temporary log output and terminate debug_file=value with a semicolon ;  possibly path adaption required !
 .........
     # card_driver customcos {
     # The location of the driver library
@@ -84,10 +95,10 @@ app default {
         # module, the (/path/to/) filename of the driver library .so/.dll/.dylib. /path/to/ is dispensable if filename is in a 'standard library search path'
         module = /something/like/path/to/acos5_64/target/release/libacos5_64.so;
 
-        # Disable / enable enquiry popup when performing a signature or RSA decrypt operation with ACOS5-64.
-        # Operational only if compiled with cfg=enable_acos5_64_ui:
+        # "user-consent": Override disable / enable GUI enquiry popup when performing a signature or RSA decrypt operation with ACOS5-64.
+        # Operational only if compiled with cfg=enable_acos5_64_ui and IUP installed:
         # user_consent_enabled = yes; # anything starting with letter t or y (case-insensitive) get's interpreted as true/yes, otherwise false/no
-        # When the dialog/popup window is shown: Answer with NO in order to decline the RSA key usage; YES or closing the window [X] means accepting RSA key usage
+        # When the dialog window pops up: Answer with NO in order to decline the RSA key usage; YES or closing the window [X] means accepting RSA key usage
     }
 ...
 .........
@@ -98,11 +109,61 @@ app default {
 }
 ```
 
+Basic tests whether the acos5_64 diver is working (with my example ouput (patch applied as of https://github.com/carblue/acos5_64/blob/master/info/what_do_the_rust_implementations_driver_pkcs15init_sm_currently_support/support_for_bin_opensc-tool.txt, otherwise no record content will be shown)):<br>
+```
+user@host~$ opensc-tool -D
+Configured card drivers:
+  acos5_64         'acos5_64', suitable for ACOS5-64 v2.00 and v3.00 (Smart Card / CryptoMate64 / CryptoMate Nano)
+  default          Default driver for unknown cards
+user@host~$ opensc-tool --serial
+Using reader with a card: ACS CryptoMate64 00 00
+AA BB CC DD EE FF ......
+user@host~$ opensc-tool -f
+Using reader with a card: ACS CryptoMate64 00 00
+3f00 type: DF, size: 0
+select[NONE] lock[NONE] delete[NONE] create[NONE] rehab[NONE] inval[NONE] list[NONE] 
+prop: 83:02:3F:00:88:01:00:8A:01:01:82:02:3F:00:8D:02:00:03:84:00:8C:00:AB:00
+
+  3f000001 type: iEF, ef structure: linear-fixed, size: 21
+  read[NEVR] update[CHV1] erase[CHV1] write[CHV1] rehab[CHV1] inval[CHV1] 
+  prop: 83:02:00:01:88:01:01:8A:01:05:82:06:0A:00:00:15:00:01:8C:08:7F:01:FF:01:01:FF:01:FF:AB:00
+
+Record 1
+  3f000002 type: iEF, ef structure: linear-variable, size: 148
+  read[NEVR] update[CHV1] erase[CHV1] write[CHV1] rehab[CHV1] inval[CHV1] 
+  prop: 83:02:00:02:88:01:02:8A:01:05:82:06:0C:00:00:25:00:04:8C:08:7F:01:FF:01:01:01:01:FF:AB:00
+
+Record 1
+Record 2
+Record 3
+Record 4
+  3f000003 type: iEF, ef structure: linear-variable, size: 48
+  read[NONE] update[CHV1] erase[CHV1] write[CHV1] rehab[CHV1] inval[CHV1] 
+  prop: 83:02:00:03:88:01:03:8A:01:05:82:06:1C:00:00:30:00:01:8C:08:7F:01:FF:01:01:00:01:00:AB:00
+
+Record 1
+00000000: 80 01 01 A4 06 83 01 01 95 01 08 00 00 00 00 00 ................      <== This clarifies the meaning of CHV1: The SOPIN must be verified first
+00000010: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................
+00000020: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................
+  3f002f00 type: wEF, ef structure: transparent, size: 33
+  read[NONE] update[CHV1] erase[CHV1] write[CHV1] rehab[CHV1] inval[CHV1] 
+  prop: 83:02:2F:00:88:01:00:8A:01:05:82:02:01:00:80:02:00:21:8C:08:7F:01:FF:01:01:FF:01:00:AB:00
+
+00000000: 61 1F 4F 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 a.O.ACOSPKCS-15v
+00000010: 31 2E 30 30 50 05 65 43 65 72 74 51 04 3F 00 41 1.00P.eCertQ.?.A
+00000020: 00                                              .
+  3f004100 [ACOSPKCS-15v1.00] type: DF, size: 0
+  select[NONE] lock[NEVR] delete[CHV129] create[CHV129] rehab[NONE] inval[CHV129] list[NONE] 
+  prop: 83:02:41:00:88:01:00:8A:01:05:82:02:38:00:8D:02:41:03:84:10:41:43:4F:53:50:4B:43:53:2D:31:35:76:31:2E:30:30:8C:08:7F:03:FF:00:01:01:01:01:AB:00
+...truncated      <== There will be a clarification of CHV129's meaning: The USERPIN must be verified first, and that
+                  <== the meaning of CHV1 in this directory still is: The SOPIN must be verified first
+```
+
 You'll probably also want [acos5_64_pkcs15init](https://github.com/carblue/acos5_64_pkcs15init "https://github.com/carblue/acos5_64_pkcs15init"), an optional library that supplements driver 'acos5_64' with some specific PKCS#15 related functionality (it's mandatory for [acos5_64_gui](https://github.com/carblue/acos5_64_gui "https://github.com/carblue/acos5_64_gui")).<br>
 
 The third in the trio will be acos5_64_sm, an optional library that supplements driver 'acos5_64' with Secure Messaging support.
 
-Detailed info about what is working is in directory info/what_do_the_rust_implementations_driver_pkcs15init_sm_currently_support.
+Detailed info about what is working is in https://github.com/carblue/acos5_64/tree/master/info/what_do_the_rust_implementations_driver_pkcs15init_sm_currently_support.
 
 The driver should be given a chance to know the content of all Security Environment Files and it will read that content if it's allowed to.<br>
 If any Security Environment File is read-protected (either readable only after some condition fulfilled like successful pin verification or never-readable), and You have a chance to change that to always readable, then do so.<br>
@@ -119,7 +180,7 @@ The driver has this peculiarity, which adds ~ 1 second to it's start-up time:<br
 It scans the card for duplicate file id s.<br>
 While cos5 (card operating system of ACOS5-64) allows duplicate file id s (in differing DF s), that's a bad idea, as in rare scenarios, with cos5 "smart?" file search strategy You may end up operating on another of those duplicates than intended.
 Also this could confuse tracking of currently selected file/dir position.
-Therefore, the driver (in the near future) won't allow duplicate file/dir id s and stop processing/panics (visible as SIGSEGV) once it detects duplicate existence.
+Therefore, the driver disallows duplicate file/dir id s and stops processing/panics (visible as SIGSEGV) once it detects duplicate existence.
 
 Testing: That's tedious as a full test for each feature may include testing 4 OpenSC versions (0.17.0-experimental_0.20.0) multiplied by 2 hardware versions multiplied by 2 main OS versions (Posix and Windows). I don't do that, but usually for 0.19.0 (or 0.20.0) with CryptoMate64 and Linux. Thus something, that doesn't work as expected for another combination may slip my testing habits.
 Open an issue if You encounter any failure.
