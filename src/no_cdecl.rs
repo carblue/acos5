@@ -27,7 +27,13 @@ use std::ffi::{/*CString,*/ CStr};
 use std::fs;//::{read/*, write*/};
 use std::ptr::copy_nonoverlapping;
 
-use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_file_free, sc_read_record, sc_format_path, sc_select_file, sc_check_sw, SC_ALGORITHM_RSA_PAD_PKCS1, SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA, SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_verify, sc_check_apdu};
+use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_file_free,
+                         sc_read_record, sc_format_path, sc_select_file, sc_check_sw, //SC_ALGORITHM_RSA_PAD_PKCS1,
+                         SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
+                         SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA, SC_SEC_ENV_KEY_REF_PRESENT,
+                         SC_SEC_ENV_ALG_REF_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES,
+                         sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_verify, sc_check_apdu,
+                         SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_UNWRAP, SC_SEC_OPERATION_DECIPHER};
 #[cfg(not(any(v0_15_0, v0_16_0)))]
 use opensc_sys::opensc::{SC_ALGORITHM_AES};
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0)))]
@@ -1071,7 +1077,6 @@ pub fn get_is_running_cmd_long_response(card: &mut sc_card) -> bool
     result
 }
 
-/*
 pub fn set_is_running_compute_signature(card: &mut sc_card, value: bool)
 {
     let mut dp : Box<DataPrivate> = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
@@ -1086,7 +1091,7 @@ pub fn get_is_running_compute_signature(card: &mut sc_card) -> bool
     card.drv_data = Box::into_raw(dp) as *mut c_void;
     result
 }
-*/
+
 /*
 pub fn set_rsa_caps(card: &mut sc_card, value: c_uint)
 {
@@ -1109,8 +1114,9 @@ pub fn set_sec_env(card: &mut sc_card, value: &sc_security_env)
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     dp.sec_env = *value;
     // if sc_get_encoding_flags evaluates: secure algorithm flags == 0x0, then set SC_ALGORITHM_RSA_RAW
-    dp.sec_env.algorithm_flags = std::cmp::max(dp.sec_env.algorithm_flags, SC_ALGORITHM_RSA_PAD_PKCS1);
+//    dp.sec_env.algorithm_flags = std::cmp::max(dp.sec_env.algorithm_flags, SC_ALGORITHM_RSA_PAD_PKCS1);
     card.drv_data = Box::into_raw(dp) as *mut c_void;
+    set_sec_env_mod_len(card, value);
 }
 
 pub fn get_sec_env(card: &mut sc_card) -> sc_security_env
@@ -1120,6 +1126,42 @@ pub fn get_sec_env(card: &mut sc_card) -> sc_security_env
     card.drv_data = Box::into_raw(dp) as *mut c_void;
     result
 }
+
+pub fn get_sec_env_mod_len(card: &mut sc_card) -> usize
+{
+    let dp : Box<DataPrivate> = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let result = dp.sec_env_mod_len as usize;
+    card.drv_data = Box::into_raw(dp) as *mut c_void;
+    result
+}
+
+pub fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
+{
+    let mut dp : Box<DataPrivate> = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    dp.sec_env_mod_len = 0;
+    if env_ref.algorithm==SC_ALGORITHM_RSA && (env_ref.flags as c_uint & SC_SEC_ENV_FILE_REF_PRESENT) > 0 {
+        assert!(env_ref.file_ref.len >= 2);
+        let path_idx = env_ref.file_ref.len - 2;
+        let file_id = u16_from_array_begin(&env_ref.file_ref.value[path_idx..path_idx+2]);
+        let file_size = u16_from_array_begin(&dp.files[&file_id].1[4..6]) as u32;
+        if [SC_SEC_OPERATION_SIGN,
+            SC_SEC_OPERATION_DECIPHER,
+            SC_SEC_OPERATION_DECIPHER_RSAPRIVATE,
+            SC_SEC_OPERATION_UNWRAP].contains(&env_ref.operation) { //priv
+            assert!(file_size>=5);
+            let x = ((file_size-5)*2)/5;
+            if x*5/2 == file_size-5  &&  x % 32 == 0 { dp.sec_env_mod_len = x; }
+            else if    (file_size-5)       % 32 == 0 { dp.sec_env_mod_len = file_size-5; }
+        }
+        else if [SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC].contains(&env_ref.operation) {
+            assert!(file_size>=21);
+            if (file_size-21)                 % 32 == 0 { dp.sec_env_mod_len = file_size-21; }
+        }
+//println!("\nfile_id: 0x{:X}, file_size: {}, modulusLenBytes: {}", file_id, file_size, dp.sec_env_mod_len);
+    }
+    card.drv_data = Box::into_raw(dp) as *mut c_void;
+}
+//std::cmp::min(512,outlen)
 
 //TODO integrate this into encrypt_asym
 /* this is tailored for a special testing use case, don't use generally, SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC */
@@ -1323,11 +1365,16 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
 /*
   The EMSA-PKCS1-v1_5 DigestInfo digestAlgorithm (all content excluding the trailing hash) is known, same the length of hash
   guess by length of known length of DigestInfo, whether the input likely is a DigestInfo and NOT some other raw data
+
+  This function refers only to hash algorithms other than sha1 / sha256
 */
 #[allow(non_snake_case)]
 pub fn is_any_known_digestAlgorithm(digest_info: &[u8]) -> bool
 {
-   let known_len = [47usize, 51, 67, 83];
+    let known_len = [34usize, 35, 47, 51, 67, 83];
+    if !known_len.contains(&digest_info.len()) {
+        return false;
+    }
 /*
 RFC 8017                      PKCS #1 v2.2                 November 2016
 
@@ -1353,28 +1400,37 @@ RFC 8017                      PKCS #1 v2.2                 November 2016
     let digestAlgorithm_sha256 = [0x30u8, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20];
 */
     #[allow(non_snake_case)]
-    let digestAlgorithm_sha224     = [0x30, 0x2d, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x04, 0x05, 0x00, 0x04, 0x1c];
+//  let digestAlgorithm_ripemd160_?         = [0x30u8, 0x22, 0x30, 0x0A, 0x06, 0x06, 0x2B, 0x24, 0x03, 0x03, 0x01, 0x02, 0x05, 0x00, 0x04, 0x14];
+    let digestAlgorithm_ripemd160  = [0x30u8, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2B, 0x24, 0x03, 0x02, 0x01, 0x05, 0x00, 0x04, 0x14];
+//                                               30,     21,   30,    9,    6,    5,   2B,   24,    3,    2,    1,    5,    0,    4,   14
     #[allow(non_snake_case)]
-    let digestAlgorithm_sha512_224 = [0x30, 0x2d, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x05, 0x05, 0x00, 0x04, 0x1c];
+    let digestAlgorithm_md2        = [0x30u8, 0x20, 0x30, 0x0c, 0x06, 0x08, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x02, 0x02, 0x05, 0x00, 0x04, 0x10];
     #[allow(non_snake_case)]
-    let digestAlgorithm_sha512_256 = [0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x06, 0x05, 0x00, 0x04, 0x20];
-    #[allow(non_snake_case)]
-    let digestAlgorithm_sha384     = [0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30];
-    #[allow(non_snake_case)]
-    let digestAlgorithm_sha512     = [0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40];
+    let digestAlgorithm_md5        = [0x30u8, 0x20, 0x30, 0x0c, 0x06, 0x08, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x02, 0x05, 0x05, 0x00, 0x04, 0x10];
 
-    for i in 0..known_len.len() {
-        if known_len[i] == digest_info.len() {
-            match digest_info.len() {
-                47 => { if digest_info[..19] == digestAlgorithm_sha224 || digest_info[..19] == digestAlgorithm_sha512_224 { return true;}},
-                51 => { if digest_info[..19] == digestAlgorithm_sha512_256 { return true;}},
-                67 => { if digest_info[..19] == digestAlgorithm_sha384 { return true;}},
-                83 => { if digest_info[..19] == digestAlgorithm_sha512 { return true;}},
-                _  => (),
-            };
-            break;
-        }
-    }
+    #[allow(non_snake_case)]
+    let digestAlgorithm_sha224     = [0x30u8, 0x2d, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x04, 0x05, 0x00, 0x04, 0x1c];
+    #[allow(non_snake_case)]
+    let digestAlgorithm_sha512_224 = [0x30u8, 0x2d, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x05, 0x05, 0x00, 0x04, 0x1c];
+    #[allow(non_snake_case)]
+    let digestAlgorithm_sha512_256 = [0x30u8, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x06, 0x05, 0x00, 0x04, 0x20];
+    #[allow(non_snake_case)]
+    let digestAlgorithm_sha384     = [0x30u8, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30];
+    #[allow(non_snake_case)]
+    let digestAlgorithm_sha512     = [0x30u8, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40];
+
+
+    match digest_info.len() {
+        35 => { if digest_info[..15] == digestAlgorithm_ripemd160   { return true; } },
+        34 => { if digest_info[..18] == digestAlgorithm_md2
+                || digest_info[..18] == digestAlgorithm_md5         { return true; } },
+        47 => { if digest_info[..19] == digestAlgorithm_sha224
+                || digest_info[..19] == digestAlgorithm_sha512_224  { return true; } },
+        51 => { if digest_info[..19] == digestAlgorithm_sha512_256  { return true; } },
+        67 => { if digest_info[..19] == digestAlgorithm_sha384      { return true; } },
+        83 => { if digest_info[..19] == digestAlgorithm_sha512      { return true; } },
+        _  => (),
+    };
     false
 }
 
@@ -1619,13 +1675,14 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
         assert_eq!(inDataRem.len(), block_size);
     }
 
+    let mut env = Default::default();
     #[cfg(not(any(v0_15_0, v0_16_0)))] // due to SC_ALGORITHM_AES
     {
     if crypt_sym.perform_mse {
         /* Security Environment */
         #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
         let sec_env_param;
-        let mut env = sc_security_env {
+        env = sc_security_env {
             operation: if crypt_sym.encrypt {SC_SEC_OPERATION_ENCIPHER_SYMMETRIC} else {SC_SEC_OPERATION_DECIPHER_SYMMETRIC},
             flags    : (SC_SEC_ENV_KEY_REF_PRESENT | SC_SEC_ENV_ALG_REF_PRESENT | SC_SEC_ENV_ALG_PRESENT).into(),
             algorithm: if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else { if crypt_sym.key_len!=64 {SC_ALGORITHM_3DES} else {SC_ALGORITHM_DES} },
@@ -1686,9 +1743,10 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     /* select currently selected DF (clear accumulated CRT) */
     unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3FFF\0").unwrap().as_ptr(), &mut path); }
 
+    let condition = crypt_sym.cbc && !crypt_sym.encrypt && crypt_sym.perform_mse;
     while cnt < Len0 || (cnt == Len0 && Len1 != Len2) {
         if first { first = false; }
-        else if crypt_sym.cbc && !crypt_sym.encrypt {
+        else if condition {
             #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
             {
                 rv = unsafe { sc_select_file(card, &path, std::ptr::null_mut()) }; // clear accumulated CRT
@@ -1718,7 +1776,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
             #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
             {
                 /* correct IV for next loop cycle */
-                if crypt_sym.cbc && !crypt_sym.encrypt {
+                if condition {
                     env.params[0].value = unsafe { indata_ptr.add(cnt + apdu.datalen - block_size) as *mut c_void };
                 }
             }

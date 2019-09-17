@@ -416,6 +416,32 @@ pub fn me_pkcs1_add_01_padding(digest_info: &[u8], outlen: usize) -> Result<Vec<
 }
 */
 
+/* remove pkcs1 BT02 padding */
+pub fn me_pkcs1_strip_02_padding(vec: &mut Vec<u8>) -> c_int //-> Result<Vec<u8>, c_int>
+{
+//0  1  2  3  4  5  6  7  8  9  10  11
+//00 02 1  2  3  4  5  6  7  8  00
+    let len_orig = vec.len();
+    if len_orig < 11 {
+        return SC_ERROR_INTERNAL;
+    }
+    if vec[0] != 0 || vec[1] != 2 {
+        return SC_ERROR_WRONG_PADDING;
+    }
+    vec[0] = 1;
+    let pos = match vec.iter().position(|&x| x == 0) {
+        Some(pos) => pos+1, // the position where the message==DigestInfo starts
+        None => return SC_ERROR_WRONG_PADDING,
+    };
+    if pos < 11 || pos > len_orig {
+        return SC_ERROR_WRONG_PADDING;
+    }
+    vec.drain(..pos);
+    vec.resize(len_orig-pos, 0);
+    vec.resize(len_orig,     0);
+    SC_SUCCESS
+}
+
 #[cfg(test)]
 mod tests {
     use super::{me_pkcs1_strip_01_padding, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL};

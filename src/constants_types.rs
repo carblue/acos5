@@ -164,24 +164,24 @@ pub const BLOCKCIPHER_PAD_TYPE_ANSIX9_23          : u8 =  4; // If N padding byt
 //pub const SC_SEC_ENV_PARAM_DES_CBC           : c_uint = 4;
 
 /* see opensc-sys: opensc.rs
-pub const SC_SEC_OPERATION_DECIPHER            : c_int = 0x0001;
-pub const SC_SEC_OPERATION_SIGN                : c_int = 0x0002;
-pub const SC_SEC_OPERATION_AUTHENTICATE        : c_int = 0x0003;
-pub const SC_SEC_OPERATION_DERIVE              : c_int = 0x0004;
-////#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-////pub const SC_SEC_OPERATION_WRAP                : c_int = 0x0005;
-////#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-////pub const SC_SEC_OPERATION_UNWRAP              : c_int = 0x0006;
+pub const SC_SEC_OPERATION_DECIPHER     : c_int = 0x0001;
+pub const SC_SEC_OPERATION_SIGN         : c_int = 0x0002;
+pub const SC_SEC_OPERATION_AUTHENTICATE : c_int = 0x0003;
+pub const SC_SEC_OPERATION_DERIVE       : c_int = 0x0004;
+#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+pub const SC_SEC_OPERATION_WRAP         : c_int = 0x0005;
+#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+pub const SC_SEC_OPERATION_UNWRAP       : c_int = 0x0006;
 */
-////pub const SC_SEC_OPERATION_ENCIPHER            : c_int = 0x0007;
-pub const SC_SEC_OPERATION_GENERATE_RSAPRIVATE : c_int = 0x0005; // sc_set_security_env must know this related to file id
-pub const SC_SEC_OPERATION_GENERATE_RSAPUBLIC  : c_int = 0x0006; // sc_set_security_env must know this related to file id
+////pub const SC_SEC_OPERATION_ENCIPHER : c_int = 0x0007;
+pub const SC_SEC_OPERATION_GENERATE_RSAPRIVATE : c_int = 0x0008; // sc_set_security_env must know this related to file id
+pub const SC_SEC_OPERATION_GENERATE_RSAPUBLIC  : c_int = 0x0009; // sc_set_security_env must know this related to file id
 
-pub const SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC  : c_int = 0x0007; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
-pub const SC_SEC_OPERATION_DECIPHER_RSAPRIVATE : c_int = 0x0008; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
+pub const SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC  : c_int = 0x000A; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
+pub const SC_SEC_OPERATION_DECIPHER_RSAPRIVATE : c_int = 0x000B; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
 
-pub const SC_SEC_OPERATION_ENCIPHER_SYMMETRIC  : c_int = 0x0009; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
-pub const SC_SEC_OPERATION_DECIPHER_SYMMETRIC  : c_int = 0x000A; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
+pub const SC_SEC_OPERATION_ENCIPHER_SYMMETRIC  : c_int = 0x000C; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
+pub const SC_SEC_OPERATION_DECIPHER_SYMMETRIC  : c_int = 0x000D; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
 
 /*
 /*
@@ -466,6 +466,7 @@ pub struct DataPrivate { // see settings in acos5_64_init
     pub agc : CardCtl_generate_crypt_asym,  // asym_generate_crypt_data
     pub agi : CardCtl_generate_asym_inject, // asym_generate_inject_data
 //  pub sec_env_algo_flags : c_uint, // remember the padding scheme etc. selected for RSA; required in acos5_64_set_security_env
+    pub sec_env_mod_len : c_uint,
     pub rsa_caps : c_uint, // remember how the rsa_algo_flags where set for _sc_card_add_rsa_alg
     pub does_mf_exist : bool,
     pub is_running_init : bool, // true as long as acos5_64_init runs: It may be used to control behavior of acos5_64_list_files (lazily filling hashmap)
@@ -474,8 +475,8 @@ pub struct DataPrivate { // see settings in acos5_64_init
        It's trial and error, not efficient as a general behavior of acos5_64_get_response
          false: acos5_64_get_response behaves (exactly?) like iso7816_get_response
      */
+    pub is_running_compute_signature : bool, /* acos5_64_decipher needs to know, whether it was called by acos5_64_compute_signature */
     pub is_running_cmd_long_response : bool,
-    /*  is_running_compute_signature: false, // maybe, acos5_64_decipher will need to know, that it was called by acos5_64_compute_signature */
     #[cfg(enable_acos5_64_ui)]
     pub ui_ctx : ui_context,
 }

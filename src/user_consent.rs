@@ -5,7 +5,7 @@ use std::os::raw::{c_int, c_char, c_void};
 use std::ffi::{CStr};
 
 use opensc_sys::opensc::{sc_card/*, SC_CTX_FLAG_DISABLE_POPUPS*/};
-use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_KEYPAD_MSG_TOO_LONG/*, SC_ERROR_INTERNAL, SC_ERROR_INVALID_ARGUMENTS*/};
+use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_KEYPAD_MSG_TOO_LONG, SC_ERROR_NOT_ALLOWED/*, SC_ERROR_INTERNAL, SC_ERROR_INVALID_ARGUMENTS*/};
 use opensc_sys::scconf::{/*scconf_block,*/ scconf_find_blocks, scconf_get_bool/*, scconf_get_str*/};
 use crate::constants_types::{DataPrivate, CARD_DRV_SHORT_NAME/*, CALLED, CRATE, USER_CONSENT_CMD_NIX*/};
 //use crate::wrappers::*;
@@ -112,7 +112,7 @@ pub fn acos5_64_ask_user_consent() -> c_int
         let result_ok = *b_response == 49;
         IupDestroy(dlg);
         /* IupClose();  can't be used here, otherwise - using acos5_64_gui - this would close the acos5_64_gui application and crash that */
-        if !result_ok { SC_ERROR_KEYPAD_MSG_TOO_LONG }
+        if !result_ok { SC_ERROR_NOT_ALLOWED }
         else          { SC_SUCCESS }
     }
 }

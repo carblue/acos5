@@ -2,12 +2,16 @@ see also file:///usr/share/doc/opensc/tools.html#opensc-tool
 
 OKAY$ opensc-tool --version
 No Git revision info available
+OpenSC-0.19.0-523-g3b632e64, rev: 3b632e64, commit-time: 2019-09-09 12:49:56 +0200
 
 OKAY$ opensc-tool --info
 OpenSC 0.17.0 [gcc  7.3.0]
 Enabled features: locking zlib readline openssl pcsc(libpcsclite.so.1)
 
 OpenSC 0.19.0 [gcc  7.4.0]
+Enabled features: locking zlib readline openssl pcsc(libpcsclite.so.1)
+
+OpenSC 0.20.0 [gcc  7.4.0]
 Enabled features: locking zlib readline openssl pcsc(libpcsclite.so.1)
 
 OKAY$ opensc-tool --atr
@@ -26,7 +30,7 @@ OKAY$ opensc-tool --get-conf-entry app:default:debug_file
 /tmp/opensc-debug.log
 
 OKAY user@host:~$ sudo opensc-tool --set-conf-entry app:default:debug:3
-[sudo] (system/sudo) password of user: 
+[sudo] (system/sudo) password of user:
 
 OKAY$ opensc-tool --list-readers
 # Detected readers (pcsc)
@@ -41,12 +45,18 @@ Configured card drivers:
 *** A remark concerning the next, opensc-tool --list-files
 *** 1. The driver stores the file header meta data/FCI to 'prop' beginning from 3. byte, Important tags are, all hex: 83, 8A, 82, 8C (, AB), see reference manual.
 *** 2. Usually this command can/will print readable content of (transparent/wEF files and) records, but opensc-tool does index records in a way incompatible with ACOS5:
-***    This can be easily fixed in source file src/tools/opensc-tool.c:
-***    $ diff -u opensc-tool.c_orig opensc-tool.c  :
---- opensc-tool.c_orig  2019-08-21 01:10:49.000000000 +0200
-+++ opensc-tool.c       2019-09-05 11:49:07.674520315 +0200
-@@ -444,7 +444,7 @@
-                        printf("Record %"SC_FORMAT_LEN_SIZE_T"u\n", i);
+***    This can easily be fixed in source file src/tools/opensc-tool.c:
+*** user@host:~/OpenSC$ git diff src/tools/opensc-tool.c
+diff --git a/src/tools/opensc-tool.c b/src/tools/opensc-tool.c
+index c850a21d..d313d35d 100644
+--- a/src/tools/opensc-tool.c
++++ b/src/tools/opensc-tool.c
+@@ -441,10 +441,10 @@ static int print_file(sc_card_t *in_card, const sc_file_t *file,
+                size_t i;
+
+                for (i=0; i < file->record_count; i++) {
+-                       printf("Record %"SC_FORMAT_LEN_SIZE_T"u\n", i);
++                       printf("Record %"SC_FORMAT_LEN_SIZE_T"u\n", i+1);
                         r = sc_lock(card);
                         if (r == SC_SUCCESS)
 -                               r = sc_read_record(in_card, i, buf, 256, 0);
@@ -56,6 +66,7 @@ Configured card drivers:
                                 util_hex_dump_asc(stdout, buf, r, 0);
 
 *** End remark
+
 OKAY$ opensc-tool --list-files
 Using reader with a card: ACS CryptoMate64 00 00
 3f00 type: DF, size: 0
@@ -66,14 +77,23 @@ prop: 83:02:3F:00:88:01:00:8A:01:01:82:02:3F:00:8D:02:00:03:84:00:8C:00:AB:00
   read[NEVR] update[CHV1] erase[CHV1] write[CHV1] rehab[CHV1] inval[CHV1]
   prop: 83:02:00:01:88:01:01:8A:01:05:82:06:0A:00:00:15:00:01:8C:08:7F:01:FF:01:01:FF:01:FF:AB:00
 
+Record 1
   3f000002 type: iEF, ef structure: linear-variable, size: 148
   read[NEVR] update[CHV1] erase[CHV1] write[CHV1] rehab[CHV1] inval[CHV1]
   prop: 83:02:00:02:88:01:02:8A:01:05:82:06:0C:00:00:25:00:04:8C:08:7F:01:FF:01:01:01:01:FF:AB:00
 
+Record 1
+Record 2
+Record 3
+Record 4
   3f000003 type: iEF, ef structure: linear-variable, size: 48
   read[NONE] update[CHV1] erase[CHV1] write[CHV1] rehab[CHV1] inval[CHV1]
   prop: 83:02:00:03:88:01:03:8A:01:05:82:06:1C:00:00:30:00:01:8C:08:7F:01:FF:01:01:00:01:00:AB:00
 
+Record 1
+00000000: 80 01 01 A4 06 83 01 01 95 01 08 00 00 00 00 00 ................
+00000010: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................
+00000020: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 ................
   3f002f00 type: wEF, ef structure: transparent, size: 33
   read[NONE] update[CHV1] erase[CHV1] write[CHV1] rehab[CHV1] inval[CHV1]
   prop: 83:02:2F:00:88:01:00:8A:01:05:82:02:01:00:80:02:00:21:8C:08:7F:01:FF:01:01:FF:01:00:AB:00
