@@ -66,6 +66,7 @@ SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_SEC_ENV_FILE_REF_PRESENT, S
 SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK, SC_ALGORITHM_RSA_PAD_PKCS1,
 SC_ALGORITHM_RSA_PAD_ISO9796, SC_ALGORITHM_RSA_HASH_NONE, SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT,
 SC_SEC_ENV_ALG_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES/*, sc_file_new, sc_file_free, sc_select_file*/
+//,sc_update_record, SC_RECORD_BY_REC_NR
 };
 
 #[cfg(not(    v0_15_0))]
@@ -107,7 +108,7 @@ use opensc_sys::internal::{sc_atr_table};
 #[cfg(not(any(v0_15_0, v0_16_0)))]
 use opensc_sys::internal::{_sc_match_atr};
 
-use opensc_sys::log::{sc_do_log, sc_dump_hex, SC_LOG_DEBUG_NORMAL};
+use opensc_sys::log::{sc_dump_hex};
 use opensc_sys::cardctl::{SC_CARDCTL_GET_SERIALNR, SC_CARDCTL_LIFECYCLE_SET};
 use opensc_sys::asn1::{sc_asn1_find_tag, sc_asn1_put_tag/*, sc_asn1_skip_tag, sc_asn1_read_tag, sc_asn1_print_tags*/};
 use opensc_sys::iso7816::{ISO7816_TAG_FCP_TYPE, ISO7816_TAG_FCP_LCS,  ISO7816_TAG_FCP, ISO7816_TAG_FCP_SIZE,
@@ -488,7 +489,7 @@ extern "C" fn acos5_64_match_card(card: *mut sc_card) -> c_int
                 let fmt = CStr::from_bytes_with_nul(b"Card doesn't match: sc_transmit_apdu or 'change to operation mode 64K' failed ! Have a look into docs how to change the mode of operation to Non-FIPS/64K mode. No other mode is supported currently\0").unwrap();
                 if rv == SC_SUCCESS {
                     #[cfg(log)]
-                    unsafe { sc_do_log(card_ref.ctx, SC_LOG_DEBUG_NORMAL, f_log.as_ptr(), line!() as i32, fun.as_ptr(), fmt.as_ptr()) };
+                    wr_do_log(card_ref.ctx, f_log, line!(), fun, fmt);
                     return 0;
                 }
                 // if sc_select_file failed, try to write value 2 to address 0xC191
@@ -500,13 +501,13 @@ extern "C" fn acos5_64_match_card(card: *mut sc_card) -> c_int
                 rv = unsafe { sc_transmit_apdu(card_ref_mut, &mut apdu) };
                 if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 {
                     #[cfg(log)]
-                    unsafe { sc_do_log(card_ref.ctx, SC_LOG_DEBUG_NORMAL, f_log.as_ptr(), line!() as i32, fun.as_ptr(), fmt.as_ptr()) };
+                    wr_do_log(card_ref.ctx, f_log, line!(), fun, fmt);
                     return 0;
                 }
                 else {
                     let fmt = CStr::from_bytes_with_nul(b"Card was set to Operation Mode 64K (SUCCESS) !\0").unwrap();
                     #[cfg(log)]
-                    unsafe { sc_do_log(card_ref.ctx, SC_LOG_DEBUG_NORMAL, f_log.as_ptr(), line!() as i32, fun.as_ptr(), fmt.as_ptr()) };
+                    wr_do_log(card_ref.ctx, f_log, line!(), fun, fmt);
                 }
             }
         }
@@ -1330,6 +1331,7 @@ true (select_file target is a EF/DF located (directly) within the parent DF of c
     };
     rv
 }
+
 /*
 Specific Return Status Code of cos5 Get Response
 SW1 SW2   Definition
@@ -2270,7 +2272,7 @@ extern "C" fn acos5_64_get_data(card_ptr: *mut sc_card, offset: c_uint, buf: *mu
 /// OUT tag_out and taglen are guaranteed to have values set on SC_SUCCESS (cla_out only, if also (buf[0] != 0xff && buf[0] != 0))\
 
 extern "C" fn acos5_64_read_public_key(card: *mut sc_card, algorithm: c_uint, key_path: *mut sc_path,
-     _key_reference: c_uint, modulus_length: c_uint, out: *mut *mut c_uchar, out_len: *mut usize) -> c_int
+     key_reference: c_uint, modulus_length: c_uint, out: *mut *mut c_uchar, out_len: *mut usize) -> c_int
 {
     if card.is_null() || key_path.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
@@ -2300,8 +2302,7 @@ extern "C" fn acos5_64_read_public_key(card: *mut sc_card, algorithm: c_uint, ke
     let le_total = mlbyte + 21;
     let fmt = CStr::from_bytes_with_nul(b"read public key(ref:%i; modulus_length:%i; modulus_bytes:%zu)\0").unwrap();
     if cfg!(log) {
-        unsafe { sc_do_log(card_ref.ctx, SC_LOG_DEBUG_NORMAL, f_log.as_ptr(), line!() as i32, fun.as_ptr(),
-                           fmt.as_ptr(), _key_reference, modulus_length, mlbyte); }
+        wr_do_log_tuv(card_ref.ctx, f_log, line!(), fun, key_reference, modulus_length, mlbyte, fmt);
     }
 
     let mut file_out_ptr_mut: *mut sc_file = std::ptr::null_mut();
@@ -2833,10 +2834,11 @@ extern "C" fn acos5_64_decipher(card: *mut sc_card, crgram: *const c_uchar, crgr
 
     if get_is_running_compute_signature(card_ref_mut) {
         set_is_running_compute_signature(card_ref_mut, false);
+        rv = 0;
     }
     else { // assuming plaintext was EME-PKCS1-v1_5 encoded before encipher: Now remove the padding
         rv = me_pkcs1_strip_02_padding(&mut vec);
-        if rv != SC_SUCCESS
+        if rv < SC_SUCCESS
         {
             if cfg!(log) {
                 wr_do_log_sds(card_ref_mut.ctx, f_log, line!(), fun,CStr::from_bytes_with_nul(b"returning with: Failed strip_02_padding !\0")
@@ -2845,13 +2847,13 @@ extern "C" fn acos5_64_decipher(card: *mut sc_card, crgram: *const c_uchar, crgr
             return rv;
         }
     }
-    unsafe { copy_nonoverlapping(vec.as_ptr(), out, vec.len()) };
+    unsafe { copy_nonoverlapping(vec.as_ptr(), out, crgram_len-rv as usize) };
 
     if cfg!(log) {
-        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, crgram_len,
-                    CStr::from_bytes_with_nul(b"returning from acos5_64_decipher with: %zu\n\0").unwrap());
+        wr_do_log_t(card_ref_mut.ctx, f_log, line!(), fun, crgram_len as c_int - rv,
+                    CStr::from_bytes_with_nul(RETURNING_INT).unwrap());
     }
-    crgram_len as c_int
+    crgram_len as c_int - rv
 }
 
 
@@ -3184,7 +3186,36 @@ extern "C" fn acos5_64_unwrap(card_ptr: *mut sc_card, crgram: *const c_uchar, cr
     }
 
     let mut vec = vec![0u8; crgram_len];
-    let result = acos5_64_decipher(card, crgram, crgram_len, vec.as_mut_ptr(), vec.len());
-//    println!("\n\nUnwrapped: {:X?}\n", vec);
-    result
+    let /*mut*/ rv = acos5_64_decipher(card, crgram, crgram_len, vec.as_mut_ptr(), vec.len());
+    if rv < SC_SUCCESS {
+        wr_do_log_sds(card.ctx, f_log, line!(), fun,CStr::from_bytes_with_nul(b"returning with failure\0")
+            .unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+        return rv;
+    }
+    vec.truncate(rv as usize);
+//    let klen = vec.len();
+//println!("\n\nUnwrapped {} key bytes: {:X?}\n", klen, vec);
+/*
+    assert!(klen <= 37);
+    vec.reserve_exact(37-vec.len());
+/*
+    let command = [0x80u8, 0x14, 0x00, 0x00, len_card_serial_number];
+    let len_card_serial_number = len_card_serial_number as usize;
+    let mut apdu = Default::default();
+    let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
+    assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
+    assert!(len_card_serial_number <= SC_MAX_SERIALNR);
+*/
+    vec.insert(0, 0x83);
+    vec.insert(1, 0x00);
+    vec.insert(2, if klen==24 {0x14} else { if klen==16 {0x04} else {0x05} });
+    while vec.len() <= 37 { vec.push(0); }
+//    rv = unsafe { sc_update_record(card, 2, vec.as_ptr(), vec.len(), SC_RECORD_BY_REC_NR as c_ulong) };
+*/
+    if cfg!(log) {
+        wr_do_log_t(card.ctx, f_log, line!(), fun, rv,
+                    CStr::from_bytes_with_nul(RETURNING_INT).unwrap());
+    }
+    rv
 }

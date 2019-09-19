@@ -77,66 +77,65 @@ use opensc_sys::types::{sc_object_id};
 
 
 /* for acos5_64_get_response only */
-pub fn me_get_max_recv_size(card: &sc_card) -> usize
+pub fn me_get_max_recv_size(card_ref: &sc_card) -> usize
 { // an equivalent copy of sc_get_max_recv_size
-    if /*card == NULL ||*/ card.reader.is_null() {
+    if /*card_ref == NULL ||*/ card_ref.reader.is_null() {
         return 0;
     }
-    let card_reader = unsafe { & *card.reader };
-    let mut max_recv_size = card.max_recv_size;
+    let card_reader_ref = unsafe { & *card_ref.reader };
+    let mut max_recv_size = card_ref.max_recv_size;
 
     /* initialize max_recv_size to a meaningful value */
     if max_recv_size == 0 {
-        max_recv_size = if card.caps as c_uint & SC_CARD_CAP_APDU_EXT != 0 {0x1_0000}
+        max_recv_size = if (card_ref.caps as c_uint & SC_CARD_CAP_APDU_EXT) != 0 {0x1_0000}
                         else {SC_READER_SHORT_APDU_MAX_RECV_SIZE};
     }
 
     /*  Override card limitations with reader limitations. */
-    if card_reader.max_recv_size != 0 && (card_reader.max_recv_size < card.max_recv_size) {
-        max_recv_size = card_reader.max_recv_size;
+    if card_reader_ref.max_recv_size != 0 && (card_reader_ref.max_recv_size < max_recv_size) {
+        max_recv_size = card_reader_ref.max_recv_size;
     }
     max_recv_size
 }
 
 /*
 /* no usage currently */
-pub fn me_get_max_send_size(card: &sc_card) -> usize
+pub fn me_get_max_send_size(card_ref: &sc_card) -> usize
 { // an equivalent copy of sc_get_max_send_size
-    if /*card == NULL ||*/ card.reader.is_null() {
+    if /*card_ref == NULL ||*/ card_ref.reader.is_null() {
         return 0;
     }
-    let card_reader = unsafe { & *card.reader };
-    let mut max_send_size = card.max_send_size;
+    let card_reader_ref = unsafe { & *card_ref.reader };
+    let mut max_send_size = card_ref.max_send_size;
 
     /* initialize max_send_size to a meaningful value */
     if max_send_size == 0 {
-        max_send_size = if card.caps as c_uint & SC_CARD_CAP_APDU_EXT != 0 &&
-            card_reader.active_protocol != SC_PROTO_T0 {0x1_0000-1} else {SC_READER_SHORT_APDU_MAX_SEND_SIZE};
+        max_send_size = if card_ref.caps as c_uint & SC_CARD_CAP_APDU_EXT != 0 &&
+            card_reader_ref.active_protocol != SC_PROTO_T0 {0x1_0000-1} else {SC_READER_SHORT_APDU_MAX_SEND_SIZE};
     }
 
     /*  Override card limitations with reader limitations. */
-    if card_reader.max_send_size != 0 && (card_reader.max_send_size < card.max_send_size) {
-        max_send_size = card_reader.max_send_size;
+    if card_reader_ref.max_send_size != 0 && (card_reader_ref.max_send_size < card_ref.max_send_size) {
+        max_send_size = card_reader_ref.max_send_size;
     }
     max_send_size
 }
 */
 
-fn me_card_add_algorithm(card: &mut sc_card, info: &sc_algorithm_info) -> c_int
+fn me_card_add_algorithm(card: &mut sc_card, info_ref: &sc_algorithm_info) -> c_int
 {
-    let mut p = unsafe { realloc(card.algorithms as *mut c_void, ((card.algorithm_count + 1) as usize) *
+    let mut p_ptr = unsafe { realloc(card.algorithms as *mut c_void, ((card.algorithm_count + 1) as usize) *
         std::mem::size_of::<sc_algorithm_info>()) } as *mut sc_algorithm_info;
 
-    if p.is_null() {
+    if p_ptr.is_null() {
         return SC_ERROR_OUT_OF_MEMORY;
     }
-    card.algorithms = p;
-    unsafe { p = p.add(card.algorithm_count as usize) };
+    card.algorithms = p_ptr;
+    unsafe { p_ptr = p_ptr.add(card.algorithm_count as usize) };
     card.algorithm_count += 1;
-    let p_ref =  unsafe {&mut *p};
-    *p_ref = *info;
-//    unsafe { *p = *info };
-//println!("card.algorithm_count: {}, p_ref.algorithm: {}, p_ref.key_length: {}, p_ref.flags: {}", card.algorithm_count, p_ref.algorithm, p_ref.key_length, p_ref.flags);
+    let p =  unsafe {&mut *p_ptr};
+    *p = *info_ref;
+//println!("card.algorithm_count: {}, p.algorithm: {}, p.key_length: {}, p.flags: {}", card.algorithm_count, p.algorithm, p.key_length, p.flags);
     SC_SUCCESS
 }
 
@@ -147,23 +146,20 @@ pub fn me_card_add_symmetric_alg(card: &mut sc_card, algorithm: c_uint, key_leng
 }
 
 pub fn me_card_find_alg(card: &mut sc_card,
-                        algorithm: c_uint, key_length: c_uint, param: *mut c_void) -> *mut sc_algorithm_info
+                        algorithm: c_uint, key_length: c_uint, param_ptr: *mut c_void) -> *mut sc_algorithm_info
 {
-    for i in 0..card.algorithm_count as usize {
-        assert!(unsafe { !card.algorithms.add(i).is_null() });
-        let info = unsafe { &mut *card.algorithms.add(i) };
-
+    for info in unsafe { std::slice::from_raw_parts_mut(card.algorithms, card.algorithm_count as usize) } {
         if info.algorithm != algorithm   { continue; }
         if info.key_length != key_length { continue; }
 
-        if !param.is_null() {
+        if !param_ptr.is_null() {
             if info.algorithm == SC_ALGORITHM_EC {
-                if unsafe { sc_compare_oid(param as *mut sc_object_id, &info.u._ec.params.id) } != 0 {
+                if unsafe { sc_compare_oid(param_ptr as *mut sc_object_id, &info.u._ec.params.id) } != 0 {
                     continue;
                 }
             }
         }
-        return info;
+        return info as *mut sc_algorithm_info;
     }
     std::ptr::null_mut() as *mut sc_algorithm_info
 }
@@ -417,10 +413,11 @@ pub fn me_pkcs1_add_01_padding(digest_info: &[u8], outlen: usize) -> Result<Vec<
 */
 
 /* remove pkcs1 BT02 padding */
+/* returns length of padding to be removed from vec's crgram_len such that net message/plain text remains */
 pub fn me_pkcs1_strip_02_padding(vec: &mut Vec<u8>) -> c_int //-> Result<Vec<u8>, c_int>
 {
 //0  1  2  3  4  5  6  7  8  9  10  11
-//00 02 1  2  3  4  5  6  7  8  00
+//00 02 1  2  3  4  5  6  7  8  00          PS_Len==8 is the minimum length of PS
     let len_orig = vec.len();
     if len_orig < 11 {
         return SC_ERROR_INTERNAL;
@@ -428,23 +425,22 @@ pub fn me_pkcs1_strip_02_padding(vec: &mut Vec<u8>) -> c_int //-> Result<Vec<u8>
     if vec[0] != 0 || vec[1] != 2 {
         return SC_ERROR_WRONG_PADDING;
     }
-    vec[0] = 1;
+    vec[0] = 1; // arbitrary any non-0 value
     let pos = match vec.iter().position(|&x| x == 0) {
-        Some(pos) => pos+1, // the position where the message==DigestInfo starts
+        Some(pos) => pos+1, // the position where the message==plain text starts
         None => return SC_ERROR_WRONG_PADDING,
     };
-    if pos < 11 || pos > len_orig {
+    if pos < 11 {
         return SC_ERROR_WRONG_PADDING;
     }
     vec.drain(..pos);
-    vec.resize(len_orig-pos, 0);
-    vec.resize(len_orig,     0);
-    SC_SUCCESS
+    pos as c_int
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{me_pkcs1_strip_01_padding, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL};
+    use super::{me_pkcs1_strip_01_padding, me_pkcs1_strip_02_padding, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL};
+//    use opensc_sys::errors::{SC_SUCCESS};
 
     #[test]
     fn test_me_pkcs1_strip_01_padding() {
@@ -458,5 +454,12 @@ mod tests {
         assert_eq!(me_pkcs1_strip_01_padding(&input), Err(SC_ERROR_WRONG_PADDING));
         let input = [0x00, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x02, 0xAB];
         assert_eq!(me_pkcs1_strip_01_padding(&input), Err(SC_ERROR_WRONG_PADDING));
+    }
+
+    #[test]
+    fn test_me_pkcs1_strip_02_padding() {
+        let mut vec = vec![0u8, 2,  1,2,3,4,5,6,7,8,  0,  0xAB];
+        assert_eq!(me_pkcs1_strip_02_padding(&mut vec), 11);
+        assert_eq!(vec[0], 0xAB);
     }
 }

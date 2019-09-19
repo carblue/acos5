@@ -161,8 +161,8 @@ pub fn se_file_add_acl_entry(card: &mut sc_card, file: &mut sc_file, scb: u8/*sc
  */
 fn se_get_reference(card: &mut sc_card, file_id: c_int, se_reference: u8, search_template: &sc_crt) -> c_ulong
 {
-    let mut result : c_ulong = SC_AC_KEY_REF_NONE as c_ulong;
-    let dp : Box<DataPrivate> = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut result = SC_AC_KEY_REF_NONE as c_ulong;
+    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let file_id = file_id as u16;
     if dp.files.contains_key(&file_id) {
         let fdb        = dp.files[&file_id].1[0];

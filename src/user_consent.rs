@@ -66,19 +66,19 @@ pub fn set_ui_ctx(card: &mut sc_card, ui_ctx: &mut ui_context) -> c_int
     for elem in &ctx.conf_blocks {
         if elem.is_null() { break; }
 
-        let blocks = unsafe { scconf_find_blocks(ctx.conf, *elem,
-                                                 CStr::from_bytes_with_nul(b"card_driver\0").unwrap().as_ptr(),
+        let blocks_ptr = unsafe { scconf_find_blocks(ctx.conf, *elem,
+                                         CStr::from_bytes_with_nul(b"card_driver\0").unwrap().as_ptr(),
                                          CStr::from_bytes_with_nul(CARD_DRV_SHORT_NAME).unwrap().as_ptr()) };
-        if blocks.is_null() { continue; }
-        let blk = unsafe { *blocks };
+        if blocks_ptr.is_null() { continue; }
+        let blk_ptr = unsafe { *blocks_ptr };
 
-        unsafe { free(blocks as *mut c_void) };
-        if blk.is_null() { continue; }
+        unsafe { free(blocks_ptr as *mut c_void) };
+        if blk_ptr.is_null() { continue; }
         /* fill private data with configuration parameters */
 //        ui_ctx.user_consent_app =    /* def user consent app is "pinentry" */
-//            /*(char *)*/ unsafe { scconf_get_str(blk, CStr::from_bytes_with_nul(b"user_consent_app\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(USER_CONSENT_CMD_NIX).unwrap().as_ptr()) };
+//            /*(char *)*/ unsafe { scconf_get_str(blk_ptr, CStr::from_bytes_with_nul(b"user_consent_app\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(USER_CONSENT_CMD_NIX).unwrap().as_ptr()) };
         ui_ctx.user_consent_enabled =    /* user consent is enabled by default */
-            unsafe { scconf_get_bool(blk, CStr::from_bytes_with_nul(b"user_consent_enabled\0").unwrap().as_ptr(), 1) };
+            unsafe { scconf_get_bool(blk_ptr, CStr::from_bytes_with_nul(b"user_consent_enabled\0").unwrap().as_ptr(), 1) };
     }
     /* possibly read disable_popups; this then may disable as well */
     if ui_ctx.user_consent_enabled == 1 { unsafe { IupOpen(std::ptr::null(), std::ptr::null()) }; }
@@ -101,16 +101,17 @@ pub fn set_ui_ctx(card: &mut sc_card, ui_ctx: &mut ui_context) -> c_int
 pub fn acos5_64_ask_user_consent() -> c_int
 {
     unsafe {
-        let dlg = IupMessageDlg();
-        IupSetAttribute(dlg, CStr::from_bytes_with_nul(b"DIALOGTYPE\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"QUESTION\0").unwrap().as_ptr());
-        IupSetAttribute(dlg, CStr::from_bytes_with_nul(b"TITLE\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"RSA private key usage\0").unwrap().as_ptr());
-        IupSetAttribute(dlg, CStr::from_bytes_with_nul(b"BUTTONS\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"YESNO\0").unwrap().as_ptr());
-        IupSetAttribute(dlg, CStr::from_bytes_with_nul(b"VALUE\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"Got a request to use an RSA private key (e.g. for a sign operation).\nDo You accept ?\n(Use 'Yes' only if this makes sense at this point)\0").unwrap().as_ptr());
-        IupPopup(dlg, 0xFFFF, 0xFFFF);
-        let b_response = IupGetAttribute(dlg, CStr::from_bytes_with_nul(b"BUTTONRESPONSE\0").unwrap().as_ptr()); // BUTTONRESPONSE: Number of the pressed button. Can be "1", "2" or "3". Default: "1".
-        assert!(!b_response.is_null());
-        let result_ok = *b_response == 49;
-        IupDestroy(dlg);
+        let dlg_ptr = IupMessageDlg();
+        assert!(!dlg_ptr.is_null());
+        IupSetAttribute(dlg_ptr, CStr::from_bytes_with_nul(b"DIALOGTYPE\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"QUESTION\0").unwrap().as_ptr());
+        IupSetAttribute(dlg_ptr, CStr::from_bytes_with_nul(b"TITLE\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"RSA private key usage\0").unwrap().as_ptr());
+        IupSetAttribute(dlg_ptr, CStr::from_bytes_with_nul(b"BUTTONS\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"YESNO\0").unwrap().as_ptr());
+        IupSetAttribute(dlg_ptr, CStr::from_bytes_with_nul(b"VALUE\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"Got a request to use an RSA private key (e.g. for a sign operation).\nDo You accept ?\n(Use 'Yes' only if this makes sense at this point)\0").unwrap().as_ptr());
+        IupPopup(dlg_ptr, 0xFFFF, 0xFFFF);
+        let b_response_ptr = IupGetAttribute(dlg_ptr, CStr::from_bytes_with_nul(b"BUTTONRESPONSE\0").unwrap().as_ptr()); // BUTTONRESPONSE: Number of the pressed button. Can be "1", "2" or "3". Default: "1".
+        assert!(!b_response_ptr.is_null());
+        let result_ok = *b_response_ptr == 49;
+        IupDestroy(dlg_ptr);
         /* IupClose();  can't be used here, otherwise - using acos5_64_gui - this would close the acos5_64_gui application and crash that */
         if !result_ok { SC_ERROR_NOT_ALLOWED }
         else          { SC_SUCCESS }

@@ -3,28 +3,32 @@ Some is known to work, but not all tested so far
 
 OpenSC: CKR_FUNCTION_NOT_SUPPORTED : as of version 0.19.0
 
+How to interpret the following: Usually, functionality/ functions like e.g. C_Login is used by calls into opensc-plcs11.so/.dll etc.
+If OpenSC doesn't implement a function, then there usually is no imlementation in the driver either, but there are exceptions: E.g. C_Encrypt is not omplemented, but the driver offers Encrypt/Decrypt via
+libopensc's sc_card_ctl function. Look at src/constants_types.rs and import that: SC_CARDCTL_ACOS5* are the command encodings for functionality accessible from the driver directly (it's extensively used by acos5_64_gui)
+
 ------------------------------------------------------------------------------------------
 user@host:~$ nm -D /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so
 
 C_CancelFunction
 C_CloseAllSessions           OKAY
-C_CloseSession
+C_CloseSession               OKAY
 C_CopyObject                 OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
-C_CreateObject               No support from driver currently
-C_Decrypt                    ??  also impl. via sc_card_ctl(card, SC_CARDCTL_DECRYPT_SYM, ...)
+C_CreateObject               OKAY
+C_Decrypt                    OKAY, tested via  pkcs11-tool -t -l   also impl. via sc_card_ctl(card, SC_CARDCTL_DECRYPT_SYM, ...)
 C_DecryptDigestUpdate        OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
 C_DecryptFinal               OpenSC: CKR_FUNCTION_NOT_SUPPORTED
-C_DecryptInit
+C_DecryptInit                OKAY, tested via  pkcs11-tool -t -l
 C_DecryptUpdate              OpenSC: CKR_FUNCTION_NOT_SUPPORTED
 C_DecryptVerifyUpdate        OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
 C_DeriveKey                            SC_ERROR_NO_CARD_SUPPORT; No support from hardware/driver
 C_DestroyObject
-C_Digest
+C_Digest                     OpenSC: will call OpenSSL but no card function
 C_DigestEncryptUpdate        OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
-C_DigestFinal
-C_DigestInit
+C_DigestFinal                OpenSC: will call OpenSSL but no card function
+C_DigestInit                 OpenSC: will call OpenSSL but no card function
 C_DigestKey                  OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
-C_DigestUpdate
+C_DigestUpdate               OpenSC: will call OpenSSL but no card function
 C_Encrypt                    OpenSC: CKR_FUNCTION_NOT_SUPPORTED; impl. via sc_card_ctl(card, SC_CARDCTL_ENCRYPT_SYM, ...)  and sc_card_ctl(card, SC_CARDCTL_ENCRYPT_ASYM, ...)
 C_EncryptFinal               OpenSC: CKR_FUNCTION_NOT_SUPPORTED
 C_EncryptInit                OpenSC: CKR_FUNCTION_NOT_SUPPORTED
@@ -34,7 +38,7 @@ C_FindObjects
 C_FindObjectsFinal
 C_FindObjectsInit            OKAY, tested via  ssh -T git@github.com
 C_GenerateKey                OpenSC: CKR_FUNCTION_NOT_SUPPORTED
-C_GenerateKeyPair            No support from driver currently, except regenerate key pair in existing files via acos5_64_gui
+C_GenerateKeyPair            OKAY, tested via  pkcs15-init --generate-key rsa/3072 --auth-id 01 --id 09 --label testkey --key-usage sign,decrypt
 C_GenerateRandom             OKAY
 C_GetAttributeValue          OKAY, tested via  ssh -T git@github.com
 C_GetFunctionList            OKAY
@@ -44,7 +48,7 @@ C_GetMechanismInfo
 C_GetMechanismList
 C_GetObjectSize              OpenSC: CKR_FUNCTION_NOT_SUPPORTED
 C_GetOperationState
-C_GetSessionInfo
+C_GetSessionInfo             OKAY
 C_GetSlotInfo                OKAY, tested in acos5_64_gui
 C_GetSlotList                OKAY, tested in acos5_64_gui
 C_GetTokenInfo               OKAY, tested in acos5_64_gui
@@ -60,7 +64,7 @@ C_SetOperationState
 C_SetPIN
 C_Sign                       OKAY, tested via  ssh -T git@github.com
 C_SignEncryptUpdate          OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
-C_SignFinal                            SC_ERROR_NO_CARD_SUPPORT; No support from hardware
+C_SignFinal                  OKAY
 C_SignInit                   OKAY, tested via  ssh -T git@github.com
 C_SignRecover                OpenSC: CKR_FUNCTION_NOT_SUPPORTED
 C_SignRecoverInit            OpenSC: CKR_FUNCTION_NOT_SUPPORTED
