@@ -130,7 +130,7 @@ pub fn get_free_space(card: &mut sc_card) -> Result<c_uint, c_int>
     #[cfg(log)]
     wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
 
-    let command = [0x80u8, 0x14, 0x04, 0x00, 0x02];
+    let command = [0x80, 0x14, 0x04, 0x00, 0x02];
     let mut apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);

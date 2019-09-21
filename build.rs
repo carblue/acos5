@@ -56,6 +56,7 @@ fn main() {
 
     /* other conditionaĺ compilation settings */
     println!("cargo:rustc-cfg=log"); // enables acos5_64 log output to file debug_file, set in opensc.conf (e.g. debug_file = "/tmp/opensc-debug.log";). Otherwise the driver will be almost quiet referring that
+//    println!("cargo:rustc-cfg=dev_relax_signature_constraints_for_raw"); // this is an insecure setting, meant to be used for pkcs11-tool -t with  SC_ALGORITHM_RSA_RAW
 //    println!("cargo:rustc-cfg=enable_acos5_64_ui"); // enables acos5_64 to ask for user consent prior to using RSA private keys (for sign, decrypt)
 //    println!("cargo:rustc-link-lib=iup"); // specifies linking libiup.so/dylib or compiling on Windows with import library iup.lib
 //    println!("cargo:rustc-link-search=native=/usr/lib"); // specifies where libiup.so/dylib/dll is located

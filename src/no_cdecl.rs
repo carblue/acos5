@@ -649,7 +649,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
                     get_known_sec_env_entry_V3_FIPS(is_local, rec_nr, &mut buf[..33]);
                 }
                 else {
-                    rv = unsafe { sc_read_record(card, rec_nr, buf.as_mut_ptr(), mrl, SC_RECORD_BY_REC_NR as c_ulong) };
+                    rv = unsafe { sc_read_record(card, rec_nr, buf.as_mut_ptr(), mrl, SC_RECORD_BY_REC_NR) };
                     assert!(rv >= 0);
                     if rv >= 1 && buf[0] == 0 || rv >= 3 && buf[2] == 0 { // "empty" record
                         break;
@@ -829,25 +829,6 @@ This MUST match exactly how *mut sc_acl_entry are added in acos5_64_process_fci 
 */
 pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_AC_OPS], acl_category: c_uchar) -> Result<[u8; 8], c_int>
 {
-    /* some special pointers may occur: excerpt from sc_file_get_acl_entry:
-	if (p == (sc_acl_entry_t *) 1)
-		return &e_never;
-	if (p == (sc_acl_entry_t *) 2)
-		return &e_none;
-	if (p == (sc_acl_entry_t *) 3)
-		return &e_unknown;
-
-typedef struct sc_acl_entry {
-	unsigned int method;	/* See SC_AC_* */
-	unsigned int key_ref;	/* SC_AC_KEY_REF_NONE or an integer */
-
-	struct sc_crt crts[SC_MAX_CRTS_IN_SE];
-
-	struct sc_acl_entry *next;
-} sc_acl_entry_t;
-    */
-//    let _x : *mut sc_acl_entry = acl[SC_AC_OP_READ as usize];
-//    _x.is_null()
     let mut result = [0x7Fu8,0,0,0,0,0,0,0];
     match acl_category {
         ACL_CATEGORY_SE => {

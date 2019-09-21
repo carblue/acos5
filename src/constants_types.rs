@@ -18,7 +18,7 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-use std::os::raw::{c_uchar, c_int, c_uint, c_char};
+use std::os::raw::{c_uchar, c_int, c_uint, c_char, c_ulong};
 use std::collections::HashMap;
 
 use opensc_sys::opensc::{sc_security_env};
@@ -187,55 +187,55 @@ pub const SC_SEC_OPERATION_DECIPHER_SYMMETRIC  : c_int = 0x000D; // to be substi
 /*
  * Generic card_ctl calls, see opensc-sys: cardctl.rs
  */
-pub const SC_CARDCTL_GENERIC_BASE            : c_uint =  0x0000_0000;
-pub const SC_CARDCTL_ERASE_CARD              : c_uint =  0x0000_0001;
-pub const SC_CARDCTL_GET_DEFAULT_KEY         : c_uint =  0x0000_0002;
-pub const SC_CARDCTL_LIFECYCLE_GET           : c_uint =  0x0000_0003;
-pub const SC_CARDCTL_LIFECYCLE_SET           : c_uint =  0x0000_0004;
-pub const SC_CARDCTL_GET_SERIALNR            : c_uint =  0x0000_0005; // data: *mut sc_serial_number,  get_serialnr
-pub const SC_CARDCTL_GET_SE_INFO             : c_uint =  0x0000_0006;
-pub const SC_CARDCTL_GET_CHV_REFERENCE_IN_SE : c_uint =  0x0000_0007;
-pub const SC_CARDCTL_PKCS11_INIT_TOKEN       : c_uint =  0x0000_0008;
-pub const SC_CARDCTL_PKCS11_INIT_PIN         : c_uint =  0x0000_0009;
+pub const SC_CARDCTL_GENERIC_BASE            : c_ulong =  0x0000_0000;
+pub const SC_CARDCTL_ERASE_CARD              : c_ulong =  0x0000_0001;
+pub const SC_CARDCTL_GET_DEFAULT_KEY         : c_ulong =  0x0000_0002;
+pub const SC_CARDCTL_LIFECYCLE_GET           : c_ulong =  0x0000_0003;
+pub const SC_CARDCTL_LIFECYCLE_SET           : c_ulong =  0x0000_0004;
+pub const SC_CARDCTL_GET_SERIALNR            : c_ulong =  0x0000_0005; // data: *mut sc_serial_number,  get_serialnr
+pub const SC_CARDCTL_GET_SE_INFO             : c_ulong =  0x0000_0006;
+pub const SC_CARDCTL_GET_CHV_REFERENCE_IN_SE : c_ulong =  0x0000_0007;
+pub const SC_CARDCTL_PKCS11_INIT_TOKEN       : c_ulong =  0x0000_0008;
+pub const SC_CARDCTL_PKCS11_INIT_PIN         : c_ulong =  0x0000_0009;
 */
 /*
  * Proprietary card_ctl calls
  *
  * for an internal driver these will move to cardctl.h
 */
-pub const SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF : c_uint =  0x0000_0011; // data: *mut usize,  get_count_files_curr_DF
-pub const SC_CARDCTL_ACOS5_GET_FILE_INFO           : c_uint =  0x0000_0012; // data: *mut CardCtlArray8,  get_file_info
-pub const SC_CARDCTL_ACOS5_GET_FREE_SPACE          : c_uint =  0x0000_0014; // data: *mut c_uint,  get_free_space
-pub const SC_CARDCTL_ACOS5_GET_IDENT_SELF          : c_uint =  0x0000_0015; // data: *mut c_uint,  get_ident_self
-pub const SC_CARDCTL_ACOS5_GET_COS_VERSION         : c_uint =  0x0000_0016; // data: *mut CardCtlArray8,  get_cos_version
+pub const SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF : c_ulong =  0x0000_0011; // data: *mut usize,  get_count_files_curr_DF
+pub const SC_CARDCTL_ACOS5_GET_FILE_INFO           : c_ulong =  0x0000_0012; // data: *mut CardCtlArray8,  get_file_info
+pub const SC_CARDCTL_ACOS5_GET_FREE_SPACE          : c_ulong =  0x0000_0014; // data: *mut c_uint,  get_free_space
+pub const SC_CARDCTL_ACOS5_GET_IDENT_SELF          : c_ulong =  0x0000_0015; // data: *mut c_uint,  get_ident_self
+pub const SC_CARDCTL_ACOS5_GET_COS_VERSION         : c_ulong =  0x0000_0016; // data: *mut CardCtlArray8,  get_cos_version
 /* available only since ACOS5-64 V3: */
-pub const SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE: c_uint =  0x0000_0017; // data: *mut c_uint,  get_manufacture_date
-pub const SC_CARDCTL_ACOS5_GET_ROM_SHA1            : c_uint =  0x0000_0018; // data: *mut CardCtlArray20,  get_rom_sha1
-pub const SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE        : c_uint =  0x0000_0019; // data: *mut c_uint,  get_op_mode_byte
-pub const SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE     : c_uint =  0x0000_001A; // data: *mut c_uint,  get_fips_compliance
-pub const SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE      : c_uint =  0x0000_001B; // data: *mut CardCtlAuthState,  get_pin_auth_state
-pub const SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE      : c_uint =  0x0000_001C; // data: *mut CardCtlAuthState,  get_key_auth_state
+pub const SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE: c_ulong =  0x0000_0017; // data: *mut c_uint,  get_manufacture_date
+pub const SC_CARDCTL_ACOS5_GET_ROM_SHA1            : c_ulong =  0x0000_0018; // data: *mut CardCtlArray20,  get_rom_sha1
+pub const SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE        : c_ulong =  0x0000_0019; // data: *mut c_uint,  get_op_mode_byte
+pub const SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE     : c_ulong =  0x0000_001A; // data: *mut c_uint,  get_fips_compliance
+pub const SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE      : c_ulong =  0x0000_001B; // data: *mut CardCtlAuthState,  get_pin_auth_state
+pub const SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE      : c_ulong =  0x0000_001C; // data: *mut CardCtlAuthState,  get_key_auth_state
 
-pub const SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO   : c_uint =  0x0000_001E; // data: null
-pub const SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO   : c_uint =  0x0000_001F; // data: *mut CardCtlArray32,  get_files_hashmap_info
+pub const SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO   : c_ulong =  0x0000_001E; // data: null
+pub const SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO   : c_ulong =  0x0000_001F; // data: *mut CardCtlArray32,  get_files_hashmap_info
 
-pub const SC_CARDCTL_ACOS5_SDO_CREATE              : c_uint =  0x0000_0020; // data: *mut sc_file
-pub const SC_CARDCTL_ACOS5_SDO_DELETE              : c_uint =  0x0000_0021; // data:
-pub const SC_CARDCTL_ACOS5_SDO_STORE               : c_uint =  0x0000_0022; // data:
+pub const SC_CARDCTL_ACOS5_SDO_CREATE              : c_ulong =  0x0000_0020; // data: *mut sc_file
+pub const SC_CARDCTL_ACOS5_SDO_DELETE              : c_ulong =  0x0000_0021; // data:
+pub const SC_CARDCTL_ACOS5_SDO_STORE               : c_ulong =  0x0000_0022; // data:
 
-pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES  : c_uint =  0x0000_0023; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting excluded
-//b const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE : c_uint =  0x0000_0024; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting excluded
-pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET : c_uint =  0x0000_0024; // data: *mut CardCtl_generate_asym_inject,do_generate_inject
-pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET : c_uint =  0x0000_0025; // data: *mut CardCtl_generate_asym_inject,do_generate_inject
-//pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST_MSE  : c_uint =  0x0000_0025; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting included
-//pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE_MSE : c_uint =  0x0000_0026; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting included
+pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES  : c_ulong =  0x0000_0023; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting excluded
+//b const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE : c_ulong =  0x0000_0024; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting excluded
+pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET : c_ulong =  0x0000_0024; // data: *mut CardCtl_generate_asym_inject,do_generate_inject
+pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET : c_ulong =  0x0000_0025; // data: *mut CardCtl_generate_asym_inject,do_generate_inject
+//pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST_MSE  : c_ulong =  0x0000_0025; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting included
+//pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE_MSE : c_ulong =  0x0000_0026; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting included
 
-pub const SC_CARDCTL_ACOS5_ENCRYPT_SYM             : c_uint =  0x0000_0027; // data: *mut CardCtl_crypt_sym,  do_encrypt_sym
-pub const SC_CARDCTL_ACOS5_ENCRYPT_ASYM            : c_uint =  0x0000_0028; // data: *mut CardCtl_crypt_asym, do_encrypt_asym; Signature verification with public key
-pub const SC_CARDCTL_ACOS5_DECRYPT_SYM             : c_uint =  0x0000_0029; // data: *mut CardCtl_crypt_sym,  do_decrypt_sym
-////pub const SC_CARDCTL_ACOS5_DECRYPT_ASYM        : c_uint =  0x0000_002A; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
+pub const SC_CARDCTL_ACOS5_ENCRYPT_SYM             : c_ulong =  0x0000_0027; // data: *mut CardCtl_crypt_sym,  do_encrypt_sym
+pub const SC_CARDCTL_ACOS5_ENCRYPT_ASYM            : c_ulong =  0x0000_0028; // data: *mut CardCtl_crypt_asym, do_encrypt_asym; Signature verification with public key
+pub const SC_CARDCTL_ACOS5_DECRYPT_SYM             : c_ulong =  0x0000_0029; // data: *mut CardCtl_crypt_sym,  do_decrypt_sym
+////pub const SC_CARDCTL_ACOS5_DECRYPT_ASYM        : c_ulong =  0x0000_002A; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
 
-pub const SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM    : c_uint =  0x0000_002B; // data: *mut CardCtlArray20,  create_mf_file_system
+pub const SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM    : c_ulong =  0x0000_002B; // data: *mut CardCtlArray20,  create_mf_file_system
 
 /* more related to acos5_64_pkcs15init */
 /* more related to acos5_64_sm */
