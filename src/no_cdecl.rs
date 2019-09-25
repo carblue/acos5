@@ -30,7 +30,7 @@ use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_
                          sc_read_record, sc_format_path, sc_select_file, sc_check_sw, //SC_ALGORITHM_RSA_PAD_PKCS1,
                          SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
                          SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA, SC_SEC_ENV_KEY_REF_PRESENT,
-                         SC_SEC_ENV_ALG_REF_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES,
+                         SC_SEC_ENV_ALG_REF_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_get_iso7816_driver,
                          sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_verify, sc_check_apdu,
                          SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER};
 #[cfg(not(any(v0_15_0, v0_16_0)))]
@@ -824,6 +824,7 @@ pub const ACL_CATEGORY_EF_CHV : u8 =  2;
 pub const ACL_CATEGORY_KEY    : u8 =  3;
 pub const ACL_CATEGORY_SE     : u8 =  4;
 
+// TODO overhaul this: may be shorter and smarter
 /*
 This MUST match exactly how *mut sc_acl_entry are added in acos5_64_process_fci or profile.c
 */
@@ -905,6 +906,28 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
                 result[5] = p_ref.key_ref as u8;
             }
         }
+        ACL_CATEGORY_EF_CHV => {
+            let mut p = acl[SC_AC_OP_READ as usize];
+            if p.is_null() {                      result[7] = 0; }
+            else if p==(1 as *mut sc_acl_entry) { result[7] = 0xFF; }
+            else if p==(2 as *mut sc_acl_entry) { result[7] = 0; }
+            else if p==(3 as *mut sc_acl_entry) { result[7] = 0xFF; }
+            else {
+                let p_ref = unsafe { &*p };
+                if p_ref.method!=SC_AC_SCB { return Err(-1); }
+                result[7] = p_ref.key_ref as u8;
+            }
+            p = acl[SC_AC_OP_UPDATE as usize];
+            if p.is_null() {                      result[6] = 0; }
+            else if p==(1 as *mut sc_acl_entry) { result[6] = 0xFF; }
+            else if p==(2 as *mut sc_acl_entry) { result[6] = 0; }
+            else if p==(3 as *mut sc_acl_entry) { result[6] = 0xFF; }
+            else {
+                let p_ref = unsafe { &*p };
+                if p_ref.method!=SC_AC_SCB { return Err(-1); }
+                result[6] = p_ref.key_ref as u8;
+            }
+        },
         _ => (),
     };
     let mut p = acl[SC_AC_OP_INVALIDATE as usize];
@@ -1001,6 +1024,54 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
         unsafe { *tries_left_ptr = data.pin1.tries_left };
     }
     SC_SUCCESS
+}
+
+pub fn get_key(card: &mut sc_card, key_data: &mut CardCtlArray1285) -> c_int
+{
+    let mut rv: i32;
+    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
+    let fun  = CStr::from_bytes_with_nul(b"get_key\0").unwrap();
+
+    if key_data.le <= 256 {
+        card.cla = 0x80;
+        rv = unsafe { (*(*sc_get_iso7816_driver()).ops).get_data.unwrap()(card, key_data.offset, key_data.resp.as_mut_ptr(), key_data.le) };
+        card.cla = 0;
+    }
+    else {
+        /* retrieve the raw content of currently selected RSA pub file (this is a code fragment from acos5_64_read_public_key) */
+        let command = [0x80, 0xCA, 0x00, 0x00, 0xFF];
+        let mut apdu = Default::default();
+        rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
+        assert_eq!(rv, SC_SUCCESS);
+        assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
+
+        let mut le_remaining = key_data.le;
+        while le_remaining > 0 {
+            let offset = key_data.le - le_remaining;
+            apdu.le      =  if le_remaining > 0xFFusize {0xFFusize} else {le_remaining};
+            apdu.resp    =  unsafe { key_data.resp.as_mut_ptr().add(offset) };
+            apdu.resplen =  key_data.le - offset;
+            apdu.p1      =  ((offset >> 8) & 0xFFusize) as u8;
+            apdu.p2      =  ( offset       & 0xFFusize) as u8;
+            rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
+            rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+            if rv != SC_SUCCESS || apdu.resplen == 0 {
+                if cfg!(log) {
+                    if apdu.resplen == 0 || (apdu.sw1==0x69 && apdu.sw1==0x82) {
+                        wr_do_log_t(card.ctx, f_log, line!(), fun, apdu.resplen, CStr::from_bytes_with_nul(b"non-readable file; apdu.resplen: %zu\0").unwrap());
+                    }
+                    else {
+                        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"some other error\0").unwrap());
+                    }
+                }
+                return rv;
+            }
+            assert_eq!(apdu.resplen, apdu.le);
+            le_remaining -= apdu.le;
+        }
+        rv = key_data.le as c_int;
+    }
+    rv
 }
 
 pub /*const*/ fn acos5_64_atrs_supported() -> [sc_atr_table; 4]
@@ -1214,8 +1285,7 @@ pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtl_generate_crypt_
         ..Default::default()
     };
     if crypt_data.perform_mse {
-        env.file_ref.value[0] = (crypt_data.file_id_pub >> 8  ) as c_uchar;
-        env.file_ref.value[1] = (crypt_data.file_id_pub & 0xFF) as c_uchar;
+        unsafe { copy_nonoverlapping(array2_from_u16(crypt_data.file_id_pub as u16).as_ptr(), env.file_ref.value.as_mut_ptr(), 2); }
 //        command = [0u8, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x12, 0x81, 0x02, (crypt_data.file_id_pub >> 8) as c_uchar, (crypt_data.file_id_pub & 0xFF) as c_uchar, 0x95, 0x01, 0x80];
     }
     else if print {
@@ -1304,8 +1374,7 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
             file_ref: sc_path { len: 2, ..Default::default() }, // file_ref.value[0..2] = fidRSAprivate.getub2;
             ..Default::default()
         };
-        env.file_ref.value[0] = (data.file_id_priv >> 8  ) as c_uchar;
-        env.file_ref.value[1] = (data.file_id_priv & 0xFF) as c_uchar;
+        unsafe { copy_nonoverlapping(array2_from_u16(data.file_id_priv).as_ptr(), env.file_ref.value.as_mut_ptr(), 2); }
         rv = acos5_64_set_security_env(card, &env, 0);
         if rv < 0 {
 /* mixin (log!(__FUNCTION__,  "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPRIVATE")); */
@@ -1319,8 +1388,7 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
             file_ref: sc_path { len: 2, ..Default::default() }, // file_ref.value[0..2] = fidRSApublic.getub2;
             ..Default::default()
         };
-        env.file_ref.value[0] = (data.file_id_pub >> 8  ) as c_uchar;
-        env.file_ref.value[1] = (data.file_id_pub & 0xFF) as c_uchar;
+        unsafe { copy_nonoverlapping(array2_from_u16(data.file_id_pub).as_ptr(), env.file_ref.value.as_mut_ptr(), 2); }
         rv = acos5_64_set_security_env(card, &env, 0);
         if rv < 0 {
 /* mixin (log!(__FUNCTION__,  "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC")); */

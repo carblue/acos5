@@ -216,6 +216,8 @@ pub const SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE     : c_ulong =  0x0000_001A; // 
 pub const SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE      : c_ulong =  0x0000_001B; // data: *mut CardCtlAuthState,  get_pin_auth_state
 pub const SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE      : c_ulong =  0x0000_001C; // data: *mut CardCtlAuthState,  get_key_auth_state
 
+pub const SC_CARDCTL_ACOS5_GET_KEY                 : c_ulong =  0x0000_001D; // data: *mut CardCtlArray1285,  get_key
+
 pub const SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO   : c_ulong =  0x0000_001E; // data: null
 pub const SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO   : c_ulong =  0x0000_001F; // data: *mut CardCtlArray32,  get_files_hashmap_info
 
@@ -307,6 +309,26 @@ impl Default for CardCtlArray32 {
         }
     }
 }
+
+// struct for SC_CARDCTL_ACOS5_GET_KEY
+#[repr(C)]
+#[derive(/*Debug,*/ Copy, Clone)]
+pub struct CardCtlArray1285 {
+    pub offset : c_uint,        // IN
+    pub le     : usize,         // IN
+    pub resp : [c_uchar; 1285], // OUT
+}
+
+impl Default for CardCtlArray1285 {
+    fn default() -> CardCtlArray1285 {
+        CardCtlArray1285 {
+            offset: 0,
+            le: 0,
+            resp: [0u8; 1285]
+        }
+    }
+}
+
 
 // struct for SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST and SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE, SC_CARDCTL_ACOS5_ENCRYPT_ASYM// data: *mut CardCtl_generate_crypt_asym, do_generate_asym, do_crypt_asym
 // not all data are require for do_crypt_asym (exponent, exponent_std, key_len_code, key_priv_type_code)
@@ -488,6 +510,15 @@ pub struct DataPrivate { // see settings in acos5_64_init
 pub fn is_DFMF(fdb: c_uchar) -> bool
 {
     (fdb & FDB_DF) == FDB_DF
+}
+
+
+pub fn array2_from_u16(number: u16) -> [u8; 2]
+{
+    let mut res = [0u8; 2];
+    res[0] = (number >> 8)   as u8;
+    res[1] = (number & 0xFF) as u8;
+    res
 }
 
 /**

@@ -65,8 +65,8 @@ SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_ALGORITHM_RSA, SC_ALGORITHM_ONBOARD_KEY_G
 SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_DERIVE,
 SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK, SC_ALGORITHM_RSA_PAD_PKCS1,
 SC_ALGORITHM_RSA_PAD_ISO9796, SC_ALGORITHM_RSA_HASH_NONE, SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT,
-SC_SEC_ENV_ALG_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES/*, sc_file_new, sc_file_free, sc_select_file*/
-//,sc_update_record, SC_RECORD_BY_REC_NR
+SC_SEC_ENV_ALG_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR
+//,sc_select_file, sc_file_new, sc_file_free, sc_verify, sc_delete_record, sc_append_record, sc_read_record//, sc_format_apdu, sc_update_record
 };
 
 #[cfg(not(    v0_15_0))]
@@ -88,7 +88,7 @@ use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, sc_file_t, SC_MAX_AT
     sc_path, sc_file, sc_serial_number, SC_PATH_TYPE_PATH, SC_MAX_PATH_SIZE, SC_PATH_TYPE_FILE_ID,
                         SC_PATH_TYPE_PATH_PROT, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
     /* SC_AC_UNKNOWN, SC_AC_NEVER, SC_AC_PRO, SC_AC_AUT, sc_crt, SC_AC_CHV, SC_FILE_EF_LINEAR_FIXED, SC_MAX_CRTS_IN_SE,*/
-    SC_FILE_TYPE_DF, SC_FILE_TYPE_INTERNAL_EF, //SC_FILE_TYPE_WORKING_EF, SC_FILE_TYPE_BSO,
+    SC_FILE_TYPE_DF, SC_FILE_TYPE_INTERNAL_EF, //SC_FILE_TYPE_WORKING_EF, SC_FILE_TYPE_BSO, SC_APDU_CASE_3,
     SC_FILE_EF_TRANSPARENT, SC_AC_NONE, SC_AC_KEY_REF_NONE,
     SC_AC_OP_LIST_FILES,
     SC_AC_OP_SELECT,
@@ -96,7 +96,7 @@ use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, sc_file_t, SC_MAX_AT
     SC_AC_OP_READ,   SC_AC_OP_UPDATE,    SC_AC_OP_CRYPTO, SC_AC_OP_DELETE_SELF,
     SC_AC_OP_CREATE, SC_AC_OP_WRITE, SC_AC_OP_GENERATE, SC_APDU_FLAGS_CHAINING, SC_APDU_FLAGS_NO_GET_RESP,
 
-    SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT
+    SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT, SC_APDU_FLAGS_NO_RETRY_WL //, SC_AC_CHV
 };
 
 use opensc_sys::errors::{sc_strerror, SC_SUCCESS, SC_ERROR_INTERNAL, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
@@ -141,7 +141,7 @@ use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_arra
     generate_asym, encrypt_asym, get_files_hashmap_info, update_hashmap,
     logical_xor, create_mf_file_system, convert_acl_array_to_bytes_tag_fcp_sac, get_sec_env_mod_len,
     ACL_CATEGORY_DF_MF, ACL_CATEGORY_EF_CHV, ACL_CATEGORY_KEY, ACL_CATEGORY_SE,
-    get_is_running_compute_signature, set_is_running_compute_signature
+    get_is_running_compute_signature, set_is_running_compute_signature, get_key
 };
 
 
@@ -300,15 +300,15 @@ static struct sc_card_operations iso_ops = {
             SC_PIN_CMD_CHANGE:   iso7816_pin_cmd is okay for  SC_PIN_CMD_CHANGE
             SC_PIN_CMD_UNBLOCK:  iso7816_pin_cmd is okay for  SC_PIN_CMD_UNBLOCK
             */
-        get_data:              Some(acos5_64_get_data),          // iso7816_get_data (usable except wrong cla byte) calls cos5 'Get Key'
-        /* put_data:                                             NULL, */
-        /* delete_record:                                        NULL, */
+        /* get_dat:                                              iso7816_get_data */
+        /* put_data:                                             NULL, put a data object  write to Data Object */
+        delete_record:         Some(acos5_64_delete_record),     // NULL
         read_public_key:       Some(acos5_64_read_public_key),   // NULL
         /* card_reader_lock_obtained:                            NULL, */
 //        #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
 //        wrap: Some(acos5_64_wrap),                               // NULL
         #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-        unwrap: Some(acos5_64_unwrap),                           // NULL
+        unwrap:                Some(acos5_64_unwrap),            // NULL
 
         ..iso_ops // untested so far whether remaining functionality from iso is sufficient for cos5
 /* from iso_ops:
@@ -328,8 +328,8 @@ static struct sc_card_operations iso_ops = {
 
     iso7816_check_sw,
 
+    iso7816_get_data,
     NULL,            /* put_data */
-    NULL,            /* delete_record */
 
     NULL,            /* card_reader_lock_obtained */
     NULL,            /* wrap */
@@ -724,23 +724,64 @@ extern "C" fn acos5_64_finish(card_ptr: *mut sc_card) -> c_int
 ////////////////////
 //    acos5_64_logout(card);
     /* some testing code, unrelated (to acos5_64_finish) */
+/* * /
 /*
-        let mut path = Default::default();
-        unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3F004100\0").unwrap().as_ptr(), &mut path) };
-        let mut rv =  unsafe { sc_select_file(card, &path, std::ptr::null_mut()/*file: *mut *mut sc_file*/) };
-        assert_eq!(rv, SC_SUCCESS);
-
-        let file_ref_mut = unsafe { &mut *sc_file_new() };
-        // file MUST have assigned id, size and record-length
-        file_ref_mut.id = 0x4104;
-        file_ref_mut.type_2;
-
-    //    let mut outlen = 86usize;
-    //    let mut out = [0; 86];
-        rv = acos5_64_create_file(card, file_ref_mut);
-    //    let rv = acos5_64_construct_fci(card, file_ref_mut,out.as_mut_ptr(), &mut outlen);
-        unsafe { sc_file_free(file_ref_mut) };
+    let mut arr4 = [0u8; 4];
+    unsafe { copy_nonoverlapping(array2_from_u16(1027).as_ptr(), arr4.as_mut_ptr(), 2); }
+    unsafe { copy_nonoverlapping(array2_from_u16( 513).as_ptr(), arr4.as_mut_ptr().add(2), 2); }
+println!("{:X?}", arr4); // [4, 3, 2, 1]
 */
+    let mut path = Default::default();
+    unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3F004100\0").unwrap().as_ptr(), &mut path) };
+    let mut rv =  unsafe { sc_select_file(card, &path, std::ptr::null_mut()/*file: *mut *mut sc_file*/) };
+    assert_eq!(rv, SC_SUCCESS);
+
+    let file = unsafe { &mut *sc_file_new() };
+    // file MUST have assigned id, type and size or record_length/record_count
+    file.id = 0x4104;
+    file.type_ = 4;
+    file.record_length = 16;
+    file.record_count  = 2;
+
+    let mut tries_left= 0i32;
+    rv = unsafe { sc_verify(card, SC_AC_CHV, 0x81, [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38].as_ptr(), 8, &mut tries_left) };
+    assert_eq!(rv, SC_SUCCESS);
+
+    rv = acos5_64_create_file(card, file);
+    unsafe { sc_file_free(file) };
+    assert_eq!(rv, SC_SUCCESS);
+    unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3F0041004104\0").unwrap().as_ptr(), &mut path) };
+    let mut rv =  unsafe { sc_select_file(card, &path, std::ptr::null_mut()/*file: *mut *mut sc_file*/) };
+    assert_eq!(rv, SC_SUCCESS);
+
+    let mut rbuf =  [0u8; 16];
+    /* this will read 5 bytes, the not assigned 5. byte yields/returns ßxFF */
+    rv = unsafe { sc_read_record(card, 1, rbuf.as_mut_ptr(), 5, SC_RECORD_BY_REC_NR) };
+    assert_eq!(rv, 5);
+    assert_eq!(rbuf[..5], [0, 0, 0, 0, 0]);
+
+    let data = [1u8,2,3,4];
+    rv = unsafe { sc_append_record(card, data.as_ptr(), data.len(), 0) };
+    assert_eq!(rv, 4);
+
+    let mut rbuf =  [0u8; 16];
+    /* this will read 5 bytes, the not assigned 5. byte yields/returns ßxFF */
+    rv = unsafe { sc_read_record(card, 1, rbuf.as_mut_ptr(), 4, SC_RECORD_BY_REC_NR) };
+    assert_eq!(rv, 4);
+    assert_eq!(rbuf[..4], [1u8,2,3,4]);
+
+    rv = unsafe {sc_delete_record(card, 1)};
+    assert_eq!(rv, SC_SUCCESS);
+
+    let mut rbuf =  [0u8; 16];
+    /* this will read 5 bytes, the not assigned 5. byte yields/returns ßxFF */
+    rv = unsafe { sc_read_record(card, 1, rbuf.as_mut_ptr(), 5, SC_RECORD_BY_REC_NR) };
+    assert_eq!(rv, 5);
+    assert_eq!(rbuf[..5], [0u8,0,0,0,0]);
+
+    rv = acos5_64_delete_file(card, &path);
+    assert_eq!(rv, SC_SUCCESS);
+/ * */
 /*
     let mut path = Default::default();
     unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3F004100\0").unwrap().as_ptr(), &mut path) };
@@ -822,7 +863,7 @@ extern "C" fn acos5_64_finish(card_ptr: *mut sc_card) -> c_int
 ////////////////////
     assert!(!card.drv_data.is_null(), "drv_data is null");
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-//    println!("Hashmap: {:?}", dp.files);
+//    println!("Hashmap: {:X?}", dp.files);
 //    there may be other Boxes that might need to be taken over again
     drop(dp);
     card.drv_data = std::ptr::null_mut();
@@ -850,7 +891,6 @@ extern "C" fn acos5_64_erase_binary(card_ptr: *mut sc_card, idx: c_uint, count: 
     if cfg!(log) {
         wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
-    let mut data = [0x00, 0x00];
     let command = [0x00, 0x0E, 0x00, 0x00,  0x02, 0xFF, 0xFF];
     let mut apdu = Default::default();
     let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
@@ -859,9 +899,11 @@ extern "C" fn acos5_64_erase_binary(card_ptr: *mut sc_card, idx: c_uint, count: 
     apdu.flags = flags;
 
     if idx != 0 {
-        apdu.p1 = ((idx >> 8) as u8) & 0xFF; // start_offset (included)
-        apdu.p2 = (idx & 0xFF) as u8;        // dito
+        let arr2 = array2_from_u16(idx as u16);
+        apdu.p1 = arr2[0]; // start_offset (included)
+        apdu.p2 = arr2[1]; // dito
     }
+    let mut end_offset = [0x00, 0x00];
     if count == 0xFFFF {
         apdu.cse = SC_APDU_CASE_1;
         apdu.lc = 0;
@@ -869,10 +911,9 @@ extern "C" fn acos5_64_erase_binary(card_ptr: *mut sc_card, idx: c_uint, count: 
         apdu.data = std::ptr::null();
     }
     else {
-        let end_offset =  idx + count as c_uint; // end_offset (not included; i.e. byte at that address doesn't get erased)
-        data[0] = ((end_offset >> 8) as u8) & 0xFF;
-        data[1] = (end_offset & 0xFF) as u8;
-        apdu.data = data.as_ptr();
+        // end_offset (not included; i.e. byte at that address doesn't get erased)
+        unsafe { copy_nonoverlapping(array2_from_u16(idx as u16 + count as u16).as_ptr(), end_offset.as_mut_ptr(), 2); }
+        apdu.data = end_offset.as_ptr();
     }
 
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
@@ -1023,6 +1064,8 @@ extern "C" fn acos5_64_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_p
                 unsafe { (*key_auth_state_ptr).value = key_auth_state };
                 SC_SUCCESS
             },
+        SC_CARDCTL_ACOS5_GET_KEY =>
+                get_key(card, unsafe { &mut *(data_ptr as *mut CardCtlArray1285) }),
         SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO =>
             {
                 let files_hashmap_info_ptr = data_ptr as *mut CardCtlArray32;
@@ -1515,11 +1558,11 @@ extern "C" fn acos5_64_logout(card_ptr: *mut sc_card) -> c_int
 /* expects some entries in file, see acos5_64_construct_fci */
 extern "C" fn acos5_64_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) -> c_int
 {
-    if card_ptr.is_null() || file_ptr.is_null() {
+    if card_ptr.is_null() || file_ptr.is_null() || unsafe { (*file_ptr).id==0 } {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *card_ptr };
-    let file_ref = unsafe { & *file_ptr };
+    let file = unsafe { &mut *file_ptr };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun   = CStr::from_bytes_with_nul(b"acos5_64_create_file\0").unwrap();
     let rv;
@@ -1528,7 +1571,7 @@ extern "C" fn acos5_64_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_fil
     }
 
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-    if dp.files.contains_key(&(file_ref.id as u16)) {
+    if dp.files.contains_key(&(file.id as u16)) {
         card.drv_data = Box::into_raw(dp) as *mut c_void;
         rv = SC_ERROR_NOT_ALLOWED;
         wr_do_log_sds(card.ctx, f_log, line!(), fun,CStr::from_bytes_with_nul(b"### Duplicate file id disallowed by the driver ! ###\0")
@@ -1536,6 +1579,15 @@ extern "C" fn acos5_64_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_fil
         return rv;
     }
     card.drv_data = Box::into_raw(dp) as *mut c_void;
+
+    if file.path.len == 0 {
+        let current_path_df = current_path_df(card);
+        let len = current_path_df.len();
+        let mut path = sc_path { type_: SC_PATH_TYPE_PATH, len: len+2, ..Default::default() };
+        unsafe { copy_nonoverlapping(current_path_df.as_ptr(),  path.value.as_mut_ptr(), len); }
+        unsafe { copy_nonoverlapping(array2_from_u16(file.id as u16).as_ptr(),  path.value.as_mut_ptr().add(len), 2); }
+        file.path = path;
+    }
 
     /* iso7816_create_file calls acos5_64_construct_fci */
     let func_ptr = unsafe { (*(*sc_get_iso7816_driver()).ops).create_file.unwrap() };
@@ -1548,20 +1600,26 @@ extern "C" fn acos5_64_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_fil
         }
     }
     else {
-        if file_ref.id == 0 {
-            return SC_ERROR_INVALID_ARGUMENTS;
-        }
+        let file_ref : &sc_file = file;
         let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-        dp.files.insert(file_ref.id as u16, ([0; SC_MAX_PATH_SIZE], [0, 0, 0, 0, 0, 0, 0xFF, 1], None, None));
+        dp.files.insert(file_ref.id as u16, (file_ref.path.value, [0, 0, 0, 0, 0, 0, 0xFF, 1], None, None));
         let mut x = dp.files.get_mut(&(file_ref.id as u16)).unwrap();
-        x.0 = file_ref.path.value;
         x.1[0] = file_ref.type_ as c_uchar;
         x.1[1] = file_ref.path.len as c_uchar;
         x.1[2] = file_ref.path.value[file_ref.path.len-2];
         x.1[3] = file_ref.path.value[file_ref.path.len-1];
-        x.1[4] = ((file_ref.size >> 8) & 0xFF) as c_uchar;
-        x.1[5] = ( file_ref.size       & 0xFF) as c_uchar;
+        if [FDB_LINEAR_FIXED_EF, FDB_LINEAR_VARIABLE_EF, FDB_CYCLIC_EF, FDB_CHV_EF, FDB_SYMMETRIC_KEY_EF, FDB_PURSE_EF, FDB_SE_FILE].contains(&(file_ref.type_ as c_uchar) ) {
+            x.1[4] = file_ref.record_length as c_uchar;
+            x.1[5] = file_ref.record_count  as c_uchar;
+        }
+        else if [FDB_TRANSPARENT_EF, FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&(file_ref.type_ as c_uchar) ) {
+            unsafe { copy_nonoverlapping(array2_from_u16(file_ref.size as u16).as_ptr(), x.1.as_mut_ptr().add(4), 2); }
+        }
+        else { // MF/DF
+            unsafe { copy_nonoverlapping(array2_from_u16((file_ref.id+3) as u16).as_ptr(), x.1.as_mut_ptr().add(4), 2); }
+        }
         card.drv_data = Box::into_raw(dp) as *mut c_void;
+
         if cfg!(log) {
             wr_do_log_t(card.ctx, f_log, line!(), fun, file_ref.id,
                         CStr::from_bytes_with_nul(b"file_id %04X added to hashmap\0").unwrap());
@@ -1852,15 +1910,13 @@ extern "C" fn acos5_64_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_fil
         if dp_files_value.1[2] == 0 && dp_files_value.1[3] == 0 { // assume dp_files_value.1 wasn't provided by list_files, i.e. provided by acos5_64_create_file
             dp_files_value.1[0] = fdb;
 //          dp_files_value.1[1] = dcb;
-            dp_files_value.1[2] = ((file.id >> 8) & 0xFF) as u8;
-            dp_files_value.1[3] = ( file.id       & 0xFF) as u8;
+            unsafe { copy_nonoverlapping(array2_from_u16(file.id as u16).as_ptr(), dp_files_value.1.as_mut_ptr().add(2), 2); }
             if  file.type_!= SC_FILE_TYPE_DF && file.ef_structure != SC_FILE_EF_TRANSPARENT {
                 dp_files_value.1[4] = unsafe { *ptr_bytes_tag_fcp_type.offset(3) };
                 dp_files_value.1[5] = unsafe { *ptr_bytes_tag_fcp_type.add(len_bytes_tag_fcp_type-1) };
             }
             else {
-                dp_files_value.1[4] = ((file.size >> 8) & 0xFF) as u8;
-                dp_files_value.1[5] = ( file.size       & 0xFF) as u8;
+                unsafe { copy_nonoverlapping(array2_from_u16(file.size as u16).as_ptr(), dp_files_value.1.as_mut_ptr().add(4), 2); }
             }
 //          dp_files_value.1[6] = sfi;
             dp_files_value.1[7] = lcsi;
@@ -1884,8 +1940,7 @@ extern "C" fn acos5_64_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_fil
             dp_files_value.1[7]  = lcsi;
         }
         if is_DFMF(dp_files_value.1[0]) && (dp_files_value.1[4..6] == [0u8; 2]) {
-            dp_files_value.1[4]  = sefile_id[0];
-            dp_files_value.1[5]  = sefile_id[1];
+            unsafe { copy_nonoverlapping(sefile_id.as_ptr(), dp_files_value.1.as_mut_ptr().add(4), 2); }
         }
     }
     card.drv_data = Box::into_raw(dp) as *mut c_void;
@@ -1896,7 +1951,7 @@ extern "C" fn acos5_64_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_fil
 
 // assembles the byte string/data part for file creation via command "Create File"
 // TODO special treatment for DF/MF is missing: optional ISO7816_RFU_TAG_FCP_SAE
-// TODO special treatment for record based files is missing: ISO7816_TAG_FCP_TYPE specifying MRL and NOR
+// ATTENTION : expects from file.type the fdb , but NOT what usually is in file.type like e.g. SC_FILE_TYPE_WORKING_EF
 //#[allow(dead_code)]
 extern "C" fn acos5_64_construct_fci(card_ptr: *mut sc_card, file_ref_ptr: *const sc_file,
                                      out_ptr: *mut c_uchar, outlen_ptr: *mut usize) -> c_int
@@ -1962,7 +2017,7 @@ SEQUENCE (6 elem)
 //        wr_do_log_t(card.ctx, f_log, line!(), fun, file_ref.shareable, CStr::from_bytes_with_nul(b"shareable: %u\0").unwrap());
 //        wr_do_log_t(card.ctx, f_log, line!(), fun, file_ref.sid, CStr::from_bytes_with_nul(b"sid: %d\0").unwrap());
 //        wr_do_log_t(card.ctx, f_log, line!(), fun, file_ref.prop_attr_len, CStr::from_bytes_with_nul(b"prop_attr_len: %zu\0").unwrap());
-/*
+/* * /
         wr_do_log_t(card.ctx, f_log, line!(), fun, file_ref.acl[ 0], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_SELECT]: %p\0").unwrap());
         wr_do_log_t(card.ctx, f_log, line!(), fun, file_ref.acl[ 1], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_LOCK]: %p\0").unwrap());
         wr_do_log_t(card.ctx, f_log, line!(), fun, file_ref.acl[ 2], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_DELETE]: %p\0").unwrap());
@@ -1994,7 +2049,7 @@ SEQUENCE (6 elem)
         wr_do_log_t(card.ctx, f_log, line!(), fun, file_ref.acl[28], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_CREATE_DF]: %p\0").unwrap());
         wr_do_log_t(card.ctx, f_log, line!(), fun, file_ref.acl[29], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_ADMIN]: %p\0").unwrap());
         wr_do_log_t(card.ctx, f_log, line!(), fun, file_ref.acl[30], CStr::from_bytes_with_nul(b"acl[SC_AC_OP_PIN_USE]: %p\0").unwrap());
-*/
+/ * */
     }
     /* file type in profile to be entered aus FDB: File Descriptor Byte */
     let acl_category = match file_ref.type_ as u8 {
@@ -2019,7 +2074,7 @@ println!("Non-match in let acl_category. file_ref.type_: {}", file_ref.type_);
         Err(e) => return e,
     };
 //println!("bytes_tag_fcp_sac: {:X?}", bytes_tag_fcp_sac); // bytes_tag_fcp_sac: [7F, 1, FF, 1, 1, 1, 1, 1]
-    let mut buf = [0; 2];
+    let mut buf2 = [0; 2];
     let mut ptr_diff_sum : usize = 0; // difference/distance of p and out   #![feature(ptr_offset_from)]
 	let mut p = out_ptr;
     unsafe { *p = ISO7816_TAG_FCP }; // *p++ = 0x6F;  p++;
@@ -2027,30 +2082,41 @@ println!("Non-match in let acl_category. file_ref.type_: {}", file_ref.type_);
     ptr_diff_sum += 2;
 
     /* 4 bytes will be written for tag ISO7816_TAG_FCP_FID (0x83)  MANDATORY */
-    buf[0] = (file_ref.id >> 8) as u8;
-    buf[1] = (file_ref.id & 0xFF) as u8;
-    unsafe { sc_asn1_put_tag(ISO7816_TAG_FCP_FID as c_uint, buf.as_ptr(), 2, p, *outlen-ptr_diff_sum, &mut p) };
+    unsafe { copy_nonoverlapping(array2_from_u16(file_ref.id as u16).as_ptr(), buf2.as_mut_ptr(), 2); }
+    unsafe { sc_asn1_put_tag(ISO7816_TAG_FCP_FID as c_uint, buf2.as_ptr(), 2, p, *outlen-ptr_diff_sum, &mut p) };
     ptr_diff_sum += 4;
 
     /* 1 or 5 bytes will be written for tag ISO7816_TAG_FCP_TYPE (0x82) MANDATORY */
     //  e.g.  {82 06} 0A 00 00 15 00 01
     let fdb = file_ref.type_ as u8;
-    buf[0] = fdb;
-    buf[1] = 0;
-    unsafe { sc_asn1_put_tag(ISO7816_TAG_FCP_TYPE as c_uint, buf.as_ptr(), 2, p, *outlen-ptr_diff_sum, &mut p) };
-    ptr_diff_sum += 4;
+    if [FDB_LINEAR_FIXED_EF, FDB_LINEAR_VARIABLE_EF, FDB_CYCLIC_EF, FDB_CHV_EF, FDB_SYMMETRIC_KEY_EF, FDB_PURSE_EF, FDB_SE_FILE].contains(&fdb) &&
+        (file_ref.record_length==0 || file_ref.record_count==0) { return SC_ERROR_INVALID_ARGUMENTS; }
+    if [FDB_LINEAR_FIXED_EF, FDB_LINEAR_VARIABLE_EF, FDB_CYCLIC_EF, FDB_CHV_EF, FDB_SYMMETRIC_KEY_EF, FDB_PURSE_EF, FDB_SE_FILE].contains(&fdb) {
+        let mut rec_buf = [0; 5];
+//        05h    FDB+DCB+00h+MRL+NOR
+        rec_buf[0] = fdb;
+        rec_buf[3] = file_ref.record_length as u8;
+        rec_buf[4] = file_ref.record_count  as u8;
+        unsafe { sc_asn1_put_tag(ISO7816_TAG_FCP_TYPE as c_uint, rec_buf.as_ptr(), 5, p, *outlen-ptr_diff_sum, &mut p) };
+        ptr_diff_sum += 7;
+    }
+    else {
+        buf2[0] = fdb;
+        buf2[1] = 0;
+        unsafe { sc_asn1_put_tag(ISO7816_TAG_FCP_TYPE as c_uint, buf2.as_ptr(), 2, p, *outlen-ptr_diff_sum, &mut p) };
+        ptr_diff_sum += 4;
+    }
 
     /* 3 bytes will be written for tag ISO7816_TAG_FCP_LCS (0x8A) */
-    buf[0] = 1; // skip cos5 command "Activate File" and create as activated
-    unsafe { sc_asn1_put_tag(ISO7816_TAG_FCP_LCS as c_uint, buf.as_ptr(), 1, p, *outlen-ptr_diff_sum, &mut p) };
+    buf2[0] = 1; // skip cos5 command "Activate File" and create as activated
+    unsafe { sc_asn1_put_tag(ISO7816_TAG_FCP_LCS as c_uint, buf2.as_ptr(), 1, p, *outlen-ptr_diff_sum, &mut p) };
     ptr_diff_sum += 3;
 
     if [FDB_TRANSPARENT_EF, FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&fdb) { // any non-record-based, non-DF/MF fdb
         /* 4 bytes will be written for tag ISO7816_TAG_FCP_SIZE (0x80) */
         assert!(file_ref.size > 0);
-        buf[0] = (file_ref.size >> 8) as u8;
-        buf[1] = (file_ref.size & 0xFF) as u8;
-        unsafe { sc_asn1_put_tag(ISO7816_TAG_FCP_SIZE as c_uint, buf.as_ptr(), 2, p, *outlen-ptr_diff_sum, &mut p) };
+        unsafe { copy_nonoverlapping(array2_from_u16(file_ref.size as u16).as_ptr(), buf2.as_mut_ptr(), 2); }
+        unsafe { sc_asn1_put_tag(ISO7816_TAG_FCP_SIZE as c_uint, buf2.as_ptr(), 2, p, *outlen-ptr_diff_sum, &mut p) };
         ptr_diff_sum += 4;
     }
 
@@ -2061,9 +2127,8 @@ println!("Non-match in let acl_category. file_ref.type_: {}", file_ref.type_);
 
     if is_DFMF(fdb) {
         /* 4 bytes will be written for tag ISO7816_RFU_TAG_FCP_SEID (0x8D) */
-        buf[0] = ((file_ref.id+3) >> 8) as u8;
-        buf[1] = ((file_ref.id+3) & 0xFF) as u8;
-        unsafe { sc_asn1_put_tag(ISO7816_RFU_TAG_FCP_SEID as c_uint, buf.as_ptr(), 2, p, *outlen-ptr_diff_sum, &mut p) };
+        unsafe { copy_nonoverlapping(array2_from_u16((file_ref.id+3) as u16).as_ptr(), buf2.as_mut_ptr(), 2); }
+        unsafe { sc_asn1_put_tag(ISO7816_RFU_TAG_FCP_SEID as c_uint, buf2.as_ptr(), 2, p, *outlen-ptr_diff_sum, &mut p) };
         ptr_diff_sum += 4;
 
         if file_ref.namelen>0 {
@@ -2163,61 +2228,7 @@ extern "C" fn acos5_64_pin_cmd(card_ptr: *mut sc_card, data_ptr: *mut sc_pin_cmd
 */
     }
 }
-/*
-00 2C 01 81 08 38 37 36 35 34 33 32 31
-00 2C 00 81 10 38 37 36 35 34 33 32 31 31 32 33 34 35 36 37 38  87654321 12345678
-*/
-extern "C" fn acos5_64_get_data(card_ptr: *mut sc_card, offset: c_uint, buf_ptr: *mut c_uchar, buflen: usize) -> c_int
-{
-    if card_ptr.is_null() || buf_ptr.is_null() || buflen == 0 {
-        return SC_ERROR_INVALID_ARGUMENTS;
-    }
-    let card = unsafe { &mut *card_ptr };
-    let mut rv: i32;
-    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
-    let fun  = CStr::from_bytes_with_nul(b"acos5_64_get_data\0").unwrap();
 
-    if buflen <= 256 {
-        card.cla = 0x80;
-        rv = unsafe { (*(*sc_get_iso7816_driver()).ops).get_data.unwrap()(card, offset, buf_ptr, buflen) };
-        card.cla = 0;
-    }
-    else {
-        /* retrieve the raw content of currently selected RSA pub file (this is a code fragment from acos5_64_read_public_key) */
-        let command = [0x80, 0xCA, 0x00, 0x00, 0xFF];
-        let mut apdu = Default::default();
-        rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
-        assert_eq!(rv, SC_SUCCESS);
-        assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
-
-        let mut le_remaining = buflen;
-        while le_remaining > 0 {
-            let offset = buflen - le_remaining;
-            apdu.le      =  if le_remaining > 0xFFusize {0xFFusize} else {le_remaining};
-            apdu.resp    =  unsafe { buf_ptr.add(offset) };
-            apdu.resplen =  buflen - offset;
-            apdu.p1      =  ((offset >> 8) & 0xFFusize) as u8;
-            apdu.p2      =  ( offset       & 0xFFusize) as u8;
-            rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
-            rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
-            if rv != SC_SUCCESS || apdu.resplen == 0 {
-                if cfg!(log) {
-                    if apdu.resplen == 0 || (apdu.sw1==0x69 && apdu.sw1==0x82) {
-                        wr_do_log_t(card.ctx, f_log, line!(), fun, apdu.resplen, CStr::from_bytes_with_nul(b"non-readable file; apdu.resplen: %zu\0").unwrap());
-                    }
-                    else {
-                        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"some other error\0").unwrap());
-                    }
-                }
-                return rv;
-            }
-            assert_eq!(apdu.resplen, apdu.le);
-            le_remaining -= apdu.le;
-        }
-        rv = buflen as c_int;
-    }
-    rv
-}
 
 /*
  * What it does
@@ -2280,7 +2291,7 @@ extern "C" fn acos5_64_read_public_key(card_ptr: *mut sc_card, algorithm: c_uint
         return rv;
     }
 
-    // TODO use instead : acos5_64_get_data
+    // TODO use instead : get_key
     /* retrieve the raw content of currently selected RSA pub file */
     let command = [0x80, 0xCA, 0x00, 0x00, 0xFF];
     let mut apdu = Default::default();
@@ -3189,3 +3200,96 @@ extern "C" fn acos5_64_unwrap(card_ptr: *mut sc_card, crgram: *const c_uchar, cr
     }
     rv
 }
+
+/*
+ * Implements sc_card_operations function 'delete_record'
+ * @see opensc_sys::opensc pub struct sc_card_operations
+ * In the narrower sense, deleting a record is impossible: It's part of a file that may be deleted.
+ * In the broader sense, cos5 considers any record with first byte==00 as empty (see cos5 command 'append_record'),
+ * thus this command will zeroize all record content
+ * @apiNote
+ * @param  rec_nr starting from 1
+ * @return number of erasing zero bytes written to record, otherwise an error code
+ */
+extern "C" fn acos5_64_delete_record(card_ptr: *mut sc_card, rec_nr: c_uint) -> c_int
+{
+    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || rec_nr==0 || rec_nr>0xFF {
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+    let card = unsafe { &mut *card_ptr };
+    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
+    let fun  = CStr::from_bytes_with_nul(b"acos5_64_delete_record\0").unwrap();
+    if cfg!(log) {
+        wr_do_log_t(card.ctx, f_log, line!(), fun, rec_nr, CStr::from_bytes_with_nul(b"called with rec_nr: %u\0").unwrap());
+    }
+    let zero_buf = [0; 0xFF];
+    let command = [0, 0xDC, rec_nr as u8, 4, 1, 1];
+    let mut apdu = Default::default();
+    let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
+    assert_eq!(rv, SC_SUCCESS);
+    assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
+    apdu.lc      = zero_buf.len();
+    apdu.datalen = zero_buf.len();
+    apdu.data    = zero_buf.as_ptr();
+    apdu.flags = SC_RECORD_BY_REC_NR | SC_APDU_FLAGS_NO_RETRY_WL;
+
+    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
+    if rv == SC_SUCCESS && unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) } == SC_SUCCESS  { zero_buf.len() as c_int }
+    else if apdu.sw1 != 0x6C { rv }
+    else {
+        assert!(apdu.sw2 as usize <= zero_buf.len());
+        /* retransmit */
+        apdu.lc      = apdu.sw2 as usize;
+        apdu.datalen = apdu.sw2 as usize;
+        rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
+        rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+        if rv != SC_SUCCESS {rv} else {apdu.sw2 as c_int}
+    }
+}
+
+/*
+Hashmap: {4133: ([3F, 0, 41, 0, 41, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, 33, 2, 15, 9, 5], Some([0, 1, 0, 1, 0, FF, 1, FF]), None),
+          4301: ([3F, 0, 41, 0, 43, 0, 43, 1, 0, 0, 0, 0, 0, 0, 0, 0],  [ A, 8, 43, 1, 15, 1, 12, 5], None, None),
+          4114: ([3F, 0, 41, 0, 41, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 41, 14, 1, 0, FF, 1], None, None),
+          4102: ([3F, 0, 41, 0, 41, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   [ C, 6, 41, 2, 25, C, 11, 5], None, None),
+             2: ([3F, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],     [ C, 4, 0, 2, 25, 4, 11, 5], None, None),
+          41F3: ([3F, 0, 41, 0, 41, F3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, F3, 5, 5, 10, 5], Some([FF, 1, 1, 1, 0, FF, 1, FF]), None),
+          41F4: ([3F, 0, 41, 0, 41, F4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, F4, 5, 5, 10, 5], Some([FF, 1, 1, 1, 0, FF, 1, FF]), None),
+          4303: ([3F, 0, 41, 0, 43, 0, 43, 3, 0, 0, 0, 0, 0, 0, 0, 0],  [1C, 8, 43, 3, 38, 3, FF, 5], Some([0, 0, 0, 0, 0, FF, 0, FF]), None),
+          4331: ([3F, 0, 41, 0, 43, 0, 43, 31, 0, 0, 0, 0, 0, 0, 0, 0], [ 9, 8, 43, 31, 2, 15, 9, 5], Some([0, 0, 0, 0, 0, FF, 0, FF]), None),
+          43F1: ([3F, 0, 41, 0, 43, 0, 43, F1, 0, 0, 0, 0, 0, 0, 0, 0], [ 9, 8, 43, F1, 5, 5, 10, 5], Some([42, 3, 0, 0, 0, FF, 0, FF]), None),
+          5032: ([3F, 0, 41, 0, 50, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 50, 32, 0, C0, FF, 5], None, None),
+          3908: ([3F, 0, 41, 0, 39, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   [ 1, 6, 39, 8, 0, 10, FF, 5], None, None),
+          4129: ([3F, 0, 41, 0, 41, 29, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 2, 6, 41, 29, 14, 2, FF, 5], None, None),
+             1: ([3F, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],     [ A, 4, 0, 1, 15, 1, 12, 5], None, None),
+          4305: ([3F, 0, 41, 0, 43, 0, 43, 5, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 8, 43, 5, 0, 10, FF, 5], None, None),
+          2F00: ([3F, 0, 2F, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],    [ 1, 4, 2F, 0, 0, 21, FF, 5], None, None),
+          4131: ([3F, 0, 41, 0, 41, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, 31, 2, 15, 9, 5], Some([0, 1, 0, 1, 0, FF, 1, FF]), None),
+          4115: ([3F, 0, 41, 0, 41, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 41, 15, 1, 0, FF, 1], None, None),
+          4132: ([3F, 0, 41, 0, 41, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, 32, 2, 15, 9, 5], Some([0, 1, 0, 1, 0, FF, 1, FF]), None),
+          3F00: ([3F, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],     [3F, 2, 3F, 0, 0, 3, FF, 1], Some([0, 0, 0, 0, 0, 0, 0, FF]),      Some([SeInfo { reference: 1, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [1, 0, 0, 0, 0, 0, 0, 0] } ] }])),
+          4101: ([3F, 0, 41, 0, 41, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   [ A, 6, 41, 1, 15, 1, 12, 5], None, None),
+          4100: ([3F, 0, 41, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],    [38, 4, 41, 0, 41, 3, FF, 5], Some([1, 1, 1, 1, 0, FF, 3, FF]),    Some([SeInfo { reference: 1, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] } ] },
+                                                                                                                                                 SeInfo { reference: 2, crts_len: 3, crts: [sc_crt { tag: B4, usage: 8, algo: 2, refs: [1, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: B8, usage: 8, algo: 2, refs: [1, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: A4, usage: 8, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
+                                                                                                                                                 SeInfo { reference: 3, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [1, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
+                                                                                                                                                 SeInfo { reference: 4, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [1, 81, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
+                                                                                                                                                 SeInfo { reference: 5, crts_len: 2, crts: [sc_crt { tag: B4, usage: 30, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: A4, usage: 80, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
+                                                                                                                                                 SeInfo { reference: 6, crts_len: 3, crts: [sc_crt { tag: B4, usage: 30, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: B8, usage: 30, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: A4, usage: 80, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] }])),
+             3: ([3F, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],     [1C, 4, 0, 3, 30, 1, FF, 5], Some([0, 1, 0, 1, 1, FF, 1, FF]), None),
+          4111: ([3F, 0, 41, 0, 41, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 41, 11, 0, 80, FF, 1], None, None),
+          4112: ([3F, 0, 41, 0, 41, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 41, 12, 3, 0, FF, 1], None, None),
+          4120: ([3F, 0, 41, 0, 41, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 41, 20, 6, 80, FF, 5], None, None),
+          4134: ([3F, 0, 41, 0, 41, 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, 34, 2, 15, 9, 5], Some([0, 1, 0, 1, 0, FF, 1, FF]), None),
+          5031: ([3F, 0, 41, 0, 50, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 50, 31, 0, 6C, FF, 5], None, None),
+          4113: ([3F, 0, 41, 0, 41, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 41, 13, 6, 0, FF, 1], None, None),
+          5155: ([3F, 0, 41, 0, 51, 55, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 4, 6, 51, 55, 82, 2, FF, 5], None, None),
+          41F1: ([3F, 0, 41, 0, 41, F1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, F1, 5, 5, 10, 5], Some([FF, 1, 1, 1, 0, FF, 1, FF]), None),
+          4302: ([3F, 0, 41, 0, 43, 0, 43, 2, 0, 0, 0, 0, 0, 0, 0, 0],  [ C, 8, 43, 2, 25, 2, 11, 5], None, None),
+          4121: ([3F, 0, 41, 0, 41, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 41, 21, 6, 80, FF, 5], None, None),
+          4103: ([3F, 0, 41, 0, 41, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   [1C, 6, 41, 3, 38, 8, FF, 5], Some([0, 3, 0, FF, 0, FF, 3, FF]), None),
+          4300: ([3F, 0, 41, 0, 43, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   [38, 6, 43, 0, 43, 3, FF, 5], Some([42, 42, 0, 0, 0, FF, 0, FF]), Some([SeInfo { reference: 1, crts_len: 2, crts: [sc_crt { tag: B4, usage: 70, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: A4, usage: 80, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
+                                                                                                                                                SeInfo { reference: 2, crts_len: 3, crts: [sc_crt { tag: B4, usage: 70, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: B8, usage: 70, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: A4, usage: 80, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
+                                                                                                                                                SeInfo { reference: 3, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] }])),
+          41F2: ([3F, 0, 41, 0, 41, F2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, F2, 5, 5, 10, 5], Some([FF, 1, 1, 1, 0, FF, 1, FF]), None)}
+          4104: ([3F, 0, 41, 0, 41, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   [ 2, 6, 41, 4, 10, 2, FF, 1], None, None),
+*/
