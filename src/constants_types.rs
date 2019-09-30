@@ -143,9 +143,10 @@ pub const PKCS15_FILE_TYPE_DATA          : u8 =  19;
 pub const PKCS15_FILE_TYPE_PIN           : u8 =  18; // iEF with cos5
 pub const PKCS15_FILE_TYPE_NONE          : u8 =  0xFF; // should not happen to extract a path for this
 
-pub const RSAPUB_MAX_LEN           : usize = 5 + 16 + 512; // the max. file size requirement for RSA public key (4096 bit == 512 byte; 16 byte is the max. public exponent length)
-pub const RSAPRIV_MAX_LEN_STD      : usize = 5 +      512; // the max. file size requirement for RSA private key (non-CRT)
-pub const RSAPRIV_MAX_LEN_CRT      : usize = 5 +   5* 256; // the max. file size requirement for RSA private key stored in CRT manner
+pub const RSA_MAX_LEN_MODULUS      : usize = 512;
+pub const RSAPUB_MAX_LEN           : usize = 5 + 16 + RSA_MAX_LEN_MODULUS; // the max. file size requirement for RSA public key (4096 bit == 512 byte; 16 byte is the max. public exponent length)
+pub const RSAPRIV_MAX_LEN_STD      : usize = 5 +      RSA_MAX_LEN_MODULUS; // the max. file size requirement for RSA private key (non-CRT)
+pub const RSAPRIV_MAX_LEN_CRT      : usize = 5 +   5*(RSA_MAX_LEN_MODULUS/2); // the max. file size requirement for RSA private key stored in CRT manner
 
 
 //https://cryptosys.net/pki/manpki/pki_paddingschemes.html
@@ -237,7 +238,7 @@ pub const SC_CARDCTL_ACOS5_ENCRYPT_ASYM            : c_ulong =  0x0000_0028; // 
 pub const SC_CARDCTL_ACOS5_DECRYPT_SYM             : c_ulong =  0x0000_0029; // data: *mut CardCtl_crypt_sym,  do_decrypt_sym
 ////pub const SC_CARDCTL_ACOS5_DECRYPT_ASYM        : c_ulong =  0x0000_002A; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
 
-pub const SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM    : c_ulong =  0x0000_002B; // data: *mut CardCtlArray20,  create_mf_file_system
+//pub const SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM    : c_ulong =  0x0000_002B; // data: *mut CardCtlArray20,  create_mf_file_system
 
 /* more related to acos5_64_pkcs15init */
 /* more related to acos5_64_sm */
@@ -316,7 +317,7 @@ impl Default for CardCtlArray32 {
 pub struct CardCtlArray1285 {
     pub offset : c_uint,        // IN
     pub le     : usize,         // IN
-    pub resp : [c_uchar; 1285], // OUT
+    pub resp : [c_uchar; RSAPRIV_MAX_LEN_CRT], // OUT
 }
 
 impl Default for CardCtlArray1285 {
@@ -324,7 +325,7 @@ impl Default for CardCtlArray1285 {
         CardCtlArray1285 {
             offset: 0,
             le: 0,
-            resp: [0u8; 1285]
+            resp: [0u8; RSAPRIV_MAX_LEN_CRT]
         }
     }
 }
@@ -336,7 +337,7 @@ impl Default for CardCtlArray1285 {
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct CardCtl_generate_crypt_asym {
     pub rsa_pub_exponent : [c_uchar; 16], // public exponent
-    pub data : [c_uchar; 512],   // INOUT for crypt_asym (performs cos5  'RSA Public Key Encrypt')
+    pub data : [c_uchar; RSA_MAX_LEN_MODULUS],   // INOUT for crypt_asym (performs cos5  'RSA Public Key Encrypt')
     pub data_len : usize,        // len bytes used within in_data
     pub file_id_priv : u16,       // IN  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5_64.profile,
     pub file_id_pub  : u16,       // IN  if both are !=0, then the given values are preferred
@@ -357,7 +358,7 @@ impl Default for CardCtl_generate_crypt_asym {
     fn default() -> CardCtl_generate_crypt_asym {
         CardCtl_generate_crypt_asym {
             rsa_pub_exponent: [0; 16],
-            data: [0; 512],
+            data: [0; RSA_MAX_LEN_MODULUS],
             data_len: 0,
             file_id_priv: 0,
             file_id_pub: 0,
@@ -409,10 +410,10 @@ impl Default for CardCtl_generate_asym_inject {
 pub struct CardCtl_crypt_sym {
     /* input is from : infile xor indata, i.e. assert!(logical_xor(indata_len > 0, !infile.is_null() )); */
     pub infile       : *const c_char, //  path/to/file where the indata may be read from, interpreted as an [c_uchar]; if!= null has preference over indata
-    pub indata       : [c_uchar; 528],
+    pub indata       : [c_uchar; RSA_MAX_LEN_MODULUS+16],
     pub indata_len   : usize,
     pub outfile      : *const c_char, //  path/to/file where the outdata may be written to, interpreted as an [c_uchar]; if!= null has preference over outdata
-    pub outdata      : [c_uchar; 544],
+    pub outdata      : [c_uchar; RSA_MAX_LEN_MODULUS+32],
     pub outdata_len  : usize,
     /* until OpenSC v0.20.0  iv is [0u8; 16], then use sc_sec_env_param and SC_SEC_ENV_PARAM_IV */
     pub iv           : [c_uchar; 16],
@@ -434,10 +435,10 @@ impl Default for CardCtl_crypt_sym {
     fn default() -> CardCtl_crypt_sym {
         CardCtl_crypt_sym {
             infile: std::ptr::null(),
-            indata: [0u8; 528],
+            indata: [0; RSA_MAX_LEN_MODULUS+16],
             indata_len: 0,
             outfile: std::ptr::null(),
-            outdata: [0u8; 544],
+            outdata: [0; RSA_MAX_LEN_MODULUS+32],
             outdata_len: 0,
             iv: [0u8; 16],
             iv_len: 0,
@@ -499,6 +500,10 @@ pub struct DataPrivate { // see settings in acos5_64_init
      */
     pub is_running_compute_signature : bool, /* acos5_64_decipher needs to know, whether it was called by acos5_64_compute_signature */
     pub is_running_cmd_long_response : bool,
+    pub is_unwrap_op_in_progress : bool,
+    pub sym_key_file_id : u16,
+    pub sym_key_rec_idx : u8,
+    pub sym_key_rec_cnt : u8,
     #[cfg(enable_acos5_64_ui)]
     pub ui_ctx : ui_context,
 }

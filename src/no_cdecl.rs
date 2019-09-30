@@ -1218,7 +1218,7 @@ pub fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
 
 //TODO integrate this into encrypt_asym
 /* this is tailored for a special testing use case, don't use generally, SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC */
-pub fn encrypt_public_rsa(card: *mut sc_card, signature: *mut c_uchar, siglen: usize)
+pub fn encrypt_public_rsa(card: *mut sc_card, signature: *const c_uchar, siglen: usize)
 {
     let card_ref_mut = unsafe { &mut *card };
     let mut path = Default::default();
@@ -2002,6 +2002,7 @@ pub fn update_hashmap(card: &mut sc_card) {
     }
 }
 
+#[allow(dead_code)]
 pub fn create_mf_file_system(card: &mut sc_card, sopin: &[u8], sopuk: &[u8]) {
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"create_mf_file_system\0").unwrap();

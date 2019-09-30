@@ -61,13 +61,10 @@ use std::collections::HashMap;
 use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_pin_cmd_data, sc_security_env,
 sc_get_iso7816_driver, sc_file_add_acl_entry, sc_format_path, sc_file_set_prop_attr, sc_transmit_apdu,
 sc_bytes2apdu_wrapper, sc_check_sw, SC_CARD_CAP_RNG, SC_CARD_CAP_USE_FCI_AC, SC_READER_SHORT_APDU_MAX_SEND_SIZE,
-SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_ALGORITHM_RSA, SC_ALGORITHM_ONBOARD_KEY_GEN, SC_ALGORITHM_RSA_RAW,
-SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_DERIVE,
-SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK, SC_ALGORITHM_RSA_PAD_PKCS1,
-SC_ALGORITHM_RSA_PAD_ISO9796, SC_ALGORITHM_RSA_HASH_NONE, SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT,
-SC_SEC_ENV_ALG_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR
-//,sc_select_file, sc_file_new, sc_file_free, sc_verify, sc_delete_record, sc_append_record, sc_read_record//, sc_format_apdu, sc_update_record
-};
+SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_ALGORITHM_RSA, SC_ALGORITHM_ONBOARD_KEY_GEN, SC_ALGORITHM_RSA_RAW, SC_SEC_OPERATION_SIGN,
+SC_SEC_OPERATION_DECIPHER, SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_DERIVE, SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE,
+SC_PIN_CMD_UNBLOCK, SC_ALGORITHM_RSA_PAD_PKCS1, SC_ALGORITHM_RSA_PAD_ISO9796, SC_ALGORITHM_RSA_HASH_NONE, SC_SEC_ENV_KEY_REF_PRESENT,
+SC_SEC_ENV_ALG_REF_PRESENT, SC_SEC_ENV_ALG_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR, sc_update_record, sc_select_file};
 
 #[cfg(not(    v0_15_0))]
 use opensc_sys::opensc::{SC_CARD_CAP_ISO7816_PIN_INFO};
@@ -80,7 +77,7 @@ use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
 use opensc_sys::opensc::{SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM_TARGET_FILE, SC_ALGORITHM_AES_FLAGS,
                          SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, SC_SEC_OPERATION_UNWRAP,
-                         SC_CARD_CAP_UNWRAP_KEY, SC_CARD_CAP_WRAP_KEY//, SC_CARD_CAP_ONCARD_SESSION_OBJECTS
+                         SC_CARD_CAP_UNWRAP_KEY//, SC_CARD_CAP_WRAP_KEY
 //                         , SC_SEC_OPERATION_WRAP
 };
 
@@ -139,7 +136,7 @@ use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_arra
     get_is_running_cmd_long_response, set_is_running_cmd_long_response, is_any_known_digestAlgorithm,
     sym_en_decrypt,
     generate_asym, encrypt_asym, get_files_hashmap_info, update_hashmap,
-    logical_xor, create_mf_file_system, convert_acl_array_to_bytes_tag_fcp_sac, get_sec_env_mod_len,
+    logical_xor/*, create_mf_file_system*/, convert_acl_array_to_bytes_tag_fcp_sac, get_sec_env_mod_len,
     ACL_CATEGORY_DF_MF, ACL_CATEGORY_EF_CHV, ACL_CATEGORY_KEY, ACL_CATEGORY_SE,
     get_is_running_compute_signature, set_is_running_compute_signature, get_key
 };
@@ -304,9 +301,8 @@ static struct sc_card_operations iso_ops = {
         /* put_data:                                             NULL, put a data object  write to Data Object */
         delete_record:         Some(acos5_64_delete_record),     // NULL
         read_public_key:       Some(acos5_64_read_public_key),   // NULL
-        /* card_reader_lock_obtained:                            NULL, */
-//        #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-//        wrap: Some(acos5_64_wrap),                               // NULL
+        /* card_reader_lock_obtained:                            NULL */
+        /* wrap:                                                 NULL */
         #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
         unwrap:                Some(acos5_64_unwrap),            // NULL
 
@@ -591,9 +587,8 @@ extern "C" fn acos5_64_init(card_ptr: *mut sc_card) -> c_int
     #[cfg(not(any(v0_15_0, v0_16_0)))]
     { card.caps |=  SC_CARD_CAP_SESSION_PIN      as c_ulong; }
     /* card.caps |= SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH   what exactly is this? */ //#[cfg(not(any(v0_15_0, v0_16_0)))]
-    /* card.caps |= SC_CARD_CAP_ONCARD_SESSION_OBJECTS          what exactly is this? */ //#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
     #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-    { card.caps |=  (SC_CARD_CAP_WRAP_KEY | SC_CARD_CAP_UNWRAP_KEY) as c_ulong; }
+    { card.caps |=  (/*SC_CARD_CAP_WRAP_KEY | */ SC_CARD_CAP_UNWRAP_KEY) as c_ulong; }
     /* The reader of USB CryptoMate64/CryptoMate Nano supports extended APDU, but the card doesn't: Thus no SC_CARD_CAP_APDU_EXT */
 
     let rsa_algo_flags = SC_ALGORITHM_ONBOARD_KEY_GEN | SC_ALGORITHM_RSA_PAD_PKCS1 /*| SC_ALGORITHM_RSA_RAW*/;
@@ -669,6 +664,10 @@ extern "C" fn acos5_64_init(card_ptr: *mut sc_card) -> c_int
         is_running_init: true,
         is_running_compute_signature: false, /* acos5_64_decipher needs to know, whether it was called by acos5_64_compute_signature */
         is_running_cmd_long_response: false,
+        is_unwrap_op_in_progress: false,
+        sym_key_file_id: 0,
+        sym_key_rec_idx: 0,
+        sym_key_rec_cnt: 0,
         #[cfg(enable_acos5_64_ui)]
         ui_ctx: Default::default(),
     } );
@@ -1098,38 +1097,12 @@ extern "C" fn acos5_64_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_p
                 card.drv_data = Box::into_raw(dp) as *mut c_void;
                 SC_SUCCESS
             },
-        /* this is the entry point when called by
-           1. pkcs15-init -G , because there is a call sequence profile->ops->create_key, profile->ops->generate_key in sc_pkcs15init_generate_key   and
-           2. acos5_64_gui "Generate key pair in new files" that also calls sc_pkcs15init_generate_key
-
-           Another situation to be evaluated is how to mount key pair regeneration, i.e. without prior call to profile->ops->create_key, i.e. not using sc_pkcs15init_generate_key
-           Both supply *mut CardCtl_generate_crypt_asym, but acos5_64_gui doesn't know the new file_ids, yet better knows/has specific infos about:
-    pub key_len_code : c_uchar,   // cos5 specific encoding for modulus length: key_len_code*128==modulus length canonical in bits (canonical means neglecting that possibly some MSB are not set to 1)
-    pub key_priv_type_code : c_uchar,  // as required by cos5 Generate RSA Key Pair: allowed key-usage and standard/CRT format qualification
-
-
-           Thus for 2., some mixing of data from { Box::from_raw(card.drv_data as *mut DataPrivate) } and generate_crypt_asym_data must be done, depending whether file_ids are 0
-           For 1. data from { Box::from_raw(card.drv_data as *mut DataPrivate) } and generate_crypt_asym_data are identical
-         */
         SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES =>
-//            {
-/*
-                assert!(!card.ctx.is_null());
-                let app_name = unsafe { CStr::from_ptr((*card.ctx).app_name) }; // app_name: "pkcs15-init"
-                if app_name == CStr::from_bytes_with_nul(b"acos5_64_gui \0").unwrap() { println!("acos5_64_gui issued a call for cmd SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES"); }
-                println!("driver: CardCtl_generate_crypt_asym.sizeof:  {}", std::mem::size_of::<crate::constants_types::CardCtl_generate_crypt_asym>());
-                println!("driver: CardCtl_generate_asym_inject.sizeof: {}", std::mem::size_of::<crate::constants_types::CardCtl_generate_asym_inject>());
-*/
-//                let generate_crypt_asym_data = unsafe { &mut *(data_ptr as *mut CardCtl_generate_crypt_asym) };
-                /* suppose select_file, authenticate, (possibly setting MSE) etc. was done already */
-                generate_asym(card, unsafe { &mut *(data_ptr as *mut CardCtl_generate_crypt_asym) }),
-//            },
+            /* suppose select_file, authenticate, (possibly setting MSE) etc. was done already */
+            generate_asym(card, unsafe { &mut *(data_ptr as *mut CardCtl_generate_crypt_asym) }),
         SC_CARDCTL_ACOS5_ENCRYPT_ASYM =>
-//            {
-//                let generate_crypt_asym_data = unsafe { &mut *(data_ptr as *mut CardCtl_generate_crypt_asym) };
-                /* suppose select_file, authenticate, (possibly setting MSE) etc. was done already */
-                encrypt_asym(card, unsafe { &mut *(data_ptr as *mut CardCtl_generate_crypt_asym) }, false),
-//            },
+            /* suppose select_file, authenticate, (possibly setting MSE) etc. was done already */
+            encrypt_asym(card, unsafe { &mut *(data_ptr as *mut CardCtl_generate_crypt_asym) }, false),
         SC_CARDCTL_ACOS5_ENCRYPT_SYM |
         SC_CARDCTL_ACOS5_DECRYPT_SYM     =>
             {
@@ -1145,6 +1118,7 @@ extern "C" fn acos5_64_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_p
 
                 if sym_en_decrypt(card, crypt_sym_data) > 0 {SC_SUCCESS} else {SC_ERROR_KEYPAD_MSG_TOO_LONG}
             },
+/*
         SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM =>
             {
                 let pins_data = unsafe { (*(data_ptr as *mut CardCtlArray20)).value };
@@ -1160,6 +1134,7 @@ extern "C" fn acos5_64_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_p
                 create_mf_file_system(card, sopin, sopuk);
                 SC_SUCCESS
             },
+*/
         _   => SC_ERROR_NO_CARD_SUPPORT
     } // match command as c_uint
 } // acos5_64_card_ctl
@@ -2076,7 +2051,7 @@ println!("Non-match in let acl_category. file_ref.type_: {}", file_ref.type_);
 //println!("bytes_tag_fcp_sac: {:X?}", bytes_tag_fcp_sac); // bytes_tag_fcp_sac: [7F, 1, FF, 1, 1, 1, 1, 1]
     let mut buf2 = [0; 2];
     let mut ptr_diff_sum : usize = 0; // difference/distance of p and out   #![feature(ptr_offset_from)]
-	let mut p = out_ptr;
+    let mut p = out_ptr;
     unsafe { *p = ISO7816_TAG_FCP }; // *p++ = 0x6F;  p++;
     p = unsafe { p.add(2) };
     ptr_diff_sum += 2;
@@ -2657,7 +2632,7 @@ pub const SC_SEC_ENV_PARAM_DES_CBC           : c_uint = 4;
         { // the same for SC_SEC_OPERATION_UNWRAP as for SC_SEC_OPERATION_DECIPHER_RSAPRIVATE
             if SC_SEC_OPERATION_UNWRAP == env_ref.operation  &&
                env_ref.algorithm==SC_ALGORITHM_RSA && (env_ref.flags as c_uint & SC_SEC_ENV_FILE_REF_PRESENT) > 0
-            {
+            { // to be set for decipher
                 assert!(env_ref.file_ref.len >= 2);
                 let path_idx = env_ref.file_ref.len - 2;
                 let command = [0x00, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x13, 0x81, 0x02,
@@ -2678,6 +2653,19 @@ pub const SC_SEC_ENV_PARAM_DES_CBC           : c_uint = 4;
                     }
                     return rv;
                 }
+/*
+                println!("set_security_env_Unwrap: env_ref.flags: {:X?}", env_ref.flags);                            // 0x12: SC_SEC_ENV_FILE_REF_PRESENT | SC_SEC_ENV_ALG_PRESENT
+                println!("set_security_env_Unwrap: env_ref.operation: {:X}", env_ref.operation);                     // 0x06: SC_SEC_OPERATION_UNWRAP
+                println!("set_security_env_Unwrap: env_ref.algorithm: {:X?}", env_ref.algorithm);                    // 0x00: SC_ALGORITHM_RSA
+                println!("set_security_env_Unwrap: env_ref.algorithm_flags: {:X?}", env_ref.algorithm_flags);        // 0x00:
+                println!("set_security_env_Unwrap: env_ref.algorithm_ref: {:X?}", env_ref.algorithm_ref);            // 0x00:
+                println!("set_security_env_Unwrap: env_ref.file_ref: {:?}", unsafe{CStr::from_ptr(sc_dump_hex(env_ref.file_ref.value.as_ptr(), env_ref.file_ref.len)).to_str().unwrap()} ); // "41A0"
+                println!("set_security_env_Unwrap: env_ref.key_ref: {:X?}", env_ref.key_ref);                        // [0, 0, 0, 0, 0, 0, 0, 0]
+                println!("set_security_env_Unwrap: env_ref.key_ref_len: {:X?}", env_ref.key_ref_len);                // 0
+                println!("set_security_env_Unwrap: env_ref.target_file_ref: {:?}", unsafe{CStr::from_ptr(sc_dump_hex(env_ref.target_file_ref.value.as_ptr(), env_ref.target_file_ref.len)).to_str().unwrap()} ); // ""
+                println!("set_security_env_Unwrap: env_ref.supported_algos[0]: {:X?}", env_ref.supported_algos[0]);  // sc_supported_algo_info { reference: 1, mechanism: 1081, parameters: 0x0, operations: 30, algo_id: sc_object_id { value: [2, 10, 348, 1, 65, 3, 4, 1, 29, FFFFFFFF, FFFFFFFF, FFFFFFFF, FFFFFFFF, FFFFFFFF, FFFFFFFF, FFFFFFFF] }, algo_ref: 4 }
+                println!("set_security_env_Unwrap: env_ref.supported_algos[1]: {:X?}", env_ref.supported_algos[1]);  // sc_supported_algo_info { reference: 2, mechanism: 1082, parameters: 0x0, operations: 30, algo_id: sc_object_id { value: [2, 10, 348, 1, 65, 3, 4, 1, 2A, FFFFFFFF, FFFFFFFF, FFFFFFFF, FFFFFFFF, FFFFFFFF, FFFFFFFF, FFFFFFFF] }, algo_ref: 6 }
+*/
             }
             else {
                 rv = SC_ERROR_NO_CARD_SUPPORT;
@@ -2686,7 +2674,8 @@ pub const SC_SEC_ENV_PARAM_DES_CBC           : c_uint = 4;
                 }
                 return rv;
             }
-        }}
+        }
+        }
         else {
             rv = SC_ERROR_NO_CARD_SUPPORT;
             if cfg!(log) {
@@ -2726,6 +2715,7 @@ pub const SC_SEC_ENV_PARAM_DES_CBC           : c_uint = 4;
  * @param
  * @return  error code or number of bytes written into out
  */
+/* see pkcs15-sec.c:sc_pkcs15_decipher This operation is dedicated to be used with RSA keys only ! */
 extern "C" fn acos5_64_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const c_uchar, crgram_len: usize,
                                                         out_ptr:        *mut c_uchar,       outlen: usize) -> c_int
 {
@@ -3114,11 +3104,12 @@ when pkcs1_strip_PSS_padding works
         else {
             rv = 0; // do nothing and live with a verification error
         }
-        /* temporary: "decrypt" signature (out) to stdout * /
-        if rv>0 {
-            encrypt_public_rsa(card, out_ptr, /*data_len*/ outlen);
+        /* temporary: "decrypt" signature (out) to stdout */
+        if rv>0 { // EM = 0x00 || 0x02 || PS || 0x00 || M.
+//            let tmp_buf = [0u8,2,   4,247,125,36,98,255,144,111,47,96,32,249,19,77,251,200,199,87,16,99,178,159,210,55,1,254,66,236,11,   0, 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
+//            encrypt_public_rsa(card, tmp_buf.as_ptr() /*out_ptr*/, /*data_len*/ tmp_buf.len()/*outlen*/);
         }
-        / * */
+        /* */
         if cfg!(log) {
             wr_do_log_t(card.ctx, f_log, line!(), fun, rv,
                 CStr::from_bytes_with_nul(b"returning from acos5_64_compute_signature with: %d\n\0").unwrap());
@@ -3133,26 +3124,8 @@ when pkcs1_strip_PSS_padding works
 //    data_len as c_int
 } // acos5_64_compute_signature
 
-/*
-#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-extern "C" fn acos5_64_wrap(card_ptr: *mut sc_card, _out: *mut c_uchar, outlen: usize) -> c_int
-{
-    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
-        return SC_ERROR_KEYPAD_MSG_TOO_LONG;
-    }
-//  let card_ref: &    sc_card = unsafe { &    *card_ptr };
-    let card:     &mut sc_card = unsafe { &mut *card_ptr };
-
-    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
-    let fun  = CStr::from_bytes_with_nul(b"acos5_64_wrap\0").unwrap();
-    if cfg!(log) {
-        wr_do_log_t(card.ctx, f_log, line!(), fun, outlen, CStr::from_bytes_with_nul(b"called with outlen: %zu\0").unwrap());
-    }
-    SC_SUCCESS
-}
-*/
-
-/* not yet ready but callable */
+/* Implementation for RSA_WRAPPED_AES_KEY with template entries for receiving sym. key: CKA_TOKEN=TRUE and CKA_EXTRACTABLE=FALSE.
+   i.e. it's assumed that the unwrapped key is of AES type ! */
 #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
 extern "C" fn acos5_64_unwrap(card_ptr: *mut sc_card, crgram: *const c_uchar, crgram_len: usize) -> c_int
 {
@@ -3174,26 +3147,26 @@ extern "C" fn acos5_64_unwrap(card_ptr: *mut sc_card, crgram: *const c_uchar, cr
         return rv;
     }
     vec.truncate(rv as usize);
-//    let klen = vec.len();
+    let klen = vec.len();
+    assert!([16, 24, 32].contains(&klen));
 //println!("\n\nUnwrapped {} key bytes: {:X?}\n", klen, vec);
-/*
-    assert!(klen <= 37);
-    vec.reserve_exact(37-vec.len());
-/*
-    let command = [0x80, 0x14, 0x00, 0x00, len_card_serial_number];
-    let len_card_serial_number = len_card_serial_number as usize;
-    let mut apdu = Default::default();
-    let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
-    assert!(len_card_serial_number <= SC_MAX_SERIALNR);
-*/
-    vec.insert(0, 0x83);
-    vec.insert(1, 0x00);
-    vec.insert(2, if klen==24 {0x14} else { if klen==16 {0x04} else {0x05} });
-    while vec.len() <= 37 { vec.push(0); }
-//    rv = unsafe { sc_update_record(card, 2, vec.as_ptr(), vec.len(), SC_RECORD_BY_REC_NR) };
-*/
+    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    if dp.is_unwrap_op_in_progress {
+        assert!(dp.sym_key_rec_cnt as usize >= klen+3);
+        vec.reserve_exact(dp.sym_key_rec_cnt as usize);
+        vec.insert(0, 0x80|dp.sym_key_rec_idx);
+        vec.insert(1, 0);
+        vec.insert(2, if klen==32 {0x22} else { if klen==24 {0x12} else {2}} );
+        while vec.len() < dp.sym_key_rec_cnt as usize { vec.push(0); }
+        let mut path : sc_path = Default::default();
+        path.len = 2;
+        unsafe { copy_nonoverlapping(array2_from_u16(dp.sym_key_file_id).as_ptr(), path.value.as_mut_ptr(), 2) };
+        unsafe { sc_select_file(card, &path, std::ptr::null_mut()) };
+        unsafe { sc_update_record(card, dp.sym_key_rec_idx as c_uint, vec.as_ptr(), vec.len(), SC_RECORD_BY_REC_NR) };
+        dp.is_unwrap_op_in_progress = false;
+    }
+    card.drv_data = Box::into_raw(dp) as *mut c_void;
+
     if cfg!(log) {
         wr_do_log_t(card.ctx, f_log, line!(), fun, rv,
                     CStr::from_bytes_with_nul(RETURNING_INT).unwrap());
@@ -3234,8 +3207,12 @@ extern "C" fn acos5_64_delete_record(card_ptr: *mut sc_card, rec_nr: c_uint) -> 
     apdu.flags = SC_RECORD_BY_REC_NR | SC_APDU_FLAGS_NO_RETRY_WL;
 
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
-    if rv == SC_SUCCESS && unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) } == SC_SUCCESS  { zero_buf.len() as c_int }
-    else if apdu.sw1 != 0x6C { rv }
+    if rv == SC_SUCCESS && unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) } == SC_SUCCESS  {
+        zero_buf.len() as c_int
+    }
+    else if apdu.sw1 != 0x6C {
+        rv
+    }
     else {
         assert!(apdu.sw2 as usize <= zero_buf.len());
         /* retransmit */
@@ -3243,11 +3220,12 @@ extern "C" fn acos5_64_delete_record(card_ptr: *mut sc_card, rec_nr: c_uint) -> 
         apdu.datalen = apdu.sw2 as usize;
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
-        if rv != SC_SUCCESS {rv} else {apdu.sw2 as c_int}
+        if rv != SC_SUCCESS {rv} else {apdu.lc as c_int}
     }
 }
 
 /*
+
 Hashmap: {4133: ([3F, 0, 41, 0, 41, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, 33, 2, 15, 9, 5], Some([0, 1, 0, 1, 0, FF, 1, FF]), None),
           4301: ([3F, 0, 41, 0, 43, 0, 43, 1, 0, 0, 0, 0, 0, 0, 0, 0],  [ A, 8, 43, 1, 15, 1, 12, 5], None, None),
           4114: ([3F, 0, 41, 0, 41, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 41, 14, 1, 0, FF, 1], None, None),
@@ -3292,4 +3270,5 @@ Hashmap: {4133: ([3F, 0, 41, 0, 41, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 
                                                                                                                                                 SeInfo { reference: 3, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] }])),
           41F2: ([3F, 0, 41, 0, 41, F2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, F2, 5, 5, 10, 5], Some([FF, 1, 1, 1, 0, FF, 1, FF]), None)}
           4104: ([3F, 0, 41, 0, 41, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   [ 2, 6, 41, 4, 10, 2, FF, 1], None, None),
+
 */
