@@ -11,9 +11,7 @@ before_install:
   - sudo ln -s -T /usr/lib/x86_64-linux-gnu/libopensc.so.5 /usr/lib/x86_64-linux-gnu/libopensc.so
   - ls -lh /usr/lib/x86_64-linux-gnu/libopensc*
   - ls -lh /usr/lib/x86_64-linux-gnu/pkgconfig/opensc*
-  - sudo cp /usr/lib/x86_64-linux-gnu/pkgconfig/opensc-pkcs11.pc /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc
-  - sudo sed -i 's/lopensc-pkcs11/lopensc/g' /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc
-  - sudo sed -i 's/PKCS#11 module/library/g' /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc
+  - sudo printf 'prefix=/usr\nexec_prefix=${prefix}\nlibdir=/usr/lib/x86_64-linux-gnu\nincludedir=${prefix}/include\n\nName: OpenSC smartcard framework\nDescription: OpenSC library\nVersion: 0.17.0\nLibs: -L${libdir} -lopensc\n' > /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc
   - sudo ldconfig
   - cat /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc
   - opensc-tool -i
