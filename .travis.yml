@@ -10,8 +10,7 @@ before_install:
   - ls -lh /usr/lib/x86_64-linux-gnu/libopensc*
   - sudo ln -s -T /usr/lib/x86_64-linux-gnu/libopensc.so.5 /usr/lib/x86_64-linux-gnu/libopensc.so
   - ls -lh /usr/lib/x86_64-linux-gnu/libopensc*
-  - ls -lh /usr/lib/x86_64-linux-gnu/pkgconfig/opensc*
-  - sudo printf 'prefix=/usr\nexec_prefix=${prefix}\nlibdir=/usr/lib/x86_64-linux-gnu\nincludedir=${prefix}/include\n\nName: OpenSC smartcard framework\nDescription: OpenSC library\nVersion: 0.17.0\nLibs: -L${libdir} -lopensc\n' > /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc
+  - sudo printf "prefix=/usr\nexec_prefix=${prefix}\nlibdir=/usr/lib/x86_64-linux-gnu\nincludedir=${prefix}/include\n\nName: OpenSC smartcard framework\nDescription: OpenSC library\nVersion: 0.17.0\nLibs: -L${libdir} -lopensc\n" > /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc
   - sudo ldconfig
   - cat /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc
   - opensc-tool -i
