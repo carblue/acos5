@@ -114,21 +114,21 @@ use opensc_sys::pkcs15::{sc_pkcs15_pubkey_rsa, sc_pkcs15_bignum, sc_pkcs15_encod
                          sc_pkcs15_unbind, sc_pkcs15_auth_info, sc_pkcs15_get_objects, SC_PKCS15_TYPE_AUTH_PIN,
                          sc_pkcs15_object}; // , SC_PKCS15_AODF
 
-#[allow(dead_code)]
+//#[allow(dead_code)]
 pub mod    cmd_card_info;
 use crate::cmd_card_info::*;
 
-#[allow(dead_code)]
 pub mod    constants_types;
 use crate::constants_types::*;
 
-#[allow(dead_code)]
 pub mod    missing_exports;
 use crate::missing_exports::{me_card_add_symmetric_alg, me_card_find_alg, me_get_max_recv_size,
                              me_pkcs1_strip_01_padding, me_pkcs1_strip_02_padding//, me_get_encoding_flags
 };
 
-#[allow(dead_code)]
+
+// choose new name ? denoting, that there are rust-mangled, non-externC functions, that don't relate to se
+// (security environment) nor relate to sm (secure messaging) nor relate to pkcs15/pkcs15-init
 pub mod    no_cdecl;
 use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_array, enum_dir,
     pin_get_policy, tracking_select_file, acos5_64_atrs_supported,
@@ -141,29 +141,19 @@ use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_arra
     get_is_running_compute_signature, set_is_running_compute_signature, get_key
 };
 
-
-// choose new name ? denoting, that there are rust-mangled, non-externC functions, that don't relate to se
-// (security environment) nor relate to sm (secure messaging) nor relate to pkcs15/pkcs15-init
-
-#[allow(dead_code)]
 pub mod    path;
 use crate::path::*;
 
-#[allow(dead_code)]
 pub mod    se;
 use crate::se::{se_file_add_acl_entry};
 
-#[allow(dead_code)]
 #[cfg(enable_acos5_64_ui)]
 pub mod    user_consent;
 #[cfg(enable_acos5_64_ui)]
 use crate::user_consent::{set_ui_ctx, get_ui_ctx, acos5_64_ask_user_consent};
 
-
-#[allow(dead_code)]
 pub mod    wrappers;
 use crate::wrappers::*;
-
 
 /* #[no_mangle] pub extern fn  is the same as  #[no_mangle] pub extern "C" fn
    for the time being, be explicit using  #[no_mangle] pub extern "C" fn */
@@ -698,6 +688,7 @@ extern "C" fn acos5_64_init(card_ptr: *mut sc_card) -> c_int
         wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) },
                      CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
     }
+
     rv
 } // acos5_64_init
 
@@ -3158,10 +3149,10 @@ extern "C" fn acos5_64_unwrap(card_ptr: *mut sc_card, crgram: *const c_uchar, cr
         vec.insert(1, 0);
         vec.insert(2, if klen==32 {0x22} else { if klen==24 {0x12} else {2}} );
         while vec.len() < dp.sym_key_rec_cnt as usize { vec.push(0); }
-        let mut path : sc_path = Default::default();
-        path.len = 2;
+        let mut path = sc_path { len: 2, ..Default::default() };
         unsafe { copy_nonoverlapping(array2_from_u16(dp.sym_key_file_id).as_ptr(), path.value.as_mut_ptr(), 2) };
         unsafe { sc_select_file(card, &path, std::ptr::null_mut()) };
+        /* TODO This only works if Login-PIN is the same as required for SC_AC_OP_UPDATE of file dp.sym_key_file_id */
         unsafe { sc_update_record(card, dp.sym_key_rec_idx as c_uint, vec.as_ptr(), vec.len(), SC_RECORD_BY_REC_NR) };
         dp.is_unwrap_op_in_progress = false;
     }
