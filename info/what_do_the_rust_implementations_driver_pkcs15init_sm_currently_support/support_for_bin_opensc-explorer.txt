@@ -142,34 +142,39 @@ Not yet tested
 
 ----------------------------------------------
 
+$ opensc-explorer
+OpenSC Explorer version 0.20.0
+Using reader with a card: ACS CryptoMate64 00 00
+OpenSC [3F00]> help
 Supported commands:
-  echo [<string> ..]                         display arguments
-  ls [<pattern> ..]                          list files in the current DF
-  find [<start id> [<end id>]]               find all files in the current DF
-  find_tags [<start tag> [<end tag>]]        find all tags of data objects in the current context
-  cd {.. | <file id> | aid:<DF name>}        change to another DF
-  cat [<file id> | sfi:<sfi id>]             print the contents of an EF
-  info [<file id>]                           display attributes of card file
-  create <file id> <size>                    create a new EF
-  mkdir <file id> <size>                     create a new DF
-  delete <file id>                           remove an EF/DF
-  rm <file id>                               remove an EF/DF
-  verify {CHV|KEY|AUT|PRO}<key ref> [<pin>]  present a PIN or key to the card
-  change CHV<pin ref> [[<old pin>] <new pin>]  change a PIN
-  unblock CHV<pin ref> [<puk> [<new pin>]]   unblock a PIN
-  put <file id> [<input file>]               copy a local file to the card
-  get <file id> [<output file>]              copy an EF to a local file
-  do_get <hex tag> [<output file>]           get a data object
-  do_put <hex tag> <data>                    put a data object
+  echo [<string> ...]                        display arguments
+  ls [<pattern> ...]                         list files in the current DF
+  find [<start-id> [<end-id>]]               find all files in the current DF
+  find_tags [<start-tag> [<end-tag>]]        find all tags of data objects in the current context
+  cd {.. | <file-id> | aid:<DF-name>}        change to another DF
+  cat [<file-id> | sfi:<sfi-id>]             print the contents of an EF
+  info [<file-id>]                           display attributes of card file
+  create <file-id> <size>                    create a new EF
+  mkdir <file-id> <size>                     create a new DF
+  delete <file-id>                           remove an EF/DF
+  rm <file-id>                               remove an EF/DF
+  pin_info {CHV|KEY|AUT|PRO}<key-ref>        get information on PIN or key from the card
+  verify {CHV|KEY|AUT|PRO}<key-ref> [<pin>]  present a PIN or key to the card
+  change CHV<pin-ref> [[<old-pin>] <new-pin>]  change a PIN
+  unblock CHV<pin-ref> [<puk> [<new-pin>]]   unblock a PIN
+  put <file-id> [<input-file>]               copy a local file to the card
+  get <file-id> [<output-file>]              copy an EF to a local file
+  do_get <hex-tag> [<output-file>]           get a data object
+  do_put <hex-tag> <data>                    put a data object
   erase                                      erase card
-  random <count>                             obtain <count> random bytes from card
-  update_record <file id> <rec no> <rec offs> <data>  update record
-  update_binary <file id> <offs> <data>      update binary
-  apdu <data>+                               send a custom apdu command
-  asn1 [<file id>]                           decode an ASN.1 file
-  sm open|close                              call SM 'open' or 'close' handlers, if available  <== irrelevant: The acos5_64 SM module won't implement SM mode 'transmit' but SM mode 'acl'
+  random <count> [<output-file>]             obtain <count> random bytes from card
+  update_record <file-id> <rec-no> <rec-offs> <data>  update record
+  update_binary <file-id> <offs> <data>      update binary
+  apdu <data> ...                            send a custom apdu command
+  asn1 [<file-id>]                           decode an ASN.1 file
+  sm {open|close}                            call SM 'open' or 'close' handlers, if available  <== irrelevant: The acos5_64 SM module won't implement SM mode 'transmit' but SM mode 'acl'
   debug [<value>]                            get/set the debug level
   quit                                       quit this program
   exit                                       quit this program
   help                                       show this help
-
+OpenSC [3F00]>

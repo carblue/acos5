@@ -1,0 +1,27 @@
+#! /usr/bin/env scriptor
+
+# This will adapt for V2.00 (6 byte serial no.)
+# file 0x3F0041005032 PKCS#15 EF.TokenInfo
+# file 0x3F0041004129 ACS proprietary file to retain (some) compatibility with ACS tool/driver
+
+# The original content of PKCS#15 EF.TokenInfo file was written for V2.00 with 125 bytes (0x7D), with unknown token serial no and a somehow unknown token label. as this:
+#00 D6 00 00 7D 30 7B 02 01 01 04 06 00 00 00 00 00 00 0C 1A 41 64 76 61 6E 63 65 64 20 43 61 72 64 20 53 79 73 74 65 6D 73 20 4C 74 64 2E 80 12 43 54 4D 36 34 5F 30 30 30 30 30 30 30 30 30 30 30 30 03 02 04 20 A2 3A 30 1B 02 01 01 02 02 10 81 05 00 03 02 00 0C 06 09 60 86 48 01 65 03 04 01 29 02 01 04 30 1B 02 01 02 02 02 10 82 05 00 03 02 00 0C 06 09 60 86 48 01 65 03 04 01 2A 02 01 06
+# open https://lapo.it/asn1js/#MHsCAQEEBgAAAAAAAAwaQWR2YW5jZWQgQ2FyZCBTeXN0ZW1zIEx0ZC6AEkNUTTY0XzAwMDAwMDAwMDAwMAMCBCCiOjAbAgEBAgIQgQUAAwIADAYJYIZIAWUDBAEpAgEEMBsCAQICAhCCBQADAgAMBglghkgBZQMEASoCAQY
+# in order to see, the decoded content of original EF.TokenInfo file
+# OCTET STRING (6 byte) 00 00 00 00 00 00  is where Your serial no. should be placed. You can retrieve that by  opensc-tool --serial
+# [0] CTM64_000000000000              is where Your token label should be adapted
+# Whenever OpenSC asks for the USER_PIN, it will show a message referring to that token label as: token label (User).
+# Thus that should be something meaningful to know the specific token used currently
+# In the last line of this paragraph xx represent the currently unknown length of bytes that will follow in hex representation: Replace xx by the actual number in hex.
+# Once Your new byte string is ready, add that in the line 'write update binary' command (00 D6 00 00)
+# 
+# The new content of PKCS#15 EF.TokenInfo to be written now:
+00 A4 00 00 02 41 00
+00 A4 00 00 02 50 32
+00 D6 00 00 7D 30 7B 02 01 01 04 06 00 00 00 00 00 00 0C 1A 41 64 76 61 6E 63 65 64 20 43 61 72 64 20 53 79 73 74 65 6D 73 20 4C 74 64 2E 80 12 43 54 4D 36 34 5F 30 30 30 30 30 30 30 30 30 30 30 30 03 02 04 20 A2 3A 30 1B 02 01 01 02 02 10 81 05 00 03 02 00 0C 06 09 60 86 48 01 65 03 04 01 29 02 01 04 30 1B 02 01 02 02 02 10 82 05 00 03 02 00 0C 06 09 60 86 48 01 65 03 04 01 2A 02 01 06
+
+#  Replace 6 zero bytes (00 00 00 00 00 00) in the following by Your actual serial no. as well 
+## file 0x3F0041004129 ACS proprietary file to retain (some) compatibility with ACS tool/driver
+## original content written 20 bytes (0x14): 00 DC 01 04 14 00 00 00 00 4A 97 4A 97 72 49 72 49 00 00 00 00 00 00 01 00
+00 A4 00 00 02 41 29
+00 DC 01 04 14 00 00 00 00 4A 97 4A 97 72 49 72 49 00 00 00 00 00 00 01 00

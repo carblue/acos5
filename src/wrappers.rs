@@ -25,7 +25,7 @@ use std::ffi::CStr;
 
 use opensc_sys::opensc::{sc_context};
 use opensc_sys::log::{sc_do_log, SC_LOG_DEBUG_NORMAL};
-#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 use opensc_sys::log::{sc_do_log_color, SC_COLOR_FG_RED};
 
 
@@ -68,9 +68,9 @@ pub fn wr_do_log_8u8_i32(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &
 // usage for error return (<0) with: LOG_TEST_RET, LOG_TEST_GOTO_ERR
 pub fn wr_do_log_sds(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: *const c_char, arg2: c_int, arg3: *const c_char, fmt: &CStr)
 {
-    #[cfg(    any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0))]
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
     {unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg1, arg2, arg3) }; }
-    #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     {unsafe { sc_do_log_color(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), SC_COLOR_FG_RED, fmt.as_ptr(), arg1, arg2, arg3) }; }
 }
 

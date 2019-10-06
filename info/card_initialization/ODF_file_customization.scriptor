@@ -1,0 +1,28 @@
+#! /usr/bin/env scriptor
+
+# This will adapt 
+# file 0x3F0041005031 PKCS#15 EF.ODF file
+# PKCS#15 EF.ODF file points to these (below) by default:
+# file 0x3F0041004110 PKCS#15 EF.PrKDF file
+# file 0x3F0041004111 PKCS#15 EF.PuKDF file
+# file 0x3F0041004112 PKCS#15 EF.PuKDF_TRUSTED file
+# file 0x3F0041004113 PKCS#15 EF.SKDF file
+# file 0x3F0041004114 PKCS#15 EF.CDF file
+# file 0x3F0041004115 PKCS#15 EF.CDF_TRUSTED file
+# file 0x3F0041004116 PKCS#15 EF.CDF_USEFUL file
+# file 0x3F0041004117 PKCS#15 EF.DODF file
+# file 0x3F0041004118 PKCS#15 EF.AODF file
+
+# If You don't have e.g. Data Objects on Your token currently, there will be unnecessary reading and processing of file 0x3F0041004117
+# For performance reasons, it's worth cutting that processing down to the minimum required.
+# All of thoses files above should remain on card, but just the "mentioning" in file PKCS#15 EF.ODF removed
+
+# The original content of PKCS#15 EF.ODF file was written with 108 bytes (0x6C), i.e. 9x 12 bytes for each of aforementioned files
+#00 D6 00 00 6C A0 0A 30 08 04 06 3F 00 41 00 41 10 A1 0A 30 08 04 06 3F 00 41 00 41 11 A2 0A 30 08 04 06 3F 00 41 00 41 12 A3 0A 30 08 04 06 3F 00 41 00 41 13 A4 0A 30 08 04 06 3F 00 41 00 41 14 A5 0A 30 08 04 06 3F 00 41 00 41 15 A6 0A 30 08 04 06 3F 00 41 00 41 16 A7 0A 30 08 04 06 3F 00 41 00 41 17 A8 0A 30 08 04 06 3F 00 41 00 41 18
+# if for example, You don't use  EF.DODF, then remove bytes A7 0A 30 08 04 06 3F 00 41 00 41 17  from the byte string above and instead append 12 new 00 bytes (00 00 00 00 00 00 00 00 00 00 00 00) in the end
+# if for example, You don't use  EF.SKDF, then remove bytes A3 0A 30 08 04 06 3F 00 41 00 41 13  from the byte string above and instead append 12 new 00 bytes in the end
+# Don't remove bytes for PKCS#15 EF.AODF (A8 0A 30 08 04 06 3F 00 41 00 41 18). In any case that will be required.
+# The new content of PKCS#15 EF.ODF (to be entered in the last line) to be written will still be 108 bytes and be written now:
+00 A4 00 00 02 41 00
+00 A4 00 00 02 50 31
+00 D6 00 00 6C A0 0A 30 08 04 06 3F 00 41 00 41 10 A1 0A 30 08 04 06 3F 00 41 00 41 11 A2 0A 30 08 04 06 3F 00 41 00 41 12 A3 0A 30 08 04 06 3F 00 41 00 41 13 A4 0A 30 08 04 06 3F 00 41 00 41 14 A5 0A 30 08 04 06 3F 00 41 00 41 15 A6 0A 30 08 04 06 3F 00 41 00 41 16 A7 0A 30 08 04 06 3F 00 41 00 41 17 A8 0A 30 08 04 06 3F 00 41 00 41 18

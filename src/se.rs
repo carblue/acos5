@@ -314,7 +314,6 @@ pub fn se_parse_crts(/*card: &mut sc_card,*/ reference: c_uint, data: &[u8], se_
 mod tests {
     use super::*;
 
-    #[cfg(not(v0_15_0))] // TODO check why the test fails for v0_15_0 (sc_asn1_read_tag ?)
     #[test]
     fn test_se_parse_crts() {
         let mut seinfo : SeInfo =  Default::default();

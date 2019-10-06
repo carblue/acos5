@@ -32,12 +32,10 @@ use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_
                          SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA, SC_SEC_ENV_KEY_REF_PRESENT,
                          SC_SEC_ENV_ALG_REF_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_get_iso7816_driver,
                          sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_verify, sc_check_apdu,
-                         SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER};
-#[cfg(not(any(v0_15_0, v0_16_0)))]
-use opensc_sys::opensc::{SC_ALGORITHM_AES};
-#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0)))]
+                         SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_ALGORITHM_AES};
+#[cfg(not(v0_17_0))]
 use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
-#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 use opensc_sys::opensc::{SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, sc_sec_env_param,
                          SC_SEC_ENV_PARAM_IV, SC_SEC_OPERATION_UNWRAP};
 
@@ -1201,7 +1199,7 @@ pub fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
             if (file_size-21)                 % 32 == 0 { dp.sec_env_mod_len = file_size-21; }
         }
         else {
-        #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
         {
             if SC_SEC_OPERATION_UNWRAP == env_ref.operation { //priv
                 assert!(file_size>=5);
@@ -1614,7 +1612,6 @@ fn multipleGreaterEqual(multiplier: usize, x: usize) -> usize
 }
 
 #[allow(non_snake_case)]
-#[cfg(not(any(v0_15_0, v0_16_0)))]
 /* op_mode_cbc: true  => cbc
    op_mode_cbc: false => ecb
 */
@@ -1725,11 +1722,9 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     }
 
     let mut env = Default::default();
-    #[cfg(not(any(v0_15_0, v0_16_0)))] // due to SC_ALGORITHM_AES
-    {
     if crypt_sym.perform_mse {
         /* Security Environment */
-        #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
         let sec_env_param;
         env = sc_security_env {
             operation: if crypt_sym.encrypt {SC_SEC_OPERATION_ENCIPHER_SYMMETRIC} else {SC_SEC_OPERATION_DECIPHER_SYMMETRIC},
@@ -1740,9 +1735,9 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
             algorithm_ref: algo_ref_cos5_sym_MSE(if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else { if crypt_sym.key_len!=64 {SC_ALGORITHM_3DES} else {SC_ALGORITHM_DES} }, crypt_sym.cbc),
             ..Default::default()
         };
-        #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0)))]
+        #[cfg(not(v0_17_0))]
             { env.flags |= SC_SEC_ENV_KEY_REF_SYMMETRIC as c_ulong; }
-        #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
             {
                 if (env.algorithm & SC_ALGORITHM_AES) > 0 {
                     if !crypt_sym.cbc { env.algorithm_flags |= SC_ALGORITHM_AES_ECB; }
@@ -1776,7 +1771,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
             }
             return rv;
         }
-    }}
+    }
 
     /* encrypt / decrypt */
     let mut first = true;
@@ -1796,7 +1791,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     while cnt < Len0 || (cnt == Len0 && Len1 != Len2) {
         if first { first = false; }
         else if condition {
-            #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+            #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
             {
                 rv = unsafe { sc_select_file(card, &path, std::ptr::null_mut()) }; // clear accumulated CRT
                 assert_eq!(rv, SC_SUCCESS);
@@ -1822,7 +1817,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
             if crypt_sym.cbc && Len1==Len2 && Len0-cnt<=max_send { apdu.cla  = 0; }
             apdu.data = unsafe { indata_ptr.add(cnt) };
             apdu.datalen = std::cmp::min(max_send, Len0-cnt);
-            #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+            #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
             {
                 /* correct IV for next loop cycle */
                 if condition {

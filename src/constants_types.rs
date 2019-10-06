@@ -169,9 +169,9 @@ pub const SC_SEC_OPERATION_DECIPHER     : c_int = 0x0001;
 pub const SC_SEC_OPERATION_SIGN         : c_int = 0x0002;
 pub const SC_SEC_OPERATION_AUTHENTICATE : c_int = 0x0003;
 pub const SC_SEC_OPERATION_DERIVE       : c_int = 0x0004;
-#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub const SC_SEC_OPERATION_WRAP         : c_int = 0x0005;
-#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub const SC_SEC_OPERATION_UNWRAP       : c_int = 0x0006;
 */
 ////pub const SC_SEC_OPERATION_ENCIPHER : c_int = 0x0007;

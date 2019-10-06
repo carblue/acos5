@@ -52,13 +52,12 @@ use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, SC_CARD_CAP
                          SC_ALGORITHM_RSA_HASH_RIPEMD160,
                          SC_ALGORITHM_RSA_HASH_MD5_SHA1*/
 };
-//#[cfg(not(any(v0_15_0, v0_16_0)))]
 //use opensc_sys::opensc::{SC_ALGORITHM_AES};
 
-//#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0)))]
+//#[cfg(not(any(v0_17_0, v0_18_0)))]
 //use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_PSS};
 
-//#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+//#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 //use opensc_sys::opensc::{SC_ALGORITHM_AES, SC_ALGORITHM_AES_FLAGS, SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_RSA_RAW,
 //                         SC_ALGORITHM_RSA_HASHES};
 
@@ -87,7 +86,7 @@ pub fn me_get_max_recv_size(card_ref: &sc_card) -> usize
 
     /* initialize max_recv_size to a meaningful value */
     if max_recv_size == 0 {
-        max_recv_size = if (card_ref.caps as c_uint & SC_CARD_CAP_APDU_EXT) != 0 {0x1_0000}
+        max_recv_size = if (card_ref.caps & SC_CARD_CAP_APDU_EXT) != 0 {0x1_0000}
                         else {SC_READER_SHORT_APDU_MAX_RECV_SIZE};
     }
 
@@ -247,7 +246,7 @@ pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: c_uint, caps: c_uint,
         }
     }
 
-    #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     {
 
         /* For ECDSA and GOSTR, we don't do any padding or hashing ourselves, the

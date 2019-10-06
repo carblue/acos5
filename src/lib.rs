@@ -64,17 +64,13 @@ sc_bytes2apdu_wrapper, sc_check_sw, SC_CARD_CAP_RNG, SC_CARD_CAP_USE_FCI_AC, SC_
 SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_ALGORITHM_RSA, SC_ALGORITHM_ONBOARD_KEY_GEN, SC_ALGORITHM_RSA_RAW, SC_SEC_OPERATION_SIGN,
 SC_SEC_OPERATION_DECIPHER, SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_DERIVE, SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE,
 SC_PIN_CMD_UNBLOCK, SC_ALGORITHM_RSA_PAD_PKCS1, SC_ALGORITHM_RSA_PAD_ISO9796, SC_ALGORITHM_RSA_HASH_NONE, SC_SEC_ENV_KEY_REF_PRESENT,
-SC_SEC_ENV_ALG_REF_PRESENT, SC_SEC_ENV_ALG_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR, sc_update_record, sc_select_file};
-
-#[cfg(not(    v0_15_0))]
-use opensc_sys::opensc::{SC_CARD_CAP_ISO7816_PIN_INFO};
-#[cfg(not(any(v0_15_0, v0_16_0)))]
-use opensc_sys::opensc::{SC_CARD_CAP_SESSION_PIN/*, SC_PIN_CMD_GET_SESSION_PIN*/, SC_ALGORITHM_AES};
-#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0)))]
+SC_SEC_ENV_ALG_REF_PRESENT, SC_SEC_ENV_ALG_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR, sc_update_record, sc_select_file,
+SC_CARD_CAP_ISO7816_PIN_INFO, SC_ALGORITHM_AES, SC_PIN_CMD_GET_SESSION_PIN};
+#[cfg(not(v0_17_0))]
 use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
-//#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0)))]
+//#[cfg(not(any(v0_17_0, v0_18_0)))]
 //use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_PSS};
-#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 use opensc_sys::opensc::{SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM_TARGET_FILE, SC_ALGORITHM_AES_FLAGS,
                          SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, SC_SEC_OPERATION_UNWRAP,
                          SC_CARD_CAP_UNWRAP_KEY//, SC_CARD_CAP_WRAP_KEY
@@ -99,11 +95,7 @@ use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, sc_file_t, SC_MAX_AT
 use opensc_sys::errors::{sc_strerror, SC_SUCCESS, SC_ERROR_INTERNAL, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
                          SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY, SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING,
                          SC_ERROR_INCORRECT_PARAMETERS, SC_ERROR_NOT_SUPPORTED, SC_ERROR_BUFFER_TOO_SMALL, SC_ERROR_NOT_ALLOWED};
-use opensc_sys::internal::{_sc_card_add_rsa_alg, sc_pkcs1_encode};
-#[cfg(    any(v0_15_0, v0_16_0))]
-use opensc_sys::internal::{sc_atr_table};
-#[cfg(not(any(v0_15_0, v0_16_0)))]
-use opensc_sys::internal::{_sc_match_atr};
+use opensc_sys::internal::{_sc_card_add_rsa_alg, sc_pkcs1_encode, _sc_match_atr};
 
 use opensc_sys::log::{sc_dump_hex};
 use opensc_sys::cardctl::{SC_CARDCTL_GET_SERIALNR, SC_CARDCTL_LIFECYCLE_SET};
@@ -163,13 +155,11 @@ use crate::wrappers::*;
 /// @apiNote  If @return doesn't match the version of OpenSC binary libopensc.so/dll, this library
 ///           will be unloaded immediately; depends on build.rs setup ref. "cargo:rustc-cfg=v0_??_0".
 ///           Current auto-adaption to binary version in build.rs (for pkg-config supporting OS) may not be correct
-///           for OpenSC master code not yet inspected. auto-adaption for OpenSC 0.15.0 - 0.19.0 is okay
+///           for OpenSC master code not yet inspected. auto-adaption for OpenSC 0.17.0 - 0.19.0 is okay
 /// @return   The OpenSC release version, that this driver implementation supports
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
-    if       cfg!(v0_15_0) { CStr::from_bytes_with_nul(b"0.15.0\0").unwrap().as_ptr() } // will cause rejection by OpenSC, if installed binary != OpenSC release v0.15.0
-    else  if cfg!(v0_16_0) { CStr::from_bytes_with_nul(b"0.16.0\0").unwrap().as_ptr() } // will cause rejection by OpenSC, if installed binary != OpenSC release v0.16.0
-    else  if cfg!(v0_17_0) { CStr::from_bytes_with_nul(b"0.17.0\0").unwrap().as_ptr() }
+    if       cfg!(v0_17_0) { CStr::from_bytes_with_nul(b"0.17.0\0").unwrap().as_ptr() }
     else  if cfg!(v0_18_0) { CStr::from_bytes_with_nul(b"0.18.0\0").unwrap().as_ptr() }
     else  if cfg!(v0_19_0) { CStr::from_bytes_with_nul(b"0.19.0\0").unwrap().as_ptr() }
     else  if cfg!(v0_20_0) { CStr::from_bytes_with_nul(b"0.20.0\0").unwrap().as_ptr() }
@@ -293,19 +283,19 @@ static struct sc_card_operations iso_ops = {
         read_public_key:       Some(acos5_64_read_public_key),   // NULL
         /* card_reader_lock_obtained:                            NULL */
         /* wrap:                                                 NULL */
-        #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
         unwrap:                Some(acos5_64_unwrap),            // NULL
 
         ..iso_ops // untested so far whether remaining functionality from iso is sufficient for cos5
 /* from iso_ops:
-    iso7816_read_binary,
-    iso7816_write_binary,
-    iso7816_update_binary,
+    iso7816_read_binary,   sm_v2
+    iso7816_write_binary,  sm_v2
+    iso7816_update_binary, sm_v2
 
-    iso7816_read_record,
-    iso7816_write_record,
-    iso7816_append_record,
-    iso7816_update_record,
+    iso7816_read_record,   sm_v2
+    iso7816_write_record,  sm_v2
+    iso7816_append_record, sm_v2
+    iso7816_update_record, sm_v2
 
     NULL,            /* verify,                deprecated */
     iso7816_restore_security_env,
@@ -376,20 +366,16 @@ extern "C" fn acos5_64_match_card(card_ptr: *mut sc_card) -> c_int
             CStr::from_bytes_with_nul(b"called. Try to match card with ATR %s\0").unwrap() );
     }
 
-    #[cfg(any(v0_15_0, v0_16_0))]
-    let acos5_64_atrs : [sc_atr_table; 1] = [Default::default()]; // only because: _sc_match_atr is not callable: OpenSC not patched / not implemented
-    #[cfg(any(v0_17_0, v0_18_0))]
+    #[cfg(    any(v0_17_0, v0_18_0))]
     let mut acos5_64_atrs = acos5_64_atrs_supported();
-    #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0)))]
+    #[cfg(not(any(v0_17_0, v0_18_0)))]
     let     acos5_64_atrs = acos5_64_atrs_supported();
     /* check whether card.atr can be found in acos5_64_atrs_supported[i].atr, iff yes, then
        card.type_ will be set accordingly, but not before the successful return of match_card */
     let mut type_out = 0;
-    #[cfg(any(v0_15_0, v0_16_0))]
-    let idx_acos5_64_atrs = -1; // no match, because: _sc_match_atr is not callable: OpenSC not patched / not implemented
-    #[cfg(any(v0_17_0, v0_18_0))]
+    #[cfg(    any(v0_17_0, v0_18_0))]
     let idx_acos5_64_atrs = unsafe { _sc_match_atr(card, (&mut acos5_64_atrs).as_mut_ptr(), &mut type_out) };
-    #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0)))]
+    #[cfg(not(any(v0_17_0, v0_18_0)))]
     let idx_acos5_64_atrs = unsafe { _sc_match_atr(card, (   & acos5_64_atrs).as_ptr(),     &mut type_out) };
 ////    println!("idx_acos5_64_atrs: {}, card.type_: {}, type_out: {}, &card.atr.value[..19]: {:?}\n", idx_acos5_64_atrs, card.type_, type_out, &card.atr.value[..19]);
 
@@ -571,23 +557,20 @@ extern "C" fn acos5_64_init(card_ptr: *mut sc_card) -> c_int
     card.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE; //reduced as long as iso7816_read_binary is used: 0==0x100 is not understood // 0x100; // 0x10000 for usb-reader, 0x100 for chip/card;  Max Le supported by the card, decipher (in chaining mode) with a 4096-bit key returns 2 chunks of 256 bytes each !!
 
     /* possibly more SC_CARD_CAP_* apply, TODO clarify */
-    card.caps    = (SC_CARD_CAP_RNG | SC_CARD_CAP_USE_FCI_AC) as c_ulong;
-    #[cfg(not(v0_15_0))]
-    { card.caps |=  SC_CARD_CAP_ISO7816_PIN_INFO as c_ulong; }
-    #[cfg(not(any(v0_15_0, v0_16_0)))]
-    { card.caps |=  SC_CARD_CAP_SESSION_PIN      as c_ulong; }
-    /* card.caps |= SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH   what exactly is this? */ //#[cfg(not(any(v0_15_0, v0_16_0)))]
-    #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-    { card.caps |=  (/*SC_CARD_CAP_WRAP_KEY | */ SC_CARD_CAP_UNWRAP_KEY) as c_ulong; }
+    card.caps    = SC_CARD_CAP_RNG | SC_CARD_CAP_USE_FCI_AC | SC_CARD_CAP_ISO7816_PIN_INFO;
+    /* card.caps |= SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH   what exactly is this? */
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+    { card.caps |=  /*SC_CARD_CAP_WRAP_KEY | */ SC_CARD_CAP_UNWRAP_KEY; }
     /* The reader of USB CryptoMate64/CryptoMate Nano supports extended APDU, but the card doesn't: Thus no SC_CARD_CAP_APDU_EXT */
 
-    let rsa_algo_flags = SC_ALGORITHM_ONBOARD_KEY_GEN | SC_ALGORITHM_RSA_PAD_PKCS1 /*| SC_ALGORITHM_RSA_RAW*/;
+    /* it's possible to add SC_ALGORITHM_RSA_RAW, but then pkcs11-tool -t needs insecure cfg=dev_relax_signature_constraints_for_raw */
+    let rsa_algo_flags = SC_ALGORITHM_ONBOARD_KEY_GEN | SC_ALGORITHM_RSA_PAD_PKCS1 /* | SC_ALGORITHM_RSA_RAW*/;
 //    rsa_algo_flags   |= SC_ALGORITHM_RSA_RAW; // PSS works with that only currently via acos5_64_decipher; declaring SC_ALGORITHM_RSA_PAD_PSS seems superfluous
 //    rsa_algo_flags   |= SC_ALGORITHM_RSA_PAD_PKCS1;
-//    #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0)))]
+//    #[cfg(not(any(v0_17_0, v0_18_0)))]
 //    { rsa_algo_flags |= SC_ALGORITHM_RSA_PAD_PSS; }
 //    rsa_algo_flags   |= SC_ALGORITHM_RSA_PAD_ISO9796; // cos5 supports ISO9796, but don't use this, see https://www.iacr.org/archive/eurocrypt2000/1807/18070070-new.pdf
-//    rsa_algo_flags   |= SC_ALGORITHM_RSA_PAD_NONE; // for cfg!(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)) this is a NOOP, as SC_ALGORITHM_RSA_PAD_NONE is zero then
+//    rsa_algo_flags   |= SC_ALGORITHM_RSA_PAD_NONE; // for cfg!(any(v0_17_0, v0_18_0, v0_19_0)) this is a NOOP, as SC_ALGORITHM_RSA_PAD_NONE is zero then
 
     /* SC_ALGORITHM_NEED_USAGE : Don't use that: the driver will handle that for sign internally ! */
     /* Though there is now some more hash related info in opensc.h, still it's not clear to me whether to apply any of
@@ -616,18 +599,15 @@ extern "C" fn acos5_64_init(card_ptr: *mut sc_card) -> c_int
 //    me_card_add_symmetric_alg(card, SC_ALGORITHM_3DES as c_uint,  128, 0);
     me_card_add_symmetric_alg(card, SC_ALGORITHM_3DES as c_uint,  192, 0);
 
-    #[cfg(not(any(v0_15_0, v0_16_0)))]
-    {
-        let aes_algo_flags;
-        #[cfg(    any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0))]
-        { aes_algo_flags = 0; }
-        #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-        { aes_algo_flags = SC_ALGORITHM_AES_FLAGS; }
-        me_card_add_symmetric_alg(card, SC_ALGORITHM_AES as c_uint,  128, aes_algo_flags);
-        me_card_add_symmetric_alg(card, SC_ALGORITHM_AES as c_uint,  192, aes_algo_flags);
-        me_card_add_symmetric_alg(card, SC_ALGORITHM_AES as c_uint,  256, aes_algo_flags);
-        assert!(!me_card_find_alg(card, SC_ALGORITHM_AES, 256, std::ptr::null_mut() as *mut c_void).is_null());
-    }
+    let aes_algo_flags;
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
+    { aes_algo_flags = 0; }
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+    { aes_algo_flags = SC_ALGORITHM_AES_FLAGS; }
+    me_card_add_symmetric_alg(card, SC_ALGORITHM_AES as c_uint,  128, aes_algo_flags);
+    me_card_add_symmetric_alg(card, SC_ALGORITHM_AES as c_uint,  192, aes_algo_flags);
+    me_card_add_symmetric_alg(card, SC_ALGORITHM_AES as c_uint,  256, aes_algo_flags);
+    assert!(!me_card_find_alg(card, SC_ALGORITHM_AES, 256, std::ptr::null_mut() as *mut c_void).is_null());
 ////////////////////////////////////////
     /* stores serialnr in card.serialnr, required for enum_dir */
     match get_serialnr(card) {
@@ -1798,14 +1778,14 @@ extern "C" fn acos5_64_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_fil
     if file.type_!= SC_FILE_TYPE_DF && file.ef_structure != SC_FILE_EF_TRANSPARENT { // for non-transparent EF multiply MaxRecordLen and NumberOfRecords as a file size hint
 //        82, 6, 1C, 0, 0, 30, 0, 1
         assert!(len_bytes_tag_fcp_type >= 5 && len_bytes_tag_fcp_type <= 6);
-        #[cfg(    any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0))]
+        #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
         { file.record_length = unsafe { *ptr_bytes_tag_fcp_type.add(3) as c_int }; }
-        #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
         { file.record_length = unsafe { *ptr_bytes_tag_fcp_type.add(3) as usize }; }
 
-        #[cfg(    any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0))]
+        #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
         { file.record_count  = unsafe { *ptr_bytes_tag_fcp_type.add(len_bytes_tag_fcp_type-1) as c_int }; }
-        #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
         { file.record_count  = unsafe { *ptr_bytes_tag_fcp_type.add(len_bytes_tag_fcp_type-1) as usize }; }
 
         file.size = (file.record_length * file.record_count) as usize;
@@ -2161,7 +2141,7 @@ extern "C" fn acos5_64_pin_cmd(card_ptr: *mut sc_card, data_ptr: *mut sc_pin_cmd
 //        println!("sc_pin_cmd_pin 2: len: {}, [{:X},{:X},{:X},{:X}]", pindata_rm.pin2.len, unsafe{*pindata_rm.pin2.data.add(0)}, unsafe{*pindata_rm.pin2.data.add(1)}, unsafe{*pindata_rm.pin2.data.add(2)}, unsafe{*pindata_rm.pin2.data.add(3)});
         unsafe { (*(*sc_get_iso7816_driver()).ops).pin_cmd.unwrap()(card, pin_cmd_data, tries_left_ptr) }
     }
-    else if cfg!(not(any(v0_15_0, v0_16_0))) && /*SC_PIN_CMD_GET_SESSION_PIN*/ 4 == pin_cmd_data.cmd {
+    else if SC_PIN_CMD_GET_SESSION_PIN == pin_cmd_data.cmd {
         SC_ERROR_NO_CARD_SUPPORT
     }
     else {
@@ -2358,7 +2338,7 @@ extern "C" fn acos5_64_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *co
     let mut rv;
 
     if SC_SEC_OPERATION_DERIVE == env_ref.operation
-//        || ( cfg!(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0))) && (SC_SEC_OPERATION_WRAP == env_ref.operation) )
+//        || ( cfg!(not(any(v0_17_0, v0_18_0, v0_19_0))) && (SC_SEC_OPERATION_WRAP == env_ref.operation) )
     {
         rv = SC_ERROR_NO_CARD_SUPPORT;
         if cfg!(log) {
@@ -2496,17 +2476,38 @@ extern "C" fn acos5_64_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *co
     else if [SC_SEC_OPERATION_ENCIPHER_SYMMETRIC, SC_SEC_OPERATION_DECIPHER_SYMMETRIC].contains(&env_ref.operation)  &&
             (env_ref.flags as c_uint & SC_SEC_ENV_KEY_REF_PRESENT) > 0 && (env_ref.flags as c_uint & SC_SEC_ENV_ALG_REF_PRESENT) > 0
     {
-        if cfg!(any(v0_15_0, v0_16_0)) || env_ref.key_ref_len == 0 {
+        if env_ref.key_ref_len == 0 {
             rv = SC_ERROR_NOT_SUPPORTED;
             if cfg!(log) {
                 wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
             }
             return rv;
         }
-        #[cfg(not(any(v0_15_0, v0_16_0)))]
+        if (env_ref.flags as c_uint & SC_SEC_ENV_ALG_PRESENT) == 0  ||
+            ![SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES].contains(&env_ref.algorithm)
         {
-            if (env_ref.flags as c_uint & SC_SEC_ENV_ALG_PRESENT) == 0  ||
-                ![SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES].contains(&env_ref.algorithm)
+            rv = SC_ERROR_NOT_SUPPORTED;
+            if cfg!(log) {
+                wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+            }
+            return rv;
+        }
+        #[cfg(not(    v0_17_0))]
+        {
+            if env_ref.flags as c_uint & SC_SEC_ENV_KEY_REF_SYMMETRIC == 0 {
+                rv = SC_ERROR_NOT_SUPPORTED;
+                if cfg!(log) {
+                    wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+                }
+                return rv;
+            }
+        }
+        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+        {
+            if (env_ref.algorithm & SC_ALGORITHM_AES) > 0 &&
+                ![SC_ALGORITHM_AES_CBC_PAD,
+                  SC_ALGORITHM_AES_CBC,
+                  SC_ALGORITHM_AES_ECB].contains(&env_ref.algorithm_flags)
             {
                 rv = SC_ERROR_NOT_SUPPORTED;
                 if cfg!(log) {
@@ -2514,71 +2515,47 @@ extern "C" fn acos5_64_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *co
                 }
                 return rv;
             }
-            #[cfg(not(    v0_17_0))]
-            {
-                if env_ref.flags as c_uint & SC_SEC_ENV_KEY_REF_SYMMETRIC == 0 {
-                    rv = SC_ERROR_NOT_SUPPORTED;
-                    if cfg!(log) {
-                        wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
-                    }
-                    return rv;
-                }
-            }
+        }
+
+        let mut vec =   // made for cbc and blockSize == 16
+            vec![0u8,  0x22, 0x01,  0xB8, 0xFF,
+                 0x95, 0x01, 0xC0,
+                 0x80, 0x01, 0xFF,
+                 0x83, 0x01, 0xFF,
+                 0x87, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+         if env_ref.algorithm == SC_ALGORITHM_AES {
             #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-            {
-                if (env_ref.algorithm & SC_ALGORITHM_AES) > 0 &&
-                    ![SC_ALGORITHM_AES_CBC_PAD,
-                      SC_ALGORITHM_AES_CBC,
-                      SC_ALGORITHM_AES_ECB].contains(&env_ref.algorithm_flags)
+                { if env_ref.algorithm_flags == SC_ALGORITHM_AES_ECB {vec.truncate(vec.len()-18);} }
+            #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
                 {
-                    rv = SC_ERROR_NOT_SUPPORTED;
-                    if cfg!(log) {
-                        wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
-                    }
-                    return rv;
+                    if [4, 5].contains(&env_ref.algorithm_ref) // AES (ECB)
+                    { vec.truncate(vec.len()-18); }
+                }
+        }
+        else { // then it's SC_ALGORITHM_3DES | SC_ALGORITHM_DES
+            vec.truncate(vec.len()-8);
+            let pos = vec.len()-9;
+            vec[pos] = 8; // IV has len == 8. assuming it's CBC
+            if [0, 1].contains(&env_ref.algorithm_ref) // DES/3DES (ECB)
+            { vec.truncate(vec.len()-10); }
+        }
+
+        /*  transferring the iv is missing below 0.20.0 */
+        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+        {
+            for sec_env_param in env_ref.params.iter() {
+                match sec_env_param.param_type {
+                    SC_SEC_ENV_PARAM_IV => {
+                        assert!(vec.len() >= 16);
+                        assert_eq!(vec[15] as c_uint, sec_env_param.value_len);
+                        assert_eq!(vec.len(), 16+sec_env_param.value_len as usize);
+                        unsafe { copy_nonoverlapping(sec_env_param.value as *const c_uchar, vec.as_mut_ptr().add(16), sec_env_param.value_len as usize) };
+                    },
+                    SC_SEC_ENV_PARAM_TARGET_FILE=> { continue; }
+                    _ => { break; },
                 }
             }
-
-            let mut vec =   // made for cbc and blockSize == 16
-                vec![0u8,  0x22, 0x01,  0xB8, 0xFF,
-                     0x95, 0x01, 0xC0,
-                     0x80, 0x01, 0xFF,
-                     0x83, 0x01, 0xFF,
-                     0x87, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
-
-            if env_ref.algorithm == SC_ALGORITHM_AES {
-                #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-                    { if env_ref.algorithm_flags == SC_ALGORITHM_AES_ECB {vec.truncate(vec.len()-18);} }
-                #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-                    {
-                        if [4, 5].contains(&env_ref.algorithm_ref) // AES (ECB)
-                        { vec.truncate(vec.len()-18); }
-                    }
-            }
-            else { // then it's SC_ALGORITHM_3DES | SC_ALGORITHM_DES
-                vec.truncate(vec.len()-8);
-                let pos = vec.len()-9;
-                vec[pos] = 8; // IV has len == 8. assuming it's CBC
-                if [0, 1].contains(&env_ref.algorithm_ref) // DES/3DES (ECB)
-                { vec.truncate(vec.len()-10); }
-            }
-
-            /*  transferring the iv is missing below 0.20.0 */
-            #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
-            {
-                for sec_env_param in env_ref.params.iter() {
-                    match sec_env_param.param_type {
-                        SC_SEC_ENV_PARAM_IV => {
-                            assert!(vec.len() >= 16);
-                            assert_eq!(vec[15] as c_uint, sec_env_param.value_len);
-                            assert_eq!(vec.len(), 16+sec_env_param.value_len as usize);
-                            unsafe { copy_nonoverlapping(sec_env_param.value as *const c_uchar, vec.as_mut_ptr().add(16), sec_env_param.value_len as usize) };
-                        },
-                        SC_SEC_ENV_PARAM_TARGET_FILE=> { continue; }
-                        _ => { break; },
-                    }
-                }
 /* * /
 
 //                env_ref.algorithm_flags = if crypt_sym.cbc {if crypt_sym.pad_type==BLOCKCIPHER_PAD_TYPE_PKCS5 {SC_ALGORITHM_AES_CBC_PAD} else {SC_ALGORITHM_AES_CBC} } else {SC_ALGORITHM_AES_ECB};
@@ -2593,33 +2570,32 @@ extern "C" fn acos5_64_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *co
                 }
 pub const SC_SEC_ENV_PARAM_DES_ECB           : c_uint = 3;
 pub const SC_SEC_ENV_PARAM_DES_CBC           : c_uint = 4;
-    #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     pub params :          [sc_sec_env_param; SC_SEC_ENV_MAX_PARAMS],
 / * */
-            }
+        }
 
-            vec[ 4] = (vec.len()-5) as u8;
-            vec[10] = env_ref.algorithm_ref as c_uchar;
-            vec[13] = env_ref.key_ref[0];
+        vec[ 4] = (vec.len()-5) as u8;
+        vec[10] = env_ref.algorithm_ref as c_uchar;
+        vec[13] = env_ref.key_ref[0];
 
-            let mut apdu = Default::default();
-            rv = sc_bytes2apdu_wrapper(card.ctx, &vec, &mut apdu);
-            assert_eq!(rv, SC_SUCCESS);
-            assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
-            rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
-            rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
-            if rv != SC_SUCCESS {
-                if cfg!(log) {
-                    wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
-                }
-                return rv;
+        let mut apdu = Default::default();
+        rv = sc_bytes2apdu_wrapper(card.ctx, &vec, &mut apdu);
+        assert_eq!(rv, SC_SUCCESS);
+        assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
+        rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
+        rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+        if rv != SC_SUCCESS {
+            if cfg!(log) {
+                wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
             }
+            return rv;
         }
     }
 
     else {
-        if cfg!(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0))) {
-        #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+        if cfg!(not(any(v0_17_0, v0_18_0, v0_19_0))) {
+        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
         { // the same for SC_SEC_OPERATION_UNWRAP as for SC_SEC_OPERATION_DECIPHER_RSAPRIVATE
             if SC_SEC_OPERATION_UNWRAP == env_ref.operation  &&
                env_ref.algorithm==SC_ALGORITHM_RSA && (env_ref.flags as c_uint & SC_SEC_ENV_FILE_REF_PRESENT) > 0
@@ -2890,9 +2866,9 @@ extern "C" fn acos5_64_compute_signature(card_ptr: *mut sc_card, data_ref_ptr: *
     }
     set_is_running_compute_signature(card, false); // thus is an info valuable only when delegating to acos5_64_decipher
 
-    #[cfg(    any(v0_15_0, v0_16_0, v0_17_0, v0_18_0))]
+    #[cfg(    any(v0_17_0, v0_18_0))]
     let mut rv = SC_SUCCESS;
-    #[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0)))]
+    #[cfg(not(any(v0_17_0, v0_18_0)))]
     let mut rv; // = SC_SUCCESS;
     //   sha1     sha256  +md2/5 +sha1  +sha224  +sha256  +sha384  +sha512
     if ![20usize, 32,     34,    35,    47,      51,      67,      83, get_sec_env_mod_len(card)].contains(&data_len) {
@@ -3045,7 +3021,7 @@ println!("pflags: {}, sflags: {}", pflags, sflags);
             let mut vec = vec![0u8; vec_len];
             rv = unsafe { sc_pkcs1_encode(card.ctx, (sec_env_algo_flags | SC_ALGORITHM_RSA_HASH_NONE) as c_ulong, digest_info.as_ptr(),
                                           digest_info.len(), vec.as_mut_ptr(), &mut vec_len, vec_len *
-                                          if cfg!(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)) {1} else {8}) };
+                                          if cfg!(any(v0_17_0, v0_18_0, v0_19_0)) {1} else {8}) };
             if rv != SC_SUCCESS {
                 return rv;
             }
@@ -3063,8 +3039,8 @@ println!("pflags: {}, sflags: {}", pflags, sflags);
             rv = acos5_64_decipher(card, data_ref_ptr, data_len, out_ptr, outlen);
         }
 /*
-        else if cfg!(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0))) {
-        #[       cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0)))]
+        else if cfg!(not(any(v0_17_0, v0_18_0))) {
+        #[       cfg(not(any(v0_17_0, v0_18_0)))]
         {
             if (SC_ALGORITHM_RSA_PAD_PSS & sec_env_algo_flags) > 0 /*&& is_any_known_digestAlgorithm(digest_info.len()*/) {
                 rv = 0; // do nothing
@@ -3073,7 +3049,7 @@ sc_pkcs1_encode with SC_ALGORITHM_RSA_PAD_PSS does work only since v0.20.0
 when pkcs1_strip_PSS_padding works
                     let mut vec = vec![0u8; 512];
                     let mut vec_len = std::cmp::min(512, outlen);
-                    if cfg!(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)) {
+                    if cfg!(any(v0_17_0, v0_18_0, v0_19_0)) {
                         rv = unsafe { sc_pkcs1_encode(card.ctx, (sec_env_algo_flags | SC_ALGORITHM_RSA_HASH_NONE) as c_ulong, digest_info.as_ptr(),
                                                       digest_info.len(), vec.as_mut_ptr(), &mut vec_len, vec_len) };
                     }
@@ -3117,7 +3093,7 @@ when pkcs1_strip_PSS_padding works
 
 /* Implementation for RSA_WRAPPED_AES_KEY with template entries for receiving sym. key: CKA_TOKEN=TRUE and CKA_EXTRACTABLE=FALSE.
    i.e. it's assumed that the unwrapped key is of AES type ! */
-#[cfg(not(any(v0_15_0, v0_16_0, v0_17_0, v0_18_0, v0_19_0)))]
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 extern "C" fn acos5_64_unwrap(card_ptr: *mut sc_card, crgram: *const c_uchar, crgram_len: usize) -> c_int
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {

@@ -96,7 +96,6 @@ pub fn set_ui_ctx(card: &mut sc_card, ui_ctx: &mut ui_context) -> c_int
  * @param text Message to show to the user
  * @return SC_SUCCESS on user consent OK , else error code
  */
-//#[cfg(not(any(v0_15_0, v0_16_0)))]
 #[cfg(enable_acos5_64_ui)]
 pub fn acos5_64_ask_user_consent() -> c_int
 {

@@ -34,8 +34,6 @@ fn main() {
     match pkg_config::Config::new().atleast_version("0.17.0").probe("opensc") {
         Ok(lib) => {
             match lib.version.as_str() {
-//                "0.15.0" => println!("cargo:rustc-cfg=v0_15_0"), // an impl. will need to care for function _sc_match_atr and more; OpenSC supports secret keys (anything else but RSA) since v0_17_0
-//                "0.16.0" => println!("cargo:rustc-cfg=v0_16_0"), // dito
                 "0.17.0" => println!("cargo:rustc-cfg=v0_17_0"),
                 "0.18.0" => println!("cargo:rustc-cfg=v0_18_0"),
                 "0.19.0" => println!("cargo:rustc-cfg=v0_19_0"),
@@ -57,6 +55,7 @@ fn main() {
     /* other conditionaĺ compilation settings */
     println!("cargo:rustc-cfg=log"); // enables acos5_64 log output to file debug_file, set in opensc.conf (e.g. debug_file = "/tmp/opensc-debug.log";). Otherwise the driver will be almost quiet referring that
 //    println!("cargo:rustc-cfg=dev_relax_signature_constraints_for_raw"); // this is an insecure setting, meant to be used only temporarily for pkcs11-tool -t with  SC_ALGORITHM_RSA_RAW added to rsa_algo_flags in acos5_64_init
+//    println!("cargo:rustc-cdylib-link-arg=-Wl,-soname,libacos5_64.so.6"); //doesn't work currently
 //    println!("cargo:rustc-cfg=enable_acos5_64_ui"); // enables acos5_64 to ask for user consent prior to using RSA private keys (for sign, decrypt)
 //    println!("cargo:rustc-link-lib=iup"); // specifies linking libiup.so/dylib or compiling on Windows with import library iup.lib
 //    println!("cargo:rustc-link-search=native=/usr/lib"); // specifies where libiup.so/dylib/dll is located

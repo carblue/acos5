@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 libc = "0.2"
-opensc-sys = { git = "https://github.com/carblue/opensc-sys", rev = "94ef329" }
+opensc-sys = { git = "https://github.com/carblue/opensc-sys", rev = "83a6cce" }
 
 [build-dependencies]
 pkg-config = "=0.3.14"
