@@ -63,7 +63,7 @@ pub fn set_ui_ctx(card: &mut sc_card, ui_ctx: &mut ui_context) -> c_int
 
     /* look for sc block in opensc.conf */
     let ctx = unsafe { &mut *card.ctx };
-    for elem in &ctx.conf_blocks {
+    for elem in ctx.conf_blocks.iter() {
         if elem.is_null() { break; }
 
         let blocks_ptr = unsafe { scconf_find_blocks(ctx.conf, *elem,

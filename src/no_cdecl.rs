@@ -63,7 +63,7 @@ use opensc_sys::errors::{sc_strerror, /*SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKN
                          SC_SUCCESS, SC_ERROR_INVALID_ARGUMENTS, //SC_ERROR_KEYPAD_TIMEOUT,
                          SC_ERROR_KEYPAD_MSG_TOO_LONG/*, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL*/
 ,SC_ERROR_WRONG_LENGTH, SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT_FOUND, SC_ERROR_INCORRECT_PARAMETERS,
-SC_ERROR_OUT_OF_MEMORY, SC_ERROR_UNKNOWN_DATA_RECEIVED
+SC_ERROR_OUT_OF_MEMORY, SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_NO_CARD_SUPPORT
 //,SC_ERROR_CARD_CMD_FAILED, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
 };
 use opensc_sys::internal::{sc_atr_table};
@@ -416,24 +416,31 @@ same @param and @return as iso7816_select_file
  * @param
  * @return
  */
-pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out_ptr: *mut *mut sc_file) -> c_int
+pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out_ptr_addr: *mut *mut sc_file, need_to_process_fci: bool) -> c_int
 {
+    /* if !file_out_ptr_addr.is_null(), then process_fci will be called anyway, thus we must ensure, that process_fci will also be called
+       for:  file_out_ptr_addr.is_null() && need_to_process_fci */
     assert_eq!(path_ref.type_, SC_PATH_TYPE_FILE_ID);
     assert_eq!(path_ref.len,   2);
+    let force_process_fci = file_out_ptr_addr.is_null() && need_to_process_fci;
+    let mut file_out_ptr_tmp = std::ptr::null_mut();
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun     = CStr::from_bytes_with_nul(b"tracking_select_file\0").unwrap();
-    let fmt_1   = CStr::from_bytes_with_nul(b"    called. curr_type: %d, curr_value: %s\0").unwrap();
+    let fmt_1   = CStr::from_bytes_with_nul(b"    called. curr_type: %d, curr_value: %s, need_to_process_fci: %d\0").unwrap();
     let fmt_2   = CStr::from_bytes_with_nul(b"              to_type: %d,   to_value: %s\0").unwrap();
     let fmt_3   = CStr::from_bytes_with_nul(b"returning:  curr_type: %d, curr_value: %s\0").unwrap();
     #[cfg(log)]
-    wr_do_log_tu(card.ctx, f_log, line!(), fun, card.cache.current_path.type_,
-        unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, fmt_1);
+    wr_do_log_tuv(card.ctx, f_log, line!(), fun, card.cache.current_path.type_,
+        unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, need_to_process_fci, fmt_1);
     #[cfg(log)]
     wr_do_log_tu(card.ctx, f_log, line!(), fun, path_ref.type_,
         unsafe {sc_dump_hex(path_ref.value.as_ptr(), path_ref.len)}, fmt_2);
 
-//  let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).select_file.unwrap()(card, path_ref, file_out_ptr) };
-    let rv = iso7816_select_file_replacement(card, path_ref, file_out_ptr);
+//  let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).select_file.unwrap()(card, path_ref, file_out_ptr_addr) };
+    let rv = iso7816_select_file_replacement(card, path_ref, if force_process_fci {&mut file_out_ptr_tmp} else {file_out_ptr_addr});
+    if force_process_fci && !file_out_ptr_tmp.is_null() {
+        unsafe { sc_file_free(file_out_ptr_tmp) };
+    }
 
     /*
     0x6283, SC_ERROR_CARD_CMD_FAILED, "Selected file invalidated" //// Target file has been blocked but selected
@@ -459,7 +466,7 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out_ptr
         if path_ref.value[0..2] != [0x3Fu8, 0xFF][..] {
             let file_id = u16_from_array_begin(&path_ref.value[0..2]);
             let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-            if file_out_ptr.is_null() {
+            if file_out_ptr_addr.is_null() {
                 // TODO
             }
             else {
@@ -488,8 +495,9 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out_ptr
  * @param
  * @return
  */
-pub fn select_file_by_path(card: &mut sc_card, path_ref: &sc_path, file_out_ptr: *mut *mut sc_file) -> c_int
+pub fn select_file_by_path(card: &mut sc_card, path_ref: &sc_path, file_out_ptr: *mut *mut sc_file, need_to_process_fci: bool) -> c_int
 {
+    /* manage file_out_ptr and need_to_process_fci: They need to be active only eventually for the target file_id */
     let mut path1 = *path_ref;
     let rv = cut_path(card, &mut path1);
     if rv != SC_SUCCESS {
@@ -498,20 +506,21 @@ pub fn select_file_by_path(card: &mut sc_card, path_ref: &sc_path, file_out_ptr:
     if  path1.len%2 != 0 {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
+    assert!(path1.len>=2);
+    let target_idx = path1.len/2 -1;
+    let mut rv;
 
     let mut path2 = sc_path { len: 2, ..Default::default() }; // SC_PATH_TYPE_FILE_ID
-    for chunk in path1.value.chunks(2) {
+    for (i, chunk) in path1.value.chunks(2).enumerate() {
         path2.value[0] = chunk[0];
         path2.value[1] = chunk[1];
-        let rv = tracking_select_file(card, &path2, file_out_ptr);
-/*
-        unsafe {
-            if (i+1)<len/2 && !file_out_ptr.is_null() && !(*file_out_ptr).is_null() {
-                sc_file_free(*file_out_ptr);
-                *file_out_ptr = std::ptr::null_mut();
-            }
+        if i<target_idx {
+            rv = tracking_select_file(card, &path2, std::ptr::null_mut(), false);
         }
-*/
+        else {
+            rv = tracking_select_file(card, &path2, file_out_ptr, need_to_process_fci);
+        }
+
         if rv != SC_SUCCESS {
             return rv;
         }
@@ -1032,7 +1041,7 @@ pub fn get_key(card: &mut sc_card, key_data: &mut CardCtlArray1285) -> c_int
 
     if key_data.le <= 256 {
         card.cla = 0x80;
-        rv = unsafe { (*(*sc_get_iso7816_driver()).ops).get_data.unwrap()(card, key_data.offset, key_data.resp.as_mut_ptr(), key_data.le) };
+        rv = unsafe { (*(*sc_get_iso7816_driver()).ops).get_data.unwrap()(card, key_data.offset, key_data.rcv_ptr, key_data.le) };
         card.cla = 0;
     }
     else {
@@ -1047,7 +1056,7 @@ pub fn get_key(card: &mut sc_card, key_data: &mut CardCtlArray1285) -> c_int
         while le_remaining > 0 {
             let offset = key_data.le - le_remaining;
             apdu.le      =  if le_remaining > 0xFFusize {0xFFusize} else {le_remaining};
-            apdu.resp    =  unsafe { key_data.resp.as_mut_ptr().add(offset) };
+            apdu.resp    =  unsafe { key_data.rcv_ptr.add(offset) };
             apdu.resplen =  key_data.le - offset;
             apdu.p1      =  ((offset >> 8) & 0xFFusize) as u8;
             apdu.p2      =  ( offset       & 0xFFusize) as u8;
@@ -2110,6 +2119,125 @@ SOPUK: 8  [31, 32, 33, 34, 35, 36, 37, 38]
 
     if cfg!(log) {
         wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(RETURNING).unwrap());
+    }
+}
+
+pub fn common_read(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *mut c_uchar, count: usize, flags: c_ulong, bin: bool) -> c_int
+{
+    if card_ptr.is_null() {
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+    let card = unsafe { &mut *card_ptr };
+    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
+    let fun  = CStr::from_bytes_with_nul( if bin {b"acos5_64_read_binary\0"} else {b"acos5_64_read_record\0"}).unwrap();
+    if cfg!(log) {
+        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+    }
+
+    let file_id = u16_from_array_end(&card.cache.current_path.value[..card.cache.current_path.len]);
+    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let scb_read = dp.files[&file_id].2.unwrap()[0];
+    let is_sm_operable = dp.is_sm_operable;
+    let fdb = dp.files[&file_id].1[0];
+    card.drv_data = Box::into_raw(dp) as *mut c_void;
+
+    if scb_read == 0xFF {
+        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+            if bin {b"No read_binary will be done: The file has acl NEVER READ\0"}
+                   else   {b"No read_record will be done: The file has acl NEVER READ\0"}).unwrap());
+        SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
+    }
+    else if (scb_read & 0x40) == 0x40 {
+        if !is_sm_operable {
+            wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+                if bin {b"No read_binary will be done: The file has acl SM-protected READ\0"}
+                       else   {b"No read_record will be done: The file has acl SM-protected READ\0"}).unwrap());
+            SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
+        }
+/* * /
+        else if !card.sm_ctx.module.handle.is_null() {
+            // forward to SM processing
+            use libc::{dlsym};
+            let func_ptr = unsafe { std::mem::transmute::<*mut c_void, extern "C" fn(&mut sc_card, c_uint, *mut c_uchar, usize, c_ulong, bool) -> c_int>(
+                dlsym(card.sm_ctx.module.handle, CStr::from_bytes_with_nul(b"sm_common_read\0").unwrap().as_ptr()) ) };
+            func_ptr(card, idx, buf_ptr, count, flags, bin)
+        }
+/ * */
+        else {
+            SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
+        }
+    }
+    else {
+        let func_ptr = match bin {
+            true =>  unsafe { (*(*sc_get_iso7816_driver()).ops).read_binary.unwrap() },
+            false => unsafe { (*(*sc_get_iso7816_driver()).ops).read_record.unwrap() }
+        };
+        if bin && fdb == FDB_RSA_KEY_EF {
+            let mut x = CardCtlArray1285 { offset: idx, le: count, rcv_ptr: buf_ptr };
+            get_key(card, &mut x)
+        }
+        else {
+            unsafe { func_ptr(card, idx, buf_ptr, count, flags) }
+        }
+    }
+}
+
+pub fn common_update(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *const c_uchar, count: usize, flags: c_ulong, bin: bool) -> c_int
+{
+    if card_ptr.is_null() {
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+    let card = unsafe { &mut *card_ptr };
+    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
+    let fun  = CStr::from_bytes_with_nul( if bin {b"acos5_64_update_binary\0"} else {b"acos5_64_update_record\0"}).unwrap();
+    if cfg!(log) {
+        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+    }
+
+    let file_id = u16_from_array_end(&card.cache.current_path.value[..card.cache.current_path.len]);
+    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let scb_update = dp.files[&file_id].2.unwrap()[1];
+    let is_sm_operable = dp.is_sm_operable;
+    let fdb = dp.files[&file_id].1[0];
+    card.drv_data = Box::into_raw(dp) as *mut c_void;
+
+    if scb_update == 0xFF {
+        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+            if bin {b"No update_binary will be done: The file has acl NEVER UPDATE\0"}
+                  else   {b"No update_record will be done: The file has acl NEVER UPDATE\0"}).unwrap());
+        SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
+    }
+    else if (scb_update & 0x40) == 0x40 {
+        if !is_sm_operable {
+            wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+                if bin {b"No update_binary will be done: The file has acl SM-protected UPDATE\0"}
+                       else   {b"No update_record will be done: The file has acl SM-protected UPDATE\0"}).unwrap());
+            SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
+        }
+/* * /
+        else if !card.sm_ctx.module.handle.is_null() {
+            // forward to SM processing
+            use libc::{dlsym};
+            let func_ptr = unsafe { std::mem::transmute::<*mut c_void, extern "C" fn(&mut sc_card, c_uint, *const c_uchar, usize, c_ulong, bool) -> c_int>(
+                dlsym(card.sm_ctx.module.handle, CStr::from_bytes_with_nul(b"sm_common_update\0").unwrap().as_ptr()) ) };
+            func_ptr(card, idx, buf_ptr, count, flags, bin)
+        }
+/ * */
+        else {
+            SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
+        }
+    }
+    else {
+        let func_ptr = match bin {
+            true =>  unsafe { (*(*sc_get_iso7816_driver()).ops).update_binary.unwrap() },
+            false => unsafe { (*(*sc_get_iso7816_driver()).ops).update_record.unwrap() }
+        };
+        if bin && fdb == FDB_RSA_KEY_EF { // no put_key support currently
+            SC_ERROR_NO_CARD_SUPPORT
+        }
+        else {
+            unsafe { func_ptr(card, idx, buf_ptr, count, flags) }
+        }
     }
 }
 

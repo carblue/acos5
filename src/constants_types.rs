@@ -30,6 +30,13 @@ use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUST
 #[cfg(enable_acos5_64_ui)]
 use crate::user_consent::ui_context;
 
+// see also useful declarations in libopensc/iasecc.h:
+pub const ACOS5_OBJECT_REF_LOCAL  : u8 = 0x80;
+pub const ACOS5_OBJECT_REF_GLOBAL : u8 = 0x00;
+
+pub const ACOS5_OBJECT_REF_MIN    : u8 = 0x01;
+pub const ACOS5_OBJECT_REF_MAX    : u8 = 0x1F;
+
 // for an internal driver these 3 will move to cards.h
 pub const SC_CARD_TYPE_ACOS5_64_V2  : i32 = 16003;
 pub const SC_CARD_TYPE_ACOS5_64_V3  : i32 = 16004;
@@ -143,7 +150,7 @@ pub const PKCS15_FILE_TYPE_DATA          : u8 =  19;
 pub const PKCS15_FILE_TYPE_PIN           : u8 =  18; // iEF with cos5
 pub const PKCS15_FILE_TYPE_NONE          : u8 =  0xFF; // should not happen to extract a path for this
 
-pub const RSA_MAX_LEN_MODULUS      : usize = 512;
+pub const RSA_MAX_LEN_MODULUS      : usize = 512; // bytes; as bits: 512*8 = 4096
 pub const RSAPUB_MAX_LEN           : usize = 5 + 16 + RSA_MAX_LEN_MODULUS; // the max. file size requirement for RSA public key (4096 bit == 512 byte; 16 byte is the max. public exponent length)
 pub const RSAPRIV_MAX_LEN_STD      : usize = 5 +      RSA_MAX_LEN_MODULUS; // the max. file size requirement for RSA private key (non-CRT)
 pub const RSAPRIV_MAX_LEN_CRT      : usize = 5 +   5*(RSA_MAX_LEN_MODULUS/2); // the max. file size requirement for RSA private key stored in CRT manner
@@ -315,9 +322,9 @@ impl Default for CardCtlArray32 {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct CardCtlArray1285 {
-    pub offset : c_uint,        // IN
-    pub le     : usize,         // IN
-    pub resp : [c_uchar; RSAPRIV_MAX_LEN_CRT], // OUT
+    pub offset  : c_uint,        // IN
+    pub le      : usize,         // IN
+    pub rcv_ptr : *mut c_uchar,  // OUT
 }
 
 impl Default for CardCtlArray1285 {
@@ -325,7 +332,7 @@ impl Default for CardCtlArray1285 {
         CardCtlArray1285 {
             offset: 0,
             le: 0,
-            resp: [0u8; RSAPRIV_MAX_LEN_CRT]
+            rcv_ptr: std::ptr::null_mut(),
         }
     }
 }
@@ -480,7 +487,9 @@ pub type KeyTypeFiles   = u16;
 pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, Option<Vec<SeInfo>>);
 // File Info originally:  {FDB, DCB, FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI}
 // File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,   LCSI}
-
+//                              ^ path len actually used
+//                                                     ^ misc.
+//                                                                               ^ PKCS#15 file type or 0xFF, see PKCS15_FILE_TYPE_*
 #[repr(C)]
 #[derive(/*Debug, Copy,*/ Clone)]
 pub struct DataPrivate { // see settings in acos5_64_init
@@ -491,6 +500,7 @@ pub struct DataPrivate { // see settings in acos5_64_init
 //  pub sec_env_algo_flags : c_uint, // remember the padding scheme etc. selected for RSA; required in acos5_64_set_security_env
     pub sec_env_mod_len : c_uint,
     pub rsa_caps : c_uint, // remember how the rsa_algo_flags where set for _sc_card_add_rsa_alg
+    pub is_sm_operable : bool,
     pub does_mf_exist : bool,
     pub is_running_init : bool, // true as long as acos5_64_init runs: It may be used to control behavior of acos5_64_list_files (lazily filling hashmap)
     /* some commands like sign, decipher etc. may supply > 256 bytes to get_response, but the exact number will not be known (the only info is 0x6100),
@@ -537,6 +547,14 @@ pub fn u16_from_array_begin(array: &[u8]) -> u16
     assert!(array.len()>=2);
     (array[0] as u16) << 8  |  array[1] as u16
 }
+
+pub fn u16_from_array_end(array: &[u8]) -> u16
+{
+    let len = array.len();
+    assert!(len>=2);
+    (array[len-2] as u16) << 8  |  array[len-1] as u16
+}
+
 
 pub fn u32_from_array_begin(array: &[u8]) -> u32
 {

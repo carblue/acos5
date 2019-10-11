@@ -22,6 +22,7 @@
 
  https://www.acs.com.hk/en/products/308/acos5-64-v3.00-cryptographic-card-contact/
  https://www.acs.com.hk/en/products/414/cryptomate-nano-cryptographic-usb-tokens/
+ https://www.acs.com.hk/en/products/464/acos5-evo-pki-smart-card-contact/
 
  https://help.github.com/en/articles/changing-a-remotes-url
 
@@ -77,7 +78,7 @@ use opensc_sys::opensc::{SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM_TARGET_FILE, SC_A
 //                         , SC_SEC_OPERATION_WRAP
 };
 
-use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, sc_file_t, SC_MAX_ATR_SIZE, sc_apdu, */
+use opensc_sys::types::{sc_aid, SC_MAX_AID_SIZE, /* SC_MAX_ATR_SIZE, sc_apdu, */
     sc_path, sc_file, sc_serial_number, SC_PATH_TYPE_PATH, SC_MAX_PATH_SIZE, SC_PATH_TYPE_FILE_ID,
                         SC_PATH_TYPE_PATH_PROT, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
     /* SC_AC_UNKNOWN, SC_AC_NEVER, SC_AC_PRO, SC_AC_AUT, sc_crt, SC_AC_CHV, SC_FILE_EF_LINEAR_FIXED, SC_MAX_CRTS_IN_SE,*/
@@ -88,7 +89,6 @@ use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, sc_file_t, SC_MAX_AT
     SC_AC_OP_DELETE, SC_AC_OP_CREATE_EF, SC_AC_OP_CREATE_DF, SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK,
     SC_AC_OP_READ,   SC_AC_OP_UPDATE,    SC_AC_OP_CRYPTO, SC_AC_OP_DELETE_SELF,
     SC_AC_OP_CREATE, SC_AC_OP_WRITE, SC_AC_OP_GENERATE, SC_APDU_FLAGS_CHAINING, SC_APDU_FLAGS_NO_GET_RESP,
-
     SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT, SC_APDU_FLAGS_NO_RETRY_WL //, SC_AC_CHV
 };
 
@@ -105,6 +105,7 @@ use opensc_sys::iso7816::{ISO7816_TAG_FCP_TYPE, ISO7816_TAG_FCP_LCS,  ISO7816_TA
 use opensc_sys::pkcs15::{sc_pkcs15_pubkey_rsa, sc_pkcs15_bignum, sc_pkcs15_encode_pubkey_rsa, sc_pkcs15_bind,
                          sc_pkcs15_unbind, sc_pkcs15_auth_info, sc_pkcs15_get_objects, SC_PKCS15_TYPE_AUTH_PIN,
                          sc_pkcs15_object}; // , SC_PKCS15_AODF
+use opensc_sys::sm::{SM_TYPE_CWA14890};
 
 //#[allow(dead_code)]
 pub mod    cmd_card_info;
@@ -130,7 +131,7 @@ use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_arra
     generate_asym, encrypt_asym, get_files_hashmap_info, update_hashmap,
     logical_xor/*, create_mf_file_system*/, convert_acl_array_to_bytes_tag_fcp_sac, get_sec_env_mod_len,
     ACL_CATEGORY_DF_MF, ACL_CATEGORY_EF_CHV, ACL_CATEGORY_KEY, ACL_CATEGORY_SE,
-    get_is_running_compute_signature, set_is_running_compute_signature, get_key
+    get_is_running_compute_signature, set_is_running_compute_signature, get_key, common_read, common_update
 };
 
 pub mod    path;
@@ -138,6 +139,11 @@ use crate::path::*;
 
 pub mod    se;
 use crate::se::{se_file_add_acl_entry};
+
+/*
+pub mod    sec_mess;
+use crate::sec_mess::*;
+*/
 
 #[cfg(enable_acos5_64_ui)]
 pub mod    user_consent;
@@ -155,7 +161,7 @@ use crate::wrappers::*;
 /// @apiNote  If @return doesn't match the version of OpenSC binary libopensc.so/dll, this library
 ///           will be unloaded immediately; depends on build.rs setup ref. "cargo:rustc-cfg=v0_??_0".
 ///           Current auto-adaption to binary version in build.rs (for pkg-config supporting OS) may not be correct
-///           for OpenSC master code not yet inspected. auto-adaption for OpenSC 0.17.0 - 0.19.0 is okay
+///           for OpenSC master code not yet inspected. auto-adaption for OpenSC 0.17.0 - 0.20.0-rc2 is okay
 /// @return   The OpenSC release version, that this driver implementation supports
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
@@ -241,6 +247,15 @@ static struct sc_card_operations iso_ops = {
            ATTENTION: calling the iso7816_something_record functions requires using flag SC_RECORD_BY_REC_NR  or it won't work as expected !!!
         */
         erase_binary:          Some(acos5_64_erase_binary),      // NULL
+
+        read_binary:           Some(acos5_64_read_binary),       // iso7816_read_binary
+        read_record:           Some(acos5_64_read_record),       // iso7816_read_record
+
+        update_binary:         Some(acos5_64_update_binary),     // iso7816_update_binary
+        write_binary:          Some(acos5_64_update_binary),     // iso7816_write_binary
+        update_record:         Some(acos5_64_update_record),     // iso7816_update_record
+        write_record:          Some(acos5_64_update_record),     // iso7816_write_record
+
         select_file:           Some(acos5_64_select_file),       // iso7816_select_file is insufficient for cos5: It will be used, but in a controlled manner only
         get_response:          Some(acos5_64_get_response),      // iso7816_get_response is insufficient for some cos5 commands with more than 256 bytes to fetch
             /* get_challenge:  iso7816_get_challenge  is usable, but only with P3==8, thus a wrapper is required */
@@ -286,16 +301,9 @@ static struct sc_card_operations iso_ops = {
         #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
         unwrap:                Some(acos5_64_unwrap),            // NULL
 
-        ..iso_ops // untested so far whether remaining functionality from iso is sufficient for cos5
+        ..iso_ops // untested so far whether remaining functionality from libopensc/iso7816.c is sufficient for cos5
 /* from iso_ops:
-    iso7816_read_binary,   sm_v2
-    iso7816_write_binary,  sm_v2
-    iso7816_update_binary, sm_v2
-
-    iso7816_read_record,   sm_v2
-    iso7816_write_record,  sm_v2
-    iso7816_append_record, sm_v2
-    iso7816_update_record, sm_v2
+    iso7816_append_record,
 
     NULL,            /* verify,                deprecated */
     iso7816_restore_security_env,
@@ -483,7 +491,7 @@ extern "C" fn acos5_64_match_card(card_ptr: *mut sc_card) -> c_int
         }
     / **/
 
-    // Only now, on success,   set card.type
+    // Only now, on success, set card.type
     card.type_ = type_out;
     if cfg!(log) {
         wr_do_log_t(card.ctx, f_log, line!(), fun, acos5_64_atrs[idx_acos5_64_atrs].name,
@@ -630,7 +638,8 @@ extern "C" fn acos5_64_init(card_ptr: *mut sc_card) -> c_int
         agi: Default::default(),
         sec_env_mod_len: 0,
         rsa_caps: rsa_algo_flags,
-        does_mf_exist: true, // just an assumption; will be set in enum_dir
+        is_sm_operable : false, // just an assumption; will be set a few lines later
+        does_mf_exist: true,    // just an assumption; will be set in enum_dir
         is_running_init: true,
         is_running_compute_signature: false, /* acos5_64_decipher needs to know, whether it was called by acos5_64_compute_signature */
         is_running_cmd_long_response: false,
@@ -648,8 +657,23 @@ extern "C" fn acos5_64_init(card_ptr: *mut sc_card) -> c_int
     rv = enum_dir(card, &path_mf, true/*, 0*/); /* FIXME Doing to much here degrades performance, possibly for no value */
     assert_eq!(rv, SC_SUCCESS);
 
+    let sm_info = &mut card.sm_ctx.info;
+//  char[64]  config_section;  will be set from opensc.conf later by sc_card_sm_check
+//  uint      sm_mode;         will be set from opensc.conf later by sc_card_sm_check only for SM_MODE_TRANSMIT
+    sm_info.serialnr  = card.serialnr;
+    unsafe { copy_nonoverlapping(CStr::from_bytes_with_nul(b"acos5_64_sm\0").unwrap().as_ptr(), sm_info.config_section.as_mut_ptr(), 12); } // used to look-up the block; only iasecc/authentic populate this field
+    sm_info.card_type = card.type_ as c_uint;
+    sm_info.sm_type   = SM_TYPE_CWA14890;
+    unsafe { sm_info.session.cwa.params.crt_at.refs[0] = 0x82 }; // this is the selection of keyset_... ...02_... to be used !!! Currently 24 byte keys (generate 24 byte session keys)
+//       assert(0);//session.cwa.params.crt_at.refs[0] = 0x81;   // this is the selection of keyset_... ...01_... to be used !!!           16 byte keys (generate 16 byte session keys)
+//        if (card.cache.current_df)
+//        current_path_df                 = card.cache.current_df.path;
+    sm_info.current_aid = sc_aid { len: SC_MAX_AID_SIZE, value: [0x41, 0x43, 0x4F, 0x53, 0x50, 0x4B, 0x43, 0x53, 0x2D, 0x31, 0x35, 0x76, 0x31, 0x2E, 0x30, 0x30]}; //"ACOSPKCS-15v1.00", see PKCS#15 EF.DIR file
+//  card.sm_ctx.module.ops  : handled by card.c:sc_card_sm_check/sc_card_sm_load
+
     let mut dp= unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     dp.files.shrink_to_fit();
+    dp.is_sm_operable = false;//is_sm_operable(card);
     dp.is_running_init = false;
 
     #[cfg(enable_acos5_64_ui)]
@@ -668,7 +692,6 @@ extern "C" fn acos5_64_init(card_ptr: *mut sc_card) -> c_int
         wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) },
                      CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
     }
-
     rv
 } // acos5_64_init
 
@@ -848,7 +871,7 @@ println!("{:X?}", arr4); // [4, 3, 2, 1]
   Use the special value count=0xFFFF (a value far beyond possible file sizes) in order to denote clearing bytes until the end of the file
   TODO check what happens if end_offset > file's size
 
-@param count indicates the number of bytes to erase"
+@param count indicates the number of bytes to erase
 @return SC_SUCCESS or other SC_..., NO length !
 @requires prior file selection
 */
@@ -1210,8 +1233,12 @@ To clear the accumulated CRT’s, issue a SELECT FILE command
         wr_do_log(card.ctx, f_log, line!(), fun, fmt);
     }
 
+    let target_file_id = u16_from_array_begin(&path_ref.value[path_ref.len-2..]);
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let does_mf_exist = dp.does_mf_exist;
+    /* if we are not called from within "is_running_init==true", then we must be sure that dp.files.2 is Some, i.e. we know the scb8 of target file when returning from select_file
+       We don't know what comes next after select_file: it may be a cmd that enforces using SM (retrievable from scb8) */
+    let need_to_process_fci = !dp.is_running_init && dp.files[&target_file_id].2.is_none();
     card.drv_data = Box::into_raw(dp) as *mut c_void;
     if !does_mf_exist { return SC_ERROR_NOT_ALLOWED;}
     if path_ref.len>=2 && path_ref.value[0]==0xe8
@@ -1231,58 +1258,58 @@ To clear the accumulated CRT’s, issue a SELECT FILE command
                 wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule1_match: \
                     true (select_file target is the currently selected DF)\0").unwrap());
             }
-            return tracking_select_file(card, &path1, file_out_ptr)
+            return tracking_select_file(card, &path1, file_out_ptr, need_to_process_fci)
         }
         else if is_search_rule0_match(path_target, current_path_ef) { // path_target is what is currently selected already (potentially superfluous select)
             if cfg!(log) {
                 wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule0_match: \
                     true (select_file target is what is currently selected already (potentially superfluous select) !!!)\0").unwrap());
             }
-            return tracking_select_file(card, &path1, file_out_ptr)
+            return tracking_select_file(card, &path1, file_out_ptr, need_to_process_fci)
         }
         else if is_search_rule2_match(path_target, current_path_df) { // path_target is a EF/DF located (directly) within currently selected DF: select_file MUST NOT be dropped
             if cfg!(log) {
                 wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule2_match: \
                     true (select_file target is a EF/DF located (directly) within currently selected DF)\0").unwrap());
             }
-            return tracking_select_file(card, &path1, file_out_ptr)
+            return tracking_select_file(card, &path1, file_out_ptr, need_to_process_fci)
         }
         else if is_search_rule3_match(path_target, current_path_df) {
             if cfg!(log) {
                 wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule3_match: \
                     true (select_file target is the parent DF of currently selected DF)\0").unwrap());
             }
-            return tracking_select_file(card, &path1, file_out_ptr)
+            return tracking_select_file(card, &path1, file_out_ptr, need_to_process_fci)
         }
         else if is_search_rule4_match(path_target, current_path_df) {
             if cfg!(log) {
                 wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule4_match: \
 true (select_file target is a EF/DF located (directly) within the parent DF of currently selected DF)\0").unwrap());
             }
-            return tracking_select_file(card, &path1, file_out_ptr)
+            return tracking_select_file(card, &path1, file_out_ptr, need_to_process_fci)
         }
         else if is_search_rule5_match(path_target) {
             if cfg!(log) {
                 wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule5_match: \
                     true (select_file target is MF)\0").unwrap());
             }
-            return tracking_select_file(card, &path1, file_out_ptr)
+            return tracking_select_file(card, &path1, file_out_ptr, need_to_process_fci)
         }
         else if is_search_rule6_match(path_target) {
             if cfg!(log) {
                 wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule6_match: \
                     true (select_file target is a EF/DF located (directly) within MF)\0").unwrap());
             }
-            return tracking_select_file(card, &path1, file_out_ptr)
+            return tracking_select_file(card, &path1, file_out_ptr, need_to_process_fci)
         }
     }
 
     let rv = match path_ref.type_ {
-        SC_PATH_TYPE_PATH        =>  select_file_by_path(card, path_ref, file_out_ptr),
+        SC_PATH_TYPE_PATH        =>  select_file_by_path(card, path_ref, file_out_ptr, need_to_process_fci),
         SC_PATH_TYPE_PATH_PROT | SC_PATH_TYPE_FROM_CURRENT | SC_PATH_TYPE_PARENT
             => SC_ERROR_KEYPAD_MSG_TOO_LONG,
             /* for SC_PATH_TYPE_FILE_ID and SC_PATH_TYPE_DF_NAME : */
-        _   =>  tracking_select_file(card, path_ref, file_out_ptr),
+        _   =>  tracking_select_file(card, path_ref, file_out_ptr, need_to_process_fci),
     };
     rv
 }
@@ -3189,6 +3216,31 @@ extern "C" fn acos5_64_delete_record(card_ptr: *mut sc_card, rec_nr: c_uint) -> 
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
         if rv != SC_SUCCESS {rv} else {apdu.lc as c_int}
     }
+}
+
+/* returns how many bytes were read or an error code */
+extern "C" fn acos5_64_read_binary(card_ptr: *mut sc_card, idx: c_uint,
+                                   buf_ptr: *mut c_uchar, count: usize, flags: c_ulong) -> c_int
+{
+    common_read(card_ptr, idx, buf_ptr, count, flags, true)
+}
+
+extern "C" fn acos5_64_read_record(card_ptr: *mut sc_card, rec_nr: c_uint,
+                                   buf_ptr: *mut c_uchar, count: usize, flags: c_ulong) -> c_int
+{
+    common_read(card_ptr, rec_nr, buf_ptr, count, flags, false)
+}
+
+extern "C" fn acos5_64_update_binary(card_ptr: *mut sc_card, idx: c_uint,
+                                     buf_ptr: *const c_uchar, count: usize, flags: c_ulong) -> c_int
+{
+    common_update(card_ptr, idx, buf_ptr, count, flags, true)
+}
+
+extern "C" fn acos5_64_update_record(card_ptr: *mut sc_card, rec_nr: c_uint,
+                                     buf_ptr: *const c_uchar, count: usize, flags: c_ulong) -> c_int
+{
+    common_update(card_ptr, rec_nr, buf_ptr, count, flags, false)
 }
 
 /*

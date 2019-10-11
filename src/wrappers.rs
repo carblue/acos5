@@ -27,7 +27,7 @@ use opensc_sys::opensc::{sc_context};
 use opensc_sys::log::{sc_do_log, SC_LOG_DEBUG_NORMAL};
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 use opensc_sys::log::{sc_do_log_color, SC_COLOR_FG_RED};
-
+use opensc_sys::errors::{sc_strerror};
 
 pub fn wr_do_log(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, fmt: &CStr)
 {
@@ -75,3 +75,18 @@ pub fn wr_do_log_sds(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr
 }
 
 // usage for ordinary return with: LOG_FUNC_RETURN
+pub fn wr_do_log_rv(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, rv: c_int)
+{
+    if rv <= 0 {
+        #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
+        {unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(),
+                            CStr::from_bytes_with_nul(b"returning with: %d (%s)\n\0").unwrap().as_ptr(), rv, sc_strerror(rv)) }; }
+        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+        {unsafe { sc_do_log_color(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), SC_COLOR_FG_RED,
+                                  CStr::from_bytes_with_nul(b"returning with: %d (%s)\n\0").unwrap().as_ptr(), rv, sc_strerror(rv)) }; }
+    }
+    else {
+        unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(),
+                            CStr::from_bytes_with_nul(b"returning with: %d\n\0").unwrap().as_ptr(), rv) };
+    }
+}
