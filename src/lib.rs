@@ -131,7 +131,7 @@ use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_arra
     generate_asym, encrypt_asym, get_files_hashmap_info, update_hashmap,
     logical_xor/*, create_mf_file_system*/, convert_acl_array_to_bytes_tag_fcp_sac, get_sec_env_mod_len,
     ACL_CATEGORY_DF_MF, ACL_CATEGORY_EF_CHV, ACL_CATEGORY_KEY, ACL_CATEGORY_SE,
-    get_is_running_compute_signature, set_is_running_compute_signature, get_key, common_read, common_update
+    get_is_running_compute_signature, set_is_running_compute_signature, common_read, common_update
 };
 
 pub mod    path;
@@ -139,11 +139,6 @@ use crate::path::*;
 
 pub mod    se;
 use crate::se::{se_file_add_acl_entry};
-
-/*
-pub mod    sec_mess;
-use crate::sec_mess::*;
-*/
 
 #[cfg(enable_acos5_64_ui)]
 pub mod    user_consent;
@@ -647,7 +642,8 @@ extern "C" fn acos5_64_init(card_ptr: *mut sc_card) -> c_int
         sym_key_file_id: 0,
         sym_key_rec_idx: 0,
         sym_key_rec_cnt: 0,
-        #[cfg(enable_acos5_64_ui)]
+        time_stamp: std::time::Instant::now(),
+    #[cfg(enable_acos5_64_ui)]
         ui_ctx: Default::default(),
     } );
     card.drv_data = Box::into_raw(dp) as *mut c_void;
@@ -673,7 +669,7 @@ extern "C" fn acos5_64_init(card_ptr: *mut sc_card) -> c_int
 
     let mut dp= unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     dp.files.shrink_to_fit();
-    dp.is_sm_operable = false;//is_sm_operable(card);
+//    dp.is_sm_operable = false;
     dp.is_running_init = false;
 
     #[cfg(enable_acos5_64_ui)]
@@ -1057,8 +1053,10 @@ extern "C" fn acos5_64_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_p
                 unsafe { (*key_auth_state_ptr).value = key_auth_state };
                 SC_SUCCESS
             },
+/*
         SC_CARDCTL_ACOS5_GET_KEY =>
                 get_key(card, unsafe { &mut *(data_ptr as *mut CardCtlArray1285) }),
+*/
         SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO =>
             {
                 let files_hashmap_info_ptr = data_ptr as *mut CardCtlArray32;
@@ -3219,6 +3217,9 @@ extern "C" fn acos5_64_delete_record(card_ptr: *mut sc_card, rec_nr: c_uint) -> 
 }
 
 /* returns how many bytes were read or an error code */
+/* read_binary is also responsible for get_key and takes appropriate actions, such that get_key is NOT publicly available
+   OpenSC doesn't know the difference (fdb 1 <-> 9): It always calls for transparent files: read_binary
+   shall be called solely by sc_read_binary, which cares for dividing into chunks !! */
 extern "C" fn acos5_64_read_binary(card_ptr: *mut sc_card, idx: c_uint,
                                    buf_ptr: *mut c_uchar, count: usize, flags: c_ulong) -> c_int
 {

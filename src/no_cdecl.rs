@@ -72,7 +72,7 @@ use opensc_sys::iso7816::{ISO7816_TAG_FCI, ISO7816_TAG_FCP};
 
 use crate::wrappers::*;
 use crate::constants_types::*;
-use crate::se::se_parse_crts;
+use crate::se::{se_parse_crts, se_get_is_suitable_for_sm_has_ct};
 use crate::path::cut_path;
 use crate::missing_exports::me_get_max_recv_size;
 use crate::cmd_card_info::{get_card_life_cycle_byte_EEPROM, get_op_mode_byte_EEPROM, get_zeroize_card_disable_byte_EEPROM};
@@ -1033,7 +1033,7 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
     SC_SUCCESS
 }
 
-pub fn get_key(card: &mut sc_card, key_data: &mut CardCtlArray1285) -> c_int
+fn get_key(card: &mut sc_card, key_data: &mut CardCtlArray1285) -> c_int
 {
     let mut rv: i32;
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
@@ -2136,9 +2136,14 @@ pub fn common_read(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *mut c_uchar, c
 
     let file_id = u16_from_array_end(&card.cache.current_path.value[..card.cache.current_path.len]);
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-    let scb_read = dp.files[&file_id].2.unwrap()[0];
+    let x = &dp.files[&file_id];
+    let fdb      = x.1[0];
+    let scb_read = x.2.unwrap()[0];
     let is_sm_operable = dp.is_sm_operable;
-    let fdb = dp.files[&file_id].1[0];
+    let mut res_se_sm = (false, false);
+    if is_sm_operable && (scb_read & 0x40) == 0x40 {
+        res_se_sm = se_get_is_suitable_for_sm_has_ct(card, file_id, scb_read & 0x0F);
+    }
     card.drv_data = Box::into_raw(dp) as *mut c_void;
 
     if scb_read == 0xFF {
@@ -2148,7 +2153,7 @@ pub fn common_read(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *mut c_uchar, c
         SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
     }
     else if (scb_read & 0x40) == 0x40 {
-        if !is_sm_operable {
+        if !is_sm_operable || !res_se_sm.0 {
             wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
                 if bin {b"No read_binary will be done: The file has acl SM-protected READ\0"}
                        else   {b"No read_record will be done: The file has acl SM-protected READ\0"}).unwrap());
@@ -2158,9 +2163,9 @@ pub fn common_read(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *mut c_uchar, c
         else if !card.sm_ctx.module.handle.is_null() {
             // forward to SM processing
             use libc::{dlsym};
-            let func_ptr = unsafe { std::mem::transmute::<*mut c_void, extern "C" fn(&mut sc_card, c_uint, *mut c_uchar, usize, c_ulong, bool) -> c_int>(
+            let func_ptr = unsafe { std::mem::transmute::<*mut c_void, extern "C" fn(&mut sc_card, c_uint, *mut c_uchar, usize, c_ulong, bool, bool, u8) -> c_int>(
                 dlsym(card.sm_ctx.module.handle, CStr::from_bytes_with_nul(b"sm_common_read\0").unwrap().as_ptr()) ) };
-            func_ptr(card, idx, buf_ptr, count, flags, bin)
+            func_ptr(card, idx, buf_ptr, count, flags, bin, res_se_sm.1, fdb)
         }
 / * */
         else {
@@ -2168,15 +2173,15 @@ pub fn common_read(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *mut c_uchar, c
         }
     }
     else {
-        let func_ptr = match bin {
-            true =>  unsafe { (*(*sc_get_iso7816_driver()).ops).read_binary.unwrap() },
-            false => unsafe { (*(*sc_get_iso7816_driver()).ops).read_record.unwrap() }
-        };
         if bin && fdb == FDB_RSA_KEY_EF {
             let mut x = CardCtlArray1285 { offset: idx, le: count, rcv_ptr: buf_ptr };
             get_key(card, &mut x)
         }
         else {
+            let func_ptr = match bin {
+                true =>  unsafe { (*(*sc_get_iso7816_driver()).ops).read_binary.unwrap() },
+                false => unsafe { (*(*sc_get_iso7816_driver()).ops).read_record.unwrap() }
+            };
             unsafe { func_ptr(card, idx, buf_ptr, count, flags) }
         }
     }
@@ -2196,9 +2201,14 @@ pub fn common_update(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *const c_ucha
 
     let file_id = u16_from_array_end(&card.cache.current_path.value[..card.cache.current_path.len]);
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-    let scb_update = dp.files[&file_id].2.unwrap()[1];
+    let x = &dp.files[&file_id];
+    let fdb      = x.1[0];
+    let scb_update = x.2.unwrap()[1];
     let is_sm_operable = dp.is_sm_operable;
-    let fdb = dp.files[&file_id].1[0];
+    let mut res_se_sm = (false, false);
+    if is_sm_operable && (scb_update & 0x40) == 0x40 {
+        res_se_sm = se_get_is_suitable_for_sm_has_ct(card, file_id, scb_update & 0x0F);
+    }
     card.drv_data = Box::into_raw(dp) as *mut c_void;
 
     if scb_update == 0xFF {
@@ -2208,7 +2218,7 @@ pub fn common_update(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *const c_ucha
         SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
     }
     else if (scb_update & 0x40) == 0x40 {
-        if !is_sm_operable {
+        if !is_sm_operable || !res_se_sm.0 {
             wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
                 if bin {b"No update_binary will be done: The file has acl SM-protected UPDATE\0"}
                        else   {b"No update_record will be done: The file has acl SM-protected UPDATE\0"}).unwrap());
@@ -2218,9 +2228,9 @@ pub fn common_update(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *const c_ucha
         else if !card.sm_ctx.module.handle.is_null() {
             // forward to SM processing
             use libc::{dlsym};
-            let func_ptr = unsafe { std::mem::transmute::<*mut c_void, extern "C" fn(&mut sc_card, c_uint, *const c_uchar, usize, c_ulong, bool) -> c_int>(
+            let func_ptr = unsafe { std::mem::transmute::<*mut c_void, extern "C" fn(&mut sc_card, c_uint, *const c_uchar, usize, c_ulong, bool, bool, u8) -> c_int>(
                 dlsym(card.sm_ctx.module.handle, CStr::from_bytes_with_nul(b"sm_common_update\0").unwrap().as_ptr()) ) };
-            func_ptr(card, idx, buf_ptr, count, flags, bin)
+            func_ptr(card, idx, buf_ptr, count, flags, bin, res_se_sm.1, fdb)
         }
 / * */
         else {

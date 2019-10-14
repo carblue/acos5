@@ -155,7 +155,7 @@ pub fn se_file_add_acl_entry(card: &mut sc_card, file: &mut sc_file, scb: u8/*sc
  * @apiNote
  * @param   card             INOUT
  * @param   file_id          IN    the file_id, for which info is requested; relevant is the SE file info of file_id's directory
- * @param   se_reference     IN    the SE file records id (3.byte) matching SCB & 0x0F, though 0x0F is RFU for cos5 !
+ * @param   se_reference     IN    the SE file record's id (3.byte) matching SCB & 0x0F, though 0x0F is RFU for cos5 !
  * @param   search_template  IN    usually searching for CRT_TAG_AT, CRT_TAG_CCT or CRT_TAG_CT_SYM
  * @return  pin/sym. key reference ==  pin/sym. key id (global)  or  pin/sym. key id | 0x80 (local)
  */
@@ -216,6 +216,86 @@ fn se_get_reference(card: &mut sc_card, file_id: c_int, se_reference: u8, search
     result
 }
 
+/**
+ * Performs look-up of SCB meaning in the database - HashMap dp.files - (internal search_templates)
+ * @apiNote
+ * @param   card             INOUT
+ * @param   file_id          IN    the file_id, for which info is requested; relevant is the SE file info of file_id's directory
+ * @param   se_reference     IN    the SE file record's id (3.byte) matching SCB & 0x0F, though 0x0F is RFU for cos5 !
+ * @return  a tuple: 1. elem: whether the CRT templates match the requirements for SM, forcing at least SM mode Authenticity (SM-sign)
+                     2. elem: whether there also is a CT template, forcing SM mode Confidentiality (SM-sign + SM-enc)
+ */
+pub fn se_get_is_suitable_for_sm_has_ct(card: &mut sc_card, file_id: u16, se_reference: u8) -> (bool, bool)
+{
+    let mut result = (false /*is_suitable_for_sm*/, false /*has_ct*/);
+    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    if dp.files.contains_key(&file_id) {
+        let fdb        = dp.files[&file_id].1[0];
+        let path_len = dp.files[&file_id].1[1] as usize;
+        let file_id_dir = if is_DFMF(fdb) { file_id }
+        else {
+            assert!(path_len>=4);
+            let tmp = &dp.files[&file_id].0[path_len-4..path_len-2];
+            u16_from_array_begin(tmp)
+        };
+//        println!("file_id_dir: {:X}", file_id_dir);
+        match &dp.files[&file_id_dir].3 {
+            None => {},
+            Some(vec_seinfo) => {
+                for elem in vec_seinfo {
+                    if elem.reference == se_reference as c_uint {
+                        /*
+                        if template has no AT and CCT, then it's unusable for SM
+                        if template's usage != 0x30, then it's unusable for SM
+                        if template has a B8, then it's for Confidentiality, else for authenticity
+                        */
+                        #[allow(non_snake_case)]
+                        let search_template_AT = sc_crt::new_AT(0x88);
+                        #[allow(non_snake_case)]
+                        let mut AT_found = false;
+                        for j in 0..elem.crts_len {
+                            if elem.crts[j].tag   != search_template_AT.tag   { continue; }
+                            if (elem.crts[j].usage & search_template_AT.usage) == 0 { continue; }
+                            /* TODO any special requirement ref. pin/key ? */
+                            AT_found = true;
+                            break;
+                        }
+
+                        #[allow(non_snake_case)]
+                        let search_template_CCT = sc_crt::new_CCT(0x30);
+                        #[allow(non_snake_case)]
+                        let mut CCT_found = false;
+                        for j in 0..elem.crts_len {
+                            if elem.crts[j].tag   != search_template_CCT.tag   { continue; }
+                            if (elem.crts[j].usage & search_template_CCT.usage) != search_template_CCT.usage { continue; }
+                            if elem.crts[j].algo  != 0x02   { continue; }
+                            if ![0x84u8, 0x81, 0x82, 0x83, 1,2,3].contains(&(elem.crts[j].refs[0] as u8))   { continue; }
+                            CCT_found = true;
+                            break;
+                        }
+
+                        #[allow(non_snake_case)]
+                        let search_template_CT = sc_crt::new_CT(0x30);
+                        #[allow(non_snake_case)]
+                        let mut CT_found = false;
+                        for j in 0..elem.crts_len {
+                            if elem.crts[j].tag   != search_template_CT.tag   { continue; }
+                            if (elem.crts[j].usage & search_template_CT.usage) != search_template_CT.usage { continue; }
+                            if elem.crts[j].algo  != 0x02   { continue; }
+                            if ![0x84u8, 0x81, 0x82, 0x83, 1,2,3].contains(&(elem.crts[j].refs[0] as u8))   { continue; }
+                            CT_found = true;
+                            break;
+                        }
+                        result = (AT_found && CCT_found /*is_suitable_for_sm*/, CT_found /*has_ct*/);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    card.drv_data = Box::into_raw(dp) as *mut c_void;
+    result
+}
 
 /*
  * Parses an SE file's record beginning from it's 4. byte, e.g.

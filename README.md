@@ -13,7 +13,8 @@ external module operating within the OpenSC framework (min. version 0.17.0).<br>
 External module, in this context means: You also have to "tell opensc.conf some details", such that OpenSC can find the driver library, knows about it and can load it as a known driver.
 External module also has the implication, that OpenSC calls up to 3 different libraries (depending on opensc.conf configuration and functionality required): Into this mandatory driver library, into an optional library [acos5_64_pkcs15init](https://github.com/carblue/acos5_64_pkcs15init) and into an optional 'Secure Messaging' sm library (not available with LGPL license).
 OpenSC also has the implication: If Your card got initialized and is not PKCS#15 compliant, it won't work (well) with OpenSC and likely requires card's re-initialization<br>
-Hardware supported: V2.00 and V3.00. The new ACOS5-EVO is not yet available to me and untested.
+Hardware supported: V2.00 and V3.00. The new ACOS5-EVO is not yet available to me and untested.<br>
+The respective reference manual is available on request from: info@acs.com.hk
 
 Likely You are here because You have an ACOS5-64 card and want it to be used - based on opensc-pkcs11.so/dll/dylib - with any software that connects to Your ACOS5-64 smart card via the PKCS#11 interface, like ssh, Firefox, Thunderbird etc.. Then this is for You.<br>
 But know that we entered my deferment period: The ratio of response to download/clone count is extremely disapointing: If people who downloaded/cloned are happy or unhappy, I expect a response in some way You like.<br>
@@ -87,4 +88,4 @@ app default {
 
 You'll probably also want [acos5_64_pkcs15init](https://github.com/carblue/acos5_64_pkcs15init "https://github.com/carblue/acos5_64_pkcs15init"), an optional library that supplements driver 'acos5_64' with some specific PKCS#15 related functionality (it's mandatory for [acos5_64_gui](https://github.com/carblue/acos5_64_gui "https://github.com/carblue/acos5_64_gui")).<br>
 
-You will very likely need a card (re-)initialization suitable for OpenSC (i.e. PKCS#15-compliant, see info/card_initialization/README.md)
+You will very likely need a card (re-)initialization suitable for OpenSC (i.e. PKCS#15-compliant, see [card_initialization README](https://github.com/carblue/acos5_64/blob/master/info/card_initialization/README.md "https://github.com/carblue/acos5_64/blob/master/info/card_initialization/README.md"))

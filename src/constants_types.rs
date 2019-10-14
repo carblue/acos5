@@ -224,7 +224,7 @@ pub const SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE     : c_ulong =  0x0000_001A; // 
 pub const SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE      : c_ulong =  0x0000_001B; // data: *mut CardCtlAuthState,  get_pin_auth_state
 pub const SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE      : c_ulong =  0x0000_001C; // data: *mut CardCtlAuthState,  get_key_auth_state
 
-pub const SC_CARDCTL_ACOS5_GET_KEY                 : c_ulong =  0x0000_001D; // data: *mut CardCtlArray1285,  get_key
+//pub const SC_CARDCTL_ACOS5_GET_KEY                 : c_ulong =  0x0000_001D; // data: *mut CardCtlArray1285,  get_key
 
 pub const SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO   : c_ulong =  0x0000_001E; // data: null
 pub const SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO   : c_ulong =  0x0000_001F; // data: *mut CardCtlArray32,  get_files_hashmap_info
@@ -514,6 +514,7 @@ pub struct DataPrivate { // see settings in acos5_64_init
     pub sym_key_file_id : u16,
     pub sym_key_rec_idx : u8,
     pub sym_key_rec_cnt : u8,
+    pub time_stamp : std::time::Instant,
     #[cfg(enable_acos5_64_ui)]
     pub ui_ctx : ui_context,
 }

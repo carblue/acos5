@@ -39,8 +39,8 @@ use crate::wrappers::*;
 pub fn current_path_df(card: &mut sc_card) -> &[u8]
 {
     let len = card.cache.current_path.len;
-    assert!(len>=2);
-    let file_id = u16_from_array_begin(&card.cache.current_path.value[len-2..len]);
+//    assert!(len>=2);
+    let file_id = u16_from_array_end(&card.cache.current_path.value[..len]);
 
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     assert!(dp.files.contains_key(&file_id));
