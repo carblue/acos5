@@ -1,5 +1,5 @@
 /*
- * constants_types.rs: Driver 'acos5_64' - Code common to driver, pkcs15init and sm libraries, partially also acos5_gui
+ * constants_types.rs: Driver 'acos5' - Code common to driver, pkcs15 and sm libraries, partially also acos5_gui
  *
  * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
@@ -20,15 +20,13 @@
 
 use std::os::raw::{c_uchar, c_int, c_uint, c_char, c_ulong};
 use std::collections::HashMap;
+//use num_traits::*;
 
 use opensc_sys::opensc::{sc_security_env};
 use opensc_sys::types::{sc_crt, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
 use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUSTED,
                          SC_PKCS15_SKDF, SC_PKCS15_CDF, SC_PKCS15_CDF_TRUSTED, SC_PKCS15_CDF_USEFUL,
                          SC_PKCS15_DODF, SC_PKCS15_AODF};
-
-#[cfg(enable_acos5_64_ui)]
-use crate::user_consent::ui_context;
 
 // see also useful declarations in libopensc/iasecc.h:
 pub const ACOS5_OBJECT_REF_LOCAL  : u8 = 0x80;
@@ -40,30 +38,30 @@ pub const ACOS5_OBJECT_REF_MAX    : u8 = 0x1F;
 // for an internal driver these 3 will move to cards.h
 pub const SC_CARD_TYPE_ACOS5_64_V2  : i32 = 16003;
 pub const SC_CARD_TYPE_ACOS5_64_V3  : i32 = 16004;
-pub const SC_CARD_TYPE_ACOS5_64_EVO : i32 = 16005;
+pub const SC_CARD_TYPE_ACOS5_EVO_V4 : i32 = 16005;
 
 pub const ATR_V2   : &[u8; 57] = b"3b:be:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00\0"; // Using reader with a card: ACS CryptoMate64 00 00
 pub const ATR_V3   : &[u8; 57] = b"3b:be:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00\0"; // Using reader with a card: ACS CryptoMate (T2) 00 00  ; this is CryptoMate Nano
-pub const ATR_EVO  : &[u8; 57] = b"3b:9e:96:80:01:41:05:40:00:00:00:00:00:00:00:00:00:90:00\0"; // unknown currently
+pub const ATR_V4   : &[u8; 57] = b"3b:9e:96:80:01:41:05:40:00:00:00:00:00:00:00:00:00:90:00\0"; // unknown currently
 pub const ATR_MASK : &[u8; 57] = b"FF:FF:FF:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF\0";
-pub const NAME_V2  : &[u8; 43] = b"ACOS5-64 v2.00: Smart Card or CryptoMate64\0";
-pub const NAME_V3  : &[u8; 46] = b"ACOS5-64 v3.00: Smart Card or CryptoMate Nano\0";
-pub const NAME_EVO : &[u8; 47] = b"ACOS5-64 EVO: Smart Card EVO or CryptoMate EVO\0";
+pub const NAME_V2  : &[u8; 43] = b"ACOS5-64 V2.00: Smart Card or CryptoMate64\0";
+pub const NAME_V3  : &[u8; 46] = b"ACOS5-64 V3.00: Smart Card or CryptoMate Nano\0";
+pub const NAME_V4  : &[u8; 44] = b"ACOS5-EVO: Smart Card EVO or CryptoMate EVO\0";
 
-pub const CARD_DRV_NAME       : &[u8;  96] = b"'acos5_64', suitable for ACOS5-64 v2.00 and v3.00 (Smart Card / CryptoMate64 / CryptoMate Nano)\0";
-pub const CARD_DRV_SHORT_NAME : &[u8;   9] = b"acos5_64\0";
+pub const CARD_DRV_NAME       : &[u8; 108] = b"'acos5-external', supporting ACOS5 Smart Card V2.00 (CryptoMate64), V3.00 (CryptoMate Nano) and V4.00 (EVO)\0";
+pub const CARD_DRV_SHORT_NAME : &[u8;  15] =  b"acos5-external\0";
 
 pub const CARD_DRIVER         : &[u8;  12] = b"card_driver\0";
 pub const MODULE              : &[u8;   7] = b"module\0";
-pub const LIB_DRIVER_NIX      : &[u8;  15] = b"libacos5_64.so\0";
+pub const LIB_DRIVER_NIX      : &[u8;  12] = b"libacos5.so\0";
 
-pub const CARD_SM_SHORT_NAME  : &[u8;  12] = b"acos5_64_sm\0";
+pub const CARD_SM_SHORT_NAME  : &[u8;   9] = b"acos5_sm\0";
 pub const SECURE_MESSAGING    : &[u8;  17] = b"secure_messaging\0";
 pub const MODULE_PATH         : &[u8;  12] = b"module_path\0";
 pub const MODULE_NAME         : &[u8;  12] = b"module_name\0";
-pub const LIB_SM_NIX          : &[u8;  18] = b"libacos5_64_sm.so\0";
+pub const LIB_SM_NIX          : &[u8;  15] = b"libacos5_sm.so\0";
 
-pub const CRATE               : &[u8;   9] = b"acos5_64\0"; // search acos5_64 mention in debug log file; each function should at least log CALLED, except small helpers or code that is clearly covered by only one possible surrounding function's called
+pub const CRATE               : &[u8;   6] = b"acos5\0"; // search acos5 mention in debug log file; each function should at least log CALLED, except small helpers or code that is clearly covered by only one possible surrounding function's called
 pub const CALLED              : &[u8;   7] = b"called\0";
 pub const RETURNING           : &[u8;  10] = b"returning\0";
 pub const RETURNING_INT_CSTR  : &[u8;  25] = b"returning with: %d (%s)\n\0";
@@ -96,7 +94,7 @@ pub const FDB_CYCLIC_EF          : u8 = 0x06; // Cyclic EF          == opensc-sy
 pub const FDB_RSA_KEY_EF         : u8 = 0x09; // RSA Key EF, for private and public key file; distinguish by PKCS15_FILE_TYPE_RSAPRIVATEKEY or PKCS15_FILE_TYPE_RSAPUBLICKEY
 pub const FDB_CHV_EF             : u8 = 0x0A; // CHV EF, for the pin file, max 1 file only in each DF
 pub const FDB_SYMMETRIC_KEY_EF   : u8 = 0x0C; // Symmetric Key EF,         max 1 file only in each DF;  PKCS15_FILE_TYPE_SECRETKEY
-pub const FDB_PURSE_EF           : u8 = 0x0E; // Purse EF, since ACOS5-64 v3.00
+pub const FDB_PURSE_EF           : u8 = 0x0E; // Purse EF, since ACOS5-64 V3.00
 pub const FDB_ECC_KEY_EF         : u8 = 0x19; // Elliptic Curve Cryptography Key EF, for private and public key file; distinguish by PKCS15_FILE_TYPE_ECCPRIVATEKEY or PKCS15_FILE_TYPE_ECCPUBLICKEY
 /* Proprietary internal EF */
 pub const FDB_SE_FILE            : u8 = 0x1C; // Security Environment File, exactly 1 file only in each DF; DF's header/FCI points to this
@@ -160,8 +158,9 @@ pub const RSAPRIV_MAX_LEN_CRT      : usize = 5 +   5*(RSA_MAX_LEN_MODULUS/2); //
 // don't use BLOCKCIPHER_PAD_TYPE_ZEROES, if it's required to retrieve the message length exactly
 pub const BLOCKCIPHER_PAD_TYPE_ZEROES             : u8 =  0; // as for  CKM_AES_CBC: adds max block size minus one null bytes (0 ≤ N < B Blocksize)
 pub const BLOCKCIPHER_PAD_TYPE_ONEANDZEROES       : u8 =  1; // Unconditionally add a byte of value 0x80 followed by as many zero bytes as is necessary to fill the input to the next exact multiple of B
-// be careful with BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5: It can't unambiguously be detected, what is padding, what is payload
-pub const BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5 : u8 =  2; // Used in ACOS5 SM: Only if in_len isn't a multiple of blocksize, then add a byte of value 0x80 followed by as many zero bytes as is necessary to fill the input to the next exact multiple of B
+// be careful with BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64: It can't unambiguously be detected, what is padding, what is payload: Therefore ACOS5 uses a 'Padding Indicator' byte Pi, telling, whether padding was applied or not
+// ACOS5-EVO uses BLOCKCIPHER_PAD_TYPE_ONEANDZEROES (which is not ambiguous), and still uses the now superfluous  'Padding Indicator' byte Pi
+pub const BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64 : u8 =  2; // Used in ACOS5-64 SM: Only if in_len isn't a multiple of blocksize, then add a byte of value 0x80 followed by as many zero bytes (0-6) as is necessary to fill the input to the next exact multiple of B
 // BLOCKCIPHER_PAD_TYPE_PKCS5 is the recommended one, otherwise BLOCKCIPHER_PAD_TYPE_ONEANDZEROES and BLOCKCIPHER_PAD_TYPE_ANSIX9_23 (BLOCKCIPHER_PAD_TYPE_W3C) also exhibit unambiguity
 pub const BLOCKCIPHER_PAD_TYPE_PKCS5              : u8 =  3; // as for CKM_AES_CBC_PAD: If the block length is B then add N padding bytes (1 < N ≤ B Blocksize) of value N to make the input length up to the next exact multiple of B. If the input length is already an exact multiple of B then add B bytes of value B
 pub const BLOCKCIPHER_PAD_TYPE_ANSIX9_23          : u8 =  4; // If N padding bytes are required (1 < N ≤ B Blocksize) set the last byte as N and all the preceding N-1 padding bytes as zero.
@@ -224,8 +223,6 @@ pub const SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE     : c_ulong =  0x0000_001A; // 
 pub const SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE      : c_ulong =  0x0000_001B; // data: *mut CardCtlAuthState,  get_pin_auth_state
 pub const SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE      : c_ulong =  0x0000_001C; // data: *mut CardCtlAuthState,  get_key_auth_state
 
-//pub const SC_CARDCTL_ACOS5_GET_KEY                 : c_ulong =  0x0000_001D; // data: *mut CardCtlArray1285,  get_key
-
 pub const SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO   : c_ulong =  0x0000_001E; // data: null
 pub const SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO   : c_ulong =  0x0000_001F; // data: *mut CardCtlArray32,  get_files_hashmap_info
 
@@ -247,8 +244,8 @@ pub const SC_CARDCTL_ACOS5_DECRYPT_SYM             : c_ulong =  0x0000_0029; // 
 
 //pub const SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM    : c_ulong =  0x0000_002B; // data: *mut CardCtlArray20,  create_mf_file_system
 
-/* more related to acos5_64_pkcs15init */
-/* more related to acos5_64_sm */
+/* more related to acos5_pkcs15 */
+/* more related to acos5_sm */
 
 /* common types and general function(s) */
 
@@ -306,7 +303,7 @@ impl Default for CardCtlAuthState {
 #[derive(Debug, Copy, Clone,  PartialEq)]
 pub struct CardCtlArray32 {
     pub key    : u16,           // IN   file_id
-    pub value  : [c_uchar; 32], // OUT  in the order as acos5_64_gui defines // alias  TreeTypeFS = Tree_k_ary!ub32;
+    pub value  : [c_uchar; 32], // OUT  in the order as acos5_gui defines // alias  TreeTypeFS = Tree_k_ary!ub32;
 }
 
 impl Default for CardCtlArray32 {
@@ -318,26 +315,6 @@ impl Default for CardCtlArray32 {
     }
 }
 
-// struct for SC_CARDCTL_ACOS5_GET_KEY
-#[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
-pub struct CardCtlArray1285 {
-    pub offset  : c_uint,        // IN
-    pub le      : usize,         // IN
-    pub rcv_ptr : *mut c_uchar,  // OUT
-}
-
-impl Default for CardCtlArray1285 {
-    fn default() -> CardCtlArray1285 {
-        CardCtlArray1285 {
-            offset: 0,
-            le: 0,
-            rcv_ptr: std::ptr::null_mut(),
-        }
-    }
-}
-
-
 // struct for SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST and SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE, SC_CARDCTL_ACOS5_ENCRYPT_ASYM// data: *mut CardCtl_generate_crypt_asym, do_generate_asym, do_crypt_asym
 // not all data are require for do_crypt_asym (exponent, exponent_std, key_len_code, key_priv_type_code)
 #[repr(C)]
@@ -346,7 +323,7 @@ pub struct CardCtl_generate_crypt_asym {
     pub rsa_pub_exponent : [c_uchar; 16], // public exponent
     pub data : [c_uchar; RSA_MAX_LEN_MODULUS],   // INOUT for crypt_asym (performs cos5  'RSA Public Key Encrypt')
     pub data_len : usize,        // len bytes used within in_data
-    pub file_id_priv : u16,       // IN  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5_64.profile,
+    pub file_id_priv : u16,       // IN  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5-external.profile,
     pub file_id_pub  : u16,       // IN  if both are !=0, then the given values are preferred
     pub key_len_code : c_uchar,   // cos5 specific encoding for modulus length: key_len_code*128==modulus length canonical in bits (canonical means neglecting that possibly some MSB are not set to 1)
     pub key_priv_type_code : c_uchar,  // as required by cos5 Generate RSA Key Pair: allowed key-usage and standard/CRT format qualification
@@ -383,13 +360,13 @@ impl Default for CardCtl_generate_crypt_asym {
     }
 }
 
-/* RSA key pair generation: using this allows specific input from acos5_64_gui and disabling file creation, while all calls will go via sc_pkcs15init_generate_key, i.e.
-   acos5_64_gui will always call sc_card_ctl(SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT) prior to sc_card_ctl(SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST) */
+/* RSA key pair generation: using this allows specific input from acos5_gui and disabling file creation, while all calls will go via sc_pkcs15init_generate_key, i.e.
+   acos5_gui will always call sc_card_ctl(SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT) prior to sc_card_ctl(SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST) */
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct CardCtl_generate_asym_inject {
     pub rsa_pub_exponent : [c_uchar; 16], // IN public exponent
-    pub file_id_priv : u16,       // OUT  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5_64.profile,
+    pub file_id_priv : u16,       // OUT  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5-external.profile,
     pub file_id_pub  : u16,       // OUT  if both are !=0, then the given values are preferred
     pub do_generate_rsa_crt : bool,         // IN whether RSA private key file shall be generated in ChineseRemainderTheorem-style
     pub do_generate_rsa_add_decrypt_for_sign : bool, // IN whether RSA private key file shall be generated adding decrypt capability iff sign is requested
@@ -492,7 +469,7 @@ pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, Opt
 //                                                                               ^ PKCS#15 file type or 0xFF, see PKCS15_FILE_TYPE_*
 #[repr(C)]
 #[derive(/*Debug, Copy,*/ Clone)]
-pub struct DataPrivate { // see settings in acos5_64_init
+pub struct DataPrivate { // see settings in acos5_init
     pub files : HashMap< KeyTypeFiles, ValueTypeFiles >,
     pub sec_env : sc_security_env, // remember the input of last call to acos5_64_set_security_env; especially algorithm_flags will be required in compute_signature
     pub agc : CardCtl_generate_crypt_asym,  // asym_generate_crypt_data
@@ -515,7 +492,7 @@ pub struct DataPrivate { // see settings in acos5_64_init
     pub sym_key_rec_idx : u8,
     pub sym_key_rec_cnt : u8,
     pub time_stamp : std::time::Instant,
-    #[cfg(enable_acos5_64_ui)]
+    #[cfg(enable_acos5_ui)]
     pub ui_ctx : ui_context,
 }
 
@@ -561,4 +538,149 @@ pub fn u32_from_array_begin(array: &[u8]) -> u32
 {
     assert!(array.len()>=4);
     (array[0] as u32) << 24  |  (array[1] as u32) << 16  |  (array[2] as u32) << 8  |  array[3] as u32
+}
+/*
+#[allow(non_snake_case)]
+pub fn multipleGreaterEqual<T: NumOps + Eq + Debug>(x: T, multiplier: T) -> T
+{
+    assert!(multiplier > 1);
+    let rem = x % multiplier; // 0 .. multiplier-1
+    x + if rem==0 {0} else {multiplier-rem}
+}
+*/
+#[allow(non_snake_case)]
+pub fn multipleGreaterEqual(x: usize, multiplier: usize) -> usize
+{
+    assert!(multiplier > 1);
+    let rem = x % multiplier; // 0 .. multiplier-1
+    x + if rem==0 {0} else {multiplier-rem}
+}
+
+////////////////
+
+
+#[cfg(enable_acos5_ui)]
+use libc::{free};
+#[cfg(enable_acos5_ui)]
+use std::os::raw::{c_void};
+#[cfg(enable_acos5_ui)]
+use std::ffi::{CStr};
+#[cfg(enable_acos5_ui)]
+use opensc_sys::opensc::{sc_card/*, SC_CTX_FLAG_DISABLE_POPUPS*/};
+#[cfg(enable_acos5_ui)]
+use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_KEYPAD_MSG_TOO_LONG, SC_ERROR_NOT_ALLOWED};
+#[cfg(enable_acos5_ui)]
+use opensc_sys::scconf::{scconf_find_blocks, scconf_get_bool/*, scconf_get_str*/};
+
+
+#[cfg(enable_acos5_ui)]
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct ui_context {
+    //    pub user_consent_app : *const c_char,
+    pub user_consent_enabled : c_int,
+}
+
+
+#[cfg(enable_acos5_ui)]
+impl Default for ui_context {
+    fn default() -> ui_context {
+        ui_context {
+//            user_consent_app: std::ptr::null(),
+            user_consent_enabled: 0
+        }
+    }
+}
+
+
+#[cfg(enable_acos5_ui)]
+pub fn get_ui_ctx(card: &mut sc_card) -> ui_context
+{
+    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let ui_ctx = dp.ui_ctx;
+    card.drv_data = Box::into_raw(dp) as *mut c_void;
+    ui_ctx
+}
+
+
+/* IUP Interface */
+#[cfg(enable_acos5_ui)]
+pub enum Ihandle {}
+#[cfg(enable_acos5_ui)]
+extern {
+    pub fn IupOpen(argc: *const c_int, argv: *const *const *const c_char) -> c_int;
+    pub fn IupClose();
+    pub fn IupMessageDlg() -> *mut Ihandle; // https://webserver2.tecgraf.puc-rio.br/iup/en/dlg/iupmessagedlg.html
+pub fn IupDestroy(ih: *mut Ihandle);
+    pub fn IupPopup(ih: *mut Ihandle, x: c_int, y: c_int) -> c_int;
+    //    pub fn IupSetAttributes(ih: *mut Ihandle, str: *const c_char) -> *mut Ihandle;
+    pub fn IupSetAttribute(ih: *mut Ihandle, name: *const c_char, value: *const c_char);
+    pub fn IupGetAttribute(ih: *mut Ihandle, name: *const c_char) -> *mut c_char;
+}
+
+/* called once only from acos5_init */
+#[cfg(enable_acos5_ui)]
+pub fn set_ui_ctx(card: &mut sc_card, ui_ctx: &mut ui_context) -> c_int
+{
+    if card.ctx.is_null() {
+        return SC_ERROR_KEYPAD_MSG_TOO_LONG;
+    }
+    /* set default values */
+//    ui_ctx.user_consent_app = CStr::from_bytes_with_nul(USER_CONSENT_CMD_NIX).unwrap().as_ptr();
+    ui_ctx.user_consent_enabled = 1;
+
+    /* look for sc block in opensc.conf */
+    let ctx = unsafe { &mut *card.ctx };
+    for elem in ctx.conf_blocks.iter() {
+        if elem.is_null() { break; }
+
+        let blocks_ptr = unsafe { scconf_find_blocks(ctx.conf, *elem,
+                                                     CStr::from_bytes_with_nul(b"card_driver\0").unwrap().as_ptr(),
+                                                     CStr::from_bytes_with_nul(CARD_DRV_SHORT_NAME).unwrap().as_ptr()) };
+        if blocks_ptr.is_null() { continue; }
+        let blk_ptr = unsafe { *blocks_ptr };
+
+        unsafe { free(blocks_ptr as *mut c_void) };
+        if blk_ptr.is_null() { continue; }
+        /* fill private data with configuration parameters */
+//        ui_ctx.user_consent_app =    /* def user consent app is "pinentry" */
+//            /*(char *)*/ unsafe { scconf_get_str(blk_ptr, CStr::from_bytes_with_nul(b"user_consent_app\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(USER_CONSENT_CMD_NIX).unwrap().as_ptr()) };
+        ui_ctx.user_consent_enabled =    /* user consent is enabled by default */
+            unsafe { scconf_get_bool(blk_ptr, CStr::from_bytes_with_nul(b"user_consent_enabled\0").unwrap().as_ptr(), 1) };
+    }
+    /* possibly read disable_popups; this then may disable as well */
+    if ui_ctx.user_consent_enabled == 1 { unsafe { IupOpen(std::ptr::null(), std::ptr::null()) }; }
+    SC_SUCCESS
+}
+
+/**
+ * Ask for user consent.
+ *
+ * Check for user consent configuration,
+ * Invoke proper gui app and check result
+ *
+ * @param card pointer to sc_card structure
+ * @param title Text to appear in the window header
+ * @param text Message to show to the user
+ * @return SC_SUCCESS on user consent OK , else error code
+ */
+#[cfg(enable_acos5_ui)]
+pub fn acos5_ask_user_consent() -> c_int
+{
+    unsafe {
+        let dlg_ptr = IupMessageDlg();
+        assert!(!dlg_ptr.is_null());
+        IupSetAttribute(dlg_ptr, CStr::from_bytes_with_nul(b"DIALOGTYPE\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"QUESTION\0").unwrap().as_ptr());
+        IupSetAttribute(dlg_ptr, CStr::from_bytes_with_nul(b"TITLE\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"RSA private key usage\0").unwrap().as_ptr());
+        IupSetAttribute(dlg_ptr, CStr::from_bytes_with_nul(b"BUTTONS\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"YESNO\0").unwrap().as_ptr());
+        IupSetAttribute(dlg_ptr, CStr::from_bytes_with_nul(b"VALUE\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"Got a request to use an RSA private key (e.g. for a sign operation).\nDo You accept ?\n(Use 'Yes' only if this makes sense at this point)\0").unwrap().as_ptr());
+        IupPopup(dlg_ptr, 0xFFFF, 0xFFFF);
+        let b_response_ptr = IupGetAttribute(dlg_ptr, CStr::from_bytes_with_nul(b"BUTTONRESPONSE\0").unwrap().as_ptr()); // BUTTONRESPONSE: Number of the pressed button. Can be "1", "2" or "3". Default: "1".
+        assert!(!b_response_ptr.is_null());
+        let result_ok = *b_response_ptr == 49;
+        IupDestroy(dlg_ptr);
+        /* IupClose();  can't be used here, otherwise - using acos5_gui - this would close the acos5_gui application and crash that */
+        if !result_ok { SC_ERROR_NOT_ALLOWED }
+        else          { SC_SUCCESS }
+    }
 }

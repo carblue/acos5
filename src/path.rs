@@ -1,5 +1,5 @@
 /*
- * path.rs: Driver 'acos5_64' - Some helper functions referring to sc_path or sc_path.value
+ * path.rs: Driver 'acos5' - Some helper functions referring to sc_path or sc_path.value
  *
  * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
  *

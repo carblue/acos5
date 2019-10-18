@@ -1,5 +1,5 @@
 /*
- * wrapper.rs: Driver 'acos5_64' - Some wrapping functions
+ * wrapper.rs: Driver 'acos5' - Some wrapping functions
  *
  * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
  *

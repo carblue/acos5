@@ -1,5 +1,5 @@
 /*
- * cmd_card_info.rs: Driver 'acos5_64' - cos5 'Card Info' cmds and other, callable via sc_card_ctl (acos5_64_card_ctl)
+ * cmd_card_info.rs: Driver 'acos5' - cos5 'Card Info' cmds and other, callable via sc_card_ctl (acos5_card_ctl)
  *
  * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
@@ -18,7 +18,7 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-/* functions callable via sc_card_ctl(acos5_64_card_ctl), mostly used by acos5_64_gui */
+/* functions callable via sc_card_ctl(acos5_card_ctl), mostly used by acos5_gui */
 
 use std::os::raw::{c_int, c_uint, c_uchar};
 use std::ffi::{CStr};
@@ -63,7 +63,7 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, c_int>
     if rv != SC_SUCCESS || apdu.resplen < len_card_serial_number {
         #[cfg(log)]
         wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
-            b"Error: ACOS5-64 'Get Card Info: Serial Number' failed\0").unwrap());
+            b"Error: ACOS5 'Get Card Info: Serial Number' failed\0").unwrap());
         return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
     }
     serial.len = len_card_serial_number;
@@ -88,7 +88,7 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<usize, c_int>
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        let fmt = CStr::from_bytes_with_nul(b"Error: ACOS5-64 'Get Card Info: Operation Number of files \
+        let fmt = CStr::from_bytes_with_nul(b"Error: ACOS5 'Get Card Info: Operation Number of files \
                      under the currently selected DF' failed\0").unwrap();
         #[cfg(log)]
         wr_do_log(card.ctx, f_log, line!(), fun, fmt);
@@ -97,6 +97,7 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<usize, c_int>
     Ok(apdu.sw2 as usize)
 }
 
+/* Note that reference starts from 0 with V2 and V3, but with V4 reference starts from 1 */
 pub fn get_file_info(card: &mut sc_card, reference: u8) -> Result<[u8; 8], c_int>
 {
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
@@ -115,7 +116,7 @@ pub fn get_file_info(card: &mut sc_card, reference: u8) -> Result<[u8; 8], c_int
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen < rbuf.len() {
-        let fmt = CStr::from_bytes_with_nul(b"Error: ACOS5-64 'File ID'-retrieval failed\0").unwrap();
+        let fmt = CStr::from_bytes_with_nul(b"Error: ACOS5 'File ID'-retrieval failed\0").unwrap();
         #[cfg(log)]
         wr_do_log(card.ctx, f_log, line!(), fun, fmt);
         return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
@@ -142,7 +143,7 @@ pub fn get_free_space(card: &mut sc_card) -> Result<c_uint, c_int>
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        let fmt = CStr::from_bytes_with_nul(b"Error: ACOS5-64 'Get Card Info: Get Free Space' failed\0")
+        let fmt = CStr::from_bytes_with_nul(b"Error: ACOS5 'Get Card Info: Get Free Space' failed\0")
                          .unwrap();
         #[cfg(log)]
         wr_do_log(card.ctx, f_log, line!(), fun, fmt);
@@ -166,8 +167,8 @@ pub fn get_ident_self(card: &mut sc_card) -> Result<bool, c_int>
 
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return Err(rv); }
     if apdu.sw1 != 0x95 || apdu.sw2 != 0x40 {
-        let fmt = CStr::from_bytes_with_nul(b"ACOS5-64 'Get Card Info: Identity Self'-check reports an unexpected, \
-                     non-ACOS5-64 response ! ### Card doesn't match ###\0").unwrap();
+        let fmt = CStr::from_bytes_with_nul(b"ACOS5 'Get Card Info: Identity Self'-check reports an unexpected, \
+                     non-ACOS5 response ! ### Card doesn't match ###\0").unwrap();
         #[cfg(log)]
         wr_do_log(card.ctx, f_log, line!(), fun, fmt);
         Ok(false)
@@ -192,7 +193,7 @@ pub fn get_cos_version(card: &mut sc_card) -> Result<[u8; 8], c_int>
     apdu.resplen =  rbuf.len();
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 || apdu.resplen < rbuf.len() {
-        let fmt = CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5-64 'ACOS version'-retrieval failed\0")
+        let fmt = CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5 'ACOS version'-retrieval failed\0")
                      .unwrap();
         #[cfg(log)]
         wr_do_log(card.ctx, f_log, line!(), fun, fmt);
@@ -201,7 +202,7 @@ pub fn get_cos_version(card: &mut sc_card) -> Result<[u8; 8], c_int>
     Ok(rbuf)
 }
 
-//  V2.00 *DOES NOT* supports this command
+//  ONLY V3.00 *DOES* support this command
 pub fn get_manufacture_date(card: &mut sc_card) -> Result<c_uint, c_int>
 {
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
@@ -220,7 +221,7 @@ pub fn get_manufacture_date(card: &mut sc_card) -> Result<c_uint, c_int>
     apdu.resplen = rbuf.len();
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 {
-        let fmt = CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5-64 'Get Card Info: Get ROM_Manufacture_Date' \
+        let fmt = CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5 'Get Card Info: Get ROM_Manufacture_Date' \
                      failed\0").unwrap();
         #[cfg(log)]
         wr_do_log(card.ctx, f_log, line!(), fun, fmt);
@@ -247,7 +248,7 @@ pub fn get_rom_sha1(card: &mut sc_card) -> Result<[u8; 20], c_int>
     apdu.resplen =  rbuf.len();
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 || apdu.resplen < rbuf.len() {
-        let fmt = CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5-64 'Get Card Info: Get ROM SHA1'-retrieval \
+        let fmt = CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5 'Get Card Info: Get ROM SHA1'-retrieval \
                      failed\0").unwrap();
         #[cfg(log)]
         wr_do_log(card.ctx, f_log, line!(), fun, fmt);
@@ -271,7 +272,7 @@ pub fn get_op_mode_byte(card: &mut sc_card) -> Result<c_uchar, c_int>
     assert_eq!(apdu.cse, SC_APDU_CASE_1);
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     if rv != SC_SUCCESS || apdu.sw1 != 0x90  || (apdu.sw2 != 0 && apdu.sw2 != 1 && apdu.sw2 != 2 && apdu.sw2 != 16) {
-        let fmt = CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5-64 'Get Card Info: Operation Mode Byte' \
+        let fmt = CStr::from_bytes_with_nul(b"sc_transmit_apdu or ACOS5 'Get Card Info: Operation Mode Byte' \
                      failed\0").unwrap();
         #[cfg(log)]
         wr_do_log(card.ctx, f_log, line!(), fun, fmt);
@@ -302,7 +303,7 @@ pub fn get_op_mode_byte_EEPROM(card: &mut sc_card) -> Result<c_uchar, c_int>
             rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
             rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
             if rv != SC_SUCCESS || apdu.resplen != 1 {
-                wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5-64 'Get Operation Mode Byte' failed\0").unwrap());
+                wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5 'Get Operation Mode Byte' failed\0").unwrap());
                 return SC_ERROR_KEYPAD_MSG_TOO_LONG;
             }
 */
@@ -324,7 +325,7 @@ pub fn get_op_mode_byte_EEPROM(card: &mut sc_card) -> Result<c_uchar, c_int>
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen != 1 {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5-64 'Get Operation Mode Byte' failed\0").unwrap());
+        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5 'Get Operation Mode Byte' failed\0").unwrap());
         return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
     }
     Ok(operation_mode_byte)
@@ -379,7 +380,7 @@ pub fn get_pin_auth_state(card: &mut sc_card, reference: u8) -> Result<bool, c_i
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        let fmt = CStr::from_bytes_with_nul(b"Error: ACOS5-64 'Get Card Info: Get Pin Authentication \
+        let fmt = CStr::from_bytes_with_nul(b"Error: ACOS5 'Get Card Info: Get Pin Authentication \
                      State' failed\0").unwrap();
         #[cfg(log)]
         wr_do_log(card.ctx, f_log, line!(), fun, fmt);
@@ -408,7 +409,7 @@ pub fn get_key_auth_state(card: &mut sc_card, reference: u8) -> Result<bool, c_i
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        let fmt = CStr::from_bytes_with_nul(b"Error: ACOS5-64 'Get Card Info: Get Key Authentication \
+        let fmt = CStr::from_bytes_with_nul(b"Error: ACOS5 'Get Card Info: Get Key Authentication \
                      State' failed\0").unwrap();
         #[cfg(log)]
         wr_do_log(card.ctx, f_log, line!(), fun, fmt);
@@ -429,7 +430,7 @@ pub fn get_zeroize_card_disable_byte_EEPROM(card: &mut sc_card) -> Result<c_ucha
             rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
             rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
             if rv != SC_SUCCESS || apdu.resplen != 1  {
-                wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5-64 'Get Zeroize Card Disable Flag' failed\0").unwrap());
+                wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5 'Get Zeroize Card Disable Flag' failed\0").unwrap());
                 return SC_ERROR_KEYPAD_MSG_TOO_LONG;
             }
     */
@@ -447,7 +448,7 @@ pub fn get_zeroize_card_disable_byte_EEPROM(card: &mut sc_card) -> Result<c_ucha
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen != 1 {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5-64 'Get Zeroize Card Disable Byte' failed\0").unwrap());
+        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5 'Get Zeroize Card Disable Byte' failed\0").unwrap());
         return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
     }
     Ok(zeroize_card_disable_byte)
@@ -470,7 +471,7 @@ apdu.resplen = 1;
 rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
 rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
 if rv != SC_SUCCESS || apdu.resplen != 1  {
-wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5-64 'Get Card Life Cycle Byte' failed\0").unwrap());
+wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5 'Get Card Life Cycle Byte' failed\0").unwrap());
 return SC_ERROR_KEYPAD_MSG_TOO_LONG;
 }
 */
@@ -488,7 +489,7 @@ return SC_ERROR_KEYPAD_MSG_TOO_LONG;
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen != 1 {
-    wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5-64 'Get Card Life Cycle Byte' failed\0").unwrap());
+    wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"ACOS5 'Get Card Life Cycle Byte' failed\0").unwrap());
         return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
     }
     Ok(card_life_cycle_byte)

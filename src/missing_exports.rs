@@ -1,5 +1,5 @@
 /*
- * missing_exports.rs: Driver 'acos5_64' - OpenSC code duplicated
+ * missing_exports.rs: Driver 'acos5' - OpenSC code duplicated
  *
  * card.c: General smart card functions
  * Copyright (C) 2001, 2002  Juha Yrjölä <juha.yrjola@iki.fi>
@@ -75,7 +75,7 @@ use opensc_sys::types::{sc_object_id};
 //use crate::wrappers::*;
 
 
-/* for acos5_64_get_response only */
+/* for acos5_get_response only */
 pub fn me_get_max_recv_size(card_ref: &sc_card) -> usize
 { // an equivalent copy of sc_get_max_recv_size
     if /*card_ref == NULL ||*/ card_ref.reader.is_null() {
@@ -316,7 +316,7 @@ pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: c_uint, caps: c_uint,
 } // pub fn me_get_encoding_flags
 */
 
-/* Signature schemes supported natively by ACOS5-64:
+/* Signature schemes supported natively by ACOS5:
 ISO 9796-2 scheme 1 padding  http://www.sarm.am/docs/ISO_IEC_9796-2_2002(E)-Character_PDF_document.pdf
 PKCS #1: RSA Encryption  Version 1.5 with hash algos: SHA-1 and SHA-256 (other hash algo support done by the driver)
 

@@ -1,5 +1,5 @@
 /*
- * se.rs: Driver 'acos5_64' - Security Environment (SE) related code
+ * se.rs: Driver 'acos5' - Security Environment (SE) related code
  *
  * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
@@ -37,7 +37,7 @@ SCB 3 may e.g. entail: Do verify the local (User) pin id 1, stored in current DF
 The user will see in opensc-tool -f a CHV entry instead for both SCB 2 and 3, and a 1 for the global pin 1,
 and a 129 for the local pin 1
 (for local, 0x80 get's added)
-During processing of acos5_64_init, the HashMap 'files' will be filled for all existing files with data
+During processing of acos5_init, the HashMap 'files' will be filled for all existing files with data
 about absolute path and those data retrieved from cos5 'Get Card Info, P1=2: File Information' among which
 essentially is FDB (File Descriptor Byte), all other info like scb8 get's retrieved lazily only
 (during select_file/process_fci processing).

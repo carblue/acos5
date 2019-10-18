@@ -1,5 +1,5 @@
 /*
-* no_cdecl.rs: Driver 'acos5_64' - Miscellaneous functions
+* no_cdecl.rs: Driver 'acos5' - Miscellaneous functions
  *
  * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
@@ -31,7 +31,8 @@ use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_
                          SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
                          SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA, SC_SEC_ENV_KEY_REF_PRESENT,
                          SC_SEC_ENV_ALG_REF_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_get_iso7816_driver,
-                         sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_verify, sc_check_apdu,
+                         sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_verify, sc_check_apdu, sc_list_files,
+                         sc_set_security_env,
                          SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_ALGORITHM_AES};
 #[cfg(not(v0_17_0))]
 use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
@@ -77,7 +78,7 @@ use crate::path::cut_path;
 use crate::missing_exports::me_get_max_recv_size;
 use crate::cmd_card_info::{get_card_life_cycle_byte_EEPROM, get_op_mode_byte_EEPROM, get_zeroize_card_disable_byte_EEPROM};
 
-use super::{acos5_64_list_files, acos5_64_select_file, acos5_64_set_security_env, acos5_64_process_fci};
+use super::{acos5_process_fci/*, acos5_list_files, acos5_select_file, acos5_set_security_env*/};
 
 
 pub fn logical_xor(pred1: bool, pred2: bool) -> bool
@@ -379,7 +380,7 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path_ref: &sc_path, fi
             let mut buffer : *const c_uchar = apdu.resp;
             r = unsafe { sc_asn1_read_tag(&mut buffer, apdu.resplen, &mut cla, &mut tag, &mut buffer_len) };
             if r == SC_SUCCESS {
-                acos5_64_process_fci(card, file_ptr, buffer, buffer_len); // card->ops->process_fci(card, file_ptr, buffer, buffer_len);
+                acos5_process_fci(card, file_ptr, buffer, buffer_len); // card->ops->process_fci(card, file_ptr, buffer, buffer_len);
             }
             assert!(file.prop_attr_len>0);
             assert!(!file.prop_attr.is_null());
@@ -605,7 +606,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
     {
         /* file_out_ptr_mut has the only purpose to invoke scb8 retrieval */
         let mut file_out_ptr_mut = std::ptr::null_mut();
-        let mut rv = acos5_64_select_file(card, path_ref, &mut file_out_ptr_mut);
+        let mut rv = /*acos5_select_file*/ unsafe { sc_select_file(card, path_ref, &mut file_out_ptr_mut) };
         assert_eq!(rv, SC_SUCCESS);
         assert!(!file_out_ptr_mut.is_null());
         let acl_entry_read_method = unsafe { (*sc_file_get_acl_entry(file_out_ptr_mut, SC_AC_OP_READ)).method };
@@ -614,7 +615,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
         }
 
         let is_local =  path_ref.len>=6;
-//      let len /*_card_serial_number*/ = if card.type_ == SC_CARD_TYPE_ACOS5_64_V3 {8u8} else {6u8};
+//      let len /*_card_serial_number*/ = if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 {6u8} else {8u8};
         let mut pin_verified = false;
 
         if SC_AC_CHV == acl_entry_read_method {
@@ -685,7 +686,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
         assert!(path_ref.len <= SC_MAX_PATH_SIZE);
         /* file_out_ptr_mut has the only purpose to invoke scb8 retrieval */
         let mut file_out_ptr_mut = std::ptr::null_mut();
-        let rv = acos5_64_select_file(card, path_ref, &mut file_out_ptr_mut);
+        let rv = /*acos5_select_file*/unsafe { sc_select_file(card, path_ref, &mut file_out_ptr_mut) };
         if !file_out_ptr_mut.is_null() {
             unsafe { sc_file_free(file_out_ptr_mut) };
         }
@@ -724,7 +725,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
         }
         else {
             let mut files_contained= vec![0u8; 300];
-            let rv = acos5_64_list_files(card, files_contained.as_mut_ptr(), files_contained.len());
+            let rv = /*acos5_list_files*/ unsafe { sc_list_files(card, files_contained.as_mut_ptr(), files_contained.len()) };
             files_contained.truncate(rv as usize);
             /* * /
                     println!("chunk1 files_contained: {:?}", &files_contained[  ..32]);
@@ -748,7 +749,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
         if [FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&fdb) {
             /* file_out_ptr_mut has the only purpose to invoke scb8 retrieval */
             let mut file_out_ptr_mut = std::ptr::null_mut();
-            let rv = acos5_64_select_file(card, path_ref, &mut file_out_ptr_mut);
+            let rv = /*acos5_select_file*/ unsafe { sc_select_file(card, path_ref, &mut file_out_ptr_mut) };
             if !file_out_ptr_mut.is_null() {
                 unsafe { sc_file_free(file_out_ptr_mut) };
             }
@@ -783,7 +784,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
  * Bit 0 of AM byte indicates what is stored to byte-index 0 of SC ( EF: READ, DF/MF:  Delete_Child )
  * Bits 0,1,2 may have different meaning depending on file type, from bits 3 to 6/7 (unused) meanings are the same for
  * all file types
- * Maybe later integrate this in acos5_64_process_fci
+ * Maybe later integrate this in acos5_process_fci
  * @param  bytes_tag_fcp_sac IN  the TLV's V bytes readable from file header for tag 0x8C, same order from left to right;
  *                               number of bytes: min: 0, max. 8
  *                               If there are >= 1 bytes, the first is AM (telling by 1 bits which bytes will follow)
@@ -833,7 +834,7 @@ pub const ACL_CATEGORY_SE     : u8 =  4;
 
 // TODO overhaul this: may be shorter and smarter
 /*
-This MUST match exactly how *mut sc_acl_entry are added in acos5_64_process_fci or profile.c
+This MUST match exactly how *mut sc_acl_entry are added in acos5_process_fci or profile.c
 */
 pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_AC_OPS], acl_category: c_uchar) -> Result<[u8; 8], c_int>
 {
@@ -1033,57 +1034,9 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
     SC_SUCCESS
 }
 
-fn get_key(card: &mut sc_card, key_data: &mut CardCtlArray1285) -> c_int
+pub /*const*/ fn acos5_atrs_supported() -> [sc_atr_table; 4]
 {
-    let mut rv: i32;
-    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
-    let fun  = CStr::from_bytes_with_nul(b"get_key\0").unwrap();
-
-    if key_data.le <= 256 {
-        card.cla = 0x80;
-        rv = unsafe { (*(*sc_get_iso7816_driver()).ops).get_data.unwrap()(card, key_data.offset, key_data.rcv_ptr, key_data.le) };
-        card.cla = 0;
-    }
-    else {
-        /* retrieve the raw content of currently selected RSA pub file (this is a code fragment from acos5_64_read_public_key) */
-        let command = [0x80, 0xCA, 0x00, 0x00, 0xFF];
-        let mut apdu = Default::default();
-        rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
-        assert_eq!(rv, SC_SUCCESS);
-        assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
-
-        let mut le_remaining = key_data.le;
-        while le_remaining > 0 {
-            let offset = key_data.le - le_remaining;
-            apdu.le      =  if le_remaining > 0xFFusize {0xFFusize} else {le_remaining};
-            apdu.resp    =  unsafe { key_data.rcv_ptr.add(offset) };
-            apdu.resplen =  key_data.le - offset;
-            apdu.p1      =  ((offset >> 8) & 0xFFusize) as u8;
-            apdu.p2      =  ( offset       & 0xFFusize) as u8;
-            rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
-            rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
-            if rv != SC_SUCCESS || apdu.resplen == 0 {
-                if cfg!(log) {
-                    if apdu.resplen == 0 || (apdu.sw1==0x69 && apdu.sw1==0x82) {
-                        wr_do_log_t(card.ctx, f_log, line!(), fun, apdu.resplen, CStr::from_bytes_with_nul(b"non-readable file; apdu.resplen: %zu\0").unwrap());
-                    }
-                    else {
-                        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"some other error\0").unwrap());
-                    }
-                }
-                return rv;
-            }
-            assert_eq!(apdu.resplen, apdu.le);
-            le_remaining -= apdu.le;
-        }
-        rv = key_data.le as c_int;
-    }
-    rv
-}
-
-pub /*const*/ fn acos5_64_atrs_supported() -> [sc_atr_table; 4]
-{
-    let acos5_64_atrs = [
+    let acos5_atrs = [
         sc_atr_table {
             atr:     CStr::from_bytes_with_nul(ATR_V2).unwrap().as_ptr(),
             atrmask: CStr::from_bytes_with_nul(ATR_MASK).unwrap().as_ptr(),
@@ -1101,16 +1054,16 @@ pub /*const*/ fn acos5_64_atrs_supported() -> [sc_atr_table; 4]
             card_atr: std::ptr::null_mut(),
         },
         sc_atr_table {
-            atr:     CStr::from_bytes_with_nul(ATR_EVO).unwrap().as_ptr(),
+            atr:     CStr::from_bytes_with_nul(ATR_V4).unwrap().as_ptr(),
             atrmask: CStr::from_bytes_with_nul(ATR_MASK).unwrap().as_ptr(),
-            name:    CStr::from_bytes_with_nul(NAME_EVO).unwrap().as_ptr(),
-            type_: SC_CARD_TYPE_ACOS5_64_EVO,
+            name:    CStr::from_bytes_with_nul(NAME_V4).unwrap().as_ptr(),
+            type_: SC_CARD_TYPE_ACOS5_EVO_V4,
             flags: 0,
             card_atr: std::ptr::null_mut(),
         },
         Default::default(),
     ];
-    acos5_64_atrs
+    acos5_atrs
 }
 
 pub fn set_is_running_cmd_long_response(card: &mut sc_card, value: bool)
@@ -1257,7 +1210,7 @@ pub fn encrypt_public_rsa(card: *mut sc_card, signature: *const c_uchar, siglen:
         apdu.flags |= SC_APDU_FLAGS_CHAINING as c_ulong;
     }
 
-    set_is_running_cmd_long_response(card_ref_mut, true); // switch to false is done by acos5_64_get_response
+    set_is_running_cmd_long_response(card_ref_mut, true); // switch to false is done by acos5_get_response
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     assert_eq!(rv, SC_SUCCESS);
 
@@ -1307,11 +1260,11 @@ pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtl_generate_crypt_
     }
 
     if crypt_data.perform_mse || print {
-        rv = acos5_64_set_security_env(card, &env, 0);
+        rv = /*acos5_set_security_env*/ unsafe { sc_set_security_env(card, &env, 0) };
         if rv < 0 {
             /*
-                            mixin (log!(__FUNCTION__,  "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
-                            hstat.SetString(IUP_TITLE, "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
+                            mixin (log!(__FUNCTION__,  "acos5_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
+                            hstat.SetString(IUP_TITLE, "acos5_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
                             return IUP_DEFAULT;
             */
             return rv;
@@ -1334,7 +1287,7 @@ pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtl_generate_crypt_
         apdu.flags |= SC_APDU_FLAGS_CHAINING as c_ulong;
     }
 
-    set_is_running_cmd_long_response(card, true); // switch to false is done by acos5_64_get_response
+    set_is_running_cmd_long_response(card, true); // switch to false is done by acos5_get_response
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     assert_eq!(rv, SC_SUCCESS);
     assert_eq!(apdu.resplen, crypt_data.data_len);
@@ -1382,9 +1335,9 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
             ..Default::default()
         };
         unsafe { copy_nonoverlapping(array2_from_u16(data.file_id_priv).as_ptr(), env.file_ref.value.as_mut_ptr(), 2); }
-        rv = acos5_64_set_security_env(card, &env, 0);
+        rv = /*acos5_set_security_env*/ unsafe { sc_set_security_env(card, &env, 0) };
         if rv < 0 {
-/* mixin (log!(__FUNCTION__,  "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPRIVATE")); */
+/* mixin (log!(__FUNCTION__,  "acos5_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPRIVATE")); */
             return rv;
         }
 
@@ -1396,9 +1349,9 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
             ..Default::default()
         };
         unsafe { copy_nonoverlapping(array2_from_u16(data.file_id_pub).as_ptr(), env.file_ref.value.as_mut_ptr(), 2); }
-        rv = acos5_64_set_security_env(card, &env, 0);
+        rv = /*acos5_set_security_env*/ unsafe { sc_set_security_env(card, &env, 0) };
         if rv < 0 {
-/* mixin (log!(__FUNCTION__,  "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC")); */
+/* mixin (log!(__FUNCTION__,  "acos5_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC")); */
             return rv;
         }
     }
@@ -1498,7 +1451,7 @@ pub fn trailing_blockcipher_padding_calculate(
 {
     assert!(rem < block_size);
     assert!(block_size == 16 || block_size == 8);
-    assert!([BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5,
+    assert!([BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64,
         BLOCKCIPHER_PAD_TYPE_PKCS5, BLOCKCIPHER_PAD_TYPE_ANSIX9_23/*, BLOCKCIPHER_PAD_TYPE_W3C*/].contains(&padding_type));
     let mut vec : Vec<c_uchar> = Vec::with_capacity(block_size.into());
     match padding_type {
@@ -1510,7 +1463,7 @@ pub fn trailing_blockcipher_padding_calculate(
             vec.push(0x80);
             for _i in 0..block_size-rem-1 { vec.push(0x00); }
         },
-        BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5 => {
+        BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64 => {
             if rem != 0 {
                 vec.push(0x80);
                 for _i in 0..block_size-rem-1 { vec.push(0x00); }
@@ -1568,7 +1521,7 @@ pub fn trailing_blockcipher_padding_get_length(
             if cnt==block_size && last_block_values[0]==0 {return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);}
             Ok(cnt)
         },
-        BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5 => {
+        BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64 => {
             /* last byte 0x80 will be interpreted as padding, thus plaintext data can't end with 0x80 ! TODO possibly check while encrypting for trailing byte 0x80 */
             if ![0u8, 0x80].contains(&last_block_values[usize::from(block_size-1)]) {return Ok(0);}
             let mut cnt = 0u8;
@@ -1612,13 +1565,6 @@ Ok(0)
     }
 }
 
-
-#[allow(non_snake_case)]
-fn multipleGreaterEqual(multiplier: usize, x: usize) -> usize
-{
-    let rem = x % multiplier;
-    x + if rem==0 {0} else {multiplier-rem}
-}
 
 #[allow(non_snake_case)]
 /* op_mode_cbc: true  => cbc
@@ -1688,8 +1634,8 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     let block_size = usize::from(crypt_sym.block_size);
     let Len1 = indata_len;
     let Len0 = /*multipleLessEqual*/ (Len1/block_size) * block_size;
-    let Len2 = multipleGreaterEqual(block_size, Len1+
-        if !crypt_sym.encrypt || [BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5].contains(&crypt_sym.pad_type) {0} else {1});
+    let Len2 = multipleGreaterEqual(Len1+
+        if !crypt_sym.encrypt || [BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64].contains(&crypt_sym.pad_type) {0} else {1}, block_size);
     if !crypt_sym.encrypt {
         assert_eq!(Len1, Len0);
         assert_eq!(Len1, Len2);
@@ -1768,11 +1714,11 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
                     env.params[0] = sec_env_param;
                 }
             }
-        rv = acos5_64_set_security_env(card, &env, 0);
+        rv = /*acos5_set_security_env*/ unsafe { sc_set_security_env(card, &env, 0) };
         if rv < 0 {
             /*
-              mixin (log!(__FUNCTION__,  "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
-              hstat.SetString(IUP_TITLE, "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
+              mixin (log!(__FUNCTION__,  "acos5_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
+              hstat.SetString(IUP_TITLE, "acos5_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
               return IUP_DEFAULT;
             */
             if cfg!(log) {
@@ -1804,14 +1750,14 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
             {
                 rv = unsafe { sc_select_file(card, &path, std::ptr::null_mut()) }; // clear accumulated CRT
                 assert_eq!(rv, SC_SUCCESS);
-                rv = acos5_64_set_security_env(card, &env, 0);
+                rv = /*acos5_set_security_env*/ unsafe { sc_set_security_env(card, &env, 0) };
                 if rv < 0 {
                     /*
 
                     tlv_new[posIV..posIV+blockSize] = inData[cnt-blockSize..cnt];
 
-                      mixin (log!(__FUNCTION__,  "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
-                      hstat.SetString(IUP_TITLE, "acos5_64_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
+                      mixin (log!(__FUNCTION__,  "acos5_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
+                      hstat.SetString(IUP_TITLE, "acos5_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
                       return IUP_DEFAULT;
                     */
                     if cfg!(log) {
@@ -1927,7 +1873,7 @@ pub fn get_files_hashmap_info(card: &mut sc_card, key: u16) -> Result<[u8; 32], 
 A0 2F 30 0E 0C 05 45 43 6B 65 79 03 02 06 C0 04 01 01 30 0F 04 01 09 03 03 06 20 40 03 02 03 B8 02 01 09 A1 0C 30 0A 30 08 04 06 3F 00 41 00 41 F9
 A0 2C 30 0B 0C 05 45 43 6B 65 79 03 02 06 40 30 0F 04 01 09 03 03 06 02 00 03 02 03 09 02 01 09 A1 0C 30 0A 30 08 04 06 3F 00 41 00 41 39
 
-temporary only: acos5_64_gui expects the 32 bytes in another order, which is done here, i.e. provide in rbuf what acos5_64_gui expects
+temporary only: acos5_gui expects the 32 bytes in another order, which is done here, i.e. provide in rbuf what acos5_gui expects
 
 alias  TreeTypeFS = tree_k_ary.Tree!ub32; // 8 bytes + length of pathlen_max considered (, here SC_MAX_PATH_SIZE = 16) + 8 bytes SAC (file access conditions)
                             path                    File Info       scb8                SeInfo
@@ -1971,8 +1917,8 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
 ///   conformance; OpenSC is not 2016:ISO/IEC 7816-15 compliant)
 ///
 /// Possibly this function will be followed by another one that does the PKCS#15 introspection into files to detect the type, thus moving the
-/// over-complicated code from acos5_64_gui to the driver and overhaul that
-/// @apiNote  Called from acos5_64_gui and ? (pccs15_init sanity_check ?)
+/// over-complicated code from acos5_gui to the driver and overhaul that
+/// @apiNote  Called from acos5_gui and ? (pccs15_init sanity_check ?)
 /// @param    card
 pub fn update_hashmap(card: &mut sc_card) {
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
@@ -2122,6 +2068,105 @@ SOPUK: 8  [31, 32, 33, 34, 35, 36, 37, 38]
     }
 }
 
+/* manage: a single call to common_read will deliver max. 255 bytes or less if SM is applied. TODO ACOS5-EVO can deliver max. 4096 bytes with extended APDU
+   managing calls ref. read_binary is done already by sc_read_binary: There is a loop that calls card's read_binary as often as required with appropriate params,
+   but that is missing for records: Under 'Secure Messaging', a single call can deliver max. 239/240 bytes, thus a second invocation ref. read_record may be required (TODO even more for ACOS5-EVO).
+   This is  what is done here.
+   Also, opensc-explorer erroneously requests 256 bytes, but the max. for ACOS5 is 255
+*/
+pub fn manage_common_read(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *mut c_uchar, count: usize, flags: c_ulong, bin: bool) -> c_int
+{
+    if bin || count<=239 {
+        common_read(card_ptr, idx, buf_ptr, std::cmp::min(count, 255), flags, bin)
+    }
+    else {
+        let card = unsafe { &mut *card_ptr };
+        let file_id = u16_from_array_end(&card.cache.current_path.value[..card.cache.current_path.len]);
+        let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let x = &dp.files[&file_id];
+//        let fdb      = x.1[0];
+        let scb_read = x.2.unwrap()[0];
+        let is_sm_operable = dp.is_sm_operable;
+        card.drv_data = Box::into_raw(dp) as *mut c_void;
+        let mut res_se_sm = (false, false);
+        if is_sm_operable && (scb_read & 0x40) == 0x40 {
+            res_se_sm = se_get_is_suitable_for_sm_has_ct(card, file_id, scb_read & 0x0F);
+        }
+
+//      if   (scb_read & 0x40) != 0x40 || !is_sm_operable || !res_se_sm.0 || count<=239 || (!res_se_sm.1 && count<=240)
+        if !((scb_read & 0x40) == 0x40 &&  is_sm_operable &&  res_se_sm.0 && count>239  && (res_se_sm.1 || count>240) ) {
+            common_read(card_ptr, idx, buf_ptr, std::cmp::min(count, 255), flags, bin)
+        }
+        else {
+//println!("count: {}", count);
+            let count = std::cmp::min(count, 255);
+//println!("count: {}", count);
+            let countx: usize = std::cmp::min(count, if res_se_sm.1 {239} else {240} );
+            assert!(countx < count);
+            let rv1 = common_read(card_ptr, idx, buf_ptr, countx, flags, bin);
+            if rv1 <= SC_SUCCESS {
+                return rv1;
+            }
+            assert_eq!(countx, rv1 as usize);
+            let rv2 = common_read(card_ptr, idx, unsafe {buf_ptr.add(rv1 as usize)}, count-rv1 as usize, flags, bin);
+            if rv2 <= SC_SUCCESS {
+                return rv2;
+            }
+            rv1 + rv2
+        }
+    }
+}
+
+/* manage: a single call to common_update will write max. 255 bytes or less if SM is applied. TODO ACOS5-EVO can write max. 4096 bytes with extended APDU
+   managing calls ref. update_binary is done already by sc_update_binary: There is a loop that calls card's update_binary as often as required with appropriate params,
+   but that is missing for records: Under 'Secure Messaging', a single call can write max. 239/240 bytes, thus a second invocation ref. update_record may be required.
+   This is  what is done here.
+   Also, opensc-explorer erroneously requests 256 bytes, but the max. for ACOS5 is 255
+*/
+pub fn manage_common_update(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *const c_uchar, count: usize, flags: c_ulong, bin: bool) -> c_int
+{
+    if bin || count<=232 {
+        common_update(card_ptr, idx, buf_ptr, std::cmp::min(count, 255), flags, bin)
+    }
+    else {
+        let card = unsafe { &mut *card_ptr };
+        let file_id = u16_from_array_end(&card.cache.current_path.value[..card.cache.current_path.len]);
+        let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let x = &dp.files[&file_id];
+//        let fdb      = x.1[0];
+        let scb_update = x.2.unwrap()[1];
+        let is_sm_operable = dp.is_sm_operable;
+        card.drv_data = Box::into_raw(dp) as *mut c_void;
+        let mut res_se_sm = (false, false);
+        if is_sm_operable && (scb_update & 0x40) == 0x40 {
+            res_se_sm = se_get_is_suitable_for_sm_has_ct(card, file_id, scb_update & 0x0F);
+        }
+
+//      if   (scb_update & 0x40) != 0x40 || !is_sm_operable || !res_se_sm.0 || count<=232 || (!res_se_sm.1 && count<=240)
+        if !((scb_update & 0x40) == 0x40 &&  is_sm_operable &&  res_se_sm.0 && count>232  && (res_se_sm.1 || count>240) ) {
+            common_update(card_ptr, idx, buf_ptr, std::cmp::min(count, 255), flags, bin)
+        }
+        else {
+//println!("count: {}", count);
+            let count = std::cmp::min(count, 255);
+//println!("count: {}", count);
+            let countx: usize = std::cmp::min(count, if res_se_sm.1 {232} else {240} );
+            assert!(countx < count);
+            let rv1 = common_update(card_ptr, idx, buf_ptr, countx, flags, bin);
+            if rv1 <= SC_SUCCESS {
+                return rv1;
+            }
+            assert_eq!(countx, rv1 as usize);
+            let rv2 = common_update(card_ptr, idx, unsafe {buf_ptr.add(rv1 as usize)}, count-rv1 as usize, flags, bin);
+            if rv2 <= SC_SUCCESS {
+                return rv2;
+            }
+            rv1 + rv2
+        }
+    }
+}
+
+
 pub fn common_read(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *mut c_uchar, count: usize, flags: c_ulong, bin: bool) -> c_int
 {
     if card_ptr.is_null() {
@@ -2129,7 +2174,7 @@ pub fn common_read(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *mut c_uchar, c
     }
     let card = unsafe { &mut *card_ptr };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
-    let fun  = CStr::from_bytes_with_nul( if bin {b"acos5_64_read_binary\0"} else {b"acos5_64_read_record\0"}).unwrap();
+    let fun  = CStr::from_bytes_with_nul( if bin {b"acos5_read_binary\0"} else {b"acos5_read_record\0"}).unwrap();
     if cfg!(log) {
         wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
@@ -2140,10 +2185,6 @@ pub fn common_read(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *mut c_uchar, c
     let fdb      = x.1[0];
     let scb_read = x.2.unwrap()[0];
     let is_sm_operable = dp.is_sm_operable;
-    let mut res_se_sm = (false, false);
-    if is_sm_operable && (scb_read & 0x40) == 0x40 {
-        res_se_sm = se_get_is_suitable_for_sm_has_ct(card, file_id, scb_read & 0x0F);
-    }
     card.drv_data = Box::into_raw(dp) as *mut c_void;
 
     if scb_read == 0xFF {
@@ -2153,13 +2194,18 @@ pub fn common_read(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *mut c_uchar, c
         SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
     }
     else if (scb_read & 0x40) == 0x40 {
+        let mut res_se_sm = (false, false);
+        if is_sm_operable && (scb_read & 0x40) == 0x40 {
+            res_se_sm = se_get_is_suitable_for_sm_has_ct(card, file_id, scb_read & 0x0F);
+        }
+
         if !is_sm_operable || !res_se_sm.0 {
             wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
                 if bin {b"No read_binary will be done: The file has acl SM-protected READ\0"}
                        else   {b"No read_record will be done: The file has acl SM-protected READ\0"}).unwrap());
             SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
         }
-/* * /
+        /* * /
         else if !card.sm_ctx.module.handle.is_null() {
             // forward to SM processing
             use libc::{dlsym};
@@ -2167,24 +2213,29 @@ pub fn common_read(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *mut c_uchar, c
                 dlsym(card.sm_ctx.module.handle, CStr::from_bytes_with_nul(b"sm_common_read\0").unwrap().as_ptr()) ) };
             func_ptr(card, idx, buf_ptr, count, flags, bin, res_se_sm.1, fdb)
         }
-/ * */
+        / * */
         else {
             SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
         }
     }
     else {
         if bin && fdb == FDB_RSA_KEY_EF {
-            let mut x = CardCtlArray1285 { offset: idx, le: count, rcv_ptr: buf_ptr };
-            get_key(card, &mut x)
+            card.cla = 0x80;
+            let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).get_data.unwrap()(card, idx, buf_ptr, count) };
+            card.cla = 0;
+            rv
         }
         else {
-            let func_ptr = match bin {
-                true =>  unsafe { (*(*sc_get_iso7816_driver()).ops).read_binary.unwrap() },
-                false => unsafe { (*(*sc_get_iso7816_driver()).ops).read_record.unwrap() }
-            };
-            unsafe { func_ptr(card, idx, buf_ptr, count, flags) }
+            unsafe {
+                let func_ptr = match bin {
+                    true =>  (*(*sc_get_iso7816_driver()).ops).read_binary.unwrap(),
+                    false => (*(*sc_get_iso7816_driver()).ops).read_record.unwrap()
+                };
+                func_ptr(card, idx, buf_ptr, count, flags)
+            }
         }
     }
+
 }
 
 pub fn common_update(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *const c_uchar, count: usize, flags: c_ulong, bin: bool) -> c_int
@@ -2194,7 +2245,7 @@ pub fn common_update(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *const c_ucha
     }
     let card = unsafe { &mut *card_ptr };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
-    let fun  = CStr::from_bytes_with_nul( if bin {b"acos5_64_update_binary\0"} else {b"acos5_64_update_record\0"}).unwrap();
+    let fun  = CStr::from_bytes_with_nul( if bin {b"acos5_update_binary\0"} else {b"acos5_update_record\0"}).unwrap();
     if cfg!(log) {
         wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
@@ -2205,10 +2256,6 @@ pub fn common_update(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *const c_ucha
     let fdb      = x.1[0];
     let scb_update = x.2.unwrap()[1];
     let is_sm_operable = dp.is_sm_operable;
-    let mut res_se_sm = (false, false);
-    if is_sm_operable && (scb_update & 0x40) == 0x40 {
-        res_se_sm = se_get_is_suitable_for_sm_has_ct(card, file_id, scb_update & 0x0F);
-    }
     card.drv_data = Box::into_raw(dp) as *mut c_void;
 
     if scb_update == 0xFF {
@@ -2218,13 +2265,18 @@ pub fn common_update(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *const c_ucha
         SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
     }
     else if (scb_update & 0x40) == 0x40 {
+        let mut res_se_sm = (false, false);
+        if is_sm_operable && (scb_update & 0x40) == 0x40 {
+            res_se_sm = se_get_is_suitable_for_sm_has_ct(card, file_id, scb_update & 0x0F);
+        }
+
         if !is_sm_operable || !res_se_sm.0 {
             wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
                 if bin {b"No update_binary will be done: The file has acl SM-protected UPDATE\0"}
                        else   {b"No update_record will be done: The file has acl SM-protected UPDATE\0"}).unwrap());
             SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
         }
-/* * /
+        /* * /
         else if !card.sm_ctx.module.handle.is_null() {
             // forward to SM processing
             use libc::{dlsym};
@@ -2232,28 +2284,35 @@ pub fn common_update(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *const c_ucha
                 dlsym(card.sm_ctx.module.handle, CStr::from_bytes_with_nul(b"sm_common_update\0").unwrap().as_ptr()) ) };
             func_ptr(card, idx, buf_ptr, count, flags, bin, res_se_sm.1, fdb)
         }
-/ * */
+        / * */
         else {
             SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
         }
     }
     else {
-        let func_ptr = match bin {
-            true =>  unsafe { (*(*sc_get_iso7816_driver()).ops).update_binary.unwrap() },
-            false => unsafe { (*(*sc_get_iso7816_driver()).ops).update_record.unwrap() }
-        };
         if bin && fdb == FDB_RSA_KEY_EF { // no put_key support currently
             SC_ERROR_NO_CARD_SUPPORT
         }
         else {
-            unsafe { func_ptr(card, idx, buf_ptr, count, flags) }
+            unsafe {
+                if !bin && idx==0 && flags==0 {
+                    (*(*sc_get_iso7816_driver()).ops).append_record.unwrap()(card, buf_ptr, count, flags)
+                }
+                else {
+                    let func_ptr = match bin {
+                        true =>  (*(*sc_get_iso7816_driver()).ops).update_binary.unwrap(),
+                        false => (*(*sc_get_iso7816_driver()).ops).update_record.unwrap()
+                    };
+                    func_ptr(card, idx, buf_ptr, count, flags)
+                }
+            }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{convert_bytes_tag_fcp_sac_to_scb_array, multipleGreaterEqual, trailing_blockcipher_padding_calculate,
+    use super::{convert_bytes_tag_fcp_sac_to_scb_array, trailing_blockcipher_padding_calculate,
                 trailing_blockcipher_padding_get_length};
     use crate::constants_types::*;
 //    use opensc_sys::errors::*;
@@ -2289,10 +2348,10 @@ mod tests {
     #[allow(non_snake_case)]
     #[test]
     fn test_multipleGreaterEqual() {
-        assert_eq!(multipleGreaterEqual(8, 0),  0);
-        assert_eq!(multipleGreaterEqual(8, 7),  8);
+        assert_eq!(multipleGreaterEqual(0, 8),  0);
+        assert_eq!(multipleGreaterEqual(7, 8),  8);
         assert_eq!(multipleGreaterEqual(8, 8),  8);
-        assert_eq!(multipleGreaterEqual(8, 9), 16);
+        assert_eq!(multipleGreaterEqual(9, 8), 16);
     }
 
     #[test]
@@ -2306,9 +2365,9 @@ mod tests {
         assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, 7).as_slice(), &[0x80u8]);
         assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, 0).as_slice(), &[0x80u8, 0,0,0,0,0,0,0]);
 
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5, 3).as_slice(), &[0x80u8,0,0,0,0]);
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5, 7).as_slice(), &[0x80u8]);
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5, 0).as_slice(), &[0u8; 0]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, 3).as_slice(), &[0x80u8,0,0,0,0]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, 7).as_slice(), &[0x80u8]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, 0).as_slice(), &[0u8; 0]);
 
         assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS5, 3).as_slice(), &[0x05u8; 5]);
         assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS5, 7).as_slice(), &[0x01u8; 1]);
@@ -2329,9 +2388,9 @@ mod tests {
         assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0u8,0,0,0,0,0,0,0x80]).unwrap(), 1);
         assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0x80u8,0,0,0,0,0,0,0]).unwrap(), 8);
 
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5, &[0u8,0,0,0x80,0,0,0,0]).unwrap(), 5);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5, &[0u8,0,0,0,0,0,0,0x80]).unwrap(), 1);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5, &[0x80u8,0,0,0,0,0,0,0]).unwrap(), 0);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0u8,0,0,0x80,0,0,0,0]).unwrap(), 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0u8,0,0,0,0,0,0,0x80]).unwrap(), 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0x80u8,0,0,0,0,0,0,0]).unwrap(), 0);
 
         assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[0u8,5,5,5,5,5,5,5]).unwrap(), 5);
         assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[0u8,1,1,1,1,1,1,1]).unwrap(), 1);
