@@ -2347,15 +2347,6 @@ mod tests {
         assert_eq!(scb8, [0x45, 0x01, 0x00, 0x03, 0x00, 0x05, 0x00, 0xFF]);
     }
 
-    #[allow(non_snake_case)]
-    #[test]
-    fn test_multipleGreaterEqual() {
-        assert_eq!(multipleGreaterEqual(0, 8),  0);
-        assert_eq!(multipleGreaterEqual(7, 8),  8);
-        assert_eq!(multipleGreaterEqual(8, 8),  8);
-        assert_eq!(multipleGreaterEqual(9, 8), 16);
-    }
-
     #[test]
     fn test_trailing_blockcipher_padding_calculate() {
         assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ZEROES, 3).as_slice(), &[0u8,0,0,0,0]);
