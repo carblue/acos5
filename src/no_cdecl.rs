@@ -26,6 +26,8 @@ use std::ffi::{/*CString,*/ CStr};
 use std::fs;//::{read/*, write*/};
 use std::ptr::copy_nonoverlapping;
 
+use num_integer::Integer;
+
 use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_file_free,
                          sc_read_record, sc_format_path, sc_select_file, sc_check_sw, //SC_ALGORITHM_RSA_PAD_PKCS1,
                          SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
@@ -1633,9 +1635,9 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     let mut rv;
     let block_size = usize::from(crypt_sym.block_size);
     let Len1 = indata_len;
-    let Len0 = /*multipleLessEqual*/ (Len1/block_size) * block_size;
-    let Len2 = multipleGreaterEqual(Len1+
-        if !crypt_sym.encrypt || [BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64].contains(&crypt_sym.pad_type) {0} else {1}, block_size);
+    let Len0 =  Len1.prev_multiple_of(&block_size); // (Len1/block_size) * block_size;
+    let Len2 = (Len1+ if !crypt_sym.encrypt || [BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64].contains(&crypt_sym.pad_type) {0} else {1}).
+        next_multiple_of(&block_size);
     if !crypt_sym.encrypt {
         assert_eq!(Len1, Len0);
         assert_eq!(Len1, Len2);

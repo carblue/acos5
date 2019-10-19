@@ -44,8 +44,8 @@ Case     Command data     Expected response data
 //#![feature(ptr_offset_from)]
 
 extern crate libc;
+extern crate num_integer;
 extern crate opensc_sys;
-//extern crate num_traits;
 //extern crate bitintr; //no_cdecl.rs
 //extern crate ring;
 //use ring::digest::{/*Context, Digest,*/ digest, SHA256/*, Algorithm, Context*/};

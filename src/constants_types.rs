@@ -539,22 +539,6 @@ pub fn u32_from_array_begin(array: &[u8]) -> u32
     assert!(array.len()>=4);
     (array[0] as u32) << 24  |  (array[1] as u32) << 16  |  (array[2] as u32) << 8  |  array[3] as u32
 }
-/*
-#[allow(non_snake_case)]
-pub fn multipleGreaterEqual<T: NumOps + Eq + Debug>(x: T, multiplier: T) -> T
-{
-    assert!(multiplier > 1);
-    let rem = x % multiplier; // 0 .. multiplier-1
-    x + if rem==0 {0} else {multiplier-rem}
-}
-*/
-#[allow(non_snake_case)]
-pub fn multipleGreaterEqual(x: usize, multiplier: usize) -> usize
-{
-    assert!(multiplier > 1);
-    let rem = x % multiplier; // 0 .. multiplier-1
-    x + if rem==0 {0} else {multiplier-rem}
-}
 
 ////////////////
 
@@ -611,7 +595,7 @@ extern {
     pub fn IupOpen(argc: *const c_int, argv: *const *const *const c_char) -> c_int;
     pub fn IupClose();
     pub fn IupMessageDlg() -> *mut Ihandle; // https://webserver2.tecgraf.puc-rio.br/iup/en/dlg/iupmessagedlg.html
-pub fn IupDestroy(ih: *mut Ihandle);
+    pub fn IupDestroy(ih: *mut Ihandle);
     pub fn IupPopup(ih: *mut Ihandle, x: c_int, y: c_int) -> c_int;
     //    pub fn IupSetAttributes(ih: *mut Ihandle, str: *const c_char) -> *mut Ihandle;
     pub fn IupSetAttribute(ih: *mut Ihandle, name: *const c_char, value: *const c_char);
