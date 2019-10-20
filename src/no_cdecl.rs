@@ -42,7 +42,7 @@ use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
 use opensc_sys::opensc::{SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, sc_sec_env_param,
                          SC_SEC_ENV_PARAM_IV, SC_SEC_OPERATION_UNWRAP};
 
-use opensc_sys::types::{/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_MAX_PATH_SIZE, sc_file_t, sc_apdu,
+use opensc_sys::types::{sc_object_id,/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_MAX_PATH_SIZE, sc_file_t, sc_apdu,
     SC_MAX_ATR_SIZE, SC_FILE_TYPE_DF,  */  sc_path, sc_file, SC_PATH_TYPE_FILE_ID/*, SC_PATH_TYPE_PATH*/,
                         SC_MAX_APDU_BUFFER_SIZE, SC_MAX_PATH_SIZE, SC_APDU_FLAGS_CHAINING,
                         SC_APDU_CASE_1, /*SC_APDU_CASE_2_SHORT,*/ SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT,
@@ -1036,7 +1036,7 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
     SC_SUCCESS
 }
 
-pub /*const*/ fn acos5_atrs_supported() -> [sc_atr_table; 4]
+pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 4]
 {
     let acos5_atrs = [
         sc_atr_table {
@@ -1068,6 +1068,34 @@ pub /*const*/ fn acos5_atrs_supported() -> [sc_atr_table; 4]
     acos5_atrs
 }
 
+/*  ECC: Curves P-224/P-256/P-384/P-521 */
+pub /*const*/ fn acos5_supported_ec_curves() -> [acos5_ec_curve; 4]
+{
+    let acos5_ec_curves = [
+        acos5_ec_curve {
+            curve_name: CStr::from_bytes_with_nul(b"nistp224\0").unwrap().as_ptr(),
+            curve_oid:  sc_object_id { value : [1, 3, 132, 0, 33,  -1,0,0,0,0,0,0,0,0,0,0] },
+            size: 224,
+        },
+        acos5_ec_curve {
+            curve_name: CStr::from_bytes_with_nul(b"nistp256\0").unwrap().as_ptr(),
+            curve_oid:  sc_object_id { value : [1, 2, 840, 10045, 3, 1, 7,  -1,0,0,0,0,0,0,0,0] },
+            size: 256,
+        },
+        acos5_ec_curve {
+            curve_name: CStr::from_bytes_with_nul(b"nistp384\0").unwrap().as_ptr(),
+            curve_oid:  sc_object_id { value : [1, 3, 132, 0, 34,  -1,0,0,0,0,0,0,0,0,0,0] },
+            size: 384,
+        },
+        acos5_ec_curve {
+            curve_name: CStr::from_bytes_with_nul(b"nistp521\0").unwrap().as_ptr(),
+            curve_oid:  sc_object_id { value : [1, 3, 132, 0, 35,  -1,0,0,0,0,0,0,0,0,0,0] },
+            size: 521,
+        },
+//        Default::default(),
+    ];
+    acos5_ec_curves
+}
 pub fn set_is_running_cmd_long_response(card: &mut sc_card, value: bool)
 {
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };

@@ -68,15 +68,20 @@ use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_pin_cmd
                          SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK,
                          SC_ALGORITHM_RSA_PAD_PKCS1, SC_ALGORITHM_RSA_PAD_ISO9796, SC_ALGORITHM_RSA_HASH_NONE,
                          SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT, SC_SEC_ENV_ALG_PRESENT,
-                         SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR, sc_update_record, sc_select_file,
+                         SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR, sc_select_file,
                          SC_CARD_CAP_ISO7816_PIN_INFO, SC_ALGORITHM_AES, SC_PIN_CMD_GET_SESSION_PIN, sc_file_free,
-                         sc_read_binary};
+                         sc_read_binary,
+                         SC_ALGORITHM_ECDSA_RAW,
+//                         SC_ALGORITHM_ECDH_CDH_RAW, SC_ALGORITHM_ECDSA_HASH_NONE, SC_ALGORITHM_ECDSA_HASH_SHA1,
+//                         SC_ALGORITHM_EXT_EC_UNCOMPRESES,
+                         SC_ALGORITHM_EXT_EC_NAMEDCURVE
+};
 #[cfg(not(v0_17_0))]
 use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
 //#[cfg(not(any(v0_17_0, v0_18_0)))]
 //use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_PSS};
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-use opensc_sys::opensc::{SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM_TARGET_FILE, SC_ALGORITHM_AES_FLAGS,
+use opensc_sys::opensc::{sc_update_record, SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM_TARGET_FILE, SC_ALGORITHM_AES_FLAGS,
                          SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, SC_SEC_OPERATION_UNWRAP,
                          SC_CARD_CAP_UNWRAP_KEY//, SC_CARD_CAP_WRAP_KEY
 //                         , SC_SEC_OPERATION_WRAP
@@ -100,7 +105,7 @@ use opensc_sys::errors::{sc_strerror, SC_SUCCESS, SC_ERROR_INTERNAL, SC_ERROR_IN
                          SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY, SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING,
                          SC_ERROR_INCORRECT_PARAMETERS, SC_ERROR_NOT_SUPPORTED, SC_ERROR_BUFFER_TOO_SMALL, SC_ERROR_NOT_ALLOWED,
                          SC_ERROR_SECURITY_STATUS_NOT_SATISFIED};
-use opensc_sys::internal::{_sc_card_add_rsa_alg, sc_pkcs1_encode, _sc_match_atr};
+use opensc_sys::internal::{_sc_card_add_rsa_alg, _sc_card_add_ec_alg, sc_pkcs1_encode, _sc_match_atr};
 
 use opensc_sys::log::{sc_dump_hex};
 use opensc_sys::cardctl::{SC_CARDCTL_GET_SERIALNR, SC_CARDCTL_LIFECYCLE_SET};
@@ -129,7 +134,7 @@ use crate::missing_exports::{me_card_add_symmetric_alg, me_card_find_alg, me_get
 // (security environment) nor relate to sm (secure messaging) nor relate to pkcs15/pkcs15-init
 pub mod    no_cdecl;
 use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_array, enum_dir,
-    pin_get_policy, tracking_select_file, acos5_atrs_supported,
+    pin_get_policy, tracking_select_file, acos5_supported_atrs,
                       /*encrypt_public_rsa,*/ get_sec_env, set_sec_env,// get_rsa_caps,
     get_is_running_cmd_long_response, set_is_running_cmd_long_response, is_any_known_digestAlgorithm,
     sym_en_decrypt,
@@ -137,7 +142,7 @@ use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_arra
     logical_xor/*, create_mf_file_system*/, convert_acl_array_to_bytes_tag_fcp_sac, get_sec_env_mod_len,
     ACL_CATEGORY_DF_MF, ACL_CATEGORY_EF_CHV, ACL_CATEGORY_KEY, ACL_CATEGORY_SE,
     get_is_running_compute_signature, set_is_running_compute_signature, manage_common_read, manage_common_update,
-    common_read, common_update
+    common_read, common_update, acos5_supported_ec_curves
 };
 
 pub mod    path;
@@ -368,10 +373,10 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> c_int
     }
 
     #[cfg(    any(v0_17_0, v0_18_0))]
-    let mut acos5_atrs = acos5_atrs_supported();
+    let mut acos5_atrs = acos5_supported_atrs();
     #[cfg(not(any(v0_17_0, v0_18_0)))]
-    let     acos5_atrs = acos5_atrs_supported();
-    /* check whether card.atr can be found in acos5_atrs_supported[i].atr, iff yes, then
+    let     acos5_atrs = acos5_supported_atrs();
+    /* check whether card.atr can be found in acos5_supported_atrs[i].atr, iff yes, then
        card.type_ will be set accordingly, but not before the successful return of match_card */
     let mut type_out = 0;
     #[cfg(    any(v0_17_0, v0_18_0))]
@@ -522,7 +527,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> c_int
     }
 
     /* Undo 'force_card_driver = acos5-external;'  if match_card reports 'no match' */
-    for elem in &acos5_atrs_supported() {
+    for elem in &acos5_supported_atrs() {
         if elem.atr.is_null() {
             if cfg!(log) {
                 wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"### Error, have to skip \
@@ -582,6 +587,15 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> c_int
             return rv;
         }
         rsa_key_len += rsa_key_len_step;
+    }
+
+    if card.type_ == SC_CARD_TYPE_ACOS5_EVO_V4 {
+        let flags = (SC_ALGORITHM_ONBOARD_KEY_GEN | SC_ALGORITHM_ECDSA_RAW /*| SC_ALGORITHM_ECDH_CDH_RAW |
+                           SC_ALGORITHM_ECDSA_HASH_NONE | SC_ALGORITHM_ECDSA_HASH_SHA1*/) as c_ulong;
+        let ext_flags = (SC_ALGORITHM_EXT_EC_NAMEDCURVE /*| SC_ALGORITHM_EXT_EC_UNCOMPRESES*/) as c_ulong;
+        for elem in acos5_supported_ec_curves().iter_mut() {
+            unsafe { _sc_card_add_ec_alg(card, elem.size, flags, ext_flags, &mut elem.curve_oid) };
+        }
     }
 
     /* ACOS5 is capable of DES, but I think we can just skip that insecure algo; and the next, 3DES/128 with key1==key3 should NOT be used */
@@ -2873,9 +2887,9 @@ extern "C" fn acos5_compute_signature(card_ptr: *mut sc_card, data_ref_ptr: *con
     }
     set_is_running_compute_signature(card, false); // thus is an info valuable only when delegating to acos5_decipher
 
-    #[cfg(    any(v0_17_0, v0_18_0))]
-    let mut rv = SC_SUCCESS;
-    #[cfg(not(any(v0_17_0, v0_18_0)))]
+//    #[cfg(    any(v0_17_0, v0_18_0))]
+//    let mut rv = SC_SUCCESS;
+//    #[cfg(not(any(v0_17_0, v0_18_0)))]
     let mut rv; // = SC_SUCCESS;
     //   sha1     sha256  +md2/5 +sha1  +sha224  +sha256  +sha384  +sha512
     if ![20usize, 32,     34,    35,    47,      51,      67,      83, get_sec_env_mod_len(card)].contains(&data_len) {

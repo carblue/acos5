@@ -23,7 +23,7 @@ use std::collections::HashMap;
 //use num_traits::*;
 
 use opensc_sys::opensc::{sc_security_env};
-use opensc_sys::types::{sc_crt, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
+use opensc_sys::types::{sc_crt, sc_object_id, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
 use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUSTED,
                          SC_PKCS15_SKDF, SC_PKCS15_CDF, SC_PKCS15_CDF_TRUSTED, SC_PKCS15_CDF_USEFUL,
                          SC_PKCS15_DODF, SC_PKCS15_AODF};
@@ -51,6 +51,12 @@ pub const NAME_V4  : &[u8; 44] = b"ACOS5-EVO: Smart Card EVO or CryptoMate EVO\0
 pub const CARD_DRV_NAME       : &[u8; 108] = b"'acos5-external', supporting ACOS5 Smart Card V2.00 (CryptoMate64), V3.00 (CryptoMate Nano) and V4.00 (EVO)\0";
 pub const CARD_DRV_SHORT_NAME : &[u8;  15] =  b"acos5-external\0";
 
+pub const CRATE               : &[u8;   6] = b"acos5\0"; // search acos5 mention in debug log file; each function should at least log CALLED, except small helpers or code that is clearly covered by only one possible surrounding function's called
+pub const CALLED              : &[u8;   7] = b"called\0";
+pub const RETURNING           : &[u8;  10] = b"returning\0";
+pub const RETURNING_INT_CSTR  : &[u8;  25] = b"returning with: %d (%s)\n\0";
+pub const RETURNING_INT       : &[u8;  20] = b"returning with: %d\n\0";
+/*
 pub const CARD_DRIVER         : &[u8;  12] = b"card_driver\0";
 pub const MODULE              : &[u8;   7] = b"module\0";
 pub const LIB_DRIVER_NIX      : &[u8;  12] = b"libacos5.so\0";
@@ -61,20 +67,15 @@ pub const MODULE_PATH         : &[u8;  12] = b"module_path\0";
 pub const MODULE_NAME         : &[u8;  12] = b"module_name\0";
 pub const LIB_SM_NIX          : &[u8;  15] = b"libacos5_sm.so\0";
 
-pub const CRATE               : &[u8;   6] = b"acos5\0"; // search acos5 mention in debug log file; each function should at least log CALLED, except small helpers or code that is clearly covered by only one possible surrounding function's called
-pub const CALLED              : &[u8;   7] = b"called\0";
-pub const RETURNING           : &[u8;  10] = b"returning\0";
-pub const RETURNING_INT_CSTR  : &[u8;  25] = b"returning with: %d (%s)\n\0";
-pub const RETURNING_INT       : &[u8;  20] = b"returning with: %d\n\0";
-//pub const USER_CONSENT_CMD_NIX : &[u8;  18] = b"/usr/bin/pinentry\0"; // substituted by IUP
+pub const USER_CONSENT_CMD_NIX : &[u8;  18] = b"/usr/bin/pinentry\0"; // substituted by IUP
 
-//pub const V_0_0_0   : &[u8; 6] = b"0.0.0\0";
-//pub const V_0_15_0  : &[u8; 7] = b"0.15.0\0";
-//pub const V_0_16_0  : &[u8; 7] = b"0.16.0\0";
-//pub const V_0_17_0  : &[u8; 7] = b"0.17.0\0";
-//pub const V_0_18_0  : &[u8; 7] = b"0.18.0\0";
-//pub const V_0_19_0  : &[u8; 7] = b"0.19.0\0";
-//pub const V_0_20_0  : &[u8; 7] = b"0.20.0\0";
+pub const _0_17_0  : &[u8; 7] = b"0.17.0\0";
+pub const _0_18_0  : &[u8; 7] = b"0.18.0\0";
+pub const _0_19_0  : &[u8; 7] = b"0.19.0\0";
+pub const _0_20_0  : &[u8; 7] = b"0.20.0\0";
+pub const _0_21_0  : &[u8; 7] = b"0.21.0\0";
+pub const _0_0_0   : &[u8; 6] = b"0.0.0\0";
+*/
 
 // iso7816 ReservedFutureUse tags used by acos, that are not part of iso7816.h/rs
 //pub const ISO7816_RFU_TAG_FCP_SFI  : u8 = 0x88;  /* L:1,    V: Short File Identifier (SFI). 5 LSbs of File ID if unspecified. Applies to: Any file */
@@ -243,6 +244,14 @@ pub const SC_CARDCTL_ACOS5_DECRYPT_SYM             : c_ulong =  0x0000_0029; // 
 ////pub const SC_CARDCTL_ACOS5_DECRYPT_ASYM        : c_ulong =  0x0000_002A; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
 
 //pub const SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM    : c_ulong =  0x0000_002B; // data: *mut CardCtlArray20,  create_mf_file_system
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone,  PartialEq)]
+pub struct acos5_ec_curve {
+    pub curve_name : *const c_char,
+    pub curve_oid  : sc_object_id,
+    pub size       : c_uint,
+}
 
 /* more related to acos5_pkcs15 */
 /* more related to acos5_sm */
