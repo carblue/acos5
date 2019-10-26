@@ -1,3 +1,16 @@
+This repository now empraces all "driver-related" referring to ACOS5, an ACS family of smart cards / USB cryptographic tokens, which are specifically designed to enhance the security and performance of RSA (and ECC) Public-key cryptographic operations. ECC is available only since ACOS5-EVO.
+
+Motivation:
+For platform-independent, serious use of a cryptographic token like ACOS5 from a software application, a PKCS#11 implementing library is required.<br>
+There is none known to me for ACOS5 that is open source and the available ones from ACS are for Windows only, or You'll have to pay a lot more for that than for the hardware.
+
+OpenSC offers a PKCS#11 implementing open source library if it get's augmented by a hardware specific driver, which is missing currently for ACOS5 in OpenSC v0.20.0, and the one available in earlier versions was rudimentary/incomplete.
+
+With this repo's components 'acos5' and 'acos5_pkcs15' as plug-ins, OpenSC supports ACOS5 as well. (Fortunately OpenSC allows such plug-ins as - in OpenSC lingo - external modules/shared libraries.<br>
+They got implemented in the Rust programming language, so You will need the Rust compiler and cargo build tool from [Rust, cargo](https://www.rust-lang.org/tools/install "https://www.rust-lang.org/tools/install") to build those libraries from source code).<br>
+If there is anybody willing to transform the Rust code into an internal OpenSC driver, then I'll be happy to support that undertaking.
+External modules need some configuration once in opensc.conf, such that they get 'registered' and used by OpenSC, explained below.
+
 # Build state
 
 [![Build Status](https://travis-ci.org/carblue/acos5.svg?branch=master)](https://travis-ci.org/carblue/acos5)
@@ -28,10 +41,10 @@ Invoke `opensc-tool --info` in order to know Your installed OpenSC version. The 
 2. Install the Rust compiler and cargo build manager (it's bundled) from [Rust, cargo](https://www.rust-lang.org/tools/install "https://www.rust-lang.org/tools/install")<br>
 (If those rust tools aren't required anymore, later uninstall with: rustup self uninstall)
 
-3. Build the driver acos5: `cargo build --release`. The binary will be built into directory target/release
-   Towards OpenSC, the driver's name is acos5-external, in order to make it distinguishable from a quite useless acos5 internal driver, that existed in OpenSC troughout until version 0.19.0
+3. Build the driver acos5: `cargo build --release`. The binary will be built into directory target/release<br>
+   Towards OpenSC, the driver's name is acos5-external, in order to make it distinguishable from a quite useless acos5 internal driver, that existed in OpenSC throughout until version 0.19.0
 
-4. Adapt opensc.conf. Also, in the beginning, switch on logging by a setting `debug=3;`<br>
+4. Adapt opensc.conf (see below). Also, in the beginning, switch on logging by a setting `debug=3;`<br>
    If all the above went well, the log file will have an entry within it's first 4 lines, reporting: "load_dynamic_driver: successfully loaded card driver 'acos5-external'".<br>
    Check that by reissuing: `opensc-tool --info`<br>
    The last command should have successfully loaded card driver 'acos5-external', but it didn't yet use it. The next will do so (and also check for disallowed duplicate file ids):<br>

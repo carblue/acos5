@@ -177,8 +177,8 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 
 /// A mandatory library export
 /// @apiNote TODO inspect behavior in multi-threading context
-/// @param   name passed in by OpenSC (acc. opensc.conf: assoc. 'acos5-external' <-> ATR or card_driver acos5-external {...})
-/// @return  function pointer; calling that returns acos5-external's sc_card_driver struct address
+/// @param   name passed in by OpenSC (acc. opensc.conf: assoc. 'acos5_external' <-> ATR or card_driver acos5_external {...})
+/// @return  function pointer; calling that returns acos5_external's sc_card_driver struct address
 #[no_mangle]
 pub extern "C" fn sc_module_init(name: *const c_char) -> *mut c_void {
     let func_ptr =
@@ -526,13 +526,13 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> c_int
 //        println!("{}", String::from("The driver was loaded for application: ") + app_name.to_str().unwrap());
     }
 
-    /* Undo 'force_card_driver = acos5-external;'  if match_card reports 'no match' */
+    /* Undo 'force_card_driver = acos5_external;'  if match_card reports 'no match' */
     for elem in &acos5_supported_atrs() {
         if elem.atr.is_null() {
             if cfg!(log) {
                 wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"### Error, have to skip \
-                    driver 'acos5-external'! Got here, though match_card reported 'no match' (probably by using \
-                    'force_card_driver = acos5-external;') ###\0").unwrap());
+                    driver 'acos5_external'! Got here, though match_card reported 'no match' (probably by using \
+                    'force_card_driver = acos5_external;') ###\0").unwrap());
             }
             return SC_ERROR_WRONG_CARD;
         }
@@ -1414,6 +1414,7 @@ extern "C" fn acos5_logout(card_ptr: *mut sc_card) -> c_int
         if cfg!(log) {
             wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"failed: sc_pkcs15_bind\0").unwrap());
         }
+        return rv;
     }
     assert!(!p15card.is_null());
     let mut p15objects : [*mut sc_pkcs15_object; 10] = [std::ptr::null_mut(); 10];
@@ -1532,23 +1533,20 @@ extern "C" fn acos5_delete_file(card_ptr: *mut sc_card, path_ref_ptr: *const sc_
     let fun   = CStr::from_bytes_with_nul(b"acos5_delete_file\0").unwrap();
     if cfg!(log) {
         wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+        wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe{sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, CStr::from_bytes_with_nul(b"card.cache.current_path %s\0").unwrap());
+        wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe{sc_dump_hex(path_ref.value.as_ptr(), path_ref.len)}, CStr::from_bytes_with_nul(b"path_ref %s\0").unwrap());
     }
 
-    let mut rv;
-    if !(path_ref.type_ == SC_PATH_TYPE_FILE_ID && [0, 2].contains(&path_ref.len)) {
-        rv = SC_ERROR_INVALID_ARGUMENTS;
-        if cfg!(log) {
-            wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"File type has to be SC_PATH_TYPE_FILE_ID\0").unwrap());
-        }
-        return rv; //    LOG_FUNC_RETURN(card->ctx, SC_ERROR_INVALID_ARGUMENTS);
-    }
-
-    let file_id = match path_ref.len == 0 {
-        true  => u16_from_array_end(&card.cache.current_path.value[..card.cache.current_path.len]),
-        false => u16_from_array_begin(&path_ref.value[..]),
-    };
+    let file_id = if path_ref.len == 0 { u16_from_array_end(&card.cache.current_path.value[..card.cache.current_path.len]) }
+                        else                 { u16_from_array_end(&path_ref.value[..path_ref.len])};
+////println!("file_id: {:X}", file_id);
 
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    if !dp.files.contains_key(&file_id) {
+println!("file_id: {:X} is not a key of hashmap dp.files", file_id);
+        card.drv_data = Box::into_raw(dp) as *mut c_void;
+        return -1;
+    }
     let x = &dp.files[&file_id];
     let need_to_select_or_process_fci = x.2.is_none() || file_id != u16_from_array_end(&card.cache.current_path.value[..card.cache.current_path.len]);
 //    let fdb      = x.1[0];
@@ -1556,6 +1554,7 @@ extern "C" fn acos5_delete_file(card_ptr: *mut sc_card, path_ref_ptr: *const sc_
     let is_sm_operable = dp.is_sm_operable;
     card.drv_data = Box::into_raw(dp) as *mut c_void;
 
+    let mut rv;
     if need_to_select_or_process_fci /*|| (scb_delete_self & 0x40) == 0x40*/ {
         let mut file_out_ptr_tmp = std::ptr::null_mut();
         rv = unsafe { sc_select_file(card, path_ref, &mut file_out_ptr_tmp) };
@@ -1601,8 +1600,12 @@ extern "C" fn acos5_delete_file(card_ptr: *mut sc_card, path_ref_ptr: *const sc_
         }
     }
     else {
+        let mut path = sc_path { type_: SC_PATH_TYPE_FILE_ID, len: std::cmp::min(path_ref.len, 2), ..*path_ref };// *path_ref;//= unsafe { &*path_ref_ptr };
+        if path.len == 2 {
+            unsafe { copy_nonoverlapping(path_ref.value.as_ptr().add(path_ref.len-2), path.value.as_mut_ptr(), 2) };
+        }
         let func_ptr = unsafe { (*(*sc_get_iso7816_driver()).ops).delete_file.unwrap() };
-        rv = unsafe { func_ptr(card, path_ref) };
+        rv = unsafe { func_ptr(card, &path) };
     }
 ////
     if rv != SC_SUCCESS {
@@ -2293,11 +2296,11 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card, algorithm: c_uint, k
 00 00 01 00 01 6A 54 EB 93 CD 31 9E 37 2D 59 74 .....jT...1.7-Yt
 3F004100 41 31
      */
-    if  rbuf[0] != 0 ||
-        rbuf[1] != ((modulus_length+8)/128) as u8 ||   /* encode_key_RSA_ModulusBitLen(modulus_length) */
-//        rbuf[2] != key_path_ref.value[key_path_ref.len-2] /* FIXME RSAKEYID_CONVENTION */ ||
-//        rbuf[3] != ( (key_path_ref.value[key_path_ref.len-1] as u16 +0xC0u16)       & 0xFFu16) as  /* FIXME RSAKEYID_CONVENTION */ ||
-        rbuf[4] != 3
+    if    rbuf[0] != 0
+       || rbuf[1] != ((modulus_length+8)/128) as u8 /* encode_key_RSA_ModulusBitLen(modulus_length) */
+//     || rbuf[2] != key_path_ref.value[key_path_ref.len-2] /* FIXME RSAKEYID_CONVENTION */
+//     || rbuf[3] != ( (key_path_ref.value[key_path_ref.len-1] as u16 +0xC0u16)       & 0xFFu16) as  /* FIXME RSAKEYID_CONVENTION */
+//     || rbuf[4] != 3 // the bit setting for ACOS5-EVO is not known exactly
     {
         if cfg!(log) {
             wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul

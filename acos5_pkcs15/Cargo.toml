@@ -1,0 +1,16 @@
+[package]
+name = "acos5_pkcs15"
+version = "0.0.28"
+authors = ["carblue <bluecars@posteo.eu>"]
+edition = "2018"
+
+[dependencies]
+libc = "0.2"
+opensc-sys = { path = "../opensc-sys" }
+
+[build-dependencies]
+pkg-config = "=0.3.14"
+
+[lib]
+name = "acos5_pkcs15"
+crate-type = ["cdylib"]

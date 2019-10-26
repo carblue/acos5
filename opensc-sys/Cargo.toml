@@ -1,0 +1,11 @@
+[package]
+name = "opensc-sys"
+version = "0.1.0"
+authors = ["carblue <bluecars@posteo.eu>"]
+edition = "2018"
+
+[dependencies]
+libc = "0.2"
+
+[build-dependencies]
+pkg-config = "=0.3.14"

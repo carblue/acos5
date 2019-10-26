@@ -1,17 +1,6 @@
-[package]
-name = "acos5"
-version = "0.0.28"
-authors = ["carblue <bluecars@posteo.eu>"]
-edition = "2018"
+[workspace]
 
-[dependencies]
-libc = "0.2"
-num-integer = "0.1"
-opensc-sys = { git = "https://github.com/carblue/opensc-sys", rev = "f082159" }
-
-[build-dependencies]
-pkg-config = "=0.3.14"
-
-[lib]
-name = "acos5"
-crate-type = ["cdylib"]
+members = [
+    "acos5",
+    "acos5_pkcs15",
+]
