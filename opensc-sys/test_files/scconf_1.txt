@@ -1,0 +1,23 @@
+transport_stream {
+        id = 0x0009;
+        original_network_id = 0x1000;
+        sat_tuning_info {
+                frequency = 12278000;
+                symbol_rate = 30000000;
+                polarization = 0;
+        }
+        service {
+                id = 0x0064;
+                pmt_pid = 0x0101;
+                type = 144;
+                name = "aGuide";
+                provider_name = "A";
+        }
+        service {
+                id = 0x238D;
+                pmt_pid = 0x0623;
+                type = 144;
+                name = "aCar";
+                provider_name = "A";
+        }
+}
