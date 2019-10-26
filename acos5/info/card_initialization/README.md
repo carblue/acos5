@@ -44,4 +44,4 @@ Foresight
 
 Basically I want a backup/clone of my CryptoMate64 (content) to be placed e.g. in a safe. Therefore there are plans, that acos5_gui will have an import/export feature.
 Then, card initialization will also be possible as import from such an archive/export.
-This will be tricky though, as I don't plan to have secrets on card (RSA key pairs, sym. keys) ever be readable.
+This will be tricky though, as I don't plan to have secrets on card (RSA private keys, sym. keys) ever be readable.
