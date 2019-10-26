@@ -13,7 +13,7 @@ It's not detailed here, that some support may be only partial: E.g. C_Decrypt is
 ------------------------------------------------------------------------------------------
 user@host:~$ nm -D /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so
 
-C_CancelFunction
+C_CancelFunction             OpenSC: CKR_FUNCTION_NOT_PARALLEL
 C_CloseAllSessions           OKAY
 C_CloseSession               OKAY
 C_CopyObject                 OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
@@ -44,26 +44,26 @@ C_GenerateKey                OpenSC: CKR_FUNCTION_NOT_SUPPORTED
 C_GenerateKeyPair            OKAY, requires acos5_pkcs15 installed: tested via  pkcs15-init --generate-key rsa/3072 --auth-id 01 --id 09 --label testkey --key-usage sign,decrypt
 C_GenerateRandom             OKAY
 C_GetAttributeValue          OKAY, tested via  ssh -T git@github.com
-C_GetFunctionList            OKAY
-C_GetFunctionStatus
+C_GetFunctionList            OKAY, tested in pkcs11_test
+C_GetFunctionStatus          OpenSC: CKR_FUNCTION_NOT_PARALLEL
 C_GetInfo                    OKAY, tested in acos5_gui
-C_GetMechanismInfo
-C_GetMechanismList
+C_GetMechanismInfo           OKAY, tested in pkcs11_test
+C_GetMechanismList           OKAY, tested in pkcs11_test
 C_GetObjectSize              OpenSC: CKR_FUNCTION_NOT_SUPPORTED
-C_GetOperationState
+C_GetOperationState          OpenSC: CKR_FUNCTION_NOT_SUPPORTED
 C_GetSessionInfo             OKAY
 C_GetSlotInfo                OKAY, tested in acos5_gui
 C_GetSlotList                OKAY, tested in acos5_gui
 C_GetTokenInfo               OKAY, tested in acos5_gui
 C_Initialize                 OKAY, tested in acos5_gui
-C_InitPIN                    No support from driver currently
-C_InitToken                  No support from driver currently
+C_InitPIN                    No support from driver currently; sc_card_ctl(SC_CARDCTL_PKCS11_INIT_PIN):   SC_ERROR_NO_CARD_SUPPORT (Card does not support the requested operation)
+C_InitToken                  No support from driver currently; sc_card_ctl(SC_CARDCTL_PKCS11_INIT_TOKEN): SC_ERROR_NO_CARD_SUPPORT (Card does not support the requested operation)
 C_Login                      OKAY, tested via  ssh -T git@github.com
 C_Logout                     OKAY
 C_OpenSession                OKAY, tested via  ssh -T git@github.com
 C_SeedRandom                 OpenSC: CKR_FUNCTION_NOT_SUPPORTED; ACOS5 RNG does that automatically
 C_SetAttributeValue
-C_SetOperationState
+C_SetOperationState          OpenSC: CKR_FUNCTION_NOT_SUPPORTED
 C_SetPIN
 C_Sign                       OKAY, tested via  ssh -T git@github.com
 C_SignEncryptUpdate          OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
@@ -79,5 +79,5 @@ C_VerifyInit                 OpenSC: will call OpenSSL but no card function
 C_VerifyRecover              OpenSC: CKR_FUNCTION_NOT_SUPPORTED
 C_VerifyRecoverInit          OpenSC: CKR_FUNCTION_NOT_SUPPORTED
 C_VerifyUpdate               OpenSC: will call OpenSSL but no card function; No support from hardware
-C_WaitForSlotEvent
-C_WrapKey                    No support from driver currently
+C_WaitForSlotEvent           OKAY
+C_WrapKey                    No support from driver currently; TODO
