@@ -344,6 +344,8 @@ pub const SC_EVENT_READER_ATTACHED : c_uint = 0x0004;
 pub const SC_EVENT_READER_DETACHED : c_uint = 0x0008;
 pub const SC_EVENT_READER_EVENTS   : c_uint = SC_EVENT_READER_ATTACHED | SC_EVENT_READER_DETACHED;
 
+pub const MAX_FILE_SIZE : usize = 65535;
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_supported_algo_info {
