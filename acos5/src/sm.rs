@@ -512,8 +512,8 @@ mac_resp:
 
 // TODO all code below assumes block_size is 8, i.e. using exclusively TDES for SM, which is not true anymore for ACOS5-EVO
 
-#[no_mangle] // original APDU type (without SM): SC_APDU_CASE_2_SHORT: no command data, but expects response data (with SM, there are command data: the tagged le)
-pub extern "C" fn sm_common_read(card: &mut sc_card,
+//#[no_mangle] // original APDU type (without SM): SC_APDU_CASE_2_SHORT: no command data, but expects response data (with SM, there are command data: the tagged le)
+pub fn sm_common_read(card: &mut sc_card,
                                  idx_uint: c_uint,
                                  buf_ptr: *mut c_uchar,
                                  count: usize,
@@ -624,8 +624,8 @@ pub extern "C" fn sm_common_read(card: &mut sc_card,
 }
 
 
-#[no_mangle] // original APDU type (without SM): SC_APDU_CASE_3_SHORT: yes command data, but doesn't expect response data (with SM, there are response data)
-pub extern "C" fn sm_common_update(card: &mut sc_card,
+//#[no_mangle] // original APDU type (without SM): SC_APDU_CASE_3_SHORT: yes command data, but doesn't expect response data (with SM, there are response data)
+pub fn sm_common_update(card: &mut sc_card,
                                  idx_uint: c_uint,
                                  buf_ptr: *const c_uchar,
                                  count: usize,
