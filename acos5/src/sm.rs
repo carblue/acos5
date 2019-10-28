@@ -16,7 +16,7 @@ use opensc_sys::errors::{sc_strerror, SC_SUCCESS, SC_ERROR_SM_KEYSET_NOT_FOUND, 
                          SC_ERROR_SM_NOT_INITIALIZED, SC_ERROR_SM
                          /*, sc_strerror, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_NOT_SUPPORTED*/};
 use opensc_sys::sm::{sm_info, sm_cwa_session, SM_SMALL_CHALLENGE_LEN};
-use opensc_sys::log::{sc_dump_hex, sc_do_log, SC_LOG_DEBUG_SM};
+use opensc_sys::log::{sc_dump_hex, sc_do_log, SC_LOG_DEBUG_NORMAL/*, SC_LOG_DEBUG_SM*/};
 use opensc_sys::scconf::{scconf_block, scconf_find_blocks, scconf_get_str};
 
 use crate::constants_types::*;
@@ -203,8 +203,8 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> c_in
                 break;
         }
     */
-////            sc_debug(ctx, SC_LOG_DEBUG_SM, "CRT(algo:%X,ref:%X)", crt_at->algo, crt_at->refs[0]);
-    unsafe { sc_do_log(ctx, SC_LOG_DEBUG_SM, f_log.as_ptr(), line!() as c_int, fun.as_ptr(),
+////            sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "CRT(algo:%X,ref:%X)", crt_at->algo, crt_at->refs[0]);
+    unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, f_log.as_ptr(), line!() as c_int, fun.as_ptr(),
                        CStr::from_bytes_with_nul(b"CRT(algo:%X,ref:%X)\0").unwrap().as_ptr(), crt_at.algo, crt_at.refs[0]) };
     /* Keyset ENC */
     if sm_info.current_aid.len>0 && (crt_at.refs[0] as u8 & ACOS5_OBJECT_REF_LOCAL) >0 {
@@ -222,7 +222,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> c_in
         return SC_ERROR_SM_KEYSET_NOT_FOUND;
     }
 
-////            sc_debug(ctx, SC_LOG_DEBUG_SM, "keyset::enc(%"SC_FORMAT_LEN_SIZE_T"u) %s", strlen(value), value);
+////            sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "keyset::enc(%"SC_FORMAT_LEN_SIZE_T"u) %s", strlen(value), value);
     wr_do_log_tu(ctx, f_log, line!(), fun, unsafe { strlen(value) }, value, CStr::from_bytes_with_nul(b"keyset::enc(%zu) %s\0").unwrap());
     if unsafe { strlen(value) } == 24 {
         unsafe { copy_nonoverlapping(value as *const c_uchar,                cwa_keyset.enc.as_mut_ptr(), 16) };
@@ -237,7 +237,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> c_in
             return SC_ERROR_UNKNOWN_DATA_RECEIVED;
         }
 
-////                sc_debug(ctx, SC_LOG_DEBUG_SM, "ENC(%"SC_FORMAT_LEN_SIZE_T"u) %s", hex_len, sc_dump_hex(hex, hex_len));
+////                sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "ENC(%"SC_FORMAT_LEN_SIZE_T"u) %s", hex_len, sc_dump_hex(hex, hex_len));
         wr_do_log_tu(ctx, f_log, line!(), fun, hex_len, unsafe {sc_dump_hex(hex.as_ptr(), hex_len)}, CStr::from_bytes_with_nul(b"ENC(%zu) %s\0").unwrap());
         if hex_len != 24 {
             return SC_ERROR_INVALID_DATA;
@@ -245,7 +245,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> c_in
         unsafe { copy_nonoverlapping(hex.as_ptr(),                cwa_keyset.enc.as_mut_ptr(), 16) };
         unsafe { copy_nonoverlapping(hex.as_ptr().add(16), cwa_session.icc.k.as_mut_ptr(), 8) };
     }
-////            sc_debug(ctx, SC_LOG_DEBUG_SM, "%s %s", name, sc_dump_hex(cwa_keyset->enc, 24));
+////            sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "%s %s", name, sc_dump_hex(cwa_keyset->enc, 24));
     wr_do_log_tu(ctx, f_log, line!(), fun, name.as_ptr(), unsafe {sc_dump_hex(cwa_keyset.enc.as_ptr(), 16)}, CStr::from_bytes_with_nul(b"%s %s\0").unwrap());
 
     /* Keyset MAC */
@@ -265,7 +265,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> c_in
         return SC_ERROR_SM_KEYSET_NOT_FOUND;
     }
 
-////            sc_debug(ctx, SC_LOG_DEBUG_SM, "keyset::mac(%"SC_FORMAT_LEN_SIZE_T"u) %s", strlen(value), value);
+////            sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "keyset::mac(%"SC_FORMAT_LEN_SIZE_T"u) %s", strlen(value), value);
     wr_do_log_tu(ctx, f_log, line!(), fun, unsafe { strlen(value) }, value, CStr::from_bytes_with_nul(b"keyset::mac(%zu) %s\0").unwrap());
     if unsafe { strlen(value) } == 24 {
         unsafe { copy_nonoverlapping(value as *const c_uchar,                cwa_keyset.mac.as_mut_ptr(), 16) };
@@ -280,7 +280,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> c_in
             return SC_ERROR_UNKNOWN_DATA_RECEIVED;
         }
 
-////                sc_debug(ctx, SC_LOG_DEBUG_SM, "MAC(%"SC_FORMAT_LEN_SIZE_T"u) %s", hex_len, sc_dump_hex(hex, hex_len));
+////                sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "MAC(%"SC_FORMAT_LEN_SIZE_T"u) %s", hex_len, sc_dump_hex(hex, hex_len));
         wr_do_log_tu(ctx, f_log, line!(), fun, hex_len, unsafe {sc_dump_hex(hex.as_ptr(), hex_len)}, CStr::from_bytes_with_nul(b"MAC(%zu) %s\0").unwrap());
         if hex_len != 24 {
             return SC_ERROR_INVALID_DATA;
@@ -289,7 +289,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> c_in
         unsafe { copy_nonoverlapping(hex.as_ptr(),                cwa_keyset.mac.as_mut_ptr(), 16) };
         unsafe { copy_nonoverlapping(hex.as_ptr().add(16), cwa_session.ifd.k.as_mut_ptr(), 8) };
     }
-//            sc_debug(ctx, SC_LOG_DEBUG_SM, "%s %s", name, sc_dump_hex(cwa_keyset->mac, 16));
+//            sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "%s %s", name, sc_dump_hex(cwa_keyset->mac, 16));
     wr_do_log_tu(ctx, f_log, line!(), fun, name.as_ptr(), unsafe {sc_dump_hex(cwa_keyset.mac.as_ptr(), 16)}, CStr::from_bytes_with_nul(b"%s %s\0").unwrap());
 
     cwa_keyset.sdo_reference = crt_at.refs[0];
@@ -334,9 +334,9 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> c_in
                 }
     */
     /*
-                sc_debug(ctx, SC_LOG_DEBUG_SM, "IFD.Serial: %s", sc_dump_hex(cwa_session->ifd.sn, sizeof(cwa_session->ifd.sn)));
-                sc_debug(ctx, SC_LOG_DEBUG_SM, "IFD.Rnd: %s", sc_dump_hex(cwa_session->ifd.rnd, sizeof(cwa_session->ifd.rnd)));
-                sc_debug(ctx, SC_LOG_DEBUG_SM, "IFD.K: %s", sc_dump_hex(cwa_session->ifd.k, sizeof(cwa_session->ifd.k)));
+                sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "IFD.Serial: %s", sc_dump_hex(cwa_session->ifd.sn, sizeof(cwa_session->ifd.sn)));
+                sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "IFD.Rnd: %s", sc_dump_hex(cwa_session->ifd.rnd, sizeof(cwa_session->ifd.rnd)));
+                sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "IFD.K: %s", sc_dump_hex(cwa_session->ifd.k, sizeof(cwa_session->ifd.k)));
     */
     SC_SUCCESS
 }
@@ -445,7 +445,7 @@ fn sm_manage_keyset(card: &mut sc_card) -> c_int
         SC_SUCCESS
     }
     else {
-////    sc_debug(ctx, SC_LOG_DEBUG_SM, "Current AID: %s", sc_dump_hex(sm_info->current_aid.value, sm_info->current_aid.len));
+////    sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "Current AID: %s", sc_dump_hex(sm_info->current_aid.value, sm_info->current_aid.len));
         wr_do_log_t(ctx, f_log, line!(), fun, unsafe{sc_dump_hex(card.sm_ctx.info.current_aid.value.as_ptr(), card.sm_ctx.info.current_aid.len)}, CStr::from_bytes_with_nul(b"Current AID: %s\0").unwrap());
 
 //        case SM_TYPE_CWA14890:
