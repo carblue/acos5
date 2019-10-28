@@ -3,9 +3,8 @@ This repository now embraces all "driver-related" referring to ACOS5, an ACS fam
 Motivation:
 For platform-independent, serious use of a cryptographic token from software like Firefox, Thunderbird, ssh etc., a PKCS#11 implementing library is required.<br>
 There is none known to me for ACOS5 that is open source, nothing in this regard downloadable from ACS for free, instead, You'll have to pay a lot more for a proprietary ACS PKCS#11 library than for a single hardware token.<br>
-The only thing downloadable from ACS for free (and as open source) is acsccid, a PC/SC driver for Linux/Mac OS X, https://github.com/acshk/acsccid. But I never installed that for production use of my CryptoMate64 and CryptoMate Nano, so the debian/Ubuntu-supplied ccid seems to be sufficient (if it's new enough to list those as supported ones).<br>
-So be careful what You get when it is called driver.
-
+The only thing downloadable from ACS for free (and as open source) is [acsccid](https://github.com/acshk/acsccid "https://github.com/acshk/acsccid"), a PC/SC driver for Linux/Mac OS X. But I never installed that for production use of my CryptoMate64 and CryptoMate Nano, so the debian/Ubuntu-supplied [ccid](https://ccid.apdu.fr/ "https://ccid.apdu.fr/") seems to be sufficient (if it's new enough to list those as supported ones).<br>
+So be careful what You get from ACS when it is called driver.
 
 OpenSC offers a PKCS#11 implementing open source library if it get's augmented by a hardware specific driver, which is missing currently for ACOS5 in OpenSC v0.20.0, and the one available in earlier versions was rudimentary/incomplete.
 
@@ -52,11 +51,11 @@ Invoke `opensc-tool --info` in order to know Your installed OpenSC version. The 
 (If those rust tools aren't required anymore, later uninstall with: rustup self uninstall)
 
 3. Build the driver acos5: `user@host:~/path/to/acos5_root_downloaded$  cargo build --release`. The 2 shared object binaries will be built into directory target/release<br>
-   `optionally user@host:~/path/to/acos5_root_downloaded$  strip --strip-all target/release/acos5.so`<br>
-   `optionally user@host:~/path/to/acos5_root_downloaded$  strip --strip-all target/release/acos5_pkcs15.so`
+   `optionally user@host:~/path/to/acos5_root_downloaded$  strip --strip-unneeded target/release/libacos5.so`<br>
+   `optionally user@host:~/path/to/acos5_root_downloaded$  strip --strip-unneeded target/release/libacos5_pkcs15.so`<br><br>
    Towards OpenSC, the driver's name is acos5_external, in order to make it distinguishable from a quite useless acos5 internal driver, that existed in OpenSC throughout until version 0.19.0
 
-4. Copy `acos5_external.profile` to the directory where all the other .profile files installed by OpenSC are located, for Linux probably in /usr/share/opensc/ or /usr/local/share/opensc/, for Windows something like C:/Program Files/OpenSC Project/OpenSC/profiles.<br>
+4. Copy acos5_pkcs15/acos5_external.profile to the directory where all the other .profile files installed by OpenSC are located, for Linux probably in /usr/share/opensc/ or /usr/local/share/opensc/, for Windows something like C:/Program Files/OpenSC Project/OpenSC/profiles.<br>
 
 5. Adapt opensc.conf (see below). Also, in the beginning, switch on logging by a setting `debug=3;`<br>
    If all the above went well, the log file will have an entry within it's first 4 lines, reporting: "load_dynamic_driver: successfully loaded card driver 'acos5_external'".<br>
@@ -70,7 +69,7 @@ Invoke `opensc-tool --info` in order to know Your installed OpenSC version. The 
    Other errors occur: Likely the opensc.conf file is incorrect.<br>
    Otherwise file an issue.
 
-   
+
 The required opensc.conf entries:<br>
 Since recently, OpenSC installs a very short opensc.conf. The long version (that I'm using and referring to here) is in github's/tarball's etc/opensc.conf.example.in<br>
 ......... just denotes, there is other opensc.conf content before this line<br>
@@ -84,45 +83,49 @@ When using ACOS5 V2.00, it's also required for any OpenSC release version <= 0.1
 ```
 app default {
 .........
-    #debug = 3;                           # optionally remove the leading # for temporary log output; driver's log is available with debug = 3 (or 6); meaning of the number: look at https://github.com/carblue/acos5/blob/master/opensc-sys/src/log.rs
-    # debug_file = /tmp/opensc-debug.log; # optionally remove the leading # for temporary log output and terminate debug_file=value with a semicolon ;  possibly path adaption required !
+	#debug = 3;                          # optionally remove the leading # for temporary log output; driver's log is available with debug = 3 (or 6); meaning of the number: look at https://github.com/carblue/acos5/blob/master/opensc-sys/src/log.rs
+	#debug_file = /tmp/opensc-debug.log; # optionally remove the leading # for temporary log output and terminate debug_file=value with a semicolon ;  possibly path adaption required !
 .........
-    # card_driver customcos {
-    # The location of the driver library
-    # module = /usr/lib/x86_64-linux-gnu/libcard_customcos.so;
-    # }
+	# card_driver customcos {
+	# The location of the driver library
+	# module = /usr/lib/x86_64-linux-gnu/libcard_customcos.so;
+	# }
 ...
-    card_driver acos5_external {
-        # module, the (/path/to/) filename of the driver library .so/.dll/.dylib. /path/to/ is dispensable if filename is in a 'standard library search path'
-        module = /something/like/path/to/acos5/target/release/libacos5.so;
+	card_driver acos5_external {
+		# module, the (/path/to/) filename of the driver library .so/.dll/.dylib. /path/to/ is dispensable if filename is in a 'standard library search path'
+		module = /something/like/path/to/acos5/target/release/libacos5.so;
 
-        # "user-consent": Override disable / enable GUI enquiry popup when performing a signature or RSA decrypt operation with ACOS5.
-        # Operational only if compiled with cfg=enable_acos5_ui and IUP installed:
-        # user_consent_enabled = yes; # anything starting with letter t or y (case-insensitive) get's interpreted as true/yes, otherwise false/no
-        # When the dialog window pops up: Answer with NO in order to decline the RSA key usage; YES or closing the window [X] means accepting RSA key usage
-    }
+		# "user-consent": Override disable / enable GUI enquiry popup when performing a signature, unwrap or RSA decrypt operation with ACOS5.
+		# Operational only if compiled with cfg=enable_acos5_ui and IUP installed:
+		user_consent_enabled = no; # anything starting with letter t or y (case-insensitive) get's interpreted as true/yes, otherwise false/no
+		# When the dialog window pops up: Answer with NO in order to decline the RSA key usage; YES or closing the window [X] means accepting RSA key usage
+		# secure messaging settings:
+		ifd_serial = "11:22:33:44:55:66:77:88";
+		keyset_41434F53504B43532D313576312E3030_02_mac = "F1:E0:D0:C1:B0:A1:89:08:07:16:45:04:13:02:01:F1:89:FE:B3:C8:37:45:16:94"; # corresponds to record# 1/key_reference 0x81 (external auth. key host kh in EF 0x4102); this will be authenticated
+		keyset_41434F53504B43532D313576312E3030_02_enc = "F1:01:02:13:04:85:16:07:08:49:A1:B0:C1:D0:E0:F1:45:89:B3:16:FE:94:37:C8"; # corresponds to record# 2/key_reference 0x82 (internal auth. key card kc in EF 0x4102)
+	}
 ...
 .........
-    #card_drivers = npa, internal;
+	#card_drivers = npa, internal;
 ...
-    card_drivers = acos5_external, npa, internal; # for a painless start use  card_drivers = acos5_external, default;
+	card_drivers = acos5_external, npa, internal; # for a painless start use  card_drivers = acos5_external, default;
 ...
 .........
-    # PKCS #15
-    framework pkcs15 {
+	# PKCS #15
+	framework pkcs15 {
 .........
-        # emulate custom {
-            # The location of the driver library
-            # module = /usr/lib/x86_64-linux-gnu/libp15emu_custom.so;
-        # }
+		# emulate custom {
+		# The location of the driver library
+		# module = /usr/lib/x86_64-linux-gnu/libp15emu_custom.so;
+		# }
 ...
-        pkcs15init acos5_external {
-            # The location of the pkcs15init library that supplements driver 'acos5': /path/to/libacos5_pkcs15.so/dll/dylib;
-            # /path/to/ may be omitted, if it's located in a standard library search path of the OS
-            module = /something/like/path/to/acos5/target/release/libacos5_pkcs15.so;
-        }
+		pkcs15init acos5_external {
+			# The location of the pkcs15init library that supplements driver 'acos5': /path/to/libacos5_pkcs15.so/dll/dylib;
+			# /path/to/ may be omitted, if it's located in a standard library search path of the OS
+			module = /something/like/path/to/acos5/target/release/libacos5_pkcs15.so;
+		}
 ...
-    }
+	}
 }
 ```
 

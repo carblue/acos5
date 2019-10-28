@@ -486,7 +486,6 @@ pub struct DataPrivate { // see settings in acos5_init
 //  pub sec_env_algo_flags : c_uint, // remember the padding scheme etc. selected for RSA; required in acos5_64_set_security_env
     pub sec_env_mod_len : c_uint,
     pub rsa_caps : c_uint, // remember how the rsa_algo_flags where set for _sc_card_add_rsa_alg
-    pub is_sm_operable : bool,
     pub does_mf_exist : bool,
     pub is_running_init : bool, // true as long as acos5_64_init runs: It may be used to control behavior of acos5_64_list_files (lazily filling hashmap)
     /* some commands like sign, decipher etc. may supply > 256 bytes to get_response, but the exact number will not be known (the only info is 0x6100),
