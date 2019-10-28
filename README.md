@@ -31,7 +31,7 @@ Driver for Advanced Card Systems  ACOS5 Smart Card V2.00, V3.00 and V4.00 (EVO) 
 
 External module, in this context means: You also have to "tell opensc.conf some details", such that OpenSC can find the driver library, knows about it and can load it as a known driver.
 External module also has the implication, that OpenSC calls up to 3 different libraries (depending on opensc.conf configuration and functionality required): Into the mandatory driver library, into an optional pkcs15init library acos5_pkcs15 and into an optional acos5-specific 'Secure Messaging' library.<br>
-OpenSC also has the implication: If Your card got initialized by an ACS tool and is not PKCS#15 compliant (this is true for all that I've run into), then it won't work (well) with OpenSC and likely requires card's re-initialization, see [card_initialization README](https://github.com/carblue/acos5/tree/master/acos5/info/card_initialization "https://github.com/carblue/acos5/tree/master/acos5/info/card_initialization"))
+OpenSC also has the implication: If Your card got initialized by an ACS tool and is not PKCS#15 compliant (this is true for all that I've run into), then it won't work (well) with OpenSC and likely requires card's re-initialization, see [card_initialization README](https://github.com/carblue/acos5/tree/master/info/card_initialization "https://github.com/carblue/acos5/tree/master/info/card_initialization"))
 The minimal OpenSC version supported is 0.17.0<br>
 The new ACOS5-EVO is not yet available to me and untested.<br>
 The respective reference manual is available on request from: info@acs.com.hk
