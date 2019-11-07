@@ -20,7 +20,15 @@
 
 /* naming: replace sc to wr, e.g. sc_do_log -> wr_do_log */
 
-use std::os::raw::{c_uint, c_int, c_uchar, c_char};
+//TODO overhaul this interface (with macro_rules?)
+// make it as readable as the C code's logging is !
+
+
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::cast_possible_wrap))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
+
+
+use std::os::raw::{c_uint, c_int, c_char};
 use std::ffi::CStr;
 
 use opensc_sys::opensc::{sc_context};
@@ -29,58 +37,63 @@ use opensc_sys::log::{sc_do_log, SC_LOG_DEBUG_NORMAL};
 use opensc_sys::log::{sc_do_log_color, SC_COLOR_FG_RED};
 use opensc_sys::errors::{sc_strerror};
 
-pub fn wr_do_log(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, fmt: &CStr)
+pub fn wr_do_log(ctx: &mut sc_context, file: &CStr, line: c_uint, fun: &CStr, fmt: &CStr)
 {
     unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr()) };
 }
 
-pub fn wr_do_log_t<T>(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg: T, fmt: &CStr)
+pub fn wr_do_log_t<T>(ctx: &mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg: T, fmt: &CStr)
 {
     unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg) };
 }
 
-pub fn wr_do_log_tt<T>(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: T, arg2: T, fmt: &CStr)
+pub fn wr_do_log_tt<T>(ctx: &mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: T, arg2: T, fmt: &CStr)
 {
     unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg1, arg2) };
 }
 
-pub fn wr_do_log_ttt<T>(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: T, arg2: T, arg3: T, fmt: &CStr)
+//TODO temporarily allow too_many_arguments
+pub fn wr_do_log_ttt<T>(ctx: &mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: T, arg2: T, arg3: T, fmt: &CStr)
 {
     unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg1, arg2, arg3) };
 }
 
-pub fn wr_do_log_tttt<T>(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: T, arg2: T, arg3: T, arg4: T, fmt: &CStr)
+//TODO temporarily allow too_many_arguments
+pub fn wr_do_log_tttt<T>(ctx: &mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: T, arg2: T, arg3: T, arg4: T, fmt: &CStr)
 {
     unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg1, arg2, arg3, arg4) };
 }
 
-pub fn wr_do_log_tu<T,U>(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: T, arg2: U, fmt: &CStr)
+//TODO temporarily allow too_many_arguments
+pub fn wr_do_log_tu<T,U>(ctx: &mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: T, arg2: U, fmt: &CStr)
 {
     unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg1, arg2) };
 }
 
-pub fn wr_do_log_tuv<T,U,V>(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: T, arg2: U, arg3: V, fmt: &CStr)
+//TODO temporarily allow too_many_arguments
+pub fn wr_do_log_tuv<T,U,V>(ctx: &mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: T, arg2: U, arg3: V, fmt: &CStr)
 {
     unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg1, arg2, arg3) };
 }
 
-pub fn wr_do_log_8u8_i32(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, fmt: &CStr, a: [c_uchar; 8], i:i32)
+pub fn wr_do_log_8u8_i32(ctx: &mut sc_context, file: &CStr, line: c_uint, fun: &CStr, fmt: &CStr, a: [u8; 8], i: i32)
 {
     unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(),
-                       a[0] as u32, a[1] as u32, a[2] as u32, a[3] as u32, a[4] as u32, a[5] as u32, a[6] as u32, a[7] as u32, i) };
+                       u32::from(a[0]), u32::from(a[1]), u32::from(a[2]), u32::from(a[3]), u32::from(a[4]), u32::from(a[5]), u32::from(a[6]), u32::from(a[7]), i) };
 }
 
 // usage for error return (<0) with: LOG_TEST_RET, LOG_TEST_GOTO_ERR
-pub fn wr_do_log_sds(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: *const c_char, arg2: c_int, arg3: *const c_char, fmt: &CStr)
+//TODO temporarily allow too_many_arguments
+pub unsafe fn wr_do_log_sds(ctx: &mut sc_context, file: &CStr, line: c_uint, fun: &CStr, arg1: *const c_char, arg2: c_int, arg3: *const c_char, fmt: &CStr)
 {
     #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-    {unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg1, arg2, arg3) }; }
+    { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), fmt.as_ptr(), arg1, arg2, arg3); }
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-    {unsafe { sc_do_log_color(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), SC_COLOR_FG_RED, fmt.as_ptr(), arg1, arg2, arg3) }; }
+    { sc_do_log_color(ctx, SC_LOG_DEBUG_NORMAL, file.as_ptr(), line as c_int, fun.as_ptr(), SC_COLOR_FG_RED, fmt.as_ptr(), arg1, arg2, arg3); }
 }
 
 // usage for ordinary return with: LOG_FUNC_RETURN
-pub fn wr_do_log_rv(ctx: *mut sc_context, file: &CStr, line: c_uint, fun: &CStr, rv: c_int)
+pub fn wr_do_log_rv(ctx: &mut sc_context, file: &CStr, line: c_uint, fun: &CStr, rv: c_int)
 {
     if rv <= 0 {
         #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]

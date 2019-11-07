@@ -57,20 +57,26 @@ unloaded by: src/pkcs15init/pkcs15-lib.c:sc_pkcs15init_unbind
 Message in debug_file: successfully loaded pkcs15init driver 'acos5-external'
 */
 
-extern crate libc;
-//extern crate pkcs11;
+#![cfg_attr(feature = "cargo-clippy", warn(clippy::all))]
+#![cfg_attr(feature = "cargo-clippy", warn(clippy::pedantic))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::doc_markdown))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::similar_names))]
 
+
+extern crate libc;
 extern crate opensc_sys;
+//extern crate pkcs11;
 //extern crate libloading as lib;
 
 use libc::{free}; // strlen
 //use pkcs11::types::{CKM_DES_ECB, CKM_DES3_ECB, CKM_AES_ECB};
+
 use std::os::raw::{c_void, c_uchar, c_char, c_int, c_uint};
 use std::ffi::{CStr};
-use std::ptr::{copy_nonoverlapping};
+use std::ptr::{copy_nonoverlapping, null_mut};
 use std::collections::{HashSet};
 
-use opensc_sys::opensc::{sc_context, sc_card, sc_select_file, sc_file_free, sc_card_ctl, SC_ALGORITHM_DES, SC_ALGORITHM_3DES, SC_ALGORITHM_AES, sc_card_find_rsa_alg, sc_file_new, sc_bytes2apdu_wrapper, sc_transmit_apdu, sc_file_dup, sc_delete_file, sc_check_sw};
+use opensc_sys::opensc::{sc_context, sc_card, sc_select_file, sc_file_free, sc_card_ctl, SC_ALGORITHM_DES, SC_ALGORITHM_3DES, SC_ALGORITHM_AES, sc_card_find_rsa_alg, sc_file_new, sc_bytes2apdu_wrapper, sc_transmit_apdu, sc_file_dup,  sc_delete_file, sc_check_sw};
 
 use opensc_sys::profile::{sc_profile};
 use opensc_sys::pkcs15::{sc_pkcs15_card, sc_pkcs15_object, sc_pkcs15_prkey, sc_pkcs15_pubkey, sc_pkcs15_skey_info,
@@ -91,7 +97,7 @@ use opensc_sys::errors::{sc_strerror, SC_SUCCESS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
                          //,SC_ERROR_INCONSISTENT_CONFIGURATION, SC_ERROR_UNKNOWN, SC_ERROR_FILE_NOT_FOUND
 };
 //use opensc_sys::sm::{sm_info};
-use opensc_sys::types::{sc_file, sc_path/*, sc_apdu*/, SC_AC_OP_CREATE_EF, SC_AC_OP_DELETE, SC_AC_OP_READ, SC_AC_OP_DELETE_SELF,//SC_AC_OP_DELETE_SELF, SC_FILE_TYPE_INTERNAL_EF,
+use opensc_sys::types::{sc_file, sc_path, sc_apdu, SC_AC_OP_CREATE_EF, SC_AC_OP_DELETE, SC_AC_OP_READ, SC_AC_OP_DELETE_SELF,//SC_AC_OP_DELETE_SELF, SC_FILE_TYPE_INTERNAL_EF,
                         SC_AC_OP_UPDATE, SC_APDU_CASE_1/*, SC_APDU_CASE_3*/, SC_PATH_TYPE_PATH, sc_acl_entry};
 // SC_FILE_EF_TRANSPARENT, SC_FILE_STATUS_CREATION, SC_MAX_PATH_SIZE,  SC_PATH_TYPE_FILE_ID, SC_AC_OP_DELETE
 //use opensc_sys::types::{/*SC_MAX_CRTS_IN_SE, sc_crt*/};
@@ -110,6 +116,8 @@ pub mod    no_cdecl; // this is NOT the same as in acos5
 use crate::no_cdecl::{/*call_dynamic_update_hashmap, call_dynamic_sm_test,*/ rsa_modulus_bits_canonical, first_of_free_indices};
 
 
+const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
+
 /// A mandatory library export
 /// @apiNote  If @return doesn't match the version of OpenSC binary libopensc.so/dll, this library
 ///           will be unloaded immediately; depends on build.rs setup ref. "cargo:rustc-cfg=v0_??_0".
@@ -122,18 +130,17 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
     else  if cfg!(v0_18_0) { CStr::from_bytes_with_nul(b"0.18.0\0").unwrap().as_ptr() }
     else  if cfg!(v0_19_0) { CStr::from_bytes_with_nul(b"0.19.0\0").unwrap().as_ptr() }
     else  if cfg!(v0_20_0) { CStr::from_bytes_with_nul(b"0.20.0\0").unwrap().as_ptr() }
-//  else  if cfg!(v0_21_0) { CStr::from_bytes_with_nul(b"0.21.0\0").unwrap().as_ptr() }
     else                   { CStr::from_bytes_with_nul(b"0.0.0\0" ).unwrap().as_ptr() } // will definitely cause rejection by OpenSC
 }
 
 #[no_mangle]
-pub extern "C" fn sc_module_init(name: *const c_char) -> *mut c_void {
-    let func_ptr =
-        if unsafe { CStr::from_ptr(name) } == CStr::from_bytes_with_nul(CARD_DRV_SHORT_NAME).unwrap()
-        { acos5_get_pkcs15init_ops }
-        else
-        { unsafe { std::mem::transmute::<usize, extern "C" fn() -> *mut sc_pkcs15init_operations>(0) } };
-    func_ptr as *mut c_void
+pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> *mut c_void {
+    if !name.is_null() && CStr::from_ptr(name) == CStr::from_bytes_with_nul(CARD_DRV_SHORT_NAME).unwrap() {
+        acos5_get_pkcs15init_ops as *mut c_void
+    }
+    else {
+        null_mut::<c_void>()
+    }
 }
 
 extern "C" fn acos5_get_pkcs15init_ops() -> *mut sc_pkcs15init_operations {
@@ -193,38 +200,41 @@ Get's called only from  src/pkcs15init/pkcs15-lib.c:sc_pkcs15init_erase_card
 How to invoke this:
 pkcs15-init --erase-card --so-pin <arg>          (MF's DELETE_SELF SCB probably is SOPIN)
 */
+//TODO temporarily allow cast_possible_wrap  for sc_pkcs15init_authenticate
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_possible_wrap))]
 extern "C" fn acos5_pkcs15_erase_card(profile_ptr: *mut sc_profile, p15card_ptr: *mut sc_pkcs15_card) -> c_int
 {
-    if profile_ptr.is_null() || p15card_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null() } {
+    if profile_ptr.is_null() || p15card_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null() || (*(*p15card_ptr).card).ctx.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
-    let card = unsafe { &mut *(*p15card_ptr).card };
+    let card     = unsafe { &mut *(*p15card_ptr).card };
+    let card_ctx = unsafe { &mut *card.ctx };
     let mut rv;
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun = CStr::from_bytes_with_nul(b"acos5_pkcs15_erase_card\0").unwrap();
     if cfg!(log) {
         let fmt = CStr::from_bytes_with_nul(CALLED).unwrap();
-        wr_do_log(card.ctx, f_log, line!(), fun, fmt);
+        wr_do_log(card_ctx, f_log, line!(), fun, fmt);
     }
     {
         let mut file_out = unsafe { &mut *sc_file_new() };
-        file_out.path = sc_path { value: [0x3F,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], len: 2, ..Default::default() };
+        file_out.path = sc_path { value: [0x3F,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], len: 2, ..sc_path::default() };
         /* Authenticate arbitrary op that's protected by SOPIN */
         rv = unsafe { sc_pkcs15init_authenticate(profile_ptr, p15card_ptr, file_out, SC_AC_OP_DELETE as c_int) };
         unsafe { sc_file_free(file_out) };
     }
     if rv < 0 {
         if cfg!(log) {
-            wr_do_log_sds(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"SOPIN verification failed\0").
-                unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) },
-                CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+            unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+                b"SOPIN verification failed\0").unwrap().as_ptr(), rv, sc_strerror(rv),
+                CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
         }
         return rv;
     }
 
     let command = [0x80, 0x30, 0, 0];
-    let mut apdu = Default::default();
-    rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
+    let mut apdu = sc_apdu::default();
+    rv = sc_bytes2apdu_wrapper(card_ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
     assert_eq!(apdu.cse, SC_APDU_CASE_1);
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
@@ -233,13 +243,13 @@ extern "C" fn acos5_pkcs15_erase_card(profile_ptr: *mut sc_profile, p15card_ptr:
     if rv != SC_SUCCESS {
         let fmt = CStr::from_bytes_with_nul(b"### Impossible to Zeroize Card User Data ###\0").unwrap();
         if cfg!(log) {
-            wr_do_log(card.ctx, f_log, line!(), fun, fmt);
+            wr_do_log(card_ctx, f_log, line!(), fun, fmt);
         }
         return SC_ERROR_KEYPAD_MSG_TOO_LONG;
     }
 /*
     let fmt  = CStr::from_bytes_with_nul(b"Ready to erase card's content\0").unwrap();
-    wr_do_log(card.ctx, f_log, line!(), fun, fmt);
+    wr_do_log(card_ctx, f_log, line!(), fun, fmt);
 */
     rv
 }
@@ -254,17 +264,18 @@ extern "C" fn acos5_pkcs15_erase_card(profile_ptr: *mut sc_profile, p15card_ptr:
 extern "C" fn acos5_pkcs15_create_dir(profile_ptr: *mut sc_profile, p15card_ptr: *mut sc_pkcs15_card,
                                       df_ptr: *mut sc_file) -> c_int
 {
-    if profile_ptr.is_null() ||  p15card_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null() } || df_ptr.is_null() {
+    if profile_ptr.is_null() ||  p15card_ptr.is_null() || df_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null() || (*(*p15card_ptr).card).ctx.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let profile = unsafe { &mut *profile_ptr };
     let card = unsafe { &mut *(*p15card_ptr).card };
+    let card_ctx = unsafe { &mut *card.ctx };
     let df = unsafe { & *df_ptr };
 
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"acos5_pkcs15_create_dir\0").unwrap();
     if cfg!(log) {
-        wr_do_log_t(card.ctx, f_log, line!(), fun, df.id, CStr::from_bytes_with_nul(b"called  with df.id %X\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, df.id, CStr::from_bytes_with_nul(b"called  with df.id %X\0").unwrap());
     }
 /*
 */
@@ -275,21 +286,21 @@ extern "C" fn acos5_pkcs15_create_dir(profile_ptr: *mut sc_profile, p15card_ptr:
     let mut file : *mut sc_file;
     if df.id == /* 0x4100 0x5015*/ 0x4100 as c_int {
         if cfg!(log) {
-            wr_do_log_t(card.ctx, f_log, line!(), fun, df.id, CStr::from_bytes_with_nul(b"Select (%X)\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, df.id, CStr::from_bytes_with_nul(b"Select (%X)\0").unwrap());
         }
-        /*let mut rv =*/ unsafe { sc_select_file(card, &df.path, std::ptr::null_mut()) };
+        /*let mut rv =*/ unsafe { sc_select_file(card, &df.path, null_mut()) };
 
         for (_key,value) in &create_dfs { //for (ii = 0; create_dfs[ii]; ii++)
             if cfg!(log) {
-                wr_do_log_t(card.ctx, f_log, line!(), fun, value.as_ptr(), CStr::from_bytes_with_nul(b"Create '%s'\0").unwrap());
+                wr_do_log_t(card_ctx, f_log, line!(), fun, value.as_ptr(), CStr::from_bytes_with_nul(b"Create '%s'\0").unwrap());
             }
 
-            file = std::ptr::null_mut();
+            file = null_mut();
             let rv = me_profile_get_file(profile, value.as_ptr(), &mut file);
             unsafe { sc_file_free(file) };
             if rv != SC_SUCCESS {
                 if cfg!(log) {
-                    wr_do_log_t(card.ctx, f_log, line!(), fun, value.as_ptr(), CStr::from_bytes_with_nul(b"Inconsistent profile: cannot find %s\0").unwrap());
+                    wr_do_log_t(card_ctx, f_log, line!(), fun, value.as_ptr(), CStr::from_bytes_with_nul(b"Inconsistent profile: cannot find %s\0").unwrap());
                 }
                 return SC_ERROR_INCONSISTENT_PROFILE;//LOG_FUNC_RETURN(ctx, SC_ERROR_INCONSISTENT_PROFILE);
             }
@@ -304,8 +315,7 @@ extern "C" fn acos5_pkcs15_create_dir(profile_ptr: *mut sc_profile, p15card_ptr:
 
 //    LOG_FUNC_RETURN(p15card.card.ctx, rv);
 
-
-    return SC_SUCCESS
+    SC_SUCCESS
 }
 
 
@@ -317,18 +327,19 @@ extern "C" fn acos5_pkcs15_create_dir(profile_ptr: *mut sc_profile, p15card_ptr:
 extern "C" fn acos5_pkcs15_select_pin_reference(profile_ptr: *mut sc_profile, p15card_ptr: *mut sc_pkcs15_card,
                                                 pin_ainfo_ptr: *mut sc_pkcs15_auth_info) -> c_int
 {
-    if profile_ptr.is_null() ||  p15card_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null() } || pin_ainfo_ptr.is_null() {
+    if profile_ptr.is_null() ||  p15card_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null()  || (*(*p15card_ptr).card).ctx.is_null() } || pin_ainfo_ptr.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
 //    let profile = unsafe { &mut *profile_ptr };
     let card = unsafe { &mut *(*p15card_ptr).card };
+    let card_ctx = unsafe { &mut *card.ctx };
 
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"acos5_pkcs15_select_pin_reference\0").unwrap();
     if cfg!(log) {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
-    return SC_SUCCESS
+    SC_SUCCESS
 }
 
 /*
@@ -345,18 +356,19 @@ extern "C" fn acos5_pkcs15_create_pin(profile_ptr: *mut sc_profile, p15card_ptr:
                                       _object_ptr: *mut sc_pkcs15_object, _arg5: *const c_uchar, _arg6: usize,
                                       _arg7: *const c_uchar, _arg8: usize) -> c_int
 {
-    if profile_ptr.is_null() ||  p15card_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null() } || file_ptr.is_null()  {
+    if profile_ptr.is_null() ||  p15card_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null() || (*(*p15card_ptr).card).ctx.is_null() } || file_ptr.is_null()  {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
 //    let profile = unsafe { &mut *profile_ptr };
     let card = unsafe { &mut *(*p15card_ptr).card };
+    let card_ctx = unsafe { &mut *card.ctx };
 
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"acos5_pkcs15_create_pin\0").unwrap();
     if cfg!(log) {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
-    return SC_SUCCESS
+    SC_SUCCESS
 }
 
 /*
@@ -368,6 +380,14 @@ extern "C" fn acos5_pkcs15_create_pin(profile_ptr: *mut sc_profile, p15card_ptr:
  * file id s may already exist and must then be first deleted. TODO deleting is not yet covered
  *
  */
+//TODO temporarily allow cognitive_complexity
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cognitive_complexity))]
+//TODO temporarily allow cast_possible_wrap  for sc_pkcs15init_authenticate
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_possible_wrap))]
+//TODO temporarily allow cast_sign_loss
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_sign_loss))]
+//TODO temporarily allow cast_possible_truncation
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_possible_truncation))]
 extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
                                              p15card_ptr: *mut sc_pkcs15_card,
                                              object_ptr: *mut sc_pkcs15_object) -> c_int
@@ -377,22 +397,23 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
 // TODO use dp.agi.file_id_priv
 // TODO use dp.agi.file_id_pub
 // TODO SC_PKCS15_TYPE_PRKEY_EC
-    if p15card_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null() } {
+    if p15card_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null() || (*(*p15card_ptr).card).ctx.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let p15card = unsafe { &mut *p15card_ptr };
     let card = unsafe { &mut *p15card.card };
+    let card_ctx = unsafe { &mut *card.ctx };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"acos5_pkcs15_create_key\0").unwrap();
     if cfg!(log) {
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object_ptr, CStr::from_bytes_with_nul(b"called with object_ptr: %p\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object_ptr, CStr::from_bytes_with_nul(b"called with object_ptr: %p\0").unwrap());
     }
 
     if profile_ptr.is_null() || object_ptr.is_null() || unsafe { (*object_ptr).data.is_null() } {
         if cfg!(log) {
-            wr_do_log_tu(card.ctx, f_log, line!(), fun, profile_ptr, object_ptr, CStr::from_bytes_with_nul(b"called with profile_ptr: %p, object_ptr: %p\0").unwrap());
+            wr_do_log_tu(card_ctx, f_log, line!(), fun, profile_ptr, object_ptr, CStr::from_bytes_with_nul(b"called with profile_ptr: %p, object_ptr: %p\0").unwrap());
             if !object_ptr.is_null() {
-                wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { (*object_ptr).data }, CStr::from_bytes_with_nul(b"called with object.data: %p\0").unwrap());
+                wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { (*object_ptr).data }, CStr::from_bytes_with_nul(b"called with object.data: %p\0").unwrap());
             }
         }
         return SC_ERROR_INVALID_ARGUMENTS;
@@ -401,7 +422,7 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     let object      = unsafe { &mut *object_ptr };
     let mut rv;
     if cfg!(log) {
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.type_, CStr::from_bytes_with_nul(b"object.type: %X\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.type_, CStr::from_bytes_with_nul(b"object.type: %X\0").unwrap());
     }
 
     if SC_PKCS15_TYPE_SKEY == (object.type_ & SC_PKCS15_TYPE_CLASS_MASK) {
@@ -425,36 +446,33 @@ P:6445; T:0x140296631560000 10:54:08.502 [opensc-pkcs11] acos5:434:acos5_pkcs15_
 P:6        */
         let key_info = unsafe { &mut *(object.data as *mut sc_pkcs15_skey_info) };
         if cfg!(log) {
-            wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.id.value.as_ptr(), key_info.id.len) }, CStr::from_bytes_with_nul(b"key_info.id: %s\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.usage, CStr::from_bytes_with_nul(b"key_info.usage: %X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.access_flags, CStr::from_bytes_with_nul(b"key_info.access_flags: %X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.native, CStr::from_bytes_with_nul(b"key_info.native: %d\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.key_reference, CStr::from_bytes_with_nul(b"key_info.key_reference: %X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.value_len, CStr::from_bytes_with_nul(b"key_info.value_len (in bits): %zu\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.key_type, CStr::from_bytes_with_nul(b"key_info.key_type: %zu\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.algo_refs[0], CStr::from_bytes_with_nul(b"key_info.algo_refs[0]: %X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.algo_refs[1], CStr::from_bytes_with_nul(b"key_info.algo_refs[1]: %X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.algo_refs[2], CStr::from_bytes_with_nul(b"key_info.algo_refs[2]: %X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.path.value.as_ptr(), key_info.path.len) }, CStr::from_bytes_with_nul(b"key_info.path: %s\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.id.value.as_ptr(), key_info.id.len) }, CStr::from_bytes_with_nul(b"key_info.id: %s\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.usage, CStr::from_bytes_with_nul(b"key_info.usage: %X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.access_flags, CStr::from_bytes_with_nul(b"key_info.access_flags: %X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.native, CStr::from_bytes_with_nul(b"key_info.native: %d\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.key_reference, CStr::from_bytes_with_nul(b"key_info.key_reference: %X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.value_len, CStr::from_bytes_with_nul(b"key_info.value_len (in bits): %zu\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.key_type, CStr::from_bytes_with_nul(b"key_info.key_type: %zu\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.algo_refs[0], CStr::from_bytes_with_nul(b"key_info.algo_refs[0]: %X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.algo_refs[1], CStr::from_bytes_with_nul(b"key_info.algo_refs[1]: %X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.algo_refs[2], CStr::from_bytes_with_nul(b"key_info.algo_refs[2]: %X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.path.value.as_ptr(), key_info.path.len) }, CStr::from_bytes_with_nul(b"key_info.path: %s\0").unwrap());
             if !key_info.data.value.is_null() && key_info.data.len>0 {
-                wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.data.value, key_info.data.len) }, CStr::from_bytes_with_nul(b"key_info.data: %s\0").unwrap());
+                wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.data.value, key_info.data.len) }, CStr::from_bytes_with_nul(b"key_info.data: %s\0").unwrap());
             }
-            wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"Currently we won't create any sym. secret key, but pretend to have done that\0").unwrap());
+            wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"Currently we won't create any sym. secret key, but pretend to have done that\0").unwrap());
         }
 
         if SC_PKCS15_TYPE_SKEY_GENERIC == object.type_ {
-            #[cfg(any(v0_15_0, v0_16_0))]
-            unsafe { copy_nonoverlapping([1i32/*AES ECB*/, 2/*AES CBC*/].as_ptr(),
-                                             key_info.algo_refs.as_mut_ptr(), 2); }
-            #[cfg(not(any(v0_15_0, v0_16_0)))]
-            unsafe { copy_nonoverlapping([1u32/*AES ECB*/, 2/*AES CBC*/].as_ptr(),
+            unsafe { copy_nonoverlapping([1 /*AES ECB*/, 2 /*AES CBC*/].as_ptr(),
                                          key_info.algo_refs.as_mut_ptr(), 2); }
         }
         key_info.access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_LOCAL;
-        let mut file_id_sym_keys = 0u16;
+        let mut file_id_sym_keys = 0_u16;
         key_info.path.index = first_of_free_indices(p15card, &mut file_id_sym_keys);
+        assert!(key_info.path.index<=255);
         assert!(key_info.path.index>0 && file_id_sym_keys>0);
-        unsafe { copy_nonoverlapping(array2_from_u16(file_id_sym_keys).as_ptr(),
+        unsafe { copy_nonoverlapping(file_id_sym_keys.to_be_bytes().as_ptr(),
                                      key_info.path.value.as_mut_ptr().add(key_info.path.len), 2); }
         key_info.path.len += 2;
         let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
@@ -462,12 +480,13 @@ P:6        */
 //      let nor = dp.files[&file_id_sym_keys].1[5];
         dp.is_unwrap_op_in_progress = true;
         dp.sym_key_file_id = file_id_sym_keys;
+        //TODO temporarily allow cast_possible_truncation
         dp.sym_key_rec_idx = key_info.path.index as u8;
         dp.sym_key_rec_cnt = mrl;
         card.drv_data = Box::into_raw(dp) as *mut c_void;
 
-        key_info.path.count = mrl as c_int;//0x25;
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.path.index, CStr::from_bytes_with_nul(b"key_info.path.index: %d\0").unwrap());
+        key_info.path.count = i32::from(mrl);//0x25;
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.path.index, CStr::from_bytes_with_nul(b"key_info.path.index: %d\0").unwrap());
         key_info.key_reference = 0x80 | key_info.path.index;
 
 /*
@@ -505,7 +524,7 @@ P*/
     let key_info = unsafe { &mut *(object.data as *mut sc_pkcs15_prkey_info) };
     if SC_PKCS15_TYPE_PRKEY_RSA != object.type_ || (key_info.usage & (SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT)) == 0 {
         if cfg!(log) {
-            wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"Failed: Only RSA is supported\0").unwrap());
+            wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"Failed: Only RSA is supported\0").unwrap());
         }
         return SC_ERROR_NOT_SUPPORTED;
     }
@@ -513,15 +532,16 @@ P*/
     let keybits = key_info.modulus_length;
     if keybits < 512 || keybits > 4096 || (keybits % 256) > 0 {
         rv = SC_ERROR_INVALID_ARGUMENTS;
-        wr_do_log_sds(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"Invalid RSA key size\0").
-            unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) },
-                      CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+        unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"Invalid RSA key size\0").
+            unwrap().as_ptr(), rv, sc_strerror(rv),
+                      CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
         return rv;
     }
     /* Check that the card supports the requested modulus length */
+    //TODO temporarily allow cast_possible_truncation
     if unsafe { sc_card_find_rsa_alg(card, keybits as c_uint).is_null() } {
         if cfg!(log) {
-            wr_do_log_t(card.ctx, f_log, line!(), fun, keybits, CStr::from_bytes_with_nul(b"Failed: Unsupported RSA key size %zu\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, keybits, CStr::from_bytes_with_nul(b"Failed: Unsupported RSA key size %zu\0").unwrap());
         }
         rv = SC_ERROR_INVALID_ARGUMENTS;
         return rv;
@@ -530,13 +550,13 @@ P*/
 
 /* * /
     if !profile.name.is_null() {
-        wr_do_log_t(card.ctx, f_log, line!(), fun, profile.name, CStr::from_bytes_with_nul(b"profile.name: %s\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, profile.name, CStr::from_bytes_with_nul(b"profile.name: %s\0").unwrap());
     }
     if !profile.options[0].is_null() {
-        wr_do_log_t(card.ctx, f_log, line!(), fun, profile.options[0], CStr::from_bytes_with_nul(b"profile.options[0]: %s\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, profile.options[0], CStr::from_bytes_with_nul(b"profile.options[0]: %s\0").unwrap());
     }
     if !profile.options[1].is_null() {
-        wr_do_log_t(card.ctx, f_log, line!(), fun, profile.options[1], CStr::from_bytes_with_nul(b"profile.options[1]: %s\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, profile.options[1], CStr::from_bytes_with_nul(b"profile.options[1]: %s\0").unwrap());
     }
 /* */
     let mut elem = profile.df_info;
@@ -544,9 +564,9 @@ P*/
         let df_info = unsafe { & *elem };
         if !df_info.file.is_null() {
             let file_ref = unsafe { & *df_info.file };
-            wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(file_ref.path.value.as_ptr(), file_ref.path.len) }, CStr::from_bytes_with_nul(b"df_info file_ref.path: %s\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, file_ref.type_, CStr::from_bytes_with_nul(b"df_info file_ref.type: 0x%X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, file_ref.id,    CStr::from_bytes_with_nul(b"df_info file_ref.id:   0x%X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(file_ref.path.value.as_ptr(), file_ref.path.len) }, CStr::from_bytes_with_nul(b"df_info file_ref.path: %s\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, file_ref.type_, CStr::from_bytes_with_nul(b"df_info file_ref.type: 0x%X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, file_ref.id,    CStr::from_bytes_with_nul(b"df_info file_ref.id:   0x%X\0").unwrap());
         }
         elem = unsafe { (*elem).next };
     }
@@ -557,9 +577,9 @@ P*/
         let ef_list = unsafe { & *elem };
         if !ef_list.file.is_null() {
             let file_ref = unsafe { & *ef_list.file };
-            wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(file_ref.path.value.as_ptr(), file_ref.path.len) }, CStr::from_bytes_with_nul(b"ef_list file_ref.path: %s\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, file_ref.type_, CStr::from_bytes_with_nul(b"ef_list file_ref.type: 0x%X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, file_ref.id,    CStr::from_bytes_with_nul(b"ef_list file_ref.id:   0x%X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(file_ref.path.value.as_ptr(), file_ref.path.len) }, CStr::from_bytes_with_nul(b"ef_list file_ref.path: %s\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, file_ref.type_, CStr::from_bytes_with_nul(b"ef_list file_ref.type: 0x%X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, file_ref.id,    CStr::from_bytes_with_nul(b"ef_list file_ref.id:   0x%X\0").unwrap());
         }
         elem = unsafe { (*elem).next };
     }
@@ -572,9 +592,9 @@ P*/
             let tmp_file_info = unsafe { & *elem };
             if !tmp_file_info.file.is_null() {
                 let file_ref = unsafe { & *tmp_file_info.file };
-                wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(file_ref.path.value.as_ptr(), file_ref.path.len) }, CStr::from_bytes_with_nul(b"template_list_file file_ref.path: %s\0").unwrap());
-                wr_do_log_t(card.ctx, f_log, line!(), fun, file_ref.type_, CStr::from_bytes_with_nul(b"template_list_file file_ref.type: 0x%X\0").unwrap());
-                wr_do_log_t(card.ctx, f_log, line!(), fun, file_ref.id,    CStr::from_bytes_with_nul(b"template_list_file file_ref.id:   0x%X\0").unwrap());
+                wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(file_ref.path.value.as_ptr(), file_ref.path.len) }, CStr::from_bytes_with_nul(b"template_list_file file_ref.path: %s\0").unwrap());
+                wr_do_log_t(card_ctx, f_log, line!(), fun, file_ref.type_, CStr::from_bytes_with_nul(b"template_list_file file_ref.type: 0x%X\0").unwrap());
+                wr_do_log_t(card_ctx, f_log, line!(), fun, file_ref.id,    CStr::from_bytes_with_nul(b"template_list_file file_ref.id:   0x%X\0").unwrap());
             }
             elem = unsafe { (*elem).next };
         }
@@ -583,33 +603,33 @@ P*/
 /* * /
 
     if cfg!(log) {
-        wr_do_log_t(card.ctx, f_log, line!(), fun, profile.id_style, CStr::from_bytes_with_nul(b"profile.id_style: %u\0").unwrap());
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.type_, CStr::from_bytes_with_nul(b"object.type: 0x%X\0").unwrap()); // pub const SC_PKCS15_TYPE_PRKEY_RSA        : u32 =  0x101;
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.label.as_ptr(), CStr::from_bytes_with_nul(b"object.label: %s\0").unwrap()); // pkcs15-init -G rsa/3072 -a 01 -i 08 -l testkey -u sign,decrypt
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.flags, CStr::from_bytes_with_nul(b"object.flags: 0x%X\0").unwrap()); // 3: SC_PKCS15_CO_FLAG_PRIVATE | SC_PKCS15_CO_FLAG_MODIFIABLE ??
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.auth_id.len, CStr::from_bytes_with_nul(b"object.auth_id.len: %zu\0").unwrap()); // 1
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.auth_id.value[0], CStr::from_bytes_with_nul(b"object.auth_id.value[0]: %u\0").unwrap()); // 1
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.usage_counter, CStr::from_bytes_with_nul(b"object.usage_counter: %d\0").unwrap()); // 1
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.user_consent, CStr::from_bytes_with_nul(b"object.user_consent: %d\0").unwrap()); // 1
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.access_rules[0].access_mode, CStr::from_bytes_with_nul(b"object.access_rules[0].access_mode: %X\0").unwrap()); // 1
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.df, CStr::from_bytes_with_nul(b"object.df: %p\0").unwrap()); // 1
-        wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.id.value.as_ptr(), key_info.id.len) }, CStr::from_bytes_with_nul(b"key_info.id: %s\0").unwrap());
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.usage, CStr::from_bytes_with_nul(b"key_info.usage: 0x%X\0").unwrap()); // 46 SC_PKCS15_PRKEY_USAGE_UNWRAP | SC_PKCS15_PRKEY_USAGE_SIGNRECOVER | SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.access_flags, CStr::from_bytes_with_nul(b"key_info.access_flags: 0x%X\0").unwrap()); // 29  SC_PKCS15_PRKEY_ACCESS_LOCAL | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_SENSITIVE
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.native, CStr::from_bytes_with_nul(b"key_info.native: %d\0").unwrap()); // 1
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.key_reference, CStr::from_bytes_with_nul(b"key_info.key_reference: 0x%X\0").unwrap()); // 0
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.modulus_length, CStr::from_bytes_with_nul(b"key_info.modulus_length: %zu\0").unwrap()); // 3072
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.algo_refs[0], CStr::from_bytes_with_nul(b"key_info.algo_refs[0]: 0x%X\0").unwrap()); // 0
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.subject.len, CStr::from_bytes_with_nul(b"key_info.subject.len: %zu\0").unwrap()); // 0
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.params.len, CStr::from_bytes_with_nul(b"key_info.params.len: %zu\0").unwrap()); // 0
-        wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.path.value.as_ptr(), key_info.path.len) }, CStr::from_bytes_with_nul(b"key_info.path: %s\0").unwrap()); // 3F00410041F5
+        wr_do_log_t(card_ctx, f_log, line!(), fun, profile.id_style, CStr::from_bytes_with_nul(b"profile.id_style: %u\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.type_, CStr::from_bytes_with_nul(b"object.type: 0x%X\0").unwrap()); // pub const SC_PKCS15_TYPE_PRKEY_RSA        : u32 =  0x101;
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.label.as_ptr(), CStr::from_bytes_with_nul(b"object.label: %s\0").unwrap()); // pkcs15-init -G rsa/3072 -a 01 -i 08 -l testkey -u sign,decrypt
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.flags, CStr::from_bytes_with_nul(b"object.flags: 0x%X\0").unwrap()); // 3: SC_PKCS15_CO_FLAG_PRIVATE | SC_PKCS15_CO_FLAG_MODIFIABLE ??
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.auth_id.len, CStr::from_bytes_with_nul(b"object.auth_id.len: %zu\0").unwrap()); // 1
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.auth_id.value[0], CStr::from_bytes_with_nul(b"object.auth_id.value[0]: %u\0").unwrap()); // 1
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.usage_counter, CStr::from_bytes_with_nul(b"object.usage_counter: %d\0").unwrap()); // 1
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.user_consent, CStr::from_bytes_with_nul(b"object.user_consent: %d\0").unwrap()); // 1
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.access_rules[0].access_mode, CStr::from_bytes_with_nul(b"object.access_rules[0].access_mode: %X\0").unwrap()); // 1
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.df, CStr::from_bytes_with_nul(b"object.df: %p\0").unwrap()); // 1
+        wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.id.value.as_ptr(), key_info.id.len) }, CStr::from_bytes_with_nul(b"key_info.id: %s\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.usage, CStr::from_bytes_with_nul(b"key_info.usage: 0x%X\0").unwrap()); // 46 SC_PKCS15_PRKEY_USAGE_UNWRAP | SC_PKCS15_PRKEY_USAGE_SIGNRECOVER | SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.access_flags, CStr::from_bytes_with_nul(b"key_info.access_flags: 0x%X\0").unwrap()); // 29  SC_PKCS15_PRKEY_ACCESS_LOCAL | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_SENSITIVE
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.native, CStr::from_bytes_with_nul(b"key_info.native: %d\0").unwrap()); // 1
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.key_reference, CStr::from_bytes_with_nul(b"key_info.key_reference: 0x%X\0").unwrap()); // 0
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.modulus_length, CStr::from_bytes_with_nul(b"key_info.modulus_length: %zu\0").unwrap()); // 3072
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.algo_refs[0], CStr::from_bytes_with_nul(b"key_info.algo_refs[0]: 0x%X\0").unwrap()); // 0
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.subject.len, CStr::from_bytes_with_nul(b"key_info.subject.len: %zu\0").unwrap()); // 0
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.params.len, CStr::from_bytes_with_nul(b"key_info.params.len: %zu\0").unwrap()); // 0
+        wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.path.value.as_ptr(), key_info.path.len) }, CStr::from_bytes_with_nul(b"key_info.path: %s\0").unwrap()); // 3F00410041F5
     }
 / * */
-    let mut file_priv = std::ptr::null_mut();
+    let mut file_priv = null_mut();
     rv = me_profile_get_file(profile, CStr::from_bytes_with_nul(b"template-private-key\0").unwrap().as_ptr(), &mut file_priv);
     if rv != SC_SUCCESS {
         if cfg!(log) {
-            wr_do_log_t(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"private-key\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"Inconsistent profile: cannot find %s\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"private-key\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"Inconsistent profile: cannot find %s\0").unwrap());
         }
         return SC_ERROR_INCONSISTENT_PROFILE;//LOG_FUNC_RETURN(ctx, SC_ERROR_INCONSISTENT_PROFILE);
     }
@@ -620,8 +640,7 @@ P*/
     assert_eq!(file_priv.acl[SC_AC_OP_READ as usize], 0x1 as *mut sc_acl_entry); // NEVER allowed to be read
     assert_eq!(file_priv.path.len, key_info.path.len+2);
 /* */
-    assert!(!card.ctx.is_null());
-    let app_name = unsafe { CStr::from_ptr((*card.ctx).app_name) }; // app_name: "pkcs15-init"
+    let app_name = unsafe { CStr::from_ptr(card_ctx.app_name) }; // app_name: "pkcs15-init"
 //    println!("app_name: {:?}", app_name);
 //
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
@@ -659,7 +678,7 @@ P*/
 //
     if !file_priv.prop_attr.is_null() {
         unsafe { free(file_priv.prop_attr as *mut c_void) }; // file->prop_attr = malloc(len);
-        file_priv.prop_attr = std::ptr::null_mut();
+        file_priv.prop_attr = null_mut();
     }
 
     /* The following is the possible starting value for key priv file path */
@@ -667,73 +686,77 @@ P*/
     let mut fid_priv_possible : HashSet<u16> = HashSet::with_capacity(0x30);
     let mut fid_pub_possible  : HashSet<u16> = HashSet::with_capacity(0x30);
     {
-        let fid = u16_from_array_begin(&file_priv.path.value[file_priv.path.len-2..]);
-//        wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(file_priv.path.value.as_ptr(), file_priv.path.len) }, CStr::from_bytes_with_nul(b"file_priv.path: %s\0").unwrap());
+        let fid = u16::from_be_bytes([file_priv.path.value[file_priv.path.len-2], file_priv.path.value[file_priv.path.len-1]]);
+//        wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(file_priv.path.value.as_ptr(), file_priv.path.len) }, CStr::from_bytes_with_nul(b"file_priv.path: %s\0").unwrap());
         for i in 0..0x30 { fid_priv_possible.insert(fid+i); }
         for i in 0..0x30 { fid_pub_possible.insert( fid+i +0x30); }
     }
     /* examine existing key priv file path */
-    let mut _cnt_priv = 0u8;
+    let mut _cnt_priv = 0_u8;
     let mut p15obj_list_ptr = p15card.obj_list;
     while !p15obj_list_ptr.is_null() {
         let p15obj = unsafe { &*p15obj_list_ptr };
         if SC_PKCS15_TYPE_PRKEY_RSA == p15obj.type_ && !p15obj.df.is_null() {
 /* * /
-            wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"   \0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, p15obj.type_, CStr::from_bytes_with_nul(b"p15obj.type_: %X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, p15obj.label.as_ptr(), CStr::from_bytes_with_nul(b"p15obj.label: %s\0").unwrap()); // pkcs15-init -G rsa/3072 -a 01 -i 08 -l testkey -u sign,decrypt
-            wr_do_log_t(card.ctx, f_log, line!(), fun, p15obj.flags, CStr::from_bytes_with_nul(b"p15obj.flags: 0x%X\0").unwrap()); // 3: SC_PKCS15_CO_FLAG_PRIVATE | SC_PKCS15_CO_FLAG_MODIFIABLE ??
-            wr_do_log_t(card.ctx, f_log, line!(), fun, p15obj.auth_id.len, CStr::from_bytes_with_nul(b"p15obj.auth_id.len: %zu\0").unwrap()); // 1
-            wr_do_log_t(card.ctx, f_log, line!(), fun, p15obj.auth_id.value[0], CStr::from_bytes_with_nul(b"p15obj.auth_id.value[0]: %u\0").unwrap()); // 1
-            wr_do_log_t(card.ctx, f_log, line!(), fun, p15obj.usage_counter, CStr::from_bytes_with_nul(b"p15obj.usage_counter: %d\0").unwrap()); // 1
-            wr_do_log_t(card.ctx, f_log, line!(), fun, p15obj.user_consent, CStr::from_bytes_with_nul(b"p15obj.user_consent: %d\0").unwrap()); // 1
-            wr_do_log_t(card.ctx, f_log, line!(), fun, p15obj.access_rules[0].access_mode, CStr::from_bytes_with_nul(b"p15obj.access_rules[0].access_mode: %X\0").unwrap()); // 1
-            wr_do_log_t(card.ctx, f_log, line!(), fun, p15obj.df, CStr::from_bytes_with_nul(b"p15obj.df: %p\0").unwrap()); // 1
-            wr_do_log_t(card.ctx, f_log, line!(), fun, p15obj.session_object, CStr::from_bytes_with_nul(b"p15obj.session_object: %d\0").unwrap()); // 1
+            wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"   \0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, p15obj.type_, CStr::from_bytes_with_nul(b"p15obj.type_: %X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, p15obj.label.as_ptr(), CStr::from_bytes_with_nul(b"p15obj.label: %s\0").unwrap()); // pkcs15-init -G rsa/3072 -a 01 -i 08 -l testkey -u sign,decrypt
+            wr_do_log_t(card_ctx, f_log, line!(), fun, p15obj.flags, CStr::from_bytes_with_nul(b"p15obj.flags: 0x%X\0").unwrap()); // 3: SC_PKCS15_CO_FLAG_PRIVATE | SC_PKCS15_CO_FLAG_MODIFIABLE ??
+            wr_do_log_t(card_ctx, f_log, line!(), fun, p15obj.auth_id.len, CStr::from_bytes_with_nul(b"p15obj.auth_id.len: %zu\0").unwrap()); // 1
+            wr_do_log_t(card_ctx, f_log, line!(), fun, p15obj.auth_id.value[0], CStr::from_bytes_with_nul(b"p15obj.auth_id.value[0]: %u\0").unwrap()); // 1
+            wr_do_log_t(card_ctx, f_log, line!(), fun, p15obj.usage_counter, CStr::from_bytes_with_nul(b"p15obj.usage_counter: %d\0").unwrap()); // 1
+            wr_do_log_t(card_ctx, f_log, line!(), fun, p15obj.user_consent, CStr::from_bytes_with_nul(b"p15obj.user_consent: %d\0").unwrap()); // 1
+            wr_do_log_t(card_ctx, f_log, line!(), fun, p15obj.access_rules[0].access_mode, CStr::from_bytes_with_nul(b"p15obj.access_rules[0].access_mode: %X\0").unwrap()); // 1
+            wr_do_log_t(card_ctx, f_log, line!(), fun, p15obj.df, CStr::from_bytes_with_nul(b"p15obj.df: %p\0").unwrap()); // 1
+            wr_do_log_t(card_ctx, f_log, line!(), fun, p15obj.session_object, CStr::from_bytes_with_nul(b"p15obj.session_object: %d\0").unwrap()); // 1
 / * */
             _cnt_priv += 1;
             assert!(!p15obj.data.is_null());
             let p15obj_prkey_info_path = & unsafe { &mut *(p15obj.data as *mut sc_pkcs15_prkey_info) }.path;
-//            wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(p15obj_prkey_info_path.value.as_ptr(), p15obj_prkey_info_path.len) }, CStr::from_bytes_with_nul(b"p15obj_prkey_info_path: %s\0").unwrap());
-            let fid_priv_used = u16_from_array_begin(&p15obj_prkey_info_path.value[p15obj_prkey_info_path.len-2..]);
+//            wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(p15obj_prkey_info_path.value.as_ptr(), p15obj_prkey_info_path.len) }, CStr::from_bytes_with_nul(b"p15obj_prkey_info_path: %s\0").unwrap());
+            let fid_priv_used = u16::from_be_bytes([p15obj_prkey_info_path.value[p15obj_prkey_info_path.len-2],
+                                                    p15obj_prkey_info_path.value[p15obj_prkey_info_path.len-1]]);
             fid_priv_possible.remove(&fid_priv_used);
             fid_pub_possible.remove(&fid_priv_used);
         }
         p15obj_list_ptr = p15obj.next;
     }
 
-    let mut fid_priv_possible_min = 0xFFFFu16;
+    let mut fid_priv_possible_min = 0xFFFF_u16;
     for elem in &fid_priv_possible {
         if *elem < fid_priv_possible_min && fid_pub_possible.contains(&(*elem+0x30)) { fid_priv_possible_min = *elem; }
     }
 
 //    println!("fid_priv_possible.len(): {}", fid_priv_possible.len());
 //    println!("fid_publ_possible.len(): {}", fid_pub_possible.len());
-//    println!("fid_priv_existing.len(): {}", cnt_priv);
+//    println!("fid_priv_existing.len(): {}", _cnt_priv);
     if fid_priv_possible_min == 0xFFFF {
         println!("The maximum of 48 RSA key pairs is exceeded. First delete one for a free file id slot");
         rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
-        wr_do_log_sds(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+        unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
             b"### The maximum of 48 RSA key pairs is exceeded. First delete one for a free file id slot ###\0").
-            unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) },
-                      CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+            unwrap().as_ptr(), rv, sc_strerror(rv),
+                      CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
         return rv;
     }
     println!("This file id will be chosen for the private RSA key:  {:X}", fid_priv_possible_min);
     /* The final values for path and fid_priv */
+    //TODO temporarily allow cast_possible_truncation
     file_priv.path.value[file_priv.path.len-1] = (fid_priv_possible_min & 0x00FF) as u8;
-    file_priv.id = u16_from_array_begin(&file_priv.path.value[file_priv.path.len-2..file_priv.path.len]) as i32;
+    file_priv.id = i32::from(u16::from_be_bytes([file_priv.path.value[file_priv.path.len-2],
+                                                 file_priv.path.value[file_priv.path.len-1]]));
 
-    wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(file_priv.path.value.as_ptr(), file_priv.path.len) }, CStr::from_bytes_with_nul(b"file_priv.path: %s\0").unwrap());
-    wr_do_log_t(card.ctx, f_log, line!(), fun, file_priv.id, CStr::from_bytes_with_nul(b"file_priv.id: %X\0").unwrap());
+    wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(file_priv.path.value.as_ptr(), file_priv.path.len) }, CStr::from_bytes_with_nul(b"file_priv.path: %s\0").unwrap());
+    wr_do_log_t(card_ctx, f_log, line!(), fun, file_priv.id, CStr::from_bytes_with_nul(b"file_priv.id: %X\0").unwrap());
 //
-    unsafe { copy_nonoverlapping(array2_from_u16(file_priv.id as u16).as_ptr(),
+    //TODO temporarily allow cast_possible_truncation
+    unsafe { copy_nonoverlapping((file_priv.id as u16).to_be_bytes().as_ptr(),
                                  key_info.path.value.as_mut_ptr().add(key_info.path.len), 2); }
-    key_info.path.len +=2;
+    key_info.path.len += 2;
     key_info.path.type_ = SC_PATH_TYPE_PATH;
     assert_eq!(key_info.path.value, file_priv.path.value);
 
-    let mut file_pub : *mut sc_file = std::ptr::null_mut();
+    let mut file_pub : *mut sc_file = null_mut();
     unsafe { sc_file_dup(&mut file_pub, file_priv) };
     if file_pub.is_null() {
         return SC_ERROR_OUT_OF_MEMORY;
@@ -745,6 +768,7 @@ P*/
     println!("This file id will be chosen for the public  RSA key:  {:X}", file_pub.id);
     if app_name == CStr::from_bytes_with_nul(b"acos5_gui \0").unwrap() {
         let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        //TODO temporarily allow cast_possible_truncation
         dp.agi.file_id_priv = file_priv.id as u16;
         dp.agi.file_id_pub  = file_pub.id  as u16;
         card.drv_data = Box::into_raw(dp) as *mut c_void;
@@ -752,19 +776,19 @@ P*/
     // TODO don't leak old file_pub.acl[SC_AC_OP_READ]
     file_pub.acl[SC_AC_OP_READ as usize] = 0x2 as *mut sc_acl_entry; // ALWAYS allowed to be read
 
-    let file_priv_has_to_be_deleted = if !do_create_files {false} else {SC_SUCCESS == unsafe{sc_select_file(card, &file_priv.path, std::ptr::null_mut())}};
-    let file_pub_has_to_be_deleted  = if !do_create_files {false} else {SC_SUCCESS == unsafe{sc_select_file(card, &file_pub.path, std::ptr::null_mut())}};
+    let file_priv_has_to_be_deleted = if do_create_files {SC_SUCCESS == unsafe{sc_select_file(card, &file_priv.path, null_mut())}} else {false};
+    let file_pub_has_to_be_deleted  = if do_create_files {SC_SUCCESS == unsafe{sc_select_file(card,  &file_pub.path, null_mut())}} else {false};
 
     /* delete potentially existing file with file_id of file_priv in card's file system */
     #[allow(non_snake_case)]
     let pathDFparent = sc_path { len: file_priv.path.len-2, ..file_priv.path };
     #[allow(non_snake_case)]
-    let mut fileDFparent: *mut sc_file = std::ptr::null_mut();
+    let mut fileDFparent: *mut sc_file = null_mut();
     rv = unsafe { sc_select_file(card, &pathDFparent, &mut fileDFparent) };
     if rv < 0 {
-        wr_do_log_sds(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"DF for the private objects not defined\0").
-            unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) },
-                      CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+        unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+            b"DF for the private objects not defined\0").unwrap().as_ptr(), rv, sc_strerror(rv),
+            CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
         if !fileDFparent.is_null() {
             unsafe { sc_file_free(fileDFparent) };
         }
@@ -776,9 +800,10 @@ P*/
     if do_create_files {
         rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, fileDFparent, SC_AC_OP_CREATE_EF as c_int) };
         if rv < 0 {
-            wr_do_log_sds(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"SC_AC_OP_CREATE_EF authentication failed for parent DF\0").
-                          unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) },
-                          CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+            unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+                b"SC_AC_OP_CREATE_EF authentication failed for parent DF\0").
+                unwrap().as_ptr(), rv, sc_strerror(rv),
+                CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
             unsafe { sc_file_free(fileDFparent) };
             unsafe { sc_file_free(file_priv) };
             unsafe { sc_file_free(file_pub) };
@@ -787,9 +812,10 @@ P*/
         if file_priv_has_to_be_deleted || file_pub_has_to_be_deleted {
             rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, fileDFparent, SC_AC_OP_DELETE as c_int) };
             if rv < 0 {
-                wr_do_log_sds(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"SC_AC_OP_CREATE_EF authentication failed for parent DF\0").
-                              unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) },
-                              CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+                unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+                    b"SC_AC_OP_CREATE_EF authentication failed for parent DF\0").
+                    unwrap().as_ptr(), rv, sc_strerror(rv),
+                    CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
                 unsafe { sc_file_free(fileDFparent) };
                 unsafe { sc_file_free(file_priv) };
                 unsafe { sc_file_free(file_pub) };
@@ -816,25 +842,26 @@ P*/
     if do_create_files {
         rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_CREATE, file_priv as *mut sc_file as *mut c_void) };
         if rv < 0 {
-            wr_do_log_sds(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"create file_priv failed\0").
-                unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) },
-                          CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+            unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+                b"create file_priv failed\0").
+                unwrap().as_ptr(), rv, sc_strerror(rv),
+                CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
             return rv;
         }
-        rv = unsafe { sc_select_file(card, &file_priv.path, std::ptr::null_mut()) };
+        rv = unsafe { sc_select_file(card, &file_priv.path, null_mut()) };
         if rv != SC_SUCCESS {
             return rv;
         }
         let command = [0x00, 0x44, 0x00, 0x00];
-        let mut apdu = Default::default();
-        rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
+        let mut apdu = sc_apdu::default();
+        rv = sc_bytes2apdu_wrapper(card_ctx, &command, &mut apdu);
         assert_eq!(rv, SC_SUCCESS);
         assert_eq!(apdu.cse, SC_APDU_CASE_1);
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
         if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 {
             let fmt = CStr::from_bytes_with_nul(b"sc_transmit_apdu failed or ### File Activation failed for private key ###\0").unwrap();
             #[cfg(log)]
-                wr_do_log(card.ctx, f_log, line!(), fun, fmt);
+                wr_do_log(card_ctx, f_log, line!(), fun, fmt);
             return SC_ERROR_KEYPAD_MSG_TOO_LONG;
         }
 
@@ -843,12 +870,12 @@ P*/
 
         rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_CREATE, file_pub as *mut sc_file as *mut c_void) };
         if rv < 0 {
-            wr_do_log_sds(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"create file_pub failed\0").
-                unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) },
-                          CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+            unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+                b"create file_pub failed\0").unwrap().as_ptr(), rv, sc_strerror(rv),
+                CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
             return rv;
         }
-        rv = unsafe { sc_select_file(card, &file_pub.path, std::ptr::null_mut()) };
+        rv = unsafe { sc_select_file(card, &file_pub.path, null_mut()) };
         if rv != SC_SUCCESS {
             return rv;
         }
@@ -858,7 +885,7 @@ P*/
         if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 {
             let fmt = CStr::from_bytes_with_nul(b"sc_transmit_apdu failed or ### File Activation failed for public key ###\0").unwrap();
             #[cfg(log)]
-                wr_do_log(card.ctx, f_log, line!(), fun, fmt);
+                wr_do_log(card_ctx, f_log, line!(), fun, fmt);
             return SC_ERROR_KEYPAD_MSG_TOO_LONG;
         }
 
@@ -866,13 +893,13 @@ P*/
         if rv != SC_SUCCESS { return rv; }
     }
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    //TODO temporarily allow cast_possible_truncation
     dp.agc.file_id_priv = file_priv.id as u16;
     unsafe { sc_file_free(file_priv) };
     dp.agc.file_id_pub  = file_pub.id as u16;
     unsafe { sc_file_free(file_pub) };
     dp.agc.key_len_code = (keybits / 128) as u8;
 
-    const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
     dp.agc.key_priv_type_code = match key_info.usage & BOTH {
         SC_PKCS15_PRKEY_USAGE_SIGN => 1,
         SC_PKCS15_PRKEY_USAGE_DECRYPT => 2,
@@ -893,7 +920,7 @@ P*/
 
     rv = SC_SUCCESS;
     if cfg!(log) {
-        wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) },
+        wr_do_log_tu(card_ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) },
                      CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
     }
     rv
@@ -927,13 +954,15 @@ Key Value             okay, from opensc
 00B00000FF
  */
 // does something, but it's not correct
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::if_not_else))]
 extern "C" fn acos5_pkcs15_store_key(_profile: *mut sc_profile, p15card: *mut sc_pkcs15_card,
                                         object: *mut sc_pkcs15_object, key: *mut sc_pkcs15_prkey) -> c_int
 { // does nothing currently, except logging CALLED
-    if p15card.is_null() || unsafe { (*p15card).card.is_null() } || object.is_null() || unsafe { (*object).data.is_null() } || key.is_null() {
+    if p15card.is_null() || unsafe { (*p15card).card.is_null() || (*(*p15card).card).ctx.is_null() } || object.is_null() || unsafe { (*object).data.is_null() } || key.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *(*p15card).card };
+    let card_ctx = unsafe { &mut *card.ctx };
     let object_mr = unsafe { &mut *object };
     let key_mr = unsafe { &mut *key };
     let skey_mr = unsafe { &mut key_mr.u.secret };
@@ -942,19 +971,19 @@ extern "C" fn acos5_pkcs15_store_key(_profile: *mut sc_profile, p15card: *mut sc
     let fun  = CStr::from_bytes_with_nul(b"acos5_pkcs15_store_key\0").unwrap();
     if cfg!(log) {
         let fmt  = CStr::from_bytes_with_nul(CALLED).unwrap();
-        wr_do_log(card.ctx, f_log, line!(), fun, fmt);
+        wr_do_log(card_ctx, f_log, line!(), fun, fmt);
     }
     if true /*SC_PKCS15_TYPE_SKEY == (object.type_ & SC_PKCS15_TYPE_CLASS_MASK)*/ {
         if cfg!(log) {
-            wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"Currently we won't store any key, but pretend to have done that\0").unwrap());
+            wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"Currently we won't store any key, but pretend to have done that\0").unwrap());
         }
         return SC_SUCCESS;
     }
 
 //#[cfg(not(any(v0_15_0, v0_16_0)))]  for secret key
-//    sc_context* ctx = p15card.card.ctx;
     let rv : i32;
 
+    //TODO temporarily allow if_not_else
     if ![SC_ALGORITHM_DES, SC_ALGORITHM_3DES, SC_ALGORITHM_AES].contains(&key_mr.algorithm) {
         rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
     }
@@ -1022,7 +1051,7 @@ $
         for i in 0..skey_mr.data_len {
             unsafe { vec.push( *skey_mr.data.add(i)) };
         }
-        rv = acos5_pkcs15_store_key_secret(card.ctx, &skey_info.path.value[0..skey_info.path.len], key_id,
+        rv = acos5_pkcs15_store_key_secret(card_ctx, &skey_info.path.value[0..skey_info.path.len], key_id,
                                                   key_mr.algorithm, vec.as_slice() );
     }
     rv
@@ -1031,7 +1060,7 @@ $
 
 // does nothing currently, except logging CALLED
 fn acos5_pkcs15_store_key_secret(
-    ctx: *mut sc_context,
+    ctx_ptr: *mut sc_context,
     _path: &[c_uchar],
     _key_id: c_uchar,
     _key_algorithm: c_uint /* e.g. SC_ALGORITHM_DES */,
@@ -1077,10 +1106,14 @@ fn acos5_pkcs15_store_key_secret(
     }
     return rv=SC_SUCCESS;
     */
+    if ctx_ptr.is_null() {
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+    let card_ctx = unsafe { &mut *ctx_ptr };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"acos5_pkcs15_store_key_secret\0").unwrap();
     if cfg!(log) {
-        wr_do_log(ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
 
     0
@@ -1102,31 +1135,27 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
                                                p15object_ptr: *mut sc_pkcs15_object,
                                                p15pubkey_ptr: *mut sc_pkcs15_pubkey) -> c_int
 { // TODO must handle create RSA key pair  And  generate sym. key !!!!!!
-    if profile_ptr.is_null() || p15card_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null() } ||
+    if profile_ptr.is_null() || p15card_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null() || (*(*p15card_ptr).card).ctx.is_null() } ||
        p15object_ptr.is_null() || unsafe { (*p15object_ptr).data.is_null() } || p15pubkey_ptr.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
 //    let profile = unsafe { &mut *profile_ptr };
 //    let p15card = unsafe { &mut *p15card_ptr };
     let card = unsafe { &mut *(*p15card_ptr).card };
+    let card_ctx = unsafe { &mut *card.ctx };
     let object_priv = unsafe { &mut *p15object_ptr};
     let key_info_priv = unsafe { &mut *(object_priv.data as *mut sc_pkcs15_prkey_info) };
     let p15pubkey = unsafe { &mut *p15pubkey_ptr };
     let mut rv;// = SC_ERROR_UNKNOWN;
-
-    if  card.ctx.is_null() {
-        return SC_ERROR_INVALID_ARGUMENTS;
-    }
-
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"acos5_pkcs15_generate_key\0").unwrap();
     if cfg!(log) {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
 
     if SC_PKCS15_TYPE_PRKEY_RSA != object_priv.type_ {
         if cfg!(log) {
-            wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"Failed: Only RSA is supported\0").unwrap());
+            wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"Failed: Only RSA is supported\0").unwrap());
         }
         return SC_ERROR_NOT_SUPPORTED;
     }
@@ -1135,27 +1164,27 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     let mut agc = dp.agc;
 //    let is_key_pair_created_and_valid_for_generation = dp.agc.is_key_pair_created_and_valid_for_generation;
     let dp_files_value_ref = &dp.files[&dp.agc.file_id_pub];
-    let path_pub = sc_path { type_: SC_PATH_TYPE_PATH, value: dp_files_value_ref.0, len: dp_files_value_ref.1[1] as usize, ..Default::default()};
+    let path_pub = sc_path { type_: SC_PATH_TYPE_PATH, value: dp_files_value_ref.0, len: dp_files_value_ref.1[1] as usize, ..sc_path::default()};
 /*
     if cfg!(log) {
-        wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info_priv.id.value.as_ptr(), key_info_priv.id.len) }, CStr::from_bytes_with_nul(b"key_info_priv.id: %s\0").unwrap());
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info_priv.usage, CStr::from_bytes_with_nul(b"key_info_priv.usage: 0x%X\0").unwrap());
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info_priv.access_flags, CStr::from_bytes_with_nul(b"key_info_priv.access_flags: 0x%X\0").unwrap());
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info_priv.native, CStr::from_bytes_with_nul(b"key_info_priv.native: %d\0").unwrap());
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info_priv.modulus_length, CStr::from_bytes_with_nul(b"key_info_priv.modulus_length: 0x%X\0").unwrap());
-        wr_do_log_t(card.ctx, f_log, line!(), fun, keybits, CStr::from_bytes_with_nul(b"keybits: %zu\0").unwrap());
-        wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info_priv.path.value.as_ptr(), key_info_priv.path.len) }, CStr::from_bytes_with_nul(b"key_info_priv.path: %s\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info_priv.id.value.as_ptr(), key_info_priv.id.len) }, CStr::from_bytes_with_nul(b"key_info_priv.id: %s\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info_priv.usage, CStr::from_bytes_with_nul(b"key_info_priv.usage: 0x%X\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info_priv.access_flags, CStr::from_bytes_with_nul(b"key_info_priv.access_flags: 0x%X\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info_priv.native, CStr::from_bytes_with_nul(b"key_info_priv.native: %d\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info_priv.modulus_length, CStr::from_bytes_with_nul(b"key_info_priv.modulus_length: 0x%X\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, keybits, CStr::from_bytes_with_nul(b"keybits: %zu\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info_priv.path.value.as_ptr(), key_info_priv.path.len) }, CStr::from_bytes_with_nul(b"key_info_priv.path: %s\0").unwrap());
 
-        wr_do_log_t(card.ctx, f_log, line!(), fun, dp.file_id_key_pair_priv, CStr::from_bytes_with_nul(b"dp.file_id_key_pair_priv: 0x%X\0").unwrap());
-        wr_do_log_t(card.ctx, f_log, line!(), fun, dp.file_id_key_pair_pub,  CStr::from_bytes_with_nul(b"dp.file_id_key_pair_pub:  0x%X\0").unwrap());
-//        wr_do_log_t(card.ctx, f_log, line!(), fun, is_key_pair_created_and_valid_for_generation, CStr::from_bytes_with_nul(b"is_key_pair_created_and_valid_for_generation: %d\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, dp.file_id_key_pair_priv, CStr::from_bytes_with_nul(b"dp.file_id_key_pair_priv: 0x%X\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, dp.file_id_key_pair_pub,  CStr::from_bytes_with_nul(b"dp.file_id_key_pair_pub:  0x%X\0").unwrap());
+//        wr_do_log_t(card_ctx, f_log, line!(), fun, is_key_pair_created_and_valid_for_generation, CStr::from_bytes_with_nul(b"is_key_pair_created_and_valid_for_generation: %d\0").unwrap());
 
-        wr_do_log_t(card.ctx, f_log, line!(), fun, dp.agc.do_generate_rsa_crt, CStr::from_bytes_with_nul(b"dp.agc.do_generate_rsa_crt: %d\0").unwrap());
-        wr_do_log_t(card.ctx, f_log, line!(), fun, dp.do_generate_rsa_add_decrypt, CStr::from_bytes_with_nul(b"dp.do_generate_rsa_add_decrypt: %d\0").unwrap());
-        wr_do_log_t(card.ctx, f_log, line!(), fun, dp.do_generate_rsa_standard_pub_exponent, CStr::from_bytes_with_nul(b"dp.do_generate_rsa_standard_pub_exponent: %d\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, dp.agc.do_generate_rsa_crt, CStr::from_bytes_with_nul(b"dp.agc.do_generate_rsa_crt: %d\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, dp.do_generate_rsa_add_decrypt, CStr::from_bytes_with_nul(b"dp.do_generate_rsa_add_decrypt: %d\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, dp.do_generate_rsa_standard_pub_exponent, CStr::from_bytes_with_nul(b"dp.do_generate_rsa_standard_pub_exponent: %d\0").unwrap());
 
-        wr_do_log_t(card.ctx, f_log, line!(), fun, p15pubkey.algorithm, CStr::from_bytes_with_nul(b"p15pubkey.algorithm: 0x%X\0").unwrap());
-        wr_do_log_t(card.ctx, f_log, line!(), fun, p15pubkey.alg_id,    CStr::from_bytes_with_nul(b"p15pubkey.alg_id:    %p\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, p15pubkey.algorithm, CStr::from_bytes_with_nul(b"p15pubkey.algorithm: 0x%X\0").unwrap());
+        wr_do_log_t(card_ctx, f_log, line!(), fun, p15pubkey.alg_id,    CStr::from_bytes_with_nul(b"p15pubkey.alg_id:    %p\0").unwrap());
     }
 */
     card.drv_data = Box::into_raw(dp) as *mut c_void;
@@ -1163,9 +1192,9 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     if !is_key_pair_created_and_valid_for_generation {
         rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
         if cfg!(log) {
-            wr_do_log_sds(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"not allowed due to is_key_pair_created_and_valid_for_generation\0")
+            unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"not allowed due to is_key_pair_created_and_valid_for_generation\0")
                 .unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) },
-                          CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+                          CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
         }
         return rv;
     }
@@ -1175,21 +1204,21 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     if rv != SC_SUCCESS {
         let fmt = CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap();
         if cfg!(log) {
-            wr_do_log_sds(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"command 'Generate RSA Key Pair' failed\0")
-                .unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) }, fmt);
+            unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+                b"command 'Generate RSA Key Pair' failed\0").unwrap().as_ptr(), rv, sc_strerror(rv), fmt) };
         }
         return rv;
     }
 
-    let mut key_info_pub = sc_pkcs15_pubkey_info { modulus_length: key_info_priv.modulus_length, path: path_pub, ..Default::default() };
-    let object_pub = sc_pkcs15_object { type_: SC_PKCS15_TYPE_PUBKEY_RSA, data: &mut key_info_pub as *mut sc_pkcs15_pubkey_info as *mut c_void,  ..Default::default() };
-    let mut p15pubkey2_ptr = std::ptr::null_mut();
+    let mut key_info_pub = sc_pkcs15_pubkey_info { modulus_length: key_info_priv.modulus_length, path: path_pub, ..sc_pkcs15_pubkey_info::default() };
+    let object_pub = sc_pkcs15_object { type_: SC_PKCS15_TYPE_PUBKEY_RSA, data: &mut key_info_pub as *mut sc_pkcs15_pubkey_info as *mut c_void,  ..sc_pkcs15_object::default() };
+    let mut p15pubkey2_ptr = null_mut();
     rv = unsafe { sc_pkcs15_read_pubkey(p15card_ptr, &object_pub, &mut p15pubkey2_ptr) };
     if rv != SC_SUCCESS {
         if cfg!(log) {
-            wr_do_log_sds(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"sc_pkcs15_read_pubkey failed\0")
-                .unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) },
-                CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+            unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+                b"sc_pkcs15_read_pubkey failed\0").unwrap().as_ptr(), rv, sc_strerror(rv),
+                CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
         }
         return rv;
     }
@@ -1205,7 +1234,7 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
 
     rv = SC_SUCCESS;
     if cfg!(log) {
-        wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+        wr_do_log_tu(card_ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
     }
     rv
 } // acos5_pkcs15_generate_key
@@ -1221,18 +1250,19 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
  */
 extern "C" fn acos5_pkcs15_finalize_card(card_ptr: *mut sc_card) -> c_int
 {
-    if card_ptr.is_null() {
+    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
 //    let profile = unsafe { &mut *profile_ptr };
     let card = unsafe { &mut *card_ptr };
+    let card_ctx = unsafe { &mut *card.ctx };
 
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"acos5_pkcs15_finalize_card\0").unwrap();
     if cfg!(log) {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
-    return SC_SUCCESS
+    SC_SUCCESS
 }
 
 /*
@@ -1248,19 +1278,20 @@ extern "C" fn acos5_pkcs15_finalize_card(card_ptr: *mut sc_card) -> c_int
 extern "C" fn acos5_pkcs15_delete_object(profile_ptr: *mut sc_profile, p15card_ptr: *mut sc_pkcs15_card,
     object_ptr: *mut sc_pkcs15_object, path_ptr: *const sc_path) -> c_int
 {
-    if profile_ptr.is_null() ||  p15card_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null() } ||
+    if profile_ptr.is_null() ||  p15card_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null() || (*(*p15card_ptr).card).ctx.is_null() } ||
         object_ptr.is_null() ||  path_ptr.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
 //    let profile = unsafe { &mut *profile_ptr };
     let card = unsafe { &mut *(*p15card_ptr).card };
+    let card_ctx = unsafe { &mut *card.ctx };
 
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"acos5_pkcs15_delete_object\0").unwrap();
     if cfg!(log) {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
-    return SC_SUCCESS
+    SC_SUCCESS
 }
 
 /*
@@ -1270,18 +1301,15 @@ extern "C" fn acos5_pkcs15_delete_object(profile_ptr: *mut sc_profile, p15card_p
 extern "C" fn  acos5_pkcs15_emu_update_any_df(_profile: *mut sc_profile, p15card: *mut sc_pkcs15_card,
                                                  _op: c_uint, _object: *mut sc_pkcs15_object) -> c_int
 { //ops->emu_update_any_df(profile, p15card, SC_AC_OP_CREATE, object);
-    if p15card.is_null() || unsafe { (*p15card).card.is_null() } {
+    if p15card.is_null() || unsafe { (*p15card).card.is_null() || (*(*p15card).card).ctx.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *(*p15card).card };
-    if  card.ctx.is_null() {
-        return SC_ERROR_INVALID_ARGUMENTS;
-    }
-
+    let card_ctx = unsafe { &mut *card.ctx };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"acos5_pkcs15_emu_update_any_df\0").unwrap();
     if cfg!(log) {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
 
     SC_SUCCESS
@@ -1293,51 +1321,48 @@ extern "C" fn  acos5_pkcs15_emu_update_any_df(_profile: *mut sc_profile, p15card
 extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile: *mut sc_profile,
     object_ptr: *mut sc_pkcs15_object, _der_data: *mut sc_pkcs15_der, path: *mut sc_path) -> c_int
 {
-    if profile.is_null() || p15card.is_null() || unsafe { (*p15card).card.is_null() } || object_ptr.is_null() ||
-        unsafe { (*object_ptr).data.is_null() } {
+    if profile.is_null() || p15card.is_null() || object_ptr.is_null() || unsafe { (*p15card).card.is_null() ||
+        (*(*p15card).card).ctx.is_null() || (*object_ptr).data.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *(*p15card).card };
+    let card_ctx = unsafe { &mut *card.ctx };
     let object = unsafe { &mut *object_ptr };
-    if  card.ctx.is_null() {
-        return SC_ERROR_INVALID_ARGUMENTS;
-    }
-
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"acos5_pkcs15_emu_store_data\0").unwrap();
     if cfg!(log) {
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.type_, CStr::from_bytes_with_nul(b"called for object.type %X\0").unwrap()); // SC_PKCS15_TYPE_PRKEY_RSA / SC_PKCS15_TYPE_PUBKEY_RSA
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.type_, CStr::from_bytes_with_nul(b"called for object.type %X\0").unwrap()); // SC_PKCS15_TYPE_PRKEY_RSA / SC_PKCS15_TYPE_PUBKEY_RSA
         if !path.is_null() && unsafe{(*path).len > 0} {
-            wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex((*path).value.as_ptr(), (*path).len) }, CStr::from_bytes_with_nul(b"path: %s\0").unwrap()); // 0
+            wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex((*path).value.as_ptr(), (*path).len) }, CStr::from_bytes_with_nul(b"path: %s\0").unwrap()); // 0
         }
     }
     if SC_PKCS15_TYPE_PUBKEY_RSA == object.type_ {
         let key_info = unsafe { &mut *(object.data as *mut sc_pkcs15_pubkey_info) };
 /*
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.label.as_ptr(), CStr::from_bytes_with_nul(b"object.label: %s\0").unwrap()); // pkcs15-init -G rsa/3072 -a 01 -i 08 -l testkey -u sign,decrypt
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.flags, CStr::from_bytes_with_nul(b"object.flags: 0x%X\0").unwrap()); // 0x2: SC_PKCS15_CO_FLAG_MODIFIABLE
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.auth_id.len, CStr::from_bytes_with_nul(b"object.auth_id.len: %zu\0").unwrap()); // 0
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.auth_id.value[0], CStr::from_bytes_with_nul(b"object.auth_id.value[0]: %u\0").unwrap()); // 0
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.usage_counter, CStr::from_bytes_with_nul(b"object.usage_counter: %d\0").unwrap()); // 0
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.user_consent, CStr::from_bytes_with_nul(b"object.user_consent: %d\0").unwrap()); // 0
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.access_rules[0].access_mode, CStr::from_bytes_with_nul(b"object.access_rules[0].access_mode: %X\0").unwrap()); // 0
-        wr_do_log_t(card.ctx, f_log, line!(), fun, object.df, CStr::from_bytes_with_nul(b"object.df: %p\0").unwrap()); // (nil)
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.label.as_ptr(), CStr::from_bytes_with_nul(b"object.label: %s\0").unwrap()); // pkcs15-init -G rsa/3072 -a 01 -i 08 -l testkey -u sign,decrypt
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.flags, CStr::from_bytes_with_nul(b"object.flags: 0x%X\0").unwrap()); // 0x2: SC_PKCS15_CO_FLAG_MODIFIABLE
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.auth_id.len, CStr::from_bytes_with_nul(b"object.auth_id.len: %zu\0").unwrap()); // 0
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.auth_id.value[0], CStr::from_bytes_with_nul(b"object.auth_id.value[0]: %u\0").unwrap()); // 0
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.usage_counter, CStr::from_bytes_with_nul(b"object.usage_counter: %d\0").unwrap()); // 0
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.user_consent, CStr::from_bytes_with_nul(b"object.user_consent: %d\0").unwrap()); // 0
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.access_rules[0].access_mode, CStr::from_bytes_with_nul(b"object.access_rules[0].access_mode: %X\0").unwrap()); // 0
+        wr_do_log_t(card_ctx, f_log, line!(), fun, object.df, CStr::from_bytes_with_nul(b"object.df: %p\0").unwrap()); // (nil)
 
-        wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.id.value.as_ptr(), key_info.id.len) }, CStr::from_bytes_with_nul(b"key_info.id: %s\0").unwrap()); // 08
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.usage, CStr::from_bytes_with_nul(b"key_info.usage: 0x%X\0").unwrap()); // 0xD1 SC_PKCS15_PRKEY_USAGE_VERIFYRECOVER | SC_PKCS15_PRKEY_USAGE_VERIFY | SC_PKCS15_PRKEY_USAGE_WRAP | SC_PKCS15_PRKEY_USAGE_ENCRYPT
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.access_flags, CStr::from_bytes_with_nul(b"key_info.access_flags: 0x%X\0").unwrap()); // 0x0
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.native, CStr::from_bytes_with_nul(b"key_info.native: %d\0").unwrap()); // 0
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.key_reference, CStr::from_bytes_with_nul(b"key_info.key_reference: 0x%X\0").unwrap()); // 0x0
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.modulus_length, CStr::from_bytes_with_nul(b"key_info.modulus_length: %zu\0").unwrap()); // 3071
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.algo_refs[0], CStr::from_bytes_with_nul(b"key_info.algo_refs[0]: 0x%X\0").unwrap()); // 0x0
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.subject.len, CStr::from_bytes_with_nul(b"key_info.subject.len: %zu\0").unwrap()); // 0
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.params.len, CStr::from_bytes_with_nul(b"key_info.params.len: %zu\0").unwrap()); // 0
-        wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.path.value.as_ptr(), key_info.path.len) }, CStr::from_bytes_with_nul(b"key_info.path: %s\0").unwrap()); // empty
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.direct.raw.len, CStr::from_bytes_with_nul(b"key_info.direct.raw.len: %zu\0").unwrap()); //  398
-        wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.direct.spki.len, CStr::from_bytes_with_nul(b"key_info.direct.spki.len: %zu\0").unwrap()); // 422
+        wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.id.value.as_ptr(), key_info.id.len) }, CStr::from_bytes_with_nul(b"key_info.id: %s\0").unwrap()); // 08
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.usage, CStr::from_bytes_with_nul(b"key_info.usage: 0x%X\0").unwrap()); // 0xD1 SC_PKCS15_PRKEY_USAGE_VERIFYRECOVER | SC_PKCS15_PRKEY_USAGE_VERIFY | SC_PKCS15_PRKEY_USAGE_WRAP | SC_PKCS15_PRKEY_USAGE_ENCRYPT
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.access_flags, CStr::from_bytes_with_nul(b"key_info.access_flags: 0x%X\0").unwrap()); // 0x0
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.native, CStr::from_bytes_with_nul(b"key_info.native: %d\0").unwrap()); // 0
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.key_reference, CStr::from_bytes_with_nul(b"key_info.key_reference: 0x%X\0").unwrap()); // 0x0
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.modulus_length, CStr::from_bytes_with_nul(b"key_info.modulus_length: %zu\0").unwrap()); // 3071
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.algo_refs[0], CStr::from_bytes_with_nul(b"key_info.algo_refs[0]: 0x%X\0").unwrap()); // 0x0
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.subject.len, CStr::from_bytes_with_nul(b"key_info.subject.len: %zu\0").unwrap()); // 0
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.params.len, CStr::from_bytes_with_nul(b"key_info.params.len: %zu\0").unwrap()); // 0
+        wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.path.value.as_ptr(), key_info.path.len) }, CStr::from_bytes_with_nul(b"key_info.path: %s\0").unwrap()); // empty
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.direct.raw.len, CStr::from_bytes_with_nul(b"key_info.direct.raw.len: %zu\0").unwrap()); //  398
+        wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.direct.spki.len, CStr::from_bytes_with_nul(b"key_info.direct.spki.len: %zu\0").unwrap()); // 422
         if !arg4.is_null() {
             unsafe {
-                wr_do_log_t(card.ctx, f_log, line!(), fun, (*arg4).len, CStr::from_bytes_with_nul(b"der_length: %zu\0").unwrap()); // 398
+                wr_do_log_t(card_ctx, f_log, line!(), fun, (*arg4).len, CStr::from_bytes_with_nul(b"der_length: %zu\0").unwrap()); // 398
                 (*_der_data).len = 0;
             }
         }
@@ -1349,7 +1374,7 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
         let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
         let dp_files_value_ref = &dp.files[&dp.agc.file_id_pub];
 //        if dp.agc.is_key_pair_created_and_valid_for_generation {
-            key_info.path = sc_path { type_: SC_PATH_TYPE_PATH, value: dp_files_value_ref.0, len: dp_files_value_ref.1[1] as usize, ..Default::default()};
+            key_info.path = sc_path { type_: SC_PATH_TYPE_PATH, value: dp_files_value_ref.0, len: dp_files_value_ref.1[1] as usize, ..sc_path::default()};
 //        }
 //        dp.agc.is_key_pair_created_and_valid_for_generation = false; // this is the antagonist of: acos5_pkcs15_create_key: dp.is_key_pair_created_and_valid_for_generation = true;
         card.drv_data = Box::into_raw(dp) as *mut c_void;
@@ -1358,19 +1383,19 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
         /* called from unwrapping a RSA_WRAPPED_AES_KEY */
         let key_info = unsafe { &mut *(object.data as *mut sc_pkcs15_skey_info) };
         if cfg!(log) {
-            wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.id.value.as_ptr(), key_info.id.len) }, CStr::from_bytes_with_nul(b"key_info.id: %s\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.usage, CStr::from_bytes_with_nul(b"key_info.usage: %X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.access_flags, CStr::from_bytes_with_nul(b"key_info.access_flags: %X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.native, CStr::from_bytes_with_nul(b"key_info.native: %d\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.key_reference, CStr::from_bytes_with_nul(b"key_info.key_reference: %X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.value_len, CStr::from_bytes_with_nul(b"key_info.value_len: %zu\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.key_type, CStr::from_bytes_with_nul(b"key_info.key_type: %zu\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.algo_refs[0], CStr::from_bytes_with_nul(b"key_info.algo_refs[0]: %X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.algo_refs[1], CStr::from_bytes_with_nul(b"key_info.algo_refs[1]: %X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, key_info.algo_refs[2], CStr::from_bytes_with_nul(b"key_info.algo_refs[2]: %X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.path.value.as_ptr(), key_info.path.len) }, CStr::from_bytes_with_nul(b"key_info.path: %s\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.id.value.as_ptr(), key_info.id.len) }, CStr::from_bytes_with_nul(b"key_info.id: %s\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.usage, CStr::from_bytes_with_nul(b"key_info.usage: %X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.access_flags, CStr::from_bytes_with_nul(b"key_info.access_flags: %X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.native, CStr::from_bytes_with_nul(b"key_info.native: %d\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.key_reference, CStr::from_bytes_with_nul(b"key_info.key_reference: %X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.value_len, CStr::from_bytes_with_nul(b"key_info.value_len: %zu\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.key_type, CStr::from_bytes_with_nul(b"key_info.key_type: %zu\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.algo_refs[0], CStr::from_bytes_with_nul(b"key_info.algo_refs[0]: %X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.algo_refs[1], CStr::from_bytes_with_nul(b"key_info.algo_refs[1]: %X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, key_info.algo_refs[2], CStr::from_bytes_with_nul(b"key_info.algo_refs[2]: %X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.path.value.as_ptr(), key_info.path.len) }, CStr::from_bytes_with_nul(b"key_info.path: %s\0").unwrap());
             if !key_info.data.value.is_null() && key_info.data.len>0 {
-                wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.data.value, key_info.data.len) }, CStr::from_bytes_with_nul(b"key_info.data: %s\0").unwrap());
+                wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(key_info.data.value, key_info.data.len) }, CStr::from_bytes_with_nul(b"key_info.data: %s\0").unwrap());
             }
         }
     }
@@ -1429,8 +1454,8 @@ extern "C" fn acos5_pkcs15_sanity_check(_profile: *mut sc_profile, p15card: *mut
     /* fill the hashmap: there are possibly not all scb8 retrieved so far and PKCS#15 file type yet unknown */
     let _dummy = call_dynamic_update_hashmap(card_ref_mut); // all scb8 are complete, same for the byte containing the PKCS#15 file type, i.e. the file really contains content acc. to that file type
 
-//    let ctx  : *mut sc_context = std::ptr::null_mut() as *mut sc_context;
-    let info = std::ptr::null_mut() as *mut sm_info;
+//    let ctx  : *mut sc_context = null_mut() as *mut sc_context;
+    let info = null_mut() as *mut sm_info;
     let mut out: c_char = 65u8 as c_char;
     let sm_available = false;
 /* */
@@ -1441,7 +1466,7 @@ extern "C" fn acos5_pkcs15_sanity_check(_profile: *mut sc_profile, p15card: *mut
 /* */
     /* check all, what cos5 requires
        each DF (incl. MF) points to a SE file that does exist
-       scb8 <-> SeInfo:  references do exist in SeInfo and there is an AT template included; the AT template refers to pins and sym. keys that do exist
+       scb8 <-> SACinfo:  references do exist in SACinfo and there is an AT template included; the AT template refers to pins and sym. keys that do exist
 
        warn about SCB that are invalid or not yet supported (and/or conditions)
        info if there are SE file records unused so far
@@ -1449,11 +1474,11 @@ extern "C" fn acos5_pkcs15_sanity_check(_profile: *mut sc_profile, p15card: *mut
     // TODO check data race condition for dp
     let dp = unsafe { Box::from_raw(card_ref.drv_data as *mut DataPrivate) };
 
-//    let mut path3908 : sc_path = Default::default();
+//    let mut path3908 = sc_path::default();
     /* DF/MF must point to existing SE-File with correct FDB==0x1C */
     for (key, val) in dp.files.iter() {
         if is_DFMF(val.1[0]) {
-            let file_id_se = u16_from_array_begin(&val.1[4..6]);
+            let file_id_se = u16::from_be_bytes([val.1[4], val.1[5]]);
             if file_id_se == 0u16 {
                 let fmt   = CStr::from_bytes_with_nul(b"FCI of DF/MF %04X doesn't specify a mandatory SE file (tag 0x8D missing or zero content)\0").unwrap();
 //              #[cfg(log)] if cfg!(log) {}

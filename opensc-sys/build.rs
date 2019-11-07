@@ -32,7 +32,7 @@ fn main() {
                 "0.17.0" => println!("cargo:rustc-cfg=v0_17_0"),
                 "0.18.0" => println!("cargo:rustc-cfg=v0_18_0"),
                 "0.19.0" => println!("cargo:rustc-cfg=v0_19_0"),
-                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"), // experimental only: it's git-master Latest commit 026b6ab43dfb52b768ad15123dc698e05c52be20, defined as version 0.20.0 in config.h
+                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"), // experimental only: it's git-master Latest commit c3f23b836e5a1766c36617fe1da30d22f7b63de2, defined as version 0.20.0 in config.h
 //                "0.21.0" => println!("cargo:rustc-cfg=v0_21_0"), // experimental only: it's git-master, Latest commit ?, defined as version 0.21.0 in config.h
                 _ => ()
             }
@@ -47,9 +47,10 @@ fn main() {
     println!("cargo:rustc-cfg=v0_19_0"); //  <= or whatever version the installed OpenSC package is
 */
 
-    /* other conditionaĺ compilation settings */
-    println!("cargo:rustc-cfg=impl_display"); // enables impl fmt::Display for sc_context
+    /* other conditionaĺ compilation settings, required only for testing (impl_default) and by driver acos5/acos5_pkcs15 */
     println!("cargo:rustc-cfg=impl_default"); // enables impl Default      for many struct s, used extensively for tests
+    println!("cargo:rustc-cfg=impl_display"); // enables impl fmt::Display for sc_context
+    println!("cargo:rustc-cfg=acos5_impl_default"); // enables impl Default, acos5-specific for some struct s
     println!("cargo:rustc-cfg=impl_newAT_newCCT_newCT"); // enables some acos5-specific ? assoc. new func. for struct sc_crt
 }
 

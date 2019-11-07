@@ -23,6 +23,8 @@
 // TODO check IN, OUT etc., rename paramater names for a unified interface; #DEFINE/#UNDEF influence on struct size etc.: none: OKAY  (no direct (non-#include #define influence on struct sizes))
 
 use std::os::raw::{c_uchar, c_uint, c_int, c_ulong};
+#[cfg(impl_default)]
+use std::ptr::{null, null_mut};
 //use std::option::Option;
 
 //typedef unsigned char u8; pub type u8 = c_uchar ;  std::os::raw::c_uchar definition: type c_uchar = u8;
@@ -77,35 +79,16 @@ pub struct sc_tlv_data {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone,  PartialEq)]
+#[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct sc_object_id {
     pub value : [c_int; SC_MAX_OBJECT_ID_OCTETS],
 }
 
-#[cfg(impl_default)]
-impl Default for sc_object_id {
-    fn default() -> sc_object_id {
-        sc_object_id {
-            value: [0; SC_MAX_OBJECT_ID_OCTETS]
-        }
-    }
-}
-
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct sc_aid {
     pub value : [c_uchar; SC_MAX_AID_SIZE],
     pub len   : usize,
-}
-
-#[cfg(impl_default)]
-impl Default for sc_aid {
-    fn default() -> sc_aid {
-        sc_aid  {
-            value: [0; SC_MAX_AID_SIZE],
-            len: 0
-        }
-    }
 }
 
 #[repr(C)]
@@ -183,58 +166,45 @@ pub struct sc_path {
 pub type sc_path_t = sc_path;
 */
 
-#[cfg(impl_default)]
 impl Default for sc_path {
-    fn default() -> sc_path {
-        sc_path {
+    fn default() -> Self {
+        Self {
             value: [0; SC_MAX_PATH_SIZE],
             len:    0,
             index:  0,
             count:  -1,
             type_:  0, // SC_PATH_TYPE_FILE_ID
-            aid:    Default::default()
+            aid:    sc_aid::default()
         }
     }
 }
 
 /* Control reference template */
 #[repr(C)]
-#[derive(Debug, Copy, Clone,  PartialEq)]
+#[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct sc_crt {
     pub tag   : c_uint,
     pub usage : c_uint,  /* Usage Qualifier Byte */
     pub algo  : c_uint,  /* Algorithm ID */
-    pub refs  : [c_uint; 8usize], /* Security Object References */
+    pub refs  : [c_uint; 8], /* Security Object References */
 }
 
 #[allow(non_snake_case)]
 #[cfg(impl_newAT_newCCT_newCT)]
 impl sc_crt {
     /* new with Authentication Template tag 0xA4 */
-    pub fn new_AT(usage: c_uint) -> sc_crt {
-        sc_crt { tag: 0xA4, usage, ..Default::default() }
+    pub fn new_AT(usage: c_uint) -> Self {
+        Self { tag: 0xA4, usage, ..Self::default() }
     }
 
     /* new with Cryptographic Checksum Template tag 0xB4 */
-    pub fn new_CCT(usage: c_uint) -> sc_crt {
-        sc_crt { tag: 0xB4, usage, ..Default::default() }
+    pub fn new_CCT(usage: c_uint) -> Self {
+        Self { tag: 0xB4, usage, ..Self::default() }
     }
 
     /* new with Confidentiality Template tag 0xB8 */
-    pub fn new_CT(usage: c_uint) -> sc_crt {
-        sc_crt { tag: 0xB8, usage, ..Default::default() }
-    }
-}
-
-#[cfg(impl_default)]
-impl Default for sc_crt {
-    fn default() -> sc_crt {
-        sc_crt {
-            tag:   0,
-            usage: 0,
-            algo:  0,
-            refs:  [0; 8]
-        }
+    pub fn new_CT(usage: c_uint) -> Self {
+        Self { tag: 0xB8, usage, ..Self::default() }
     }
 }
 
@@ -295,7 +265,7 @@ pub const SC_MAX_AC_OPS                : usize =  31;
 #[deprecated(since="0.0.0", note="please use `SC_AC_OP_DELETE` instead")]
 pub const SC_AC_OP_ERASE                 : c_uint =  SC_AC_OP_DELETE;
 
-pub const SC_AC_KEY_REF_NONE             : c_uint =  0xFFFF_FFFF;
+pub const SC_AC_KEY_REF_NONE             : c_ulong =  0xFFFF_FFFF;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -307,6 +277,19 @@ pub struct sc_acl_entry {
 
     pub next    : *mut sc_acl_entry,
 }
+
+#[cfg(impl_default)]
+impl Default for sc_acl_entry {
+    fn default() -> Self {
+        Self {
+            method: 0, // 0 == SC_AC_OP_SELECT
+            key_ref: 0,
+            crts: [sc_crt::default(); SC_MAX_CRTS_IN_SE],
+            next: null_mut()
+        }
+    }
+}
+
 /*
 #[doc(hidden)]
 #[allow(non_camel_case_types)]
@@ -338,7 +321,7 @@ pub const SC_FILE_STATUS_CREATION    : c_uint =  0x02; /* Full access in this st
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_file {
-    pub path : sc_path ,
+    pub path : sc_path,
     pub name : [c_uchar; SC_MAX_AID_SIZE /*16usize*/], /* DF name */
     pub namelen : usize, /* length of DF name */
 
@@ -383,10 +366,10 @@ pub type sc_file_t = sc_file;
 /*
 #[cfg(impl_default)]
 impl Default for sc_file {
-    fn default() -> sc_file {
-        sc_file {
-            path: Default::default(),
-            name: [0u8; SC_MAX_AID_SIZE],
+    fn default() -> Self {
+        Self {
+            path: sc_path::default(),
+            name: [0; SC_MAX_AID_SIZE],
             namelen: 0,
             type_: 0,
             ef_structure: 0,
@@ -395,16 +378,16 @@ impl Default for sc_file {
             size: 0,
             id: 0,
             sid: 0,
-            acl: [std::ptr::null_mut(); SC_MAX_AC_OPS],
-            sec_attr: std::ptr::null_mut(),
+            acl: [null_mut(); SC_MAX_AC_OPS],
+            sec_attr: null_mut(),
             sec_attr_len: 0,
-            prop_attr: std::ptr::null_mut(),
+            prop_attr: null_mut(),
             prop_attr_len: 0,
-            type_attr: std::ptr::null_mut(),
+            type_attr: null_mut(),
             type_attr_len: 0,
-            encoded_content: std::ptr::null_mut(),
+            encoded_content: null_mut(),
             encoded_content_len: 0,
-            magic: 0x14426950
+            magic: 0x1442_6950
         }
     }
 }
@@ -460,7 +443,7 @@ pub struct sc_apdu {
 
     pub sw1 : c_uint,  /* Status words returned in R-APDU */
     pub sw2 : c_uint,  /* Status words returned in R-APDU */
-    pub mac : [c_uchar; 8usize],
+    pub mac : [c_uchar; 8],
     pub mac_len : usize,
 
     pub flags : c_ulong, //unsigned long flags;
@@ -475,8 +458,8 @@ pub type sc_apdu_t = sc_apdu ;
 
 #[cfg(impl_default)]
 impl Default for sc_apdu {
-    fn default() -> sc_apdu {
-        sc_apdu {
+    fn default() -> Self {
+        Self {
             cse              :  0,
             cla              :  0,
             ins              :  0,
@@ -484,9 +467,9 @@ impl Default for sc_apdu {
             p2               :  0,
             lc               :  0,
             le               :  0,
-            data             :  std::ptr::null(),
+            data             :  null(),
             datalen          :  0,
-            resp             :  std::ptr::null_mut(),
+            resp             :  null_mut(),
             resplen          :  0,
             control          :  0,
             allocation_flags :  0,
@@ -495,7 +478,7 @@ impl Default for sc_apdu {
             mac              :  [0; 8],
             mac_len          :  0,
             flags            :  0,
-            next             :  std::ptr::null_mut(),
+            next             :  null_mut(),
         }
     }
 }
@@ -508,17 +491,17 @@ pub const SC_CPLC_DER_SIZE : usize = 45;
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_cplc {
-    pub ic_fabricator : [c_uchar; 2usize],
-    pub ic_type : [c_uchar; 2usize],
-    pub os_data : [c_uchar; 6usize],
-    pub ic_date : [c_uchar; 2usize],
-    pub ic_serial : [c_uchar; 4usize],
-    pub ic_batch_id : [c_uchar; 2usize],
-    pub ic_module_data : [c_uchar; 4usize],
-    pub icc_manufacturer : [c_uchar; 2usize],
-    pub ic_embed_date : [c_uchar; 2usize],
-    pub pre_perso_data : [c_uchar; 6usize],
-    pub personalizer_data : [c_uchar; 6usize],
+    pub ic_fabricator : [c_uchar; 2],
+    pub ic_type : [c_uchar; 2],
+    pub os_data : [c_uchar; 6],
+    pub ic_date : [c_uchar; 2],
+    pub ic_serial : [c_uchar; 4],
+    pub ic_batch_id : [c_uchar; 2],
+    pub ic_module_data : [c_uchar; 4],
+    pub icc_manufacturer : [c_uchar; 2],
+    pub ic_embed_date : [c_uchar; 2],
+    pub pre_perso_data : [c_uchar; 6],
+    pub personalizer_data : [c_uchar; 6],
 
     pub value : [c_uchar; SC_CPLC_DER_SIZE],
     pub len : usize,
@@ -527,29 +510,18 @@ pub struct sc_cplc {
 
 /* 'Issuer Identification Number' is a part of ISO/IEC 7812 PAN definition */
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct sc_iin {
     pub mii : c_uchar,              /* industry identifier */
     pub country : c_uint,           /* country identifier */
     pub issuer_id : c_ulong,        /* issuer identifier */
 }
 
-#[cfg(impl_default)]
-impl Default for sc_iin {
-    fn default() -> sc_iin {
-        sc_iin {
-            mii: 0,
-            country: 0,
-            issuer_id: 0
-        }
-    }
-}
-
 /* structure for the card serial number (normally the ICCSN) */
 pub const SC_MAX_SERIALNR : usize = 32;
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct sc_serial_number {
     pub value : [c_uchar; SC_MAX_SERIALNR],
     pub len : usize,
@@ -561,17 +533,6 @@ pub struct sc_serial_number {
 #[allow(non_camel_case_types)]
 pub type sc_serial_number_t = sc_serial_number;
 */
-
-#[cfg(impl_default)]
-impl Default for sc_serial_number {
-    fn default() -> sc_serial_number {
-        sc_serial_number {
-            value: [0; SC_MAX_SERIALNR],
-            len: 0,
-            iin: Default::default()
-        }
-    }
-}
 
 /**
  * @struct sc_remote_apdu data
@@ -595,13 +556,13 @@ pub struct sc_remote_apdu {
 
 #[cfg(impl_default)]
 impl Default for sc_remote_apdu {
-    fn default() -> sc_remote_apdu {
-        sc_remote_apdu {
+    fn default() -> Self {
+        Self {
             sbuf: [0; 2*SC_MAX_APDU_BUFFER_SIZE],
             rbuf: [0; 2*SC_MAX_APDU_BUFFER_SIZE],
-            apdu: Default::default(),
+            apdu: sc_apdu::default(),
             flags: 0,
-            next: std::ptr::null_mut()
+            next: null_mut()
         }
     }
 }
@@ -633,9 +594,9 @@ pub struct sc_remote_data {
 
 #[cfg(impl_default)]
 impl Default for sc_remote_data {
-    fn default() -> sc_remote_data {
-        sc_remote_data {
-            data: std::ptr::null_mut(),
+    fn default() -> Self {
+        Self {
+            data: null_mut(),
             length: 0,
             alloc: None,
             free: None

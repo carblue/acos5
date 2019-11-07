@@ -24,7 +24,7 @@
 use std::os::raw::{c_int, c_void, c_uint, c_uchar, c_char, c_ulong};
 use std::ffi::{/*CString,*/ CStr};
 use std::fs;//::{read/*, write*/};
-use std::ptr::copy_nonoverlapping;
+use std::ptr::{copy_nonoverlapping, null_mut};
 
 use num_integer::Integer;
 
@@ -42,7 +42,7 @@ use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
 use opensc_sys::opensc::{SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, sc_sec_env_param,
                          SC_SEC_ENV_PARAM_IV, SC_SEC_OPERATION_UNWRAP};
 
-use opensc_sys::types::{sc_object_id,/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_MAX_PATH_SIZE, sc_file_t, sc_apdu,
+use opensc_sys::types::{sc_object_id,sc_apdu, /*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_MAX_PATH_SIZE, sc_file_t,
     SC_MAX_ATR_SIZE, SC_FILE_TYPE_DF,  */  sc_path, sc_file, SC_PATH_TYPE_FILE_ID/*, SC_PATH_TYPE_PATH*/,
                         SC_MAX_APDU_BUFFER_SIZE, SC_MAX_PATH_SIZE, SC_APDU_FLAGS_CHAINING,
                         SC_APDU_CASE_1, /*SC_APDU_CASE_2_SHORT,*/ SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT,
@@ -64,10 +64,9 @@ use opensc_sys::types::{sc_object_id,/*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_MAX_
 use opensc_sys::log::{sc_dump_hex};
 use opensc_sys::errors::{sc_strerror, /*SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKNOWN, SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_NOT_SUPPORTED, */
                          SC_SUCCESS, SC_ERROR_INVALID_ARGUMENTS, //SC_ERROR_KEYPAD_TIMEOUT,
-                         SC_ERROR_KEYPAD_MSG_TOO_LONG/*, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL*/
-,SC_ERROR_WRONG_LENGTH, SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT_FOUND, SC_ERROR_INCORRECT_PARAMETERS,
-SC_ERROR_OUT_OF_MEMORY, SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_NO_CARD_SUPPORT
-//,SC_ERROR_CARD_CMD_FAILED, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
+                         SC_ERROR_KEYPAD_MSG_TOO_LONG,/*, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL*/
+SC_ERROR_WRONG_LENGTH, SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT_FOUND, SC_ERROR_INCORRECT_PARAMETERS, SC_ERROR_CARD_CMD_FAILED,
+SC_ERROR_OUT_OF_MEMORY, SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_NO_CARD_SUPPORT,
 };
 use opensc_sys::internal::{sc_atr_table};
 use opensc_sys::asn1::{sc_asn1_read_tag};
@@ -75,8 +74,8 @@ use opensc_sys::iso7816::{ISO7816_TAG_FCI, ISO7816_TAG_FCP};
 
 use crate::wrappers::*;
 use crate::constants_types::*;
-use crate::se::{se_parse_crts, se_get_is_suitable_for_sm_has_ct};
-use crate::path::cut_path;
+use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
+use crate::path::{cut_path, file_id_from_cache_current_path};
 use crate::missing_exports::me_get_max_recv_size;
 use crate::cmd_card_info::{get_card_life_cycle_byte_EEPROM, get_op_mode_byte_EEPROM, get_zeroize_card_disable_byte_EEPROM};
 use crate::sm::{sm_common_read, sm_common_update};
@@ -95,18 +94,21 @@ In principle, iso7816_select_file is usable in a controlled manner, but if file_
 thus issue a correct APDU right away
 The code differs from the C version in 1 line only, where setting apdu.p2 = 0x0C;
 */
+//allow cognitive_complexity: This is almost equal to iso7816_select_file. Thus for easy comparison, don't split this
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cognitive_complexity))]
 fn iso7816_select_file_replacement(card: &mut sc_card, in_path_ref: &sc_path, file_out_ptr: *mut *mut sc_file) -> c_int
 {
-//    let ctx : *mut sc_context;
-    let mut apdu = Default::default();
-    let mut buf    = [0u8; SC_MAX_APDU_BUFFER_SIZE];
-    let mut pathvalue = [0u8; SC_MAX_PATH_SIZE];
+    assert!(!card.ctx.is_null());
+    let card_ctx = unsafe { &mut *card.ctx };
+    let mut apdu = sc_apdu::default();
+    let mut buf    = [0_u8; SC_MAX_APDU_BUFFER_SIZE];
+    let mut pathvalue = [0_u8; SC_MAX_PATH_SIZE];
     let mut pathvalue_ptr = pathvalue.as_mut_ptr();
     let mut r : c_int;
 //    let pathlen : c_int;
 //    let pathtype : c_int;
     let mut select_mf = 0;
-//    let mut file: *mut sc_file = std::ptr::null_mut();
+//    let mut file: *mut sc_file = null_mut();
 //    let mut buffer : *const c_uchar;
     let mut buffer_len : usize = 0;
     let mut cla : c_uint = 0;
@@ -114,14 +116,13 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path_ref: &sc_path, fi
 
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"iso7816_select_file_replacement\0").unwrap();
-    let ctx_ptr = card.ctx;
 /*
     #[cfg(log)]
-    wr_do_log_tu(ctx_ptr, f_log, line!(), fun, card.cache.current_path.type_,
+    wr_do_log_tu(card_ctx, f_log, line!(), fun, card.cache.current_path.type_,
         unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, fmt_1);
 */
     if cfg!(log)  &&  !file_out_ptr.is_null() {
-        wr_do_log_t(ctx_ptr, f_log, line!(), fun, unsafe{*file_out_ptr},
+        wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe{*file_out_ptr},
                     CStr::from_bytes_with_nul(b"called with *file_out_ptr: %p\n\0").unwrap())
     }
 
@@ -152,11 +153,11 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path_ref: &sc_path, fi
 //            LOG_TEST_RET(ctx, r, "APDU transmit failed");
             if r < 0 {
                 if cfg!(log) {
-                    wr_do_log_sds(ctx_ptr, f_log, line!(), fun,
+                    unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun,
                                   CStr::from_bytes_with_nul(b"APDU transmit failed\0").unwrap().as_ptr(),
                                   r,
-                                  unsafe { sc_strerror(r) },
-                                  CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+                                  sc_strerror(r),
+                                  CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
                 }
                 return r;
             }
@@ -165,14 +166,14 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path_ref: &sc_path, fi
 //                LOG_FUNC_RETURN(ctx, r);
                 if cfg!(log) {
                     if r < 0 {
-                        wr_do_log_sds(ctx_ptr, f_log, line!(), fun,
+                        unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun,
                                       CStr::from_bytes_with_nul(b"returning with\0").unwrap().as_ptr(),
                                       r,
-                                      unsafe { sc_strerror(r) },
-                                      CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+                                      sc_strerror(r),
+                                      CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
                     }
                     else {
-                        wr_do_log_t(ctx_ptr, f_log, line!(), fun, r,
+                        wr_do_log_t(card_ctx, f_log, line!(), fun, r,
                                     CStr::from_bytes_with_nul(b"returning with: %d\n\0").unwrap())
                     }
                 }
@@ -221,11 +222,11 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path_ref: &sc_path, fi
         _ => {
                 r = SC_ERROR_INVALID_ARGUMENTS;
                 if cfg!(log) {
-                    wr_do_log_sds(ctx_ptr, f_log, line!(), fun,
+                    unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun,
                                   CStr::from_bytes_with_nul(b"returning with\0").unwrap().as_ptr(),
                                   r,
-                                  unsafe { sc_strerror(r) },
-                                  CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+                                  sc_strerror(r),
+                                  CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
                 }
                 return r;
             },
@@ -235,26 +236,26 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path_ref: &sc_path, fi
     apdu.data = pathvalue_ptr;
     apdu.datalen = pathlen;
 
-    if !file_out_ptr.is_null() {
+    if file_out_ptr.is_null() {
+////        apdu.p2 = 0x0C;        /* first record, return nothing */
+        apdu.cse = if apdu.lc == 0 {SC_APDU_CASE_1} else {SC_APDU_CASE_3_SHORT};
+    }
+    else {
         apdu.p2 = 0;        /* first record, return FCI */
         apdu.resp = buf.as_mut_ptr();
         apdu.resplen = buf.len();
         apdu.le = if me_get_max_recv_size(card) < 256 {me_get_max_recv_size(card)} else {256};
-    }
-    else {
-////        apdu.p2 = 0x0C;        /* first record, return nothing */
-        apdu.cse = if apdu.lc == 0 {SC_APDU_CASE_1} else {SC_APDU_CASE_3_SHORT};
     }
 
     r = unsafe { sc_transmit_apdu(card, &mut apdu) };
 //    LOG_TEST_RET(ctx, r, "APDU transmit failed");
     if r < 0 {
         if cfg!(log) {
-            wr_do_log_sds(ctx_ptr, f_log, line!(), fun,
+            unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun,
                           CStr::from_bytes_with_nul(b"APDU transmit failed\0").unwrap().as_ptr(),
                           r,
-                          unsafe { sc_strerror(r) },
-                          CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+                          sc_strerror(r),
+                          CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
         }
         return r;
     }
@@ -272,7 +273,7 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path_ref: &sc_path, fi
 //            LOG_FUNC_RETURN(ctx, SC_SUCCESS);
             r = SC_SUCCESS;
             if cfg!(log) {
-                wr_do_log_t(ctx_ptr, f_log, line!(), fun, r,
+                wr_do_log_t(card_ctx, f_log, line!(), fun, r,
                             CStr::from_bytes_with_nul(b"returning with: %d\n\0").unwrap())
             }
             return r;
@@ -281,14 +282,14 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path_ref: &sc_path, fi
 //        LOG_FUNC_RETURN(ctx, r);
         if cfg!(log) {
             if r < 0 {
-                wr_do_log_sds(ctx_ptr, f_log, line!(), fun,
+                unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun,
                               CStr::from_bytes_with_nul(b"returning with\0").unwrap().as_ptr(),
                               r,
-                              unsafe { sc_strerror(r) },
-                              CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+                              sc_strerror(r),
+                              CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
             }
             else {
-                wr_do_log_t(ctx_ptr, f_log, line!(), fun, r,
+                wr_do_log_t(card_ctx, f_log, line!(), fun, r,
                             CStr::from_bytes_with_nul(b"returning with: %d\n\0").unwrap())
             }
         }
@@ -300,14 +301,14 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path_ref: &sc_path, fi
 //        LOG_FUNC_RETURN(ctx, r);
         if cfg!(log) {
             if r < 0 {
-                wr_do_log_sds(ctx_ptr, f_log, line!(), fun,
+                unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun,
                               CStr::from_bytes_with_nul(b"returning with\0").unwrap().as_ptr(),
                               r,
-                              unsafe { sc_strerror(r) },
-                              CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+                              sc_strerror(r),
+                              CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
             }
             else {
-                wr_do_log_t(ctx_ptr, f_log, line!(), fun, r,
+                wr_do_log_t(card_ctx, f_log, line!(), fun, r,
                             CStr::from_bytes_with_nul(b"returning with: %d\n\0").unwrap())
             }
         }
@@ -322,11 +323,11 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path_ref: &sc_path, fi
 //                LOG_FUNC_RETURN(ctx, SC_ERROR_OUT_OF_MEMORY);
                 r = SC_ERROR_OUT_OF_MEMORY;
                 if cfg!(log) {
-                    wr_do_log_sds(ctx_ptr, f_log, line!(), fun,
+                    unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun,
                                   CStr::from_bytes_with_nul(b"returning with\0").unwrap().as_ptr(),
                                   r,
-                                  unsafe { sc_strerror(r) },
-                                  CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+                                  sc_strerror(r),
+                                  CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
                 }
                 return r;
             }
@@ -336,7 +337,7 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path_ref: &sc_path, fi
 //            LOG_FUNC_RETURN(ctx, SC_SUCCESS);
             r = SC_SUCCESS;
             if cfg!(log) {
-                wr_do_log_t(ctx_ptr, f_log, line!(), fun, r,
+                wr_do_log_t(card_ctx, f_log, line!(), fun, r,
                             CStr::from_bytes_with_nul(b"returning with: %d\n\0").unwrap())
             }
             return r;
@@ -347,11 +348,11 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path_ref: &sc_path, fi
 //        LOG_FUNC_RETURN(ctx, SC_ERROR_UNKNOWN_DATA_RECEIVED);
         r = SC_ERROR_UNKNOWN_DATA_RECEIVED;
         if cfg!(log) {
-            wr_do_log_sds(ctx_ptr, f_log, line!(), fun,
+            unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun,
                           CStr::from_bytes_with_nul(b"returning with\0").unwrap().as_ptr(),
                           r,
-                          unsafe { sc_strerror(r) },
-                          CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+                          sc_strerror(r),
+                          CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
         }
         return r;
     }
@@ -364,11 +365,11 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path_ref: &sc_path, fi
 //                LOG_FUNC_RETURN(ctx, SC_ERROR_OUT_OF_MEMORY);
                 r = SC_ERROR_OUT_OF_MEMORY;
                 if cfg!(log) {
-                    wr_do_log_sds(ctx_ptr, f_log, line!(), fun,
+                    unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun,
                                   CStr::from_bytes_with_nul(b"returning with\0").unwrap().as_ptr(),
                                   r,
-                                  unsafe { sc_strerror(r) },
-                                  CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+                                  sc_strerror(r),
+                                  CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
                 }
                 return r;
             }
@@ -393,17 +394,17 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path_ref: &sc_path, fi
 //            LOG_FUNC_RETURN(ctx, SC_ERROR_UNKNOWN_DATA_RECEIVED);
                 r = SC_ERROR_UNKNOWN_DATA_RECEIVED;
                 if cfg!(log) {
-                    wr_do_log_sds(ctx_ptr, f_log, line!(), fun,
+                    unsafe { wr_do_log_sds(card_ctx, f_log, line!(), fun,
                                   CStr::from_bytes_with_nul(b"returning with\0").unwrap().as_ptr(),
                                   r,
-                                  unsafe { sc_strerror(r) },
-                                  CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
+                                  sc_strerror(r),
+                                  CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap()) };
                 }
                 return r;
             }
     }
 
-return SC_SUCCESS;
+    SC_SUCCESS
 }
 
 /*
@@ -426,19 +427,21 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out_ptr
        for:  file_out_ptr_addr.is_null() && need_to_process_fci */
     assert_eq!(path_ref.type_, SC_PATH_TYPE_FILE_ID);
     assert_eq!(path_ref.len,   2);
+    assert!(!card.ctx.is_null());
+    let card_ctx = unsafe { &mut *card.ctx };
     let force_process_fci = file_out_ptr_addr.is_null() && need_to_process_fci;
-    let mut file_out_ptr_tmp = std::ptr::null_mut();
+    let mut file_out_ptr_tmp = null_mut();
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun     = CStr::from_bytes_with_nul(b"tracking_select_file\0").unwrap();
     let fmt_1   = CStr::from_bytes_with_nul(b"    called. curr_type: %d, curr_value: %s, need_to_process_fci: %d\0").unwrap();
     let fmt_2   = CStr::from_bytes_with_nul(b"              to_type: %d,   to_value: %s\0").unwrap();
     let fmt_3   = CStr::from_bytes_with_nul(b"returning:  curr_type: %d, curr_value: %s\0").unwrap();
-    #[cfg(log)]
-    wr_do_log_tuv(card.ctx, f_log, line!(), fun, card.cache.current_path.type_,
-        unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, need_to_process_fci, fmt_1);
-    #[cfg(log)]
-    wr_do_log_tu(card.ctx, f_log, line!(), fun, path_ref.type_,
-        unsafe {sc_dump_hex(path_ref.value.as_ptr(), path_ref.len)}, fmt_2);
+    if cfg!(log) {
+        wr_do_log_tuv(card_ctx, f_log, line!(), fun, card.cache.current_path.type_,
+            unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, need_to_process_fci, fmt_1);
+        wr_do_log_tu(card_ctx, f_log, line!(), fun, path_ref.type_,
+                     unsafe {sc_dump_hex(path_ref.value.as_ptr(), path_ref.len)}, fmt_2);
+    }
 
 //  let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).select_file.unwrap()(card, path_ref, file_out_ptr_addr) };
     let rv = iso7816_select_file_replacement(card, path_ref, if force_process_fci {&mut file_out_ptr_tmp} else {file_out_ptr_addr});
@@ -455,38 +458,35 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out_ptr
     0x6A87, SC_ERROR_INCORRECT_PARAMETERS,"Lc inconsistent with P1-P2" //// Wrong P3 length. P3 is not compatible with P1.
       SC_ERROR_CARD_CMD_FAILED if iso7816_check_sw encounters unknown error
     */
-    if rv == SC_ERROR_WRONG_LENGTH ||
-       rv == SC_ERROR_NOT_ALLOWED  ||
-       rv == SC_ERROR_FILE_NOT_FOUND ||
-       rv == SC_ERROR_INCORRECT_PARAMETERS /*shouldn't be emitted for select file*/ {
+    if [      SC_ERROR_WRONG_LENGTH,
+              SC_ERROR_NOT_ALLOWED,
+              SC_ERROR_FILE_NOT_FOUND,
+              SC_ERROR_INCORRECT_PARAMETERS ].contains(&rv) {
         // select failed, no new card.cache.current_path, do nothing
     }
-    else {
-/*
-        rv == SC_SUCCESS ||
-        rv == SC_ERROR_CARD_CMD_FAILED ||
-        rv == SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
-*/
-        if path_ref.value[0..2] != [0x3Fu8, 0xFF][..] {
-            let file_id = u16_from_array_begin(&path_ref.value[0..2]);
+    else if [ SC_SUCCESS,
+              SC_ERROR_CARD_CMD_FAILED,
+              SC_ERROR_SECURITY_STATUS_NOT_SATISFIED ].contains(&rv) {
+        // file got selected
+        if path_ref.value[0..2] != [0x3F_u8, 0xFF][..] {
+            let file_id = u16::from_be_bytes([path_ref.value[0], path_ref.value[1]]);
             let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-            if file_out_ptr_addr.is_null() {
-                // TODO
-            }
-            else {
-
-            }
             assert!(dp.files.contains_key(&file_id));
             let dp_files_value = &dp.files[&file_id];
             card.cache.current_path.value = dp_files_value.0;
-            card.cache.current_path.len   = dp_files_value.1[1] as usize;
+            card.cache.current_path.len   = usize::from(dp_files_value.1[1]);
             card.drv_data = Box::into_raw(dp) as *mut c_void;
         }
     }
+    else {
+        panic!("calling `iso7816_select_file_replacement` returned the error code rv: {}. Function \
+            `tracking_select_file` doesn't yet handle that error (whether to adapt card.cache.current_path?)", rv);
+    }
 
-    #[cfg(log)]
-    wr_do_log_tu(card.ctx, f_log, line!(), fun, card.cache.current_path.type_,
-        unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, fmt_3);
+    if cfg!(log) {
+        wr_do_log_tu(card_ctx, f_log, line!(), fun, card.cache.current_path.type_,
+            unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, fmt_3);
+    }
     rv
 }
 
@@ -511,15 +511,16 @@ pub fn select_file_by_path(card: &mut sc_card, path_ref: &sc_path, file_out_ptr:
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     assert!(path1.len>=2);
-    let target_idx = path1.len/2 -1;
+    let target_idx = path1.len/2 -1; // it's the max. i index in the following loop
     let mut rv;
 
-    let mut path2 = sc_path { len: 2, ..Default::default() }; // SC_PATH_TYPE_FILE_ID
-    for (i, chunk) in path1.value.chunks(2).enumerate() {
+    let mut path2 = sc_path { len: 2, ..sc_path::default() }; // SC_PATH_TYPE_FILE_ID
+    for (i, chunk) in path1.value[..path1.len].chunks(2).enumerate() {
+        assert!(i<=target_idx);
         path2.value[0] = chunk[0];
         path2.value[1] = chunk[1];
         if i<target_idx {
-            rv = tracking_select_file(card, &path2, std::ptr::null_mut(), false);
+            rv = tracking_select_file(card, &path2, null_mut(), false);
         }
         else {
             rv = tracking_select_file(card, &path2, file_out_ptr, need_to_process_fci);
@@ -539,40 +540,40 @@ fn get_known_sec_env_entry_V3_FIPS(is_local: bool, rec_nr: c_uint, buf: &mut [u8
     assert!( is_local || [1, 2].contains(&rec_nr));
     assert!(!is_local || [1, 2, 3, 4, 5].contains(&rec_nr));
 
-    if !is_local {
+    if is_local {
+        match  rec_nr {
+            /* SEID #1: Security Officer Key 0x01 must be authenticated. */
+            1 => { buf.copy_from_slice(&[0x80_u8, 0x01, 0x01,  0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x80,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]) },
+            /* SEID #2: Security Officer Key 0x01 must be authenticated and command must be in Secure Messaging mode (using Key 0x02). */
+            2 => { buf.copy_from_slice(&[0x80_u8, 0x01, 0x02,  0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x80,
+                0xB4, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
+                0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30 ]) },
+            /* SEID #3: User PIN must be verified. */
+            3 => { buf.copy_from_slice(&[0x80_u8, 0x01, 0x03,  0xA4, 0x06, 0x83, 0x01, 0x81, 0x95, 0x01, 0x08,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]) },
+            /* SEID #4: User PIN must be verified and use Secure Messaging with Encryption Key (using Key 0x02). */
+            4 => { buf.copy_from_slice(&[0x80_u8, 0x01, 0x04,  0xA4, 0x06, 0x83, 0x01, 0x81, 0x95, 0x01, 0x08,
+                0xB4, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
+                0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30 ]) },
+            /* SEID #5: Use under Secure Messaging with Encryption Key (using Key 0x02). */
+            5 => { buf.copy_from_slice(&[0x80_u8, 0x01, 0x05,  0xB4, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
+                0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
+                0, 0, 0, 0, 0, 0, 0, 0 ]) },
+            _ => (),
+        }
+    }
+    else {
        match  rec_nr {
            /* SEID #1: Security Officer Key 0x01 must be authenticated. */
-           1 => { buf.copy_from_slice(&[0x80u8, 0x01, 0x01,  0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x80,
+           1 => { buf.copy_from_slice(&[0x80_u8, 0x01, 0x01,  0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x80,
                   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]) },
            /* SEID #2: Security Officer Key 0x01 must be authenticated and command must be in Secure Messaging mode (using Key 0x02). */
-           2 => { buf.copy_from_slice(&[0x80u8, 0x01, 0x02,  0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x80,
+           2 => { buf.copy_from_slice(&[0x80_u8, 0x01, 0x02,  0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x80,
                                                                   0xB4, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
                                                                   0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30 ]) },
            _ => (),
        }
-    }
-    else {
-        match  rec_nr {
-            /* SEID #1: Security Officer Key 0x01 must be authenticated. */
-            1 => { buf.copy_from_slice(&[0x80u8, 0x01, 0x01,  0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x80,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]) },
-            /* SEID #2: Security Officer Key 0x01 must be authenticated and command must be in Secure Messaging mode (using Key 0x02). */
-            2 => { buf.copy_from_slice(&[0x80u8, 0x01, 0x02,  0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x80,
-                                                                   0xB4, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
-                                                                   0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30 ]) },
-            /* SEID #3: User PIN must be verified. */
-            3 => { buf.copy_from_slice(&[0x80u8, 0x01, 0x03,  0xA4, 0x06, 0x83, 0x01, 0x81, 0x95, 0x01, 0x08,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]) },
-            /* SEID #4: User PIN must be verified and use Secure Messaging with Encryption Key (using Key 0x02). */
-            4 => { buf.copy_from_slice(&[0x80u8, 0x01, 0x04,  0xA4, 0x06, 0x83, 0x01, 0x81, 0x95, 0x01, 0x08,
-                                                                   0xB4, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
-                                                                   0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30 ]) },
-            /* SEID #5: Use under Secure Messaging with Encryption Key (using Key 0x02). */
-            5 => { buf.copy_from_slice(&[0x80u8, 0x01, 0x05,  0xB4, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
-                                                                   0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
-                   0, 0, 0, 0, 0, 0, 0, 0 ]) },
-            _ => (),
-        }
     }
 }
 
@@ -582,33 +583,39 @@ fn get_known_sec_env_entry_V3_FIPS(is_local: bool, rec_nr: c_uint, buf: &mut [u8
  * @param
  * @return
  */
+//TODO temporarily allow cognitive_complexity
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cognitive_complexity))]
 pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, depth: c_int*/) -> c_int
 {
+    assert!(!card.ctx.is_null());
+    let card_ctx = unsafe { &mut *card.ctx };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun   = CStr::from_bytes_with_nul(b"enum_dir\0").unwrap();
     let fmt   = CStr::from_bytes_with_nul(b"called for path: %s\0").unwrap();
-    #[cfg(log)]
-    wr_do_log_t(card.ctx, f_log, line!(), fun,
-        unsafe {sc_dump_hex(path_ref.value.as_ptr(), path_ref.len)}, fmt);
+    if cfg!(log) {
+        wr_do_log_t(card_ctx, f_log, line!(), fun,
+            unsafe {sc_dump_hex(path_ref.value.as_ptr(), path_ref.len)}, fmt);
+    }
 
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     assert!(path_ref.len >= 2);
-    let file_id = u16_from_array_begin(&path_ref.value[path_ref.len-2..path_ref.len]);
+    let file_id = u16::from_be_bytes([path_ref.value[path_ref.len-2], path_ref.value[path_ref.len-1]]);
     let dp_files_value = dp.files.get_mut(&file_id).unwrap();
     let fdb = dp_files_value.1[0];
     dp_files_value.0    = path_ref.value;
     dp_files_value.1[1] = path_ref.len as u8;
     /* assumes meaningful values in dp_files_value.1 */
-    let mrl = dp_files_value.1[4] as usize;  // MRL: Max. Record Length; this is correct only if the file is record-based
-    let nor  = dp_files_value.1[5] as c_uint; // NOR: Number Of Records
+    let mrl = usize::from(dp_files_value.1[4]); // MRL: Max. Record Length; this is correct only if the file is record-based
+    let nor  = u32::from(dp_files_value.1[5]);   // NOR: Number Of Records
     card.drv_data = Box::into_raw(dp) as *mut c_void;
 
     let is_se_file_only =  fdb == FDB_SE_FILE && only_se_df;
 
+    /* needs to be done once only */
     if is_se_file_only && mrl>0 && nor>0
     {
         /* file_out_ptr_mut has the only purpose to invoke scb8 retrieval */
-        let mut file_out_ptr_mut = std::ptr::null_mut();
+        let mut file_out_ptr_mut = null_mut();
         let mut rv = /*acos5_select_file*/ unsafe { sc_select_file(card, path_ref, &mut file_out_ptr_mut) };
         assert_eq!(rv, SC_SUCCESS);
         assert!(!file_out_ptr_mut.is_null());
@@ -618,14 +625,14 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
         }
 
         let is_local =  path_ref.len>=6;
-//      let len /*_card_serial_number*/ = if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 {6u8} else {8u8};
+//      let len /*_card_serial_number*/ = if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 {6_u8} else {8_u8};
         let /*mut*/ pin_verified = false;
 /*
-        if SC_AC_CHV == acl_entry_read_method {
+        if false && SC_AC_CHV == acl_entry_read_method {
             /* card.type_== SC_CARD_TYPE_ACOS5_64_V2 have 6 byte serial numbers, SC_CARD_TYPE_ACOS5_64_V3 have 8 byte.
               We are comparing based on 8 bytes, thus append 2 zero bytes for SC_CARD_TYPE_ACOS5_64_V2 when comparing here;
                also, the pin ids may be different from local 0x81 or global 0x01 used here (to be adjusted) */
-            if card.serialnr.value[..8]==[0xFFu8, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA,  0,0][..] { // this is only for serialnr: FF EE DD CC BB AA of a SC_CARD_TYPE_ACOS5_64_V2
+            if card.serialnr.value[..8]==[0xFF_u8, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA,  0,0][..] { // this is only for serialnr: FF EE DD CC BB AA of a SC_CARD_TYPE_ACOS5_64_V2
                 let mut tries_left = 0;
                 let pin_user:  [u8; 8] = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]; // User pin, local  12345678
                 let pin_admin: [u8; 8] = [0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31]; // SO_PIN, global   87654321
@@ -635,26 +642,36 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
                 if is_local {
                     rv = unsafe { sc_verify(card, SC_AC_CHV, 0x80|1, pin_user.as_ptr(), pin_user.len(), &mut tries_left) };
                     pin_user_verified =  rv==SC_SUCCESS;// assert_eq!(rv, SC_SUCCESS);
-                    println!("Pin verification performed for ser.num [0xFFu8, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA,  0,0] and sec. env. file {:X}, resulting in pin_user_verified={}", file_id, pin_user_verified);
+                    println!("Pin verification performed for ser.num [0xFF_u8, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA,  0,0] and sec. env. file {:X}, resulting in pin_user_verified={}", file_id, pin_user_verified);
                 }
                 else if !is_wrong_acs_initialized {
                     rv = unsafe { sc_verify(card, SC_AC_CHV, 1, pin_admin.as_ptr(), pin_admin.len(), &mut tries_left) };
                     pin_admin_verified =  rv==SC_SUCCESS;// assert_eq!(rv, SC_SUCCESS);
-                    println!("Pin verification performed for ser.num [0xFFu8, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA,  0,0] and sec. env. file {:X}, resulting in pin_admin_verified={}", file_id, pin_admin_verified);
+                    println!("Pin verification performed for ser.num [0xFF_u8, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA,  0,0] and sec. env. file {:X}, resulting in pin_admin_verified={}", file_id, pin_admin_verified);
                 }
                 pin_verified = pin_user_verified || pin_admin_verified;
             }
-            else if card.serialnr.value[..8]==[0xFFu8, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA,  9,8][..] { // this example is for a SC_CARD_TYPE_ACOS5_64_V3
+            else if card.serialnr.value[..8]==[0xFF_u8, 0xEE, 0xDD, 0xCC, 0xBB, 0xAA,  9,8][..] { // this example is for a SC_CARD_TYPE_ACOS5_64_V3
                 /* same as before for another Serial no. */
             }
         }
 */
-        let mut vec_seinfo : Vec<SeInfo> = Vec::new();
+        let mut vec_sac_info : Vec<SACinfo> = Vec::new();
         if (card.type_== SC_CARD_TYPE_ACOS5_64_V3  &&  SC_AC_AUT==acl_entry_read_method) ||
              SC_AC_NONE == acl_entry_read_method ||
-            (SC_AC_CHV  == acl_entry_read_method && pin_verified) {
-            for rec_nr in 1..1+nor {
-                let mut buf = [0u8; 255];
+            (SC_AC_CHV  == acl_entry_read_method && pin_verified)
+        {
+            /*
+              TODO only if  card.type_== SC_CARD_TYPE_ACOS5_64_V3 &&
+                            get_op_mode_byte==0 &&
+                            get_fips_compliance == true
+              then take record entries from get_known_sec_env_entry_V3_FIPS
+              pub fn get_op_mode_byte(card: &mut sc_card) -> Result<c_uchar, c_int>
+              pub fn get_fips_compliance(card: &mut sc_card) -> Result<bool, c_int> // is_FIPS_compliant==true
+            */
+
+            for rec_nr in 1..=nor {
+                let mut buf = [0_u8; 255];
                 /* The case for V3 being FIPS-compliant, see 9.0. FIPS Mode File System Requirements: Don't read but take known entries */
                 if card.type_== SC_CARD_TYPE_ACOS5_64_V3  &&  SC_AC_AUT==acl_entry_read_method {
                     get_known_sec_env_entry_V3_FIPS(is_local, rec_nr, &mut buf[..33]);
@@ -666,29 +683,46 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
                         break;
                     }
                     if rv >= 3 {
-                        assert_eq!(rec_nr, buf[2] as u32 /*se id*/); // not really required but recommended: enforces, that se id x(>0) is stored in record indexed x (beginning with index 1)
+                        assert_eq!(rec_nr, u32::from(buf[2]) /*se id*/); // not really required but recommended: enforces, that se id x(>0) is stored in record indexed x (beginning with index 1)
                     }
                 }
-                let mut seinfo = Default::default();
-                let rv = se_parse_crts(buf[2] as c_uint,&buf[3..], &mut seinfo);
+                let mut sac_info = SACinfo::default();
+                let rv = se_parse_sac(u32::from(buf[2]),&buf[3..], &mut sac_info);
                 assert!(rv > 0);
-                vec_seinfo.push(seinfo);
+                vec_sac_info.push(sac_info);
             }
         }
 
         assert!(path_ref.len >= 4);
-        let file_id_dir = u16_from_array_begin(&path_ref.value[path_ref.len-4..path_ref.len-2]);
+        let file_id_dir = u16::from_be_bytes([path_ref.value[path_ref.len-4], path_ref.value[path_ref.len-3]]);
 
         let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-        let dp_files_value = dp.files.get_mut(&file_id_dir).unwrap();
-        dp_files_value.3 = Some(vec_seinfo);
+        assert!(dp.files.contains_key(&file_id_dir));
+        let dp_files_value = dp.files.get_mut(&file_id_dir).unwrap(); // Option< &mut () >
+/*
+        if dp_files_value.3.is_none() {
+            dp_files_value.3 = Some(vec_sac_info);
+        }
+        else {
+             (&mut dp_files_value.3).as_mut().unwrap().extend_from_slice(&vec_sac_info);
+        }
+*/
+
+        if let Some(vec) = (&mut dp_files_value.3).as_mut() {
+            vec.extend_from_slice(&vec_sac_info);
+        }
+        else {
+            dp_files_value.3 = Some(vec_sac_info);
+        }
+
+
         card.drv_data = Box::into_raw(dp) as *mut c_void;
     }
     else if is_DFMF(fdb)
     {
         assert!(path_ref.len <= SC_MAX_PATH_SIZE);
         /* file_out_ptr_mut has the only purpose to invoke scb8 retrieval */
-        let mut file_out_ptr_mut = std::ptr::null_mut();
+        let mut file_out_ptr_mut = null_mut();
         let rv = /*acos5_select_file*/unsafe { sc_select_file(card, path_ref, &mut file_out_ptr_mut) };
         if !file_out_ptr_mut.is_null() {
             unsafe { sc_file_free(file_out_ptr_mut) };
@@ -713,7 +747,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
             };
 
             println!("### There is no MF: The card is uninitialized/virgin/in factory state ### (Card Life Cycle Byte is 0x{:X}, Operation Mode Byte is 0x{:X}, Zeroize Card Disable Byte is 0x{:X})", card_life_cycle_byte, operation_mode_byte, zeroize_card_disable_byte);
-            wr_do_log_ttt(card.ctx, f_log, line!(), fun, card_life_cycle_byte, operation_mode_byte, zeroize_card_disable_byte, CStr::from_bytes_with_nul(
+            wr_do_log_ttt(card_ctx, f_log, line!(), fun, card_life_cycle_byte, operation_mode_byte, zeroize_card_disable_byte, CStr::from_bytes_with_nul(
                 b"### There is no MF: The card is uninitialized/virgin/in factory state ### (Card Life Cycle Byte is 0x%02X, Operation Mode Byte is 0x%02X, Zeroize Card Disable Byte is 0x%02X)\0").unwrap());
             return SC_SUCCESS;
         }
@@ -724,10 +758,10 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
 //            if cfg!(log) {}
             let fmt  = CStr::from_bytes_with_nul(b"### enum_dir: couldn't visit all files due to OpenSC path.len limit.\
  Such deep file system structures are not recommended, nor supported by cos5 with file access control! ###\0").unwrap();
-            wr_do_log(card.ctx, f_log, line!(), fun, fmt);
+            wr_do_log(card_ctx, f_log, line!(), fun, fmt);
         }
         else {
-            let mut files_contained= vec![0u8; 300];
+            let mut files_contained= vec![0_u8; 300];
             let rv = /*acos5_list_files*/ unsafe { sc_list_files(card, files_contained.as_mut_ptr(), files_contained.len()) };
             files_contained.truncate(rv as usize);
             /* * /
@@ -747,29 +781,26 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
             }
         }
     }
-    else
-    {
-        if [FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&fdb) {
-            /* file_out_ptr_mut has the only purpose to invoke scb8 retrieval */
-            let mut file_out_ptr_mut = std::ptr::null_mut();
-            let rv = /*acos5_select_file*/ unsafe { sc_select_file(card, path_ref, &mut file_out_ptr_mut) };
-            if !file_out_ptr_mut.is_null() {
-                unsafe { sc_file_free(file_out_ptr_mut) };
-            }
-            assert_eq!(rv, SC_SUCCESS);
-
-            let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-            if let Some(x) = dp.files.get_mut(&file_id) {
-                /* how to distinguish RSAPUB from RSAPRIV without reading ? Assume unconditionally allowed to read: RSAPUB*/
-                if fdb == FDB_RSA_KEY_EF {
-                    (*x).1[6] = if (*x).2.unwrap()[0] == 0 {PKCS15_FILE_TYPE_RSAPUBLICKEY} else {PKCS15_FILE_TYPE_RSAPRIVATEKEY};
-                }
-                else {
-                    (*x).1[6] = if (*x).2.unwrap()[0] == 0 {PKCS15_FILE_TYPE_ECCPUBLICKEY} else {PKCS15_FILE_TYPE_ECCPRIVATEKEY};
-                }
-            }
-            card.drv_data = Box::into_raw(dp) as *mut c_void;
+    else if [FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&fdb) {
+        /* file_out_ptr_mut has the only purpose to invoke scb8 retrieval */
+        let mut file_out_ptr_mut = null_mut();
+        let rv = /*acos5_select_file*/ unsafe { sc_select_file(card, path_ref, &mut file_out_ptr_mut) };
+        if !file_out_ptr_mut.is_null() {
+            unsafe { sc_file_free(file_out_ptr_mut) };
         }
+        assert_eq!(rv, SC_SUCCESS);
+
+        let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        if let Some(x) = dp.files.get_mut(&file_id) {
+            /* how to distinguish RSAPUB from RSAPRIV without reading ? Assume unconditionally allowed to read: RSAPUB*/
+            if fdb == FDB_RSA_KEY_EF {
+                (*x).1[6] = if (*x).2.unwrap()[0] == 0 {PKCS15_FILE_TYPE_RSAPUBLICKEY} else {PKCS15_FILE_TYPE_RSAPRIVATEKEY};
+            }
+            else {
+                (*x).1[6] = if (*x).2.unwrap()[0] == 0 {PKCS15_FILE_TYPE_ECCPUBLICKEY} else {PKCS15_FILE_TYPE_ECCPRIVATEKEY};
+            }
+        }
+        card.drv_data = Box::into_raw(dp) as *mut c_void;
     }
     SC_SUCCESS
 }
@@ -806,10 +837,10 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
 pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Result<[u8; 8], c_int>
 {
 //   assert_eq!(0b0101_1010u16.popcnt(), 4);
-    let mut scb8 = [0u8; 8]; // if AM has no 1 bit for a command/operation, then it's : always allowed
+    let mut scb8 = [0_u8; 8]; // if AM has no 1 bit for a command/operation, then it's : always allowed
     scb8[7] = 0xFF; // though not expected to be accidentally set, it get's overridden to NEVER: it's not used by ACOS
 
-    if bytes_tag_fcp_sac.len() == 0 {
+    if bytes_tag_fcp_sac.is_empty() {
         return Ok(scb8);
     }
     assert!(bytes_tag_fcp_sac.len() <= 8);
@@ -830,6 +861,25 @@ pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Resul
     Ok(scb8)
 }
 
+pub fn convert_amdo_to_cla_ins_p1_p2_array(amdo_tag: u8, amdo_bytes: &[u8]) -> Result<[u8; 4], c_int> //Access Mode Data Object
+{
+    assert!(!amdo_bytes.is_empty() && amdo_bytes.len() <= 4);
+    let amb = amdo_tag&0x0F;
+    assert!(amb>0);
+    if amb.count_ones() as usize != amdo_bytes.len() { // the count of 1-valued bits of amb Byte must equal  the count of bytes following amb
+        return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
+    }
+    let mut idx = 0;
+    let mut cla_ins_p1_p2 = [0_u8; 4];
+    for (pos, item) in cla_ins_p1_p2.iter_mut().enumerate() { // for pos in 0..4
+        if (amb & (0b1000 >> (pos as u8))) != 0 { //assert(i);we should never get anything for scb8[7], it's not used by ACOS
+            *item = amdo_bytes[idx];
+            idx += 1;
+        }
+    }
+    Ok(cla_ins_p1_p2)
+}
+
 pub const ACL_CATEGORY_DF_MF  : u8 =  1;
 pub const ACL_CATEGORY_EF_CHV : u8 =  2;
 pub const ACL_CATEGORY_KEY    : u8 =  3;
@@ -839,9 +889,11 @@ pub const ACL_CATEGORY_SE     : u8 =  4;
 /*
 This MUST match exactly how *mut sc_acl_entry are added in acos5_process_fci or profile.c
 */
+//TODO temporarily allow cognitive_complexity
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cognitive_complexity))]
 pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_AC_OPS], acl_category: c_uchar) -> Result<[u8; 8], c_int>
 {
-    let mut result = [0x7Fu8,0,0,0,0,0,0,0];
+    let mut result = [0x7F_u8,0,0,0,0,0,0,0];
     match acl_category {
         ACL_CATEGORY_SE => {
             let p = acl[SC_AC_OP_READ as usize];
@@ -995,13 +1047,16 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
  * @param
  * @return
  */
-pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left_ptr: *mut c_int) -> c_int
+pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left: &mut c_int) -> c_int
 {
 /* when is AODF read for the pin details info info ? */
+    assert!(!card.ctx.is_null());
+    let card_ctx = unsafe { &mut *card.ctx };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun     = CStr::from_bytes_with_nul(b"pin_get_policy\0").unwrap();
-    #[cfg(log)]
-    wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+    if cfg!(log) {
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+    }
 
     data.pin1.min_length = 4; /* min length of PIN */
     data.pin1.max_length = 8; /* max length of PIN */
@@ -1015,38 +1070,35 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
 
     data.pin1.max_tries = 8;//pin_tries_max; /* Used for signaling back from SC_PIN_CMD_GET_INFO */ /* assume: 8 as factory setting; max allowed number of retries is unretrievable with proper file access condition NEVER read */
 
-    let command = [0x00u8, 0x20, 0x00, data.pin_reference as u8];
-    let mut apdu = Default::default();
-    let mut rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
+    let command = [0x00_u8, 0x20, 0x00, data.pin_reference as u8];
+    let mut apdu = sc_apdu::default();
+    let mut rv = sc_bytes2apdu_wrapper(card_ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
     assert_eq!(apdu.cse, SC_APDU_CASE_1);
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     if rv != SC_SUCCESS || apdu.sw1 != 0x63 || (apdu.sw2 & 0xC0) != 0xC0 {
-        let fmt = CStr::from_bytes_with_nul(b"sc_transmit_apdu or 'Get remaining number of retries left for the PIN' \
+        if cfg!(log) {
+            let fmt = CStr::from_bytes_with_nul(b"sc_transmit_apdu or 'Get remaining number of retries left for the PIN' \
                      failed\0").unwrap();
-        #[cfg(log)]
-        wr_do_log(card.ctx, f_log, line!(), fun, fmt);
+            wr_do_log(card_ctx, f_log, line!(), fun, fmt);
+        }
         return SC_ERROR_KEYPAD_MSG_TOO_LONG;
     }
-    data.pin1.tries_left = (apdu.sw2 & 0x0Fu32) as c_int; //  63 Cnh     n is remaining tries
-
-
-    if !tries_left_ptr.is_null() {
-        unsafe { *tries_left_ptr = data.pin1.tries_left };
-    }
+    data.pin1.tries_left = (apdu.sw2 & 0x0F_u32) as c_int; //  63 Cnh     n is remaining tries
+    *tries_left = data.pin1.tries_left;
     SC_SUCCESS
 }
 
 pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 4]
 {
-    let acos5_atrs = [
+    [
         sc_atr_table {
             atr:     CStr::from_bytes_with_nul(ATR_V2).unwrap().as_ptr(),
             atrmask: CStr::from_bytes_with_nul(ATR_MASK).unwrap().as_ptr(),
             name:    CStr::from_bytes_with_nul(NAME_V2).unwrap().as_ptr(),
             type_: SC_CARD_TYPE_ACOS5_64_V2,
             flags: 0,
-            card_atr: std::ptr::null_mut(),
+            card_atr: null_mut(),
         },
         sc_atr_table {
             atr:     CStr::from_bytes_with_nul(ATR_V3).unwrap().as_ptr(),
@@ -1054,7 +1106,7 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 4]
             name:    CStr::from_bytes_with_nul(NAME_V3).unwrap().as_ptr(),
             type_: SC_CARD_TYPE_ACOS5_64_V3,
             flags: 0,
-            card_atr: std::ptr::null_mut(),
+            card_atr: null_mut(),
         },
         sc_atr_table {
             atr:     CStr::from_bytes_with_nul(ATR_V4).unwrap().as_ptr(),
@@ -1062,17 +1114,16 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 4]
             name:    CStr::from_bytes_with_nul(NAME_V4).unwrap().as_ptr(),
             type_: SC_CARD_TYPE_ACOS5_EVO_V4,
             flags: 0,
-            card_atr: std::ptr::null_mut(),
+            card_atr: null_mut(),
         },
-        Default::default(),
-    ];
-    acos5_atrs
+        sc_atr_table::default(),
+    ]
 }
 
 /*  ECC: Curves P-224/P-256/P-384/P-521 */
 pub /*const*/ fn acos5_supported_ec_curves() -> [acos5_ec_curve; 4]
 {
-    let acos5_ec_curves = [
+    [
         acos5_ec_curve {
             curve_name: CStr::from_bytes_with_nul(b"nistp224\0").unwrap().as_ptr(),
             curve_oid:  sc_object_id { value : [1, 3, 132, 0, 33,  -1,0,0,0,0,0,0,0,0,0,0] },
@@ -1093,9 +1144,8 @@ pub /*const*/ fn acos5_supported_ec_curves() -> [acos5_ec_curve; 4]
             curve_oid:  sc_object_id { value : [1, 3, 132, 0, 35,  -1,0,0,0,0,0,0,0,0,0,0] },
             size: 521,
         },
-//        Default::default(),
-    ];
-    acos5_ec_curves
+//        acos5_ec_curve::default(),
+    ]
 }
 pub fn set_is_running_cmd_long_response(card: &mut sc_card, value: bool)
 {
@@ -1174,11 +1224,11 @@ pub fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
 {
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     dp.sec_env_mod_len = 0;
-    if env_ref.algorithm==SC_ALGORITHM_RSA && (env_ref.flags as c_uint & SC_SEC_ENV_FILE_REF_PRESENT) > 0 {
+    if env_ref.algorithm==SC_ALGORITHM_RSA && (env_ref.flags & SC_SEC_ENV_FILE_REF_PRESENT) > 0 {
         assert!(env_ref.file_ref.len >= 2);
         let path_idx = env_ref.file_ref.len - 2;
-        let file_id = u16_from_array_begin(&env_ref.file_ref.value[path_idx..path_idx+2]);
-        let file_size = u16_from_array_begin(&dp.files[&file_id].1[4..6]) as u32;
+        let file_id = u16::from_be_bytes([env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1]]);
+        let file_size = u16::from_be_bytes([dp.files[&file_id].1[4], dp.files[&file_id].1[5]]);
         if [SC_SEC_OPERATION_SIGN,
             SC_SEC_OPERATION_DECIPHER,
             SC_SEC_OPERATION_DECIPHER_RSAPRIVATE].contains(&env_ref.operation) { //priv
@@ -1208,28 +1258,39 @@ pub fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
 //std::cmp::min(512,outlen)
 
 //TODO integrate this into encrypt_asym
+//TODO while it's unused, allow not_unsafe_ptr_arg_deref
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::not_unsafe_ptr_arg_deref))]
+#[allow(dead_code)]
 /* this is tailored for a special testing use case, don't use generally, SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC */
-pub fn encrypt_public_rsa(card: *mut sc_card, signature: *const c_uchar, siglen: usize)
+pub fn encrypt_public_rsa(card_ptr: *mut sc_card, signature: *const c_uchar, siglen: usize)
 {
-    let card_ref_mut = unsafe { &mut *card };
-    let mut path = Default::default();
+/*
+    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+*/
+    assert!(!card_ptr.is_null());
+    assert!(unsafe { !(*card_ptr).ctx.is_null() });
+    let card       = unsafe { &mut *card_ptr };
+    let card_ctx = unsafe { &mut *card.ctx };
+    let mut path = sc_path::default();
     unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3f0041004133\0").unwrap().as_ptr(), &mut path); } // type = SC_PATH_TYPE_PATH;
-    let file_ptr_address = std::ptr::null_mut();
-    let mut rv = unsafe { sc_select_file(card_ref_mut, &path, file_ptr_address) };
+    let file_ptr_address = null_mut();
+    let mut rv = unsafe { sc_select_file(card, &path, file_ptr_address) };
     assert_eq!(rv, SC_SUCCESS);
-    let command = [0u8, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x12, 0x81, 0x02, 0x41, 0x33, 0x95, 0x01, 0x80];
-    let mut apdu = Default::default();
-    rv = sc_bytes2apdu_wrapper(card_ref_mut.ctx, &command, &mut apdu);
+    let command = [0_u8, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x12, 0x81, 0x02, 0x41, 0x33, 0x95, 0x01, 0x80];
+    let mut apdu = sc_apdu::default();
+    rv = sc_bytes2apdu_wrapper(card_ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
     assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     assert_eq!(rv, SC_SUCCESS);
-    let command = [0u8, 0x2A, 0x84, 0x80, 0x02, 0xFF, 0xFF, 0xFF]; // will replace lc, cmd_data, le later; the last 4 bytes are placeholders only for sc_bytes2apdu_wrapper
-    apdu = Default::default();
-    rv = sc_bytes2apdu_wrapper(card_ref_mut.ctx, &command, &mut apdu);
+    let command = [0_u8, 0x2A, 0x84, 0x80, 0x02, 0xFF, 0xFF, 0xFF]; // will replace lc, cmd_data, le later; the last 4 bytes are placeholders only for sc_bytes2apdu_wrapper
+    apdu = sc_apdu::default();
+    rv = sc_bytes2apdu_wrapper(card_ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
     assert_eq!(apdu.cse, SC_APDU_CASE_4_SHORT);
-    let mut rbuf = [0u8; 512];
+    let mut rbuf = [0_u8; 512];
     assert_eq!(rbuf.len(), siglen);
     apdu.data    = signature;
     apdu.datalen = siglen;
@@ -1237,11 +1298,11 @@ pub fn encrypt_public_rsa(card: *mut sc_card, signature: *const c_uchar, siglen:
     apdu.resp    = rbuf.as_mut_ptr();
     apdu.resplen = siglen;
     apdu.le      = std::cmp::min(siglen, SC_READER_SHORT_APDU_MAX_RECV_SIZE);
-    if apdu.lc > card_ref_mut.max_send_size {
+    if apdu.lc > card.max_send_size {
         apdu.flags |= SC_APDU_FLAGS_CHAINING as c_ulong;
     }
 
-    set_is_running_cmd_long_response(card_ref_mut, true); // switch to false is done by acos5_get_response
+    set_is_running_cmd_long_response(card, true); // switch to false is done by acos5_get_response
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     assert_eq!(rv, SC_SUCCESS);
 
@@ -1267,27 +1328,29 @@ pub fn encrypt_public_rsa(card: *mut sc_card, signature: *const c_uchar, siglen:
 pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtl_generate_crypt_asym, print: bool) -> c_int
 {
     /*  don't use print==true: it's a special, tailored case (with some hard-code crypt_data) for testing purposes */
+    assert!(!card.ctx.is_null());
+    let card_ctx = unsafe { &mut *card.ctx };
     let mut rv;
     let mut env = sc_security_env {
         operation: SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC,
-        flags    : SC_SEC_ENV_FILE_REF_PRESENT.into(),
+        flags    : SC_SEC_ENV_FILE_REF_PRESENT,
         algorithm: SC_ALGORITHM_RSA,
-        file_ref: sc_path { len: 2, ..Default::default() }, // file_ref.value[0..2] = fidRSApublic.getub2;
-        ..Default::default()
+        file_ref: sc_path { len: 2, ..sc_path::default() }, // file_ref.value[0..2] = fidRSApublic.getub2;
+        ..sc_security_env::default()
     };
     if crypt_data.perform_mse {
-        unsafe { copy_nonoverlapping(array2_from_u16(crypt_data.file_id_pub as u16).as_ptr(), env.file_ref.value.as_mut_ptr(), 2); }
-//        command = [0u8, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x12, 0x81, 0x02, (crypt_data.file_id_pub >> 8) as c_uchar, (crypt_data.file_id_pub & 0xFF) as c_uchar, 0x95, 0x01, 0x80];
+        unsafe { copy_nonoverlapping(crypt_data.file_id_pub.to_be_bytes().as_ptr(), env.file_ref.value.as_mut_ptr(), 2); }
+//        command = [0_u8, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x12, 0x81, 0x02, (crypt_data.file_id_pub >> 8) as c_uchar, (crypt_data.file_id_pub & 0xFF) as c_uchar, 0x95, 0x01, 0x80];
     }
     else if print {
         env.file_ref.value[0] = 0x41;
         env.file_ref.value[1] = 0x33;
-        let mut path = Default::default();
-        let mut file_ptr = std::ptr::null_mut();
+        let mut path = sc_path::default();
+        let mut file_ptr = null_mut();
         unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3f0041004133\0").unwrap().as_ptr(), &mut path); } // path.type_ = SC_PATH_TYPE_PATH;
         rv = unsafe { sc_select_file(card, &path, &mut file_ptr) };
         assert_eq!(rv, SC_SUCCESS);
-//        command = [0u8, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x12, 0x81, 0x02, 0x41, 0x33, 0x95, 0x01, 0x80];
+//        command = [0_u8, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x12, 0x81, 0x02, 0x41, 0x33, 0x95, 0x01, 0x80];
     }
 
     if crypt_data.perform_mse || print {
@@ -1301,12 +1364,12 @@ pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtl_generate_crypt_
             return rv;
         }
     }
-    let command = [0u8, 0x2A, 0x84, 0x80, 0x02, 0xFF, 0xFF, 0xFF]; // will replace lc, cmd_data, le later; the last 4 bytes are placeholders only for sc_bytes2apdu_wrapper
-    let mut apdu = Default::default();
-    rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
+    let command = [0_u8, 0x2A, 0x84, 0x80, 0x02, 0xFF, 0xFF, 0xFF]; // will replace lc, cmd_data, le later; the last 4 bytes are placeholders only for sc_bytes2apdu_wrapper
+    let mut apdu = sc_apdu::default();
+    rv = sc_bytes2apdu_wrapper(card_ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
     assert_eq!(apdu.cse, SC_APDU_CASE_4_SHORT);
-    let mut rbuf = [0u8; 512];
+    let mut rbuf = [0_u8; 512];
  //   assert_eq!(rbuf.len(), siglen);
     apdu.data    = crypt_data.data.as_ptr();
     apdu.datalen = crypt_data.data_len;
@@ -1349,23 +1412,25 @@ pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtl_generate_crypt_
 
 pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym) -> c_int
 {
+    assert!(!card.ctx.is_null());
+    let card_ctx = unsafe { &mut *card.ctx };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"generate_asym\0").unwrap();
     if cfg!(log) {
         let fmt  = CStr::from_bytes_with_nul(CALLED).unwrap();
-        wr_do_log(card.ctx, f_log, line!(), fun, fmt);
+        wr_do_log(card_ctx, f_log, line!(), fun, fmt);
     }
     let mut rv;
 
     if data.perform_mse {
         let mut env = sc_security_env {
             operation: SC_SEC_OPERATION_GENERATE_RSAPRIVATE,
-            flags    : (SC_SEC_ENV_ALG_PRESENT | SC_SEC_ENV_FILE_REF_PRESENT).into(),
+            flags    : SC_SEC_ENV_ALG_PRESENT | SC_SEC_ENV_FILE_REF_PRESENT,
             algorithm: SC_ALGORITHM_RSA,
-            file_ref: sc_path { len: 2, ..Default::default() }, // file_ref.value[0..2] = fidRSAprivate.getub2;
-            ..Default::default()
+            file_ref: sc_path { len: 2, ..sc_path::default() }, // file_ref.value[0..2] = fidRSAprivate.getub2;
+            ..sc_security_env::default()
         };
-        unsafe { copy_nonoverlapping(array2_from_u16(data.file_id_priv).as_ptr(), env.file_ref.value.as_mut_ptr(), 2); }
+        unsafe { copy_nonoverlapping(data.file_id_priv.to_be_bytes().as_ptr(), env.file_ref.value.as_mut_ptr(), 2); }
         rv = /*acos5_set_security_env*/ unsafe { sc_set_security_env(card, &env, 0) };
         if rv < 0 {
 /* mixin (log!(__FUNCTION__,  "acos5_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPRIVATE")); */
@@ -1374,27 +1439,27 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
 
         let mut env = sc_security_env {
             operation: SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
-            flags    : (SC_SEC_ENV_ALG_PRESENT | SC_SEC_ENV_FILE_REF_PRESENT).into(),
+            flags    : SC_SEC_ENV_ALG_PRESENT | SC_SEC_ENV_FILE_REF_PRESENT,
             algorithm: SC_ALGORITHM_RSA,
-            file_ref: sc_path { len: 2, ..Default::default() }, // file_ref.value[0..2] = fidRSApublic.getub2;
-            ..Default::default()
+            file_ref: sc_path { len: 2, ..sc_path::default() }, // file_ref.value[0..2] = fidRSApublic.getub2;
+            ..sc_security_env::default()
         };
-        unsafe { copy_nonoverlapping(array2_from_u16(data.file_id_pub).as_ptr(), env.file_ref.value.as_mut_ptr(), 2); }
+        unsafe { copy_nonoverlapping(data.file_id_pub.to_be_bytes().as_ptr(), env.file_ref.value.as_mut_ptr(), 2); }
         rv = /*acos5_set_security_env*/ unsafe { sc_set_security_env(card, &env, 0) };
         if rv < 0 {
 /* mixin (log!(__FUNCTION__,  "acos5_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC")); */
             return rv;
         }
     }
-    let mut command = [0u8, 0x46, 0,0,18, data.key_len_code, data.key_priv_type_code, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+    let mut command = [0_u8, 0x46, 0,0,18, data.key_len_code, data.key_priv_type_code, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
     if data.do_generate_with_standard_rsa_pub_exponent { command[4] = 2; }
     else { unsafe {copy_nonoverlapping(data.rsa_pub_exponent.as_ptr(), command.as_mut_ptr().add(7), data.rsa_pub_exponent.len())}; }
-    let mut apdu = Default::default();
-    rv = sc_bytes2apdu_wrapper(card.ctx, &command[.. command.len() - if data.do_generate_with_standard_rsa_pub_exponent {16} else {0}], &mut apdu);
+    let mut apdu = sc_apdu::default();
+    rv = sc_bytes2apdu_wrapper(card_ctx, &command[.. command.len() - if data.do_generate_with_standard_rsa_pub_exponent {16} else {0}], &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
     assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
     let fmt  = CStr::from_bytes_with_nul(b"generate_asym: %s\0").unwrap();
-    wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe {sc_dump_hex(command.as_ptr(), 7)}, fmt);
+    wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe {sc_dump_hex(command.as_ptr(), 7)}, fmt);
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     if rv != SC_SUCCESS { return rv; }
     rv = unsafe { sc_check_apdu(card, &apdu) };
@@ -1411,7 +1476,7 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
 #[allow(non_snake_case)]
 pub fn is_any_known_digestAlgorithm(digest_info: &[u8]) -> bool
 {
-    let known_len = [34usize, 35, 47, 51, 67, 83];
+    let known_len = [34_usize, 35, 47, 51, 67, 83];
     if !known_len.contains(&digest_info.len()) {
         return false;
     }
@@ -1435,29 +1500,29 @@ RFC 8017                      PKCS #1 v2.2                 November 2016
     }
 
     #[allow(non_snake_case)]
-    let digestAlgorithm_sha1   = [0x30u8, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x04, 0x14];
+    let digestAlgorithm_sha1   = [0x30_u8, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x04, 0x14];
     #[allow(non_snake_case)]
-    let digestAlgorithm_sha256 = [0x30u8, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20];
+    let digestAlgorithm_sha256 = [0x30_u8, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20];
 */
     #[allow(non_snake_case)]
-//  let digestAlgorithm_ripemd160_?         = [0x30u8, 0x22, 0x30, 0x0A, 0x06, 0x06, 0x2B, 0x24, 0x03, 0x03, 0x01, 0x02, 0x05, 0x00, 0x04, 0x14];
-    let digestAlgorithm_ripemd160  = [0x30u8, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2B, 0x24, 0x03, 0x02, 0x01, 0x05, 0x00, 0x04, 0x14];
+//  let digestAlgorithm_ripemd160_?         = [0x30_u8, 0x22, 0x30, 0x0A, 0x06, 0x06, 0x2B, 0x24, 0x03, 0x03, 0x01, 0x02, 0x05, 0x00, 0x04, 0x14];
+    let digestAlgorithm_ripemd160  = [0x30_u8, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2B, 0x24, 0x03, 0x02, 0x01, 0x05, 0x00, 0x04, 0x14];
 //                                               30,     21,   30,    9,    6,    5,   2B,   24,    3,    2,    1,    5,    0,    4,   14
     #[allow(non_snake_case)]
-    let digestAlgorithm_md2        = [0x30u8, 0x20, 0x30, 0x0c, 0x06, 0x08, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x02, 0x02, 0x05, 0x00, 0x04, 0x10];
+    let digestAlgorithm_md2        = [0x30_u8, 0x20, 0x30, 0x0c, 0x06, 0x08, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x02, 0x02, 0x05, 0x00, 0x04, 0x10];
     #[allow(non_snake_case)]
-    let digestAlgorithm_md5        = [0x30u8, 0x20, 0x30, 0x0c, 0x06, 0x08, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x02, 0x05, 0x05, 0x00, 0x04, 0x10];
+    let digestAlgorithm_md5        = [0x30_u8, 0x20, 0x30, 0x0c, 0x06, 0x08, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x02, 0x05, 0x05, 0x00, 0x04, 0x10];
 
     #[allow(non_snake_case)]
-    let digestAlgorithm_sha224     = [0x30u8, 0x2d, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x04, 0x05, 0x00, 0x04, 0x1c];
+    let digestAlgorithm_sha224     = [0x30_u8, 0x2d, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x04, 0x05, 0x00, 0x04, 0x1c];
     #[allow(non_snake_case)]
-    let digestAlgorithm_sha512_224 = [0x30u8, 0x2d, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x05, 0x05, 0x00, 0x04, 0x1c];
+    let digestAlgorithm_sha512_224 = [0x30_u8, 0x2d, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x05, 0x05, 0x00, 0x04, 0x1c];
     #[allow(non_snake_case)]
-    let digestAlgorithm_sha512_256 = [0x30u8, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x06, 0x05, 0x00, 0x04, 0x20];
+    let digestAlgorithm_sha512_256 = [0x30_u8, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x06, 0x05, 0x00, 0x04, 0x20];
     #[allow(non_snake_case)]
-    let digestAlgorithm_sha384     = [0x30u8, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30];
+    let digestAlgorithm_sha384     = [0x30_u8, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30];
     #[allow(non_snake_case)]
-    let digestAlgorithm_sha512     = [0x30u8, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40];
+    let digestAlgorithm_sha512     = [0x30_u8, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40];
 
 
     match digest_info.len() {
@@ -1529,7 +1594,7 @@ pub fn trailing_blockcipher_padding_get_length(
     assert_eq!(usize::from(block_size), last_block_values.len());
     match padding_type {
         BLOCKCIPHER_PAD_TYPE_ZEROES => {
-            let mut cnt = 0u8;
+            let mut cnt = 0_u8;
             for b in last_block_values.iter().rev() {
                 if *b==0 { cnt += 1; }
                 else {
@@ -1540,7 +1605,7 @@ pub fn trailing_blockcipher_padding_get_length(
             Ok(cnt)
         },
         BLOCKCIPHER_PAD_TYPE_ONEANDZEROES => {
-            let mut cnt = 0u8;
+            let mut cnt = 0_u8;
             for b in last_block_values.iter().rev() {
                 if *b==0 { cnt += 1; }
                 else {
@@ -1554,8 +1619,8 @@ pub fn trailing_blockcipher_padding_get_length(
         },
         BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64 => {
             /* last byte 0x80 will be interpreted as padding, thus plaintext data can't end with 0x80 ! TODO possibly check while encrypting for trailing byte 0x80 */
-            if ![0u8, 0x80].contains(&last_block_values[usize::from(block_size-1)]) {return Ok(0);}
-            let mut cnt = 0u8;
+            if ![0_u8, 0x80].contains(&last_block_values[usize::from(block_size-1)]) {return Ok(0);}
+            let mut cnt = 0_u8;
             for b in last_block_values.iter().rev() {
                 if *b==0 { cnt += 1; }
                 else {
@@ -1564,12 +1629,12 @@ pub fn trailing_blockcipher_padding_get_length(
                     break;
                 }
             }
-            if cnt==block_size && [0u8, 0x80].contains(&last_block_values[0]) {return Ok(0)/*Err(SC_ERROR_KEYPAD_MSG_TOO_LONG)*/;}
+            if cnt==block_size && [0_u8, 0x80].contains(&last_block_values[0]) {return Ok(0)/*Err(SC_ERROR_KEYPAD_MSG_TOO_LONG)*/;}
             Ok(cnt)
         },
         BLOCKCIPHER_PAD_TYPE_PKCS5 => {
             let pad_byte = last_block_values[last_block_values.len()-1];
-            let mut cnt = 1u8;
+            let mut cnt = 1_u8;
             for (i,b) in last_block_values[..usize::from(block_size-1)].iter().rev().enumerate() {
                 if *b==pad_byte && i+1<usize::from(pad_byte) { cnt += 1; }
                 else {break;}
@@ -1579,7 +1644,7 @@ pub fn trailing_blockcipher_padding_get_length(
         },
         BLOCKCIPHER_PAD_TYPE_ANSIX9_23 => {
             let pad_byte = last_block_values[last_block_values.len()-1];
-            let mut cnt = 1u8;
+            let mut cnt = 1_u8;
             for (i,b) in last_block_values[..usize::from(block_size-1)].iter().rev().enumerate() {
                 if *b==0 && i+1<usize::from(pad_byte) { cnt += 1; }
                 else {break;}
@@ -1634,31 +1699,35 @@ https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Cipher_Block_Chaini
 
 */
 #[allow(non_snake_case)]
+//TODO temporarily allow cognitive_complexity
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cognitive_complexity))]
 pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> c_int
 {
+    assert!(!card.ctx.is_null());
+    let card_ctx = unsafe { &mut *card.ctx };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"sym_en_decrypt\0").unwrap();
     if cfg!(log) {
         let fmt_enc  = CStr::from_bytes_with_nul(b"called for encryption\0").unwrap();
         let fmt_dec  = CStr::from_bytes_with_nul(b"called for decryption\0").unwrap();
-        wr_do_log(card.ctx, f_log, line!(), fun,if crypt_sym.encrypt {fmt_enc} else {fmt_dec});
+        wr_do_log(card_ctx, f_log, line!(), fun,if crypt_sym.encrypt {fmt_enc} else {fmt_dec});
     }
 
     let indata_len;
     let indata_ptr;
     let mut vec_in = Vec::new();
 
-    if !crypt_sym.infile.is_null() {
+    if crypt_sym.infile.is_null() {
+        indata_len = std::cmp::min(crypt_sym.indata_len, crypt_sym.indata.len());
+        indata_ptr = crypt_sym.indata.as_ptr();
+    }
+    else {
         vec_in.extend_from_slice(match vecu8_from_file(crypt_sym.infile) {
             Ok(vec) => vec,
             Err(e) => return e.raw_os_error().unwrap(),
         }.as_ref());
         indata_len = vec_in.len();
         indata_ptr = vec_in.as_ptr();
-    }
-    else {
-        indata_len = std::cmp::min(crypt_sym.indata_len, crypt_sym.indata.len());
-        indata_ptr = crypt_sym.indata.as_ptr();
     }
 
     let mut rv;
@@ -1676,22 +1745,22 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     let outdata_ptr;
     let mut vec_out = Vec::new();
 
-    if !crypt_sym.outfile.is_null() {
-        vec_out.resize(Len2, 0u8);
-        outdata_len = Len2;
-        outdata_ptr = vec_out.as_mut_ptr();
-    }
-    else {
+    if crypt_sym.outfile.is_null() {
         outdata_len = std::cmp::min(crypt_sym.outdata_len, crypt_sym.outdata.len());
         outdata_ptr = crypt_sym.outdata.as_mut_ptr();
+    }
+    else {
+        vec_out.resize(Len2, 0_u8);
+        outdata_len = Len2;
+        outdata_ptr = vec_out.as_mut_ptr();
     }
 /* */
     if cfg!(log) {
         assert!(indata_len >= 32);
         let fmt  = CStr::from_bytes_with_nul(b"called with indata_len: %zu, first 16 bytes: %s\0").unwrap();
-        wr_do_log_tu(card.ctx, f_log, line!(), fun, indata_len, unsafe {sc_dump_hex(indata_ptr, 32)}, fmt);
+        wr_do_log_tu(card_ctx, f_log, line!(), fun, indata_len, unsafe {sc_dump_hex(indata_ptr, 32)}, fmt);
         let fmt  = CStr::from_bytes_with_nul(b"called with infile_name: %s, outfile_name: %s\0").unwrap();
-        wr_do_log_tt(card.ctx, f_log, line!(), fun, crypt_sym.infile, crypt_sym.outfile, fmt);
+        wr_do_log_tt(card_ctx, f_log, line!(), fun, crypt_sym.infile, crypt_sym.outfile, fmt);
     }
 /* */
 
@@ -1701,50 +1770,56 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     assert!(Len1 == Len2 || outdata_len == Len2);
     let mut inDataRem = Vec::with_capacity(block_size);
     if crypt_sym.encrypt && Len1 != Len2 {
-        inDataRem.resize(Len1-Len0, 0u8);
+        inDataRem.resize(Len1-Len0, 0_u8);
         unsafe { copy_nonoverlapping(indata_ptr.add(Len0), inDataRem.as_mut_ptr(), Len1-Len0) };
         inDataRem.extend_from_slice(trailing_blockcipher_padding_calculate(crypt_sym.block_size, crypt_sym.pad_type, (Len1-Len0) as u8).as_slice() );
         assert_eq!(inDataRem.len(), block_size);
     }
 
-    let mut env = Default::default();
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+    let mut env = sc_security_env::default();
     if crypt_sym.perform_mse {
+        #[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
+        let env;
         /* Security Environment */
         #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
         let sec_env_param;
         env = sc_security_env {
             operation: if crypt_sym.encrypt {SC_SEC_OPERATION_ENCIPHER_SYMMETRIC} else {SC_SEC_OPERATION_DECIPHER_SYMMETRIC},
-            flags    : (SC_SEC_ENV_KEY_REF_PRESENT | SC_SEC_ENV_ALG_REF_PRESENT | SC_SEC_ENV_ALG_PRESENT).into(),
-            algorithm: if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else { if crypt_sym.key_len!=64 {SC_ALGORITHM_3DES} else {SC_ALGORITHM_DES} },
+            flags    : SC_SEC_ENV_KEY_REF_PRESENT | SC_SEC_ENV_ALG_REF_PRESENT | SC_SEC_ENV_ALG_PRESENT,
+            algorithm: if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else if crypt_sym.key_len==64 {SC_ALGORITHM_DES} else {SC_ALGORITHM_3DES},
             key_ref: [crypt_sym.key_ref, 0,0,0,0,0,0,0],
             key_ref_len: 1,
-            algorithm_ref: algo_ref_cos5_sym_MSE(if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else { if crypt_sym.key_len!=64 {SC_ALGORITHM_3DES} else {SC_ALGORITHM_DES} }, crypt_sym.cbc),
-            ..Default::default()
+            algorithm_ref: algo_ref_cos5_sym_MSE(if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else if crypt_sym.key_len==64 {SC_ALGORITHM_DES} else {SC_ALGORITHM_3DES},
+                                                 crypt_sym.cbc),
+            ..sc_security_env::default()
         };
         #[cfg(not(v0_17_0))]
-            { env.flags |= SC_SEC_ENV_KEY_REF_SYMMETRIC as c_ulong; }
+        { env.flags |= SC_SEC_ENV_KEY_REF_SYMMETRIC as c_ulong; }
         #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-            {
-                if (env.algorithm & SC_ALGORITHM_AES) > 0 {
-                    if !crypt_sym.cbc { env.algorithm_flags |= SC_ALGORITHM_AES_ECB; }
-                    else {
-                        if crypt_sym.pad_type == BLOCKCIPHER_PAD_TYPE_PKCS5
-                        { env.algorithm_flags |= SC_ALGORITHM_AES_CBC_PAD; }
-                        else
-                        { env.algorithm_flags |= SC_ALGORITHM_AES_CBC; }
-                    }
+        {
+            if (env.algorithm & SC_ALGORITHM_AES) > 0 {
+                if !crypt_sym.cbc {
+                    env.algorithm_flags |= SC_ALGORITHM_AES_ECB;
                 }
-
-                if crypt_sym.iv_len != 0 {
-                    assert_eq!(crypt_sym.iv_len, block_size);
-                    sec_env_param = sc_sec_env_param {
-                        param_type: SC_SEC_ENV_PARAM_IV,
-                        value: crypt_sym.iv.as_mut_ptr() as *mut c_void,
-                        value_len: crypt_sym.iv_len as c_uint
-                    };
-                    env.params[0] = sec_env_param;
+                else if crypt_sym.pad_type == BLOCKCIPHER_PAD_TYPE_PKCS5 {
+                    env.algorithm_flags |= SC_ALGORITHM_AES_CBC_PAD;
+                }
+                else {
+                    env.algorithm_flags |= SC_ALGORITHM_AES_CBC;
                 }
             }
+
+            if crypt_sym.iv_len > 0 {
+                assert_eq!(crypt_sym.iv_len, block_size);
+                sec_env_param = sc_sec_env_param {
+                    param_type: SC_SEC_ENV_PARAM_IV,
+                    value: crypt_sym.iv.as_mut_ptr() as *mut c_void,
+                    value_len: crypt_sym.iv_len as c_uint
+                };
+                env.params[0] = sec_env_param;
+            }
+        }
         rv = /*acos5_set_security_env*/ unsafe { sc_set_security_env(card, &env, 0) };
         if rv < 0 {
             /*
@@ -1753,7 +1828,8 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
               return IUP_DEFAULT;
             */
             if cfg!(log) {
-                 wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+                 wr_do_log_tu(card_ctx, f_log, line!(), fun, rv, unsafe {sc_strerror(rv)},
+                              CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
             }
             return rv;
         }
@@ -1761,15 +1837,15 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
 
     /* encrypt / decrypt */
     let mut first = true;
-    let max_send = 256usize - block_size;
-    let command : [u8; 7] = [if !crypt_sym.cbc || (Len1==Len2 && Len1<=max_send) {0u8} else {0x10u8}, 0x2A,
-        if crypt_sym.encrypt {0x84u8} else {0x80u8}, if crypt_sym.encrypt {0x80u8} else {0x84u8}, 0x01, 0xFF, 0xFF];
-    let mut apdu = Default::default();
-    rv = sc_bytes2apdu_wrapper(card.ctx, &command, &mut apdu);
+    let max_send = 256_usize - block_size;
+    let command : [u8; 7] = [if !crypt_sym.cbc || (Len1==Len2 && Len1<=max_send) {0_u8} else {0x10_u8}, 0x2A,
+        if crypt_sym.encrypt {0x84_u8} else {0x80_u8}, if crypt_sym.encrypt {0x80_u8} else {0x84_u8}, 0x01, 0xFF, 0xFF];
+    let mut apdu = sc_apdu::default();
+    rv = sc_bytes2apdu_wrapper(card_ctx, &command, &mut apdu);
     assert_eq!(rv, SC_SUCCESS);
     assert_eq!(apdu.cse, SC_APDU_CASE_4_SHORT);
-    let mut cnt = 0usize; // counting apdu.resplen bytes received;
-    let mut path = Default::default();
+    let mut cnt = 0_usize; // counting apdu.resplen bytes received;
+    let mut path = sc_path::default();
     /* select currently selected DF (clear accumulated CRT) */
     unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3FFF\0").unwrap().as_ptr(), &mut path); }
 
@@ -1779,7 +1855,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
         else if condition {
             #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
             {
-                rv = unsafe { sc_select_file(card, &path, std::ptr::null_mut()) }; // clear accumulated CRT
+                rv = unsafe { sc_select_file(card, &path, null_mut()) }; // clear accumulated CRT
                 assert_eq!(rv, SC_SUCCESS);
                 rv = /*acos5_set_security_env*/ unsafe { sc_set_security_env(card, &env, 0) };
                 if rv < 0 {
@@ -1792,7 +1868,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
                       return IUP_DEFAULT;
                     */
                     if cfg!(log) {
-                        wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+                        wr_do_log_tu(card_ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
                     }
                     return rv;
                 }
@@ -1823,21 +1899,21 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
         if rv != SC_SUCCESS  {
             if cfg!(log) {
-                wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+                wr_do_log_tu(card_ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
             }
             return rv;
         }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
         if rv != SC_SUCCESS  {
             if cfg!(log) {
-                wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+                wr_do_log_tu(card_ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
             }
             return rv;
         }
         if apdu.resplen == 0 {
             rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
             if cfg!(log) {
-                 wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+                 wr_do_log_tu(card_ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
             }
             return rv;
         }
@@ -1849,7 +1925,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
         crypt_sym.outdata_len = cnt;
     }
     else {
-        let mut last_block_values = [0u8; 16];
+        let mut last_block_values = [0_u8; 16];
         unsafe { copy_nonoverlapping(outdata_ptr.add(cnt-block_size), last_block_values.as_mut_ptr(), block_size) };
 
         crypt_sym.outdata_len = cnt-trailing_blockcipher_padding_get_length(crypt_sym.block_size, crypt_sym.pad_type,
@@ -1866,7 +1942,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
             Err(e) => {
                 rv = e.valid_up_to() as c_int;
                 if cfg!(log) {
-                    wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+                    wr_do_log_tu(card_ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
                 }
                 return rv;
             },
@@ -1876,7 +1952,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
             Err(e) => {
                 rv = e.raw_os_error().unwrap();
                 if cfg!(log) {
-                    wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+                    wr_do_log_tu(card_ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
                 }
                 return rv;
             },
@@ -1885,7 +1961,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
 
     rv = crypt_sym.outdata_len as c_int;
     if cfg!(log) {
-        wr_do_log_tu(card.ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
+        wr_do_log_tu(card_ctx, f_log, line!(), fun, rv, unsafe { sc_strerror(rv) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
     }
     rv
 }
@@ -1893,12 +1969,15 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
 
 pub fn get_files_hashmap_info(card: &mut sc_card, key: u16) -> Result<[u8; 32], c_int>
 {
+    assert!(!card.ctx.is_null());
+    let card_ctx = unsafe { &mut *card.ctx };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun     = CStr::from_bytes_with_nul(b"get_files_hashmap_info\0").unwrap();
-    #[cfg(log)]
-    wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+    if cfg!(log) {
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+    }
 
-    let mut rbuf = [0u8; 32];
+    let mut rbuf = [0_u8; 32];
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
 /*
 A0 2F 30 0E 0C 05 45 43 6B 65 79 03 02 06 C0 04 01 01 30 0F 04 01 09 03 03 06 20 40 03 02 03 B8 02 01 09 A1 0C 30 0A 30 08 04 06 3F 00 41 00 41 F9
@@ -1907,8 +1986,8 @@ A0 2C 30 0B 0C 05 45 43 6B 65 79 03 02 06 40 30 0F 04 01 09 03 03 06 02 00 03 02
 temporary only: acos5_gui expects the 32 bytes in another order, which is done here, i.e. provide in rbuf what acos5_gui expects
 
 alias  TreeTypeFS = tree_k_ary.Tree!ub32; // 8 bytes + length of pathlen_max considered (, here SC_MAX_PATH_SIZE = 16) + 8 bytes SAC (file access conditions)
-                            path                    File Info       scb8                SeInfo
-pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, Option<Vec<SeInfo>>);
+                            path                    File Info       scb8                SACinfo
+pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, Option<Vec<SACinfo>>);
 File Info originally:  {FDB, DCB, FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI}
 File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,   LCSI}
 */
@@ -1928,8 +2007,9 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
         }
         else {
             let fmt = CStr::from_bytes_with_nul(b"### forgot to call update_hashmap first ###\0").unwrap();
-            #[cfg(log)]
-            wr_do_log(card.ctx, f_log, line!(), fun, fmt);
+            if cfg!(log) {
+                wr_do_log(card_ctx, f_log, line!(), fun, fmt);
+            }
         }
     }
     else {
@@ -1941,7 +2021,7 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
 }
 
 
-// when update_hashmap returns all entries have: 1. path, 2. File Info: [u8; 8], 3. scb8: Option<[u8; 8]>.is_some, 4. for DF s, SeInfo: Option<Vec<SeInfo>>.is_some
+// when update_hashmap returns all entries have: 1. path, 2. File Info: [u8; 8], 3. scb8: Option<[u8; 8]>.is_some, 4. for DF s, SACinfo: Option<Vec<SACinfo>>.is_some
 /// The function ensures, that
 ///   all dp.files[?].2 are Some, and
 ///   all dp.files[?].1[6] are set for internal EF +? (this currently doesn't include detecting file content matches the OpenSC-implemented PKCS#15
@@ -1952,12 +2032,14 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
 /// @apiNote  Called from acos5_gui and ? (pccs15_init sanity_check ?)
 /// @param    card
 pub fn update_hashmap(card: &mut sc_card) {
+    assert!(!card.ctx.is_null());
+    let card_ctx = unsafe { &mut *card.ctx };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"update_hashmap\0").unwrap();
     if cfg!(log) {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
-    let mut path = Default::default();
+    let mut path = sc_path::default();
     unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3F00\0").unwrap().as_ptr(), &mut path); } // type = SC_PATH_TYPE_PATH;
     let rv = enum_dir(card, &path, false/*, 0*/);
     assert_eq!(rv, SC_SUCCESS);
@@ -1967,35 +2049,40 @@ pub fn update_hashmap(card: &mut sc_card) {
     let fmt2  = CStr::from_bytes_with_nul(b"key: %04X, val.2: %s\0").unwrap();
     for (key, val) in dp.files.iter() {
         if val.2.is_some() {
-            wr_do_log_tu(card.ctx, f_log, line!(), fun, *key, unsafe { sc_dump_hex(val.1.as_ptr(), 8) }, fmt1);
-            wr_do_log_tu(card.ctx, f_log, line!(), fun, *key, unsafe { sc_dump_hex(val.2.unwrap().as_ptr(), 8) }, fmt2);
+            wr_do_log_tu(card_ctx, f_log, line!(), fun, *key, unsafe { sc_dump_hex(val.1.as_ptr(), 8) }, fmt1);
+            wr_do_log_tu(card_ctx, f_log, line!(), fun, *key, unsafe { sc_dump_hex(val.2.unwrap().as_ptr(), 8) }, fmt2);
         }
     }
     for (key, val) in dp.files.iter() {
         if !val.2.is_some() {
-            wr_do_log_tu(card.ctx, f_log, line!(), fun, *key, unsafe { sc_dump_hex(val.1.as_ptr(), 8) }, fmt1);
+            wr_do_log_tu(card_ctx, f_log, line!(), fun, *key, unsafe { sc_dump_hex(val.1.as_ptr(), 8) }, fmt1);
         }
     }
     card.drv_data = Box::into_raw(dp) as *mut c_void;
 / * */
     if cfg!(log) {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(RETURNING).unwrap());
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(RETURNING).unwrap());
     }
 }
 
+
+//TODO while it's unused allow cognitive_complexity
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cognitive_complexity))]
 #[allow(dead_code)]
 pub fn create_mf_file_system(card: &mut sc_card, sopin: &[u8], sopuk: &[u8]) {
+    assert!(!card.ctx.is_null());
+    let card_ctx = unsafe { &mut *card.ctx };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"create_mf_file_system\0").unwrap();
     if cfg!(log) {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
 //    assert_eq!(0,1);
     /* set operation mode byte to 64K mode */
     if [SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3].contains(&card.type_) {
-        let cmd = [0u8, 0xD6, 0xC1, 0x91, 1,  if card.type_==SC_CARD_TYPE_ACOS5_64_V3 {2} else {0}];
-        let mut apdu = Default::default();
-        assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+        let cmd = [0_u8, 0xD6, 0xC1, 0x91, 1,  if card.type_==SC_CARD_TYPE_ACOS5_64_V3 {2} else {0}];
+        let mut apdu = sc_apdu::default();
+        assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card_ctx, &cmd, &mut apdu));
         assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
         assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
     }
@@ -2011,91 +2098,90 @@ SOPIN: 8  [38, 37, 36, 35, 34, 33, 32, 31]
 SOPUK: 8  [31, 32, 33, 34, 35, 36, 37, 38]
 */
 //0x3F00  MF, creation
-    let cmd = [0x00u8,0xE0,0x00,0x00,0x1B,0x62,0x19, 0x83,0x02,  0x3F,0x00,  0x82, 0x02, 0x3F, 0x00,  0x8D, 0x02, 0x00, 0x03,                    0x8A, 0x01, 0x01,  0x8C, 0x08, 0x7F, 0xFF, 0xFF, 0x01, 0x01, 0x01, 0x01, 0x01];
-    let mut apdu = Default::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    let cmd = [0_u8,0xE0,0x00,0x00,0x1B,0x62,0x19, 0x83,0x02,  0x3F,0x00,  0x82, 0x02, 0x3F, 0x00,  0x8D, 0x02, 0x00, 0x03,                    0x8A, 0x01, 0x01,  0x8C, 0x08, 0x7F, 0xFF, 0xFF, 0x01, 0x01, 0x01, 0x01, 0x01];
+    let mut apdu = sc_apdu::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card_ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
 //0x0001  Pin file of MF, creation
-    let cmd = [0x00u8,0xE0,0x00,0x00,0x1E,0x62,0x1C, 0x83,0x02,  0x00,0x01,  0x82, 0x06, 0x0A, 0x00, 0x00, 0x15, 0x00, 0x01,  0x88, 0x01, 0x00,  0x8A, 0x01, 0x01,  0x8C, 0x08, 0x7F, 0xFF, 0xFF, 0x01, 0x01, 0xFF, 0x01, 0xFF];
-    apdu = Default::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    let cmd = [0_u8,0xE0,0x00,0x00,0x1E,0x62,0x1C, 0x83,0x02,  0x00,0x01,  0x82, 0x06, 0x0A, 0x00, 0x00, 0x15, 0x00, 0x01,  0x88, 0x01, 0x00,  0x8A, 0x01, 0x01,  0x8C, 0x08, 0x7F, 0xFF, 0xFF, 0x01, 0x01, 0xFF, 0x01, 0xFF];
+    apdu = sc_apdu::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card_ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
 //0x0003  Security Environment File of MF, creation
-    let cmd = [0x00u8,0xE0,0x00,0x00,0x1E,0x62,0x1C, 0x83,0x02,  0x00,0x03,  0x82, 0x06, 0x1C, 0x00, 0x00, 0x30, 0x00, 0x01,  0x88, 0x01, 0x00,  0x8A, 0x01, 0x01,  0x8C, 0x08, 0x7F, 0xFF, 0xFF, 0x01, 0x01, 0x01, 0x01, 0x00];
-    apdu = Default::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    let cmd = [0_u8,0xE0,0x00,0x00,0x1E,0x62,0x1C, 0x83,0x02,  0x00,0x03,  0x82, 0x06, 0x1C, 0x00, 0x00, 0x30, 0x00, 0x01,  0x88, 0x01, 0x00,  0x8A, 0x01, 0x01,  0x8C, 0x08, 0x7F, 0xFF, 0xFF, 0x01, 0x01, 0x01, 0x01, 0x00];
+    apdu = sc_apdu::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card_ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
 //0x2F00  EF.DIR, creation
-    let cmd = [0x00u8,0xE0,0x00,0x00,0x1E,0x62,0x1C, 0x83,0x02,  0x2F,0x00,  0x82, 0x02, 0x01, 0x00, 0x80, 0x02, 0x00, 0x30,  0x88, 0x01, 0x00,  0x8A, 0x01, 0x01,  0x8C, 0x08, 0x7F, 0x01, 0xFF, 0x01, 0x01, 0xFF, 0x00, 0x00];
-    apdu = Default::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    let cmd = [0_u8,0xE0,0x00,0x00,0x1E,0x62,0x1C, 0x83,0x02,  0x2F,0x00,  0x82, 0x02, 0x01, 0x00, 0x80, 0x02, 0x00, 0x30,  0x88, 0x01, 0x00,  0x8A, 0x01, 0x01,  0x8C, 0x08, 0x7F, 0x01, 0xFF, 0x01, 0x01, 0xFF, 0x00, 0x00];
+    apdu = sc_apdu::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card_ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
 
 //0x3F00  MF, selection
-    let cmd = [0x00u8, 0xA4, 0x00, 0x00, 0x02, 0x3F, 0x00]; // 61 22
-    apdu = Default::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    let cmd = [0_u8, 0xA4, 0x00, 0x00, 0x02, 0x3F, 0x00]; // 61 22
+    apdu = sc_apdu::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card_ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
 
 //0x0001  Pin file of MF, selection, populate record #1, activation
-    let cmd = [0x00u8, 0xA4, 0x00, 0x00, 0x02, 0x00, 0x01]; // 61 20
-    apdu = Default::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    let cmd = [0_u8, 0xA4, 0x00, 0x00, 0x02, 0x00, 0x01]; // 61 20
+    apdu = sc_apdu::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card_ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
 
-    let cmd = [0x00u8, 0xDC, 0x01, 0x04, 0x15, 0xC1, 0x88, 0x08, sopin[0],sopin[1],sopin[2],sopin[3],sopin[4],sopin[5],sopin[6],sopin[7],
+    let cmd = [0_u8, 0xDC, 0x01, 0x04, 0x15, 0xC1, 0x88, 0x08, sopin[0],sopin[1],sopin[2],sopin[3],sopin[4],sopin[5],sopin[6],sopin[7],
                                                              0x88, 0x08, sopuk[0],sopuk[1],sopuk[2],sopuk[3],sopuk[4],sopuk[5],sopuk[6],sopuk[7]];
-    apdu = Default::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    apdu = sc_apdu::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card_ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
 
-    let cmd = [0x00u8, 0x44, 0x00, 0x00, 0x02, 0x00, 0x01];
-    apdu = Default::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    let cmd = [0_u8, 0x44, 0x00, 0x00, 0x02, 0x00, 0x01];
+    apdu = sc_apdu::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card_ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
 
 //0x0003  Security Environment File of MF, selection, populate record #1, activation
-    let cmd = [0x00u8, 0xA4, 0x00, 0x00, 0x02, 0x00, 0x03]; // 61 20
-    apdu = Default::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    let cmd = [0_u8, 0xA4, 0x00, 0x00, 0x02, 0x00, 0x03]; // 61 20
+    apdu = sc_apdu::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card_ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
 
-    let cmd = [0x00u8, 0xDC, 0x01, 0x04, 0x0B, 0x80, 0x01, 0x01, 0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x08];
-    apdu = Default::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    let cmd = [0_u8, 0xDC, 0x01, 0x04, 0x0B, 0x80, 0x01, 0x01, 0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x08];
+    apdu = sc_apdu::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card_ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
 
-    let cmd = [0x00u8, 0x44, 0x00, 0x00, 0x02, 0x00, 0x03];
-    apdu = Default::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    let cmd = [0_u8, 0x44, 0x00, 0x00, 0x02, 0x00, 0x03];
+    apdu = sc_apdu::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card_ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
 //0x2F00  EF.DIR, left empty, selection, no content, activation
-    let cmd = [0x00u8, 0xA4, 0x00, 0x00, 0x02, 0x2F, 0x00]; // 61 20
-    apdu = Default::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    let cmd = [0_u8, 0xA4, 0x00, 0x00, 0x02, 0x2F, 0x00]; // 61 20
+    apdu = sc_apdu::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card_ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
 
-    let cmd = [0x00u8, 0x44, 0x00, 0x00, 0x02, 0x2F, 0x00];
-    apdu = Default::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card.ctx, &cmd, &mut apdu));
+    let cmd = [0_u8, 0x44, 0x00, 0x00, 0x02, 0x2F, 0x00];
+    apdu = sc_apdu::default();
+    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(card_ctx, &cmd, &mut apdu));
     assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
     assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
-
 
     if cfg!(log) {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(RETURNING).unwrap());
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(RETURNING).unwrap());
     }
 }
 
@@ -2105,39 +2191,35 @@ SOPUK: 8  [31, 32, 33, 34, 35, 36, 37, 38]
    This is  what is done here.
    Also, opensc-explorer erroneously requests 256 bytes, but the max. for ACOS5 is 255
 */
-pub fn manage_common_read(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *mut c_uchar, count: usize, flags: c_ulong, bin: bool) -> c_int
+pub fn manage_common_read(card: &mut sc_card, idx: u16, buf: &mut [u8], flags: c_ulong, bin: bool) -> c_int
 {
+    let count = std::cmp::min(buf.len(), 255);
+//println!("count: {}", count);
     if bin || count<=239 {
-        common_read(card_ptr, idx, buf_ptr, std::cmp::min(count, 255), flags, bin)
+        common_read(card, idx, &mut buf[..count], flags, bin)
     }
     else {
-        let card = unsafe { &mut *card_ptr };
-        let file_id = u16_from_array_end(&card.cache.current_path.value[..card.cache.current_path.len]);
+        let file_id = file_id_from_cache_current_path(card);
         let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
         let x = &dp.files[&file_id];
+        assert!(x.2.is_some());
         let scb_read = x.2.unwrap()[0];
         card.drv_data = Box::into_raw(dp) as *mut c_void;
-        let mut res_se_sm = (false, false);
-        if (scb_read & 0x40) == 0x40 {
-            res_se_sm = se_get_is_suitable_for_sm_has_ct(card, file_id, scb_read & 0x0F);
-        }
+        let res_se_sm = if (scb_read & 0x40) == 0x40 { se_get_is_scb_suitable_for_sm_has_ct(card, file_id, scb_read & 0x0F) } else { (false, false) };
 
 //      if   (scb_read & 0x40) != 0x40 || !res_se_sm.0 || count<=239 || (!res_se_sm.1 && count<=240)
         if !((scb_read & 0x40) == 0x40 &&  res_se_sm.0 && count>239  && (res_se_sm.1 || count>240) ) {
-            common_read(card_ptr, idx, buf_ptr, std::cmp::min(count, 255), flags, bin)
+            common_read(card, idx, &mut buf[..count], flags, bin)
         }
         else {
-//println!("count: {}", count);
-            let count = std::cmp::min(count, 255);
-//println!("count: {}", count);
             let countx: usize = std::cmp::min(count, if res_se_sm.1 {239} else {240} );
             assert!(countx < count);
-            let rv1 = common_read(card_ptr, idx, buf_ptr, countx, flags, bin);
+            let rv1 = common_read(card, idx, &mut buf[..countx], flags, bin);
             if rv1 <= SC_SUCCESS {
                 return rv1;
             }
             assert_eq!(countx, rv1 as usize);
-            let rv2 = common_read(card_ptr, idx, unsafe {buf_ptr.add(rv1 as usize)}, count-rv1 as usize, flags, bin);
+            let rv2 = common_read(card, idx, &mut buf[countx..count], flags, bin);
             if rv2 <= SC_SUCCESS {
                 return rv2;
             }
@@ -2152,39 +2234,35 @@ pub fn manage_common_read(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *mut c_u
    This is  what is done here.
    Also, opensc-explorer erroneously requests 256 bytes, but the max. for ACOS5 is 255
 */
-pub fn manage_common_update(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *const c_uchar, count: usize, flags: c_ulong, bin: bool) -> c_int
+pub fn manage_common_update(card: &mut sc_card, idx: u16, buf: &[u8], flags: c_ulong, bin: bool) -> c_int
 {
+    let count = std::cmp::min(buf.len(), 255);
+//println!("count: {}", count);
     if bin || count<=232 {
-        common_update(card_ptr, idx, buf_ptr, std::cmp::min(count, 255), flags, bin)
+        common_update(card, idx, buf, flags, bin)
     }
     else {
-        let card = unsafe { &mut *card_ptr };
-        let file_id = u16_from_array_end(&card.cache.current_path.value[..card.cache.current_path.len]);
+        let file_id = file_id_from_cache_current_path(card);
         let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
         let x = &dp.files[&file_id];
+        assert!(x.2.is_some());
         let scb_update = x.2.unwrap()[1];
         card.drv_data = Box::into_raw(dp) as *mut c_void;
-        let mut res_se_sm = (false, false);
-        if (scb_update & 0x40) == 0x40 {
-            res_se_sm = se_get_is_suitable_for_sm_has_ct(card, file_id, scb_update & 0x0F);
-        }
+        let res_se_sm = if (scb_update & 0x40) == 0x40 { se_get_is_scb_suitable_for_sm_has_ct(card, file_id, scb_update & 0x0F) } else { (false, false) };
 
 //      if   (scb_update & 0x40) != 0x40  || !res_se_sm.0 || count<=232 || (!res_se_sm.1 && count<=240)
         if !((scb_update & 0x40) == 0x40  &&  res_se_sm.0 && count>232  && (res_se_sm.1 || count>240) ) {
-            common_update(card_ptr, idx, buf_ptr, std::cmp::min(count, 255), flags, bin)
+            common_update(card, idx, buf, flags, bin)
         }
         else {
-//println!("count: {}", count);
-            let count = std::cmp::min(count, 255);
-//println!("count: {}", count);
             let countx: usize = std::cmp::min(count, if res_se_sm.1 {232} else {240} );
             assert!(countx < count);
-            let rv1 = common_update(card_ptr, idx, buf_ptr, countx, flags, bin);
+            let rv1 = common_update(card, idx, &buf[..countx], flags, bin);
             if rv1 <= SC_SUCCESS {
                 return rv1;
             }
             assert_eq!(countx, rv1 as usize);
-            let rv2 = common_update(card_ptr, idx, unsafe {buf_ptr.add(rv1 as usize)}, count-rv1 as usize, flags, bin);
+            let rv2 = common_update(card, idx, &buf[countx..count], flags, bin);
             if rv2 <= SC_SUCCESS {
                 return rv2;
             }
@@ -2194,132 +2272,114 @@ pub fn manage_common_update(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *const
 }
 
 
-pub fn common_read(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *mut c_uchar, count: usize, flags: c_ulong, bin: bool) -> c_int
+pub fn common_read(card: &mut sc_card, idx: u16, buf: &mut [u8]/*, count: usize*/, flags: c_ulong, bin: bool) -> c_int
 {
-    if card_ptr.is_null() {
+    if card.ctx.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
-    let card = unsafe { &mut *card_ptr };
+    let card_ctx = unsafe { &mut *card.ctx };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul( if bin {b"acos5_read_binary\0"} else {b"acos5_read_record\0"}).unwrap();
     if cfg!(log) {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
 
-    let file_id = u16_from_array_end(&card.cache.current_path.value[..card.cache.current_path.len]);
+    let file_id = file_id_from_cache_current_path(card);
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let x = &dp.files[&file_id];
     let fdb      = x.1[0];
+    assert!(x.2.is_some());
     let scb_read = x.2.unwrap()[0];
     card.drv_data = Box::into_raw(dp) as *mut c_void;
 
     if scb_read == 0xFF {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
             if bin {b"No read_binary will be done: The file has acl NEVER READ\0"}
                    else   {b"No read_record will be done: The file has acl NEVER READ\0"}).unwrap());
         SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
     }
     else if (scb_read & 0x40) == 0x40 {
-        let mut res_se_sm = (false, false);
-        if (scb_read & 0x40) == 0x40 {
-            res_se_sm = se_get_is_suitable_for_sm_has_ct(card, file_id, scb_read & 0x0F);
+        let res_se_sm = if (scb_read & 0x40) == 0x40 { se_get_is_scb_suitable_for_sm_has_ct(card, file_id, scb_read & 0x0F) } else { (false, false) };
+        if res_se_sm.0 {
+            sm_common_read(card, idx, buf, flags, bin, res_se_sm.1, fdb)
         }
-
-        if !res_se_sm.0 {
-            wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+        else {
+            wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
                 if bin {b"No read_binary will be done: The file has acl SM-protected READ\0"}
                        else   {b"No read_record will be done: The file has acl SM-protected READ\0"}).unwrap());
             SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
         }
-        else {
-            sm_common_read(card, idx, buf_ptr, count, flags, bin, res_se_sm.1, fdb)
-        }
+    }
+    else if bin && fdb == FDB_RSA_KEY_EF {
+        card.cla = 0x80;
+        let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).get_data.unwrap()(card, u32::from(idx), buf.as_mut_ptr(), buf.len()) };
+        card.cla = 0;
+        rv
     }
     else {
-        if bin && fdb == FDB_RSA_KEY_EF {
-            card.cla = 0x80;
-            let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).get_data.unwrap()(card, idx, buf_ptr, count) };
-            card.cla = 0;
-            rv
-        }
-        else {
-            unsafe {
-                let func_ptr = match bin {
-                    true =>  (*(*sc_get_iso7816_driver()).ops).read_binary.unwrap(),
-                    false => (*(*sc_get_iso7816_driver()).ops).read_record.unwrap()
-                };
-                func_ptr(card, idx, buf_ptr, count, flags)
-            }
+        unsafe {
+            if bin { (*(*sc_get_iso7816_driver()).ops).read_binary.unwrap()(card, u32::from(idx), buf.as_mut_ptr(), buf.len(), flags) }
+            else   { (*(*sc_get_iso7816_driver()).ops).read_record.unwrap()(card, u32::from(idx), buf.as_mut_ptr(), buf.len(), flags) }
         }
     }
 }
 
-pub fn common_update(card_ptr: *mut sc_card, idx: c_uint, buf_ptr: *const c_uchar, count: usize, flags: c_ulong, bin: bool) -> c_int
+pub fn common_update(card: &mut sc_card, idx: u16, buf: &[u8]/* *const c_uchar, count: usize*/, flags: c_ulong, bin: bool) -> c_int
 {
-    if card_ptr.is_null() {
+    if card.ctx.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
-    let card = unsafe { &mut *card_ptr };
+    let card_ctx = unsafe { &mut *card.ctx };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul( if bin {b"acos5_update_binary\0"} else {b"acos5_update_record\0"}).unwrap();
     if cfg!(log) {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
 
-    let file_id = u16_from_array_end(&card.cache.current_path.value[..card.cache.current_path.len]);
+    let file_id = file_id_from_cache_current_path(card);
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let x = &dp.files[&file_id];
     let fdb      = x.1[0];
+    assert!(x.2.is_some());
     let scb_update = x.2.unwrap()[1];
     card.drv_data = Box::into_raw(dp) as *mut c_void;
 
     if scb_update == 0xFF {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
             if bin {b"No update_binary will be done: The file has acl NEVER UPDATE\0"}
                   else   {b"No update_record will be done: The file has acl NEVER UPDATE\0"}).unwrap());
         SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
     }
     else if (scb_update & 0x40) == 0x40 {
-        let mut res_se_sm = (false, false);
-        if (scb_update & 0x40) == 0x40 {
-            res_se_sm = se_get_is_suitable_for_sm_has_ct(card, file_id, scb_update & 0x0F);
+        let res_se_sm = if (scb_update & 0x40) == 0x40 { se_get_is_scb_suitable_for_sm_has_ct(card, file_id, scb_update & 0x0F) } else { (false, false) };
+        if res_se_sm.0 {
+            sm_common_update(card, idx, buf, flags, bin, res_se_sm.1, fdb)
         }
-
-        if !res_se_sm.0 {
-            wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
+        else {
+            wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(
                 if bin {b"No update_binary will be done: The file has acl SM-protected UPDATE\0"}
                        else   {b"No update_record will be done: The file has acl SM-protected UPDATE\0"}).unwrap());
             SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
         }
-        else {
-            sm_common_update(card, idx, buf_ptr, count, flags, bin, res_se_sm.1, fdb)
-        }
+    }
+    else if bin && fdb == FDB_RSA_KEY_EF { // no put_key support currently
+            SC_ERROR_NO_CARD_SUPPORT
     }
     else {
-        if bin && fdb == FDB_RSA_KEY_EF { // no put_key support currently
-            SC_ERROR_NO_CARD_SUPPORT
-        }
-        else {
-            unsafe {
-                if !bin && idx==0 && flags==0 {
-                    (*(*sc_get_iso7816_driver()).ops).append_record.unwrap()(card, buf_ptr, count, flags)
-                }
-                else {
-                    let func_ptr = match bin {
-                        true =>  (*(*sc_get_iso7816_driver()).ops).update_binary.unwrap(),
-                        false => (*(*sc_get_iso7816_driver()).ops).update_record.unwrap()
-                    };
-                    func_ptr(card, idx, buf_ptr, count, flags)
-                }
+        unsafe {
+            if !bin && idx==0 && flags==0 {
+                (*(*sc_get_iso7816_driver()).ops).append_record.unwrap()(card, buf.as_ptr(), buf.len(), flags)
             }
+            else if bin { (*(*sc_get_iso7816_driver()).ops).update_binary.unwrap()(card, u32::from(idx), buf.as_ptr(), buf.len(), flags) }
+            else        { (*(*sc_get_iso7816_driver()).ops).update_record.unwrap()(card, u32::from(idx), buf.as_ptr(), buf.len(), flags) }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{convert_bytes_tag_fcp_sac_to_scb_array, trailing_blockcipher_padding_calculate,
-                trailing_blockcipher_padding_get_length};
+    use super::{convert_bytes_tag_fcp_sac_to_scb_array, convert_amdo_to_cla_ins_p1_p2_array,
+                trailing_blockcipher_padding_calculate, trailing_blockcipher_padding_get_length};
     use crate::constants_types::*;
 //    use opensc_sys::errors::*;
 
@@ -2351,50 +2411,92 @@ mod tests {
         assert_eq!(scb8, [0x45, 0x01, 0x00, 0x03, 0x00, 0x05, 0x00, 0xFF]);
     }
 
+//    pub fn convert_amdo_to_cla_ins_p1_p2_array(amdo_tag: u8, amdo_bytes: &[u8]) -> Result<[u8; 4], c_int> //Access Mode Data Object
+    #[test]
+    fn test_convert_amdo_to_cla_ins_p1_p2_array() {
+        let amdo_bytes = [0xAA_u8];
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 8, &amdo_bytes[..]).unwrap();
+        assert_eq!(cla_ins_p1_p2, [0xAA,  0,0,0]);
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 4, &amdo_bytes[..]).unwrap();
+        assert_eq!(cla_ins_p1_p2, [0, 0xAA, 0,0]);
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 2, &amdo_bytes[..]).unwrap();
+        assert_eq!(cla_ins_p1_p2, [0,0, 0xAA, 0]);
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 1, &amdo_bytes[..]).unwrap();
+        assert_eq!(cla_ins_p1_p2, [0,0,0,  0xAA]);
+
+        let amdo_bytes = [0xAA_u8, 0xBB];
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 9, &amdo_bytes[..]).unwrap();
+        assert_eq!(cla_ins_p1_p2, [0xAA,  0,0,0xBB]);
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array(10, &amdo_bytes[..]).unwrap();
+        assert_eq!(cla_ins_p1_p2, [0xAA,  0,0xBB,0]);
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array(12, &amdo_bytes[..]).unwrap();
+        assert_eq!(cla_ins_p1_p2, [0xAA,  0xBB,0,0]);
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array(5, &amdo_bytes[..]).unwrap();
+        assert_eq!(cla_ins_p1_p2, [0, 0xAA, 0,0xBB]);
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array(6, &amdo_bytes[..]).unwrap();
+        assert_eq!(cla_ins_p1_p2, [0, 0xAA, 0xBB,0]);
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array(3, &amdo_bytes[..]).unwrap();
+        assert_eq!(cla_ins_p1_p2, [0,0, 0xAA, 0xBB]);
+
+        let amdo_bytes = [0xAA_u8, 0xBB, 0xCC];
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 11, &amdo_bytes[..]).unwrap();
+        assert_eq!(cla_ins_p1_p2, [0xAA,  0,0xBB, 0xCC]);
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 13, &amdo_bytes[..]).unwrap();
+        assert_eq!(cla_ins_p1_p2, [0xAA,  0xBB, 0,0xCC]);
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 14, &amdo_bytes[..]).unwrap();
+        assert_eq!(cla_ins_p1_p2, [0xAA,  0xBB, 0xCC,0]);
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 7, &amdo_bytes[..]).unwrap();
+        assert_eq!(cla_ins_p1_p2, [0, 0xAA, 0xBB, 0xCC]);
+
+        let amdo_bytes = [0xAA_u8, 0xBB, 0xCC, 0xDD];
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 15, &amdo_bytes[..]).unwrap();
+        assert_eq!(cla_ins_p1_p2, [0xAA,  0xBB, 0xCC, 0xDD]);
+    }
+
     #[test]
     fn test_trailing_blockcipher_padding_calculate() {
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ZEROES, 3).as_slice(), &[0u8,0,0,0,0]);
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ZEROES, 7).as_slice(), &[0u8]);
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ZEROES, 0).as_slice(), &[0u8; 0]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ZEROES, 3).as_slice(), &[0_u8,0,0,0,0]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ZEROES, 7).as_slice(), &[0_u8]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ZEROES, 0).as_slice(), &[0_u8; 0]);
 
         // this is implemented in libopensc as well: sodium_pad
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, 3).as_slice(), &[0x80u8,0,0,0,0]);
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, 7).as_slice(), &[0x80u8]);
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, 0).as_slice(), &[0x80u8, 0,0,0,0,0,0,0]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, 3).as_slice(), &[0x80_u8,0,0,0,0]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, 7).as_slice(), &[0x80_u8]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, 0).as_slice(), &[0x80_u8, 0,0,0,0,0,0,0]);
 
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, 3).as_slice(), &[0x80u8,0,0,0,0]);
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, 7).as_slice(), &[0x80u8]);
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, 0).as_slice(), &[0u8; 0]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, 3).as_slice(), &[0x80_u8,0,0,0,0]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, 7).as_slice(), &[0x80_u8]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, 0).as_slice(), &[0_u8; 0]);
 
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS5, 3).as_slice(), &[0x05u8; 5]);
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS5, 7).as_slice(), &[0x01u8; 1]);
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS5, 0).as_slice(), &[0x08u8; 8]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS5, 3).as_slice(), &[0x05_u8; 5]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS5, 7).as_slice(), &[0x01_u8; 1]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS5, 0).as_slice(), &[0x08_u8; 8]);
 
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, 3).as_slice(), &[0u8,0,0,0,5]);
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, 7).as_slice(), &[1u8]);
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, 0).as_slice(), &[0u8,0,0,0,0,0,0,8]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, 3).as_slice(), &[0_u8,0,0,0,5]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, 7).as_slice(), &[1_u8]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, 0).as_slice(), &[0_u8,0,0,0,0,0,0,8]);
     }
     #[test]
     fn test_trailing_blockcipher_padding_get_length() {
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ZEROES, &[0u8,2,1,0,0,0,0,0]).unwrap(), 5);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ZEROES, &[0u8,6,5,4,3,2,1,0]).unwrap(), 1);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ZEROES, &[0u8,7,6,5,4,3,2,1]).unwrap(), 0);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ZEROES, &[0_u8,2,1,0,0,0,0,0]).unwrap(), 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ZEROES, &[0_u8,6,5,4,3,2,1,0]).unwrap(), 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ZEROES, &[0_u8,7,6,5,4,3,2,1]).unwrap(), 0);
 
         // something similar is implemented in libopensc as well: sodium_unpad
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0u8,0,0,0x80,0,0,0,0]).unwrap(), 5);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0u8,0,0,0,0,0,0,0x80]).unwrap(), 1);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0x80u8,0,0,0,0,0,0,0]).unwrap(), 8);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0_u8,0,0,0x80,0,0,0,0]).unwrap(), 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0_u8,0,0,0,0,0,0,0x80]).unwrap(), 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0x80_u8,0,0,0,0,0,0,0]).unwrap(), 8);
 
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0u8,0,0,0x80,0,0,0,0]).unwrap(), 5);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0u8,0,0,0,0,0,0,0x80]).unwrap(), 1);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0x80u8,0,0,0,0,0,0,0]).unwrap(), 0);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0_u8,0,0,0x80,0,0,0,0]).unwrap(), 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0_u8,0,0,0,0,0,0,0x80]).unwrap(), 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0x80_u8,0,0,0,0,0,0,0]).unwrap(), 0);
 
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[0u8,5,5,5,5,5,5,5]).unwrap(), 5);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[0u8,1,1,1,1,1,1,1]).unwrap(), 1);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[8u8,8,8,8,8,8,8,8]).unwrap(), 8);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[0_u8,5,5,5,5,5,5,5]).unwrap(), 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[0_u8,1,1,1,1,1,1,1]).unwrap(), 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[8_u8,8,8,8,8,8,8,8]).unwrap(), 8);
 
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0u8,0,0,0,0,0,0,5]).unwrap(), 5);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0u8,0,0,0,0,0,0,1]).unwrap(), 1);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0u8,0,0,0,0,0,0,8]).unwrap(), 8);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0_u8,0,0,0,0,0,0,5]).unwrap(), 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0_u8,0,0,0,0,0,0,1]).unwrap(), 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0_u8,0,0,0,0,0,0,8]).unwrap(), 8);
     }
 }

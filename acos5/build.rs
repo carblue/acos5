@@ -37,7 +37,7 @@ fn main() {
                 "0.17.0" => println!("cargo:rustc-cfg=v0_17_0"),
                 "0.18.0" => println!("cargo:rustc-cfg=v0_18_0"),
                 "0.19.0" => println!("cargo:rustc-cfg=v0_19_0"),
-                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"), // experimental only: it's git-master Latest commit 026b6ab43dfb52b768ad15123dc698e05c52be20, defined as version 0.20.0 in config.h
+                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"), // experimental only: it's git-master Latest commit c3f23b836e5a1766c36617fe1da30d22f7b63de2, defined as version 0.20.0 in config.h
 //                "0.21.0" => println!("cargo:rustc-cfg=v0_21_0"), // experimental only: it's git-master, Latest commit ?, defined as version 0.21.0 in config.h
                 _ => panic!("No matching version found for opensc library"),
             }
@@ -54,9 +54,12 @@ fn main() {
 
     /* other conditionaĺ compilation settings */
     println!("cargo:rustc-cfg=log"); // enables driver log output to file debug_file, set in opensc.conf (e.g. debug_file = "/tmp/opensc-debug.log";). Otherwise the driver will be almost quiet referring that
+//    println!("cargo:rustc-cfg=test_my_V2_token"); //
+//    println!("cargo:rustc-cfg=test_my_V3_token"); //
 //    println!("cargo:rustc-cfg=dev_relax_signature_constraints_for_raw"); // this is an insecure setting, meant to be used only temporarily for pkcs11-tool -t with  SC_ALGORITHM_RSA_RAW added to rsa_algo_flags in acos5_init
 //    println!("cargo:rustc-cdylib-link-arg=-Wl,-soname,libacos5.so.6"); //doesn't work currently
-//    println!("cargo:rustc-cfg=enable_acos5_ui"); // enables driver to ask for user consent prior to using RSA private keys (for sign, decrypt)
+
+//    println!("cargo:rustc-cfg=enable_acos5_ui"); // enables driver to ask for user consent prior to using RSA private keys (for sign, decrypt); DO ENABLE ONLY together with the 2 following lines relating to IUP
 //    println!("cargo:rustc-link-lib=iup"); // specifies linking libiup.so/dylib or compiling on Windows with import library iup.lib
 //    println!("cargo:rustc-link-search=native=/usr/lib"); // specifies where libiup.so/dylib/dll is located
 }

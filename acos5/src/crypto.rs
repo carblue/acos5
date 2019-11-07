@@ -6,8 +6,15 @@ use num_integer::Integer;
 use std::os::raw::{c_uchar, c_int, c_ulong, c_long};
 //use std::ptr::{copy_nonoverlapping};
 
-pub type DES_cblock = [c_uchar; 8];
-pub type const_DES_cblock = [c_uchar; 8];
+pub const DES_KEY_SZ : usize = 8; // sizeof(DES_cblock)
+#[allow(non_upper_case_globals)]
+pub const DES_KEY_SZ_u8 : c_uchar = DES_KEY_SZ as c_uchar;
+
+pub const Encrypt: c_int = 1;
+pub const Decrypt: c_int = 0;
+
+pub type DES_cblock       = [c_uchar; DES_KEY_SZ];
+pub type const_DES_cblock = [c_uchar; DES_KEY_SZ];
 pub type DES_LONG = c_ulong;
 
 #[repr(C)]
@@ -39,9 +46,6 @@ extern {
                             ivec: *mut DES_cblock,
                             enc: c_int);
 }
-
-pub const Encrypt: i32 = 1;
-pub const Decrypt: i32 = 0;
 
 /*
 //  from https://gist.github.com/vincascm/fda1cff664fa027937a53446ba8ef605
@@ -95,9 +99,9 @@ pub fn des_ecb3_pad_pkcs5(data: &[u8], key: &str, mode: i32) -> Vec<u8> {
 }
 */
 
-/* this gets used currently only for Encrypt and data known to be multiple of 8 */
-pub fn des_ecb3_unpadded_8(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> { // -> [u8; 8] {
-    assert!(data.len().is_multiple_of(&8));
+/* this gets used currently only for Encrypt and data known to be multiple of DES_KEY_SZ */
+pub fn des_ecb3_unpadded_8(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> { // -> [u8; DES_KEY_SZ] {
+    assert!(data.len().is_multiple_of(&DES_KEY_SZ));
     assert_eq!(24, key.len());
 
     let key = key.to_vec();
@@ -106,14 +110,14 @@ pub fn des_ecb3_unpadded_8(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> { // -
     for _ in 0..3 {
         ks.push(DES_key_schedule::default());
     }
-    let mut out_block = vec![0u8; 8];
-    let mut output = /*Box::new(*/Vec::with_capacity(data.len())/*)*/;
+    let mut out_block = vec![0_u8; DES_KEY_SZ];
+    let mut output = Vec::with_capacity(data.len());
     unsafe {
-        for (i, item) in key.chunks(8).enumerate() {
+        for (i, item) in key.chunks(DES_KEY_SZ).enumerate() {
             DES_set_key_unchecked(item.as_ptr(), &mut ks[i]);
         }
 
-        for i in data.chunks(8) {
+        for i in data.chunks(DES_KEY_SZ) {
             DES_ecb3_encrypt(i.as_ptr(), out_block.as_mut_ptr(), &ks[0], &ks[1], &ks[2], mode);
             output.extend_from_slice(out_block.as_slice());
         }
@@ -128,15 +132,15 @@ if pi==00, then it's known, that no 0x80 byte was added
 /* pi is relevant only for Decrypt:
    The 0x80 padding is
 */
-pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode: i32, pi: u8) -> Vec<u8> {
-    assert_eq!(24, key.len());
-    assert!(mode==Encrypt || data.len().is_multiple_of(&8));
+pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode: c_int, pi: u8) -> Vec<u8> {
+    assert_eq!(3*DES_KEY_SZ, key.len());
+    assert!(mode==Encrypt || data.len().is_multiple_of(&DES_KEY_SZ));
 
     // pad data
     let mut data = data.to_vec();
-    if !data.len().is_multiple_of(&8) {
+    if !data.len().is_multiple_of(&DES_KEY_SZ) {
         data.push(0x80);
-        while !data.len().is_multiple_of(&8) { data.push(0); }
+        while !data.len().is_multiple_of(&DES_KEY_SZ) { data.push(0); }
     }
 
     let key = key.to_vec();
@@ -145,10 +149,10 @@ pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode:
     for _ in 0..3 {
         ks.push(DES_key_schedule::default());
     }
-    let mut out_block = vec![0u8; data.len()];
+    let mut out_block = vec![0_u8; data.len()];
 //    let mut output = /*Box::new(*/Vec::with_capacity(data.len())/*)*/;
     unsafe {
-        for (i, item) in key.chunks(8).enumerate() {
+        for (i, item) in key.chunks(DES_KEY_SZ).enumerate() {
             DES_set_key_unchecked(item.as_ptr(), &mut ks[i]);
         }
 
@@ -165,15 +169,15 @@ pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode:
 
 pub fn des_ede3_cbc_pad_80_mac(data: &[u8], key: &[u8], ivec: &mut DES_cblock) -> Vec<u8> {
     let mut result = des_ede3_cbc_pad_80(data, key, ivec, Encrypt, 0);
-    assert!(result.len() >= 8);
-    while result.len()>8 { result.remove(0); }
+    assert!(result.len() >= DES_KEY_SZ);
+    while result.len()>DES_KEY_SZ { result.remove(0); }
     result
 }
 
 #[cfg(test)]
 mod tests {
     use num_integer::Integer;
-    use super::{Encrypt, Decrypt, DES_cblock, des_ecb3_unpadded_8, des_ede3_cbc_pad_80,
+    use super::{Encrypt, Decrypt, DES_KEY_SZ, DES_cblock, des_ecb3_unpadded_8, des_ede3_cbc_pad_80,
                 des_ede3_cbc_pad_80_mac /*, des_ecb3_pad_pkcs5*/};
 /*
     #[test]
@@ -213,7 +217,7 @@ mod tests {
                              0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let mut ivec : DES_cblock = [0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let e = des_ede3_cbc_pad_80(&data, &key, &mut ivec, Encrypt, 0);
-        assert!(e.len().is_multiple_of(&8));
+        assert!(e.len().is_multiple_of(&DES_KEY_SZ));
         let mut ivec : DES_cblock = [0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let d = des_ede3_cbc_pad_80(&e, &key, &mut ivec, Decrypt, 1);
 //println!("{:X?}", e);
@@ -222,7 +226,7 @@ mod tests {
 
         let mut ivec : DES_cblock = [0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let e = des_ede3_cbc_pad_80_mac(&data, &key, &mut ivec);
-        assert!(e.len().is_multiple_of(&8));
+        assert!(e.len().is_multiple_of(&DES_KEY_SZ));
         assert_eq!(&[0xBF, 0x59, 0xFF, 0x28, 0xE3, 0x23, 0xB9, 0xF4][..], e.as_slice());
 //println!("{:X?}", e);
     }

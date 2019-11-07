@@ -43,15 +43,15 @@ essentially is FDB (File Descriptor Byte), all other info like scb8 get's retrie
 (during select_file/process_fci processing).
 
 On each selection of a directory (if no info is stored already), the associated SE-file within that
-directory will be selected and all of it's records evaluated and the content stored in Vec<SeInfo>,
-a separate Vec<SeInfo> for each SE file id/directory, attached to directory's hashmap data.
-Vec<SeInfo> data applies to a directory and all its "directly" contained files except sub-directories.
-This Vec<SeInfo>  is then moved to the 'files' entry for that directory.
+directory will be selected and all of it's records evaluated and the content stored in Vec<SACinfo>,
+a separate Vec<SACinfo> for each SE file id/directory, attached to directory's hashmap data.
+Vec<SACinfo> data applies to a directory and all its "directly" contained files except sub-directories.
+This Vec<SACinfo>  is then moved to the 'files' entry for that directory.
 Back to the example scb8 [0xFF, 0x41, 2, 3, 4, 0, 0, 0xFF] for file_id 0x4101 in directory 0x4100:
 dp.files[0x4101] knows it's absolute path [0x3F, 0, 0x41, 0, 0x41, 1], with last 2 bytes (fid)
-stripped of get's the absolute path of relevant directory 0x4100. This HashMap entry has a Vec<SeInfo>
+stripped of get's the absolute path of relevant directory 0x4100. This HashMap entry has a Vec<SACinfo>
 stored with an entry for reference 2 (respomsible for SCB 2)
-For simple cases like SCB between 1 and 14, there will be one only entry in SeInfo's array crts with a
+For simple cases like SCB between 1 and 14, there will be one only entry in SACinfo's array crts with a
 tag 0xA4, the usage field indicates what action to perform: Authenticate or Verify (in our example Verify)
 and refs[0] contains 0x01, i.e. global Pin 1, thus show CHV1 to the user for SCB 2.
 
@@ -67,7 +67,7 @@ There is another example, even more complex in the re. manual:
 AT is A4 09 83 01 84 83 01 01 95 01 88h; contains 2 conditions inside it.
 1st condition in AT is: 83 01 84 95 01 88h -> Allow cmd if local  KEY #04 is authentic. AND if local  PIN #04 is verif.;
 2nd condition in AT is: 83 01 01 95 01 88h -> Allow cmd if global KEY #01 is authentic. AND if global PIN #01 is verif.;
-It's clear how to encode this in SeInfo, but how to communicate this to opensc (sc_file_add_acl_entry;
+It's clear how to encode this in SACinfo, but how to communicate this to opensc (sc_file_add_acl_entry;
 what to be shown in opensc-tool -f
 
 
@@ -83,6 +83,7 @@ use opensc_sys::errors::{SC_SUCCESS};
 use opensc_sys::asn1::{sc_asn1_read_tag, SC_ASN1_TAG_EOC};
 
 use crate::constants_types::*;
+use crate::path::current_path_df;
 
 
 /**
@@ -99,51 +100,50 @@ pub fn se_file_add_acl_entry(card: &mut sc_card, file: &mut sc_file, scb: u8/*sc
 {
     if op == 0xFF {} // it's used to denote, that there is no operation that this scb can refer to; e.g. for  EF/CHV, the byte at 3. position has no meaning
     else if  scb == 0
-    { assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_NONE, SC_AC_KEY_REF_NONE as c_ulong) }); }
+    { assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_NONE, SC_AC_KEY_REF_NONE) }); }
     else if  scb == 0xFF
-    { assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_NEVER, SC_AC_KEY_REF_NONE as c_ulong) }); }
-    else if  (scb & 0x0F) == 0 || (scb & 0x0F) == 0x0F || (scb & 0x30) != 0 || (scb & 0xC0) == 0xC0
-    { assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_UNKNOWN, SC_AC_KEY_REF_NONE as c_ulong) }); }
-    else {
-        if           (scb & 0x80) == 0x80 {} // TODO  all conditions must be satisfied opposed to one of a set of conditions
-        // TODO  the 'one of a set of conditions' case just tries the first in sc_crt.refs, it doesn't try the (possible) alternatives
-        else if      (scb & 0x40) == 0x40 // SM
-        { // almost a copy of the else branch with SC_AC_PRO instead of SC_AC_CHV/SC_AC_AUT
-            let pin_ref     = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x08));
-            if pin_ref     != SC_AC_KEY_REF_NONE as c_ulong { assert_eq!(SC_SUCCESS, unsafe {
-                sc_file_add_acl_entry(    file, op, SC_AC_PRO, pin_ref) }); }
+    { assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_NEVER, SC_AC_KEY_REF_NONE) }); }
+    else if scb.trailing_zeros() >= 4 || (scb & 0x0F) == 0x0F || (scb & 0x30) != 0 || (scb & 0xC0) == 0xC0
+    { assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_UNKNOWN, SC_AC_KEY_REF_NONE) }); }
+    else if           (scb & 0x80) == 0x80
+    {} // TODO  all conditions must be satisfied opposed to one of a set of conditions
+       // TODO  the 'one of a set of conditions' case just tries the first in sc_crt.refs, it doesn't try the (possible) alternatives
+    else if      (scb & 0x40) == 0x40 // SM
+    { // almost a copy of the else branch with SC_AC_PRO instead of SC_AC_CHV/SC_AC_AUT
+        let pin_ref : c_ulong = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x08));
+        if pin_ref     != SC_AC_KEY_REF_NONE { assert_eq!(SC_SUCCESS, unsafe {
+            sc_file_add_acl_entry(    file, op, SC_AC_PRO, pin_ref) }); }
+        else {
+            let key_ref : c_ulong = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x80));
+            if key_ref != SC_AC_KEY_REF_NONE { assert_eq!(SC_SUCCESS, unsafe {
+                sc_file_add_acl_entry(file, op, SC_AC_PRO, key_ref) }); }
             else {
-                let key_ref = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x80));
-                if key_ref != SC_AC_KEY_REF_NONE as c_ulong { assert_eq!(SC_SUCCESS, unsafe {
-                    sc_file_add_acl_entry(file, op, SC_AC_PRO, key_ref) }); }
-                else {
-                    let pin_key_ref = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x88));
-                    if pin_key_ref != SC_AC_KEY_REF_NONE as c_ulong {
-                        assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_PRO, pin_key_ref) });
-//                      assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_PRO, pin_key_ref) });
-                    }
-                    else {  assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_UNKNOWN,
-                                                                                  SC_AC_KEY_REF_NONE as c_ulong) }); }
+                let pin_key_ref : c_ulong = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x88));
+                if pin_key_ref != SC_AC_KEY_REF_NONE {
+                    assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_PRO, pin_key_ref) });
+//                  assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_PRO, pin_key_ref) });
                 }
+                else {  assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_UNKNOWN,
+                                                                              SC_AC_KEY_REF_NONE) }); }
             }
         }
+    }
+    else {
+        let pin_ref : c_ulong = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x08));
+        if pin_ref     != SC_AC_KEY_REF_NONE { assert_eq!(SC_SUCCESS, unsafe {
+            sc_file_add_acl_entry(    file, op, SC_AC_CHV, pin_ref) }); }
         else {
-            let pin_ref     = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x08));
-            if pin_ref     != SC_AC_KEY_REF_NONE as c_ulong { assert_eq!(SC_SUCCESS, unsafe {
-                sc_file_add_acl_entry(    file, op, SC_AC_CHV, pin_ref) }); }
+            let key_ref : c_ulong = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x80));
+            if key_ref != SC_AC_KEY_REF_NONE { assert_eq!(SC_SUCCESS, unsafe {
+                sc_file_add_acl_entry(file, op, SC_AC_AUT, key_ref) }); }
             else {
-                let key_ref = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x80));
-                if key_ref != SC_AC_KEY_REF_NONE as c_ulong { assert_eq!(SC_SUCCESS, unsafe {
-                    sc_file_add_acl_entry(file, op, SC_AC_AUT, key_ref) }); }
-                else {
-                    let pin_key_ref = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x88));
-                    if pin_key_ref != SC_AC_KEY_REF_NONE as c_ulong {
-                        assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_CHV, pin_key_ref) });
-                        assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_AUT, pin_key_ref) });
-                    }
-                    else {  assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_UNKNOWN,
-                                                                                  SC_AC_KEY_REF_NONE as c_ulong) }); }
+                let pin_key_ref : c_ulong = se_get_reference(card, file.id, scb & 0x0F, &sc_crt::new_AT(0x88));
+                if pin_key_ref != SC_AC_KEY_REF_NONE {
+                    assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_CHV, pin_key_ref) });
+                    assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_AUT, pin_key_ref) });
                 }
+                else {  assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, op, SC_AC_UNKNOWN,
+                                                                              SC_AC_KEY_REF_NONE) }); }
             }
         }
     }
@@ -161,12 +161,12 @@ pub fn se_file_add_acl_entry(card: &mut sc_card, file: &mut sc_file, scb: u8/*sc
  */
 fn se_get_reference(card: &mut sc_card, file_id: c_int, se_reference: u8, search_template: &sc_crt) -> c_ulong
 {
-    let mut result = SC_AC_KEY_REF_NONE as c_ulong;
+    let mut result : c_ulong = SC_AC_KEY_REF_NONE;
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let file_id = file_id as u16;
     if dp.files.contains_key(&file_id) {
-        let fdb        = dp.files[&file_id].1[0];
-        let path_len = dp.files[&file_id].1[1] as usize;
+        let dp_files_value = &dp.files[&file_id];
+        let fdb        = dp_files_value.1[0];
         let file_id_dir = if is_DFMF(fdb) { file_id }
                                 else {
 /*
@@ -186,31 +186,28 @@ fn se_get_reference(card: &mut sc_card, file_id: c_int, se_reference: u8, search
                                         println!("search_template.refs[0]: {:X}", search_template.refs[0]);
                                     }
 */
+                                    let path_len = dp_files_value.1[1] as usize;
                                     assert!(path_len>=4);
-                                    let tmp = &dp.files[&file_id].0[path_len-4..path_len-2];
-                                    u16_from_array_begin(tmp)
+                                    u16::from_be_bytes([dp_files_value.0[path_len-4], dp_files_value.0[path_len-3]])
                                 };
 //        println!("file_id_dir: {:X}", file_id_dir);
-        match &dp.files[&file_id_dir].3 {
-            None => { result = 0; },
-            Some(vec_seinfo) => {
-                for elem in vec_seinfo {
-                    if elem.reference == se_reference as c_uint {
-                        for j in 0..elem.crts_len {
-                            if elem.crts[j].tag   != search_template.tag   { continue; }
-                            if elem.crts[j].usage != search_template.usage { continue; }
-                            result = elem.crts[j].refs[0] as c_ulong;
-                            break;
-                        }
+        if let Some(vec_seinfo) = &dp.files[&file_id_dir].3 {
+            for sac_info in vec_seinfo {
+                if sac_info.reference == u32::from(se_reference) {
+                    for crt in &sac_info.crts[..sac_info.crts_len] {
+                        if crt.tag   != search_template.tag   { continue; }
+                        if crt.usage != search_template.usage { continue; }
+                        result = c_ulong::from(crt.refs[0]); // TODO there may also be crt.refs[1] or more
                         break;
                     }
+                    break;
                 }
             }
         }
     }
 
     card.drv_data = Box::into_raw(dp) as *mut c_void;
-    if result == SC_AC_KEY_REF_NONE as c_ulong {
+    if result == SC_AC_KEY_REF_NONE {
 //        println!("file_id: {}, se_reference: {}, search_template: {:?}", file_id, se_reference, search_template);
     }
     result
@@ -225,76 +222,108 @@ fn se_get_reference(card: &mut sc_card, file_id: c_int, se_reference: u8, search
  * @return  a tuple: 1. elem: whether the CRT templates match the requirements for SM, forcing at least SM mode Authenticity (SM-sign)
                      2. elem: whether there also is a CT template, forcing SM mode Confidentiality (SM-sign + SM-enc)
  */
-pub fn se_get_is_suitable_for_sm_has_ct(card: &mut sc_card, file_id: u16, se_reference: u8) -> (bool, bool)
+pub fn se_get_is_scb_suitable_for_sm_has_ct(card: &mut sc_card, file_id: u16, se_reference: u8) -> (bool, bool)
 {
     let mut result = (false /*is_suitable_for_sm*/, false /*has_ct*/);
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     if dp.files.contains_key(&file_id) {
-        let fdb        = dp.files[&file_id].1[0];
-        let path_len = dp.files[&file_id].1[1] as usize;
+        let dp_files_value = &dp.files[&file_id];
+        let fdb        = dp_files_value.1[0];
         let file_id_dir = if is_DFMF(fdb) { file_id }
-        else {
-            assert!(path_len>=4);
-            let tmp = &dp.files[&file_id].0[path_len-4..path_len-2];
-            u16_from_array_begin(tmp)
-        };
+                                else {
+                                    let path_len = dp_files_value.1[1] as usize;
+                                    assert!(path_len>=4);
+                                    u16::from_be_bytes([dp_files_value.0[path_len-4], dp_files_value.0[path_len-3]])
+                                };
 //        println!("file_id_dir: {:X}", file_id_dir);
-        match &dp.files[&file_id_dir].3 {
-            None => {},
-            Some(vec_seinfo) => {
-                for elem in vec_seinfo {
-                    if elem.reference == se_reference as c_uint {
-                        /*
-                        if template has no AT and CCT, then it's unusable for SM
-                        if template's usage != 0x30, then it's unusable for SM
-                        if template has a B8, then it's for Confidentiality, else for authenticity
-                        */
-                        #[allow(non_snake_case)]
-                        let search_template_AT = sc_crt::new_AT(0x88);
-                        #[allow(non_snake_case)]
-                        let mut AT_found = false;
-                        for j in 0..elem.crts_len {
-                            if elem.crts[j].tag   != search_template_AT.tag   { continue; }
-                            if (elem.crts[j].usage & search_template_AT.usage) == 0 { continue; }
-                            /* TODO any special requirement ref. pin/key ? */
-                            AT_found = true;
-                            break;
-                        }
-
-                        #[allow(non_snake_case)]
-                        let search_template_CCT = sc_crt::new_CCT(0x30);
-                        #[allow(non_snake_case)]
-                        let mut CCT_found = false;
-                        for j in 0..elem.crts_len {
-                            if elem.crts[j].tag   != search_template_CCT.tag   { continue; }
-                            if (elem.crts[j].usage & search_template_CCT.usage) != search_template_CCT.usage { continue; }
-                            if elem.crts[j].algo  != 0x02   { continue; }
-                            if ![0x84u8, 0x81, 0x82, 0x83, 1,2,3].contains(&(elem.crts[j].refs[0] as u8))   { continue; }
-                            CCT_found = true;
-                            break;
-                        }
-
-                        #[allow(non_snake_case)]
-                        let search_template_CT = sc_crt::new_CT(0x30);
-                        #[allow(non_snake_case)]
-                        let mut CT_found = false;
-                        for j in 0..elem.crts_len {
-                            if elem.crts[j].tag   != search_template_CT.tag   { continue; }
-                            if (elem.crts[j].usage & search_template_CT.usage) != search_template_CT.usage { continue; }
-                            if elem.crts[j].algo  != 0x02   { continue; }
-                            if ![0x84u8, 0x81, 0x82, 0x83, 1,2,3].contains(&(elem.crts[j].refs[0] as u8))   { continue; }
-                            CT_found = true;
-                            break;
-                        }
-                        result = (AT_found && CCT_found /*is_suitable_for_sm*/, CT_found /*has_ct*/);
+        if let Some(vec_seinfo) = &dp.files[&file_id_dir].3 {
+//        match &dp.files[&file_id_dir].3 {
+//            Some(vec_seinfo) => {
+            for sac_info in vec_seinfo {
+                if sac_info.reference == u32::from(se_reference) {
+                    /*
+                    if template has no AT and CCT, then it's unusable for SM
+                    if template's usage != 0x30, then it's unusable for SM
+                    if template has a B8, then it's for Confidentiality, else for authenticity
+                    */
+                    #[allow(non_snake_case)]
+                    let search_template_AT = sc_crt::new_AT(0x88);
+                    #[allow(non_snake_case)]
+                    let mut AT_found = false;
+                    for crt in &sac_info.crts[0..sac_info.crts_len] {
+                        if crt.tag   != search_template_AT.tag   { continue; }
+                        if (crt.usage & search_template_AT.usage) == 0 { continue; }
+                        /* TODO any special requirement ref. pin/key ? */
+                        AT_found = true;
                         break;
                     }
+
+                    #[allow(non_snake_case)]
+                    let search_template_CCT = sc_crt::new_CCT(0x30);
+                    #[allow(non_snake_case)]
+                    let mut CCT_found = false;
+                    for crt in &sac_info.crts[0..sac_info.crts_len] {
+                        if crt.tag   != search_template_CCT.tag   { continue; }
+                        if (crt.usage & search_template_CCT.usage) != search_template_CCT.usage { continue; }
+                        if crt.algo  != 0x02   { continue; }
+                        if ![0x84_u8, 0x81, 0x82, 0x83, 1,2,3].contains(&(crt.refs[0] as u8)) { continue; }
+                        CCT_found = true;
+                        break;
+                    }
+
+                    #[allow(non_snake_case)]
+                    let search_template_CT = sc_crt::new_CT(0x30);
+                    #[allow(non_snake_case)]
+                    let mut CT_found = false;
+                    for crt in &sac_info.crts[0..sac_info.crts_len] {
+                        if crt.tag   != search_template_CT.tag   { continue; }
+                        if (crt.usage & search_template_CT.usage) != search_template_CT.usage   { continue; }
+                        if crt.algo  != 0x02   { continue; }
+                        if ![0x84_u8, 0x81, 0x82, 0x83, 1,2,3].contains(&(crt.refs[0] as u8)) { continue; }
+                        CT_found = true;
+                        break;
+                    }
+                    result = (AT_found && CCT_found /*is_suitable_for_sm*/, CT_found /*has_ct*/);
+                    break;
                 }
             }
         }
     }
     card.drv_data = Box::into_raw(dp) as *mut c_void;
     result
+}
+
+pub fn se_get_sae_scb(card: &mut sc_card, cla_ins_p1_p2: &[u8]) -> u8
+{
+    assert_eq!(4, cla_ins_p1_p2.len());
+    let cp_df = current_path_df(card);
+    let file_id_dir = u16::from_be_bytes([cp_df[cp_df.len()-2], cp_df[cp_df.len()-1]]);
+
+    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    assert!(dp.files.contains_key(&file_id_dir));
+    let mut scb = 0;
+    match &dp.files[&file_id_dir].4 {
+        None => {},
+        Some(vec_saeinfo) => {
+            for elem in vec_saeinfo {
+                if elem.ins == cla_ins_p1_p2[1] {
+                    if (elem.tag_AMDO&8)>0 && elem.cla != cla_ins_p1_p2[0] { continue; }
+//                  if (elem.tag_AMDO&4)>0 && elem.ins != cla_ins_p1_p2[1] { continue; }
+                    if (elem.tag_AMDO&2)>0 && elem.p1  != cla_ins_p1_p2[2] { continue; }
+                    if (elem.tag_AMDO&1)>0 && elem.p2  != cla_ins_p1_p2[3] { continue; }
+
+                    if elem.tag_SCDO == 0x90                               { continue; } // always allowed, thus no constraint
+////println!("se_get_sae_scb  *elem: {:X?},  cla_ins_p1_p2: {:X?}", *elem, cla_ins_p1_p2);
+//se_get_sae_scb  *elem: SAEinfo { tag_AMDO: 84, cla: 0, ins: 20, p1: 0, p2: 0, tag_SCDO: 9E, scb: 43 },  cla_ins_p1_p2: [0, 20, 0, 81]
+                    if elem.tag_SCDO == 0x97                               { scb=0xFF;     break; } // always disallowed
+                    if elem.tag_SCDO == 0x9E                               { scb=elem.scb; break; } // depends on scb
+//                    if elem.tag_SCDO == 0xA4                               { scb=elem.scb; break; } // depends on scb
+                }
+            }
+        }
+    }
+    card.drv_data = Box::into_raw(dp) as *mut c_void;
+    scb
 }
 
 /*
@@ -305,7 +334,7 @@ pub fn se_get_is_suitable_for_sm_has_ct(card: &mut sc_card, file_id: u16, se_ref
  *
  * @param   reference     IN    record's id, readable as 3.byte from record's data (SE file's record no should be the same to avoid confusion)
  * @param   data          IN    the data to fill se_info_node with, in this example [A4 06 83 01 81 95 01 08 ...]
- * @param   se_info_node  INOUT on IN, a default-initialized struct, on OUT with the data interpreted filled in
+ * @param   se_info_node  INOUT; on IN, a default-initialized struct, on OUT with the data interpreted filled in
  * @return                the number of bytes parsed from data
 */
 /*
@@ -314,20 +343,20 @@ pub fn se_get_is_suitable_for_sm_has_ct(card: &mut sc_card, file_id: u16, se_ref
  * @param
  * @return
  */
-pub fn se_parse_crts(/*card: &mut sc_card,*/ reference: c_uint, data: &[u8], se_info_node: &mut SeInfo) -> c_int
+pub fn se_parse_sac(/*card: &mut sc_card,*/ reference: c_uint, data: &[u8], se_info_node: &mut SACinfo) -> c_int // se_parse_crts
 {
-    if data.len() == 0 || data[0] == 0 {
+    if data.is_empty() || data[0] == 0 {
         return 0;
     }
     //make sure, that se_info_node is a default-initialized struct
-//    se_info_node = Default::default();
+//    se_info_node = SACinfo::default();
 
     let mut data_ptr = data.as_ptr();
-    let mut cla_out = 0u32;
-    let mut tag_out = 0u32;
-    let mut taglen = 0usize;
+    let mut cla_out = 0_u32;
+    let mut tag_out = 0_u32;
+    let mut taglen = 0_usize;
     let mut buflen_remaining = data.len(); // to be updated after sc_asn1_read_tag changes data_ptr: Then buf and buflen_remaining are in sync. again for the next call
-    let mut idx_crts = 0usize;
+    let mut idx_crts = 0_usize;
 
     se_info_node.reference = reference;
 
@@ -342,7 +371,7 @@ pub fn se_parse_crts(/*card: &mut sc_card,*/ reference: c_uint, data: &[u8], se_
         se_info_node.crts_len += 1;
         se_info_node.crts[idx_crts].tag = cla_out | tag_out;
 
-        let mut idx_refs = 0usize;
+        let mut idx_refs = 0_usize;
         let mut taglen_remaining = taglen;
         assert!(taglen_remaining <= buflen_remaining);
         while taglen_remaining > 0 {
@@ -354,7 +383,7 @@ pub fn se_parse_crts(/*card: &mut sc_card,*/ reference: c_uint, data: &[u8], se_
                 0x80 => {
                     assert_eq!(taglen, 1);
                     unsafe {
-                        se_info_node.crts[idx_crts].algo = *data_ptr as u32;
+                        se_info_node.crts[idx_crts].algo = u32::from(*data_ptr);
                         data_ptr = data_ptr.add(1)
                     };
                 },
@@ -362,7 +391,7 @@ pub fn se_parse_crts(/*card: &mut sc_card,*/ reference: c_uint, data: &[u8], se_
                 0x83 => {
                     assert_eq!(taglen, 1);
                     unsafe {
-                        se_info_node.crts[idx_crts].refs[idx_refs] = *data_ptr as u32;
+                        se_info_node.crts[idx_crts].refs[idx_refs] = u32::from(*data_ptr);
                         data_ptr = data_ptr.add(1)
                     };
                     idx_refs += 1;
@@ -376,7 +405,7 @@ pub fn se_parse_crts(/*card: &mut sc_card,*/ reference: c_uint, data: &[u8], se_
                 0x95 => {
                     assert_eq!(taglen, 1);
                     unsafe {
-                        se_info_node.crts[idx_crts].usage = *data_ptr as u32;
+                        se_info_node.crts[idx_crts].usage = u32::from(*data_ptr);
                         data_ptr = data_ptr.add(1)
                     };
                 },
@@ -390,75 +419,170 @@ pub fn se_parse_crts(/*card: &mut sc_card,*/ reference: c_uint, data: &[u8], se_
 }
 
 
+pub fn se_parse_sae(vec_sac_info: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp_sae: &[u8]) -> Result<Vec<SAEinfo>, c_int>
+{
+    use num_integer::Integer;
+    use iso7816_tlv::simple::Tlv;
+//    use std::convert::TryFrom;
+    use crate::no_cdecl::{convert_amdo_to_cla_ins_p1_p2_array};
+
+    // add the A4 tag as virtual SE-file record (SAC), starting with se record id 16, the max. of real ones is 14
+    let mut idx_virtual = 15_u32;
+    let mut vec_sae_info = Vec::with_capacity(6);
+    let mut rem = value_bytes_tag_fcp_sae;
+    assert!(rem.len()<=32);
+    loop {
+        if rem.is_empty() {
+            break;
+        }
+        let (parsed, rem_tmp) = Tlv::parse(rem);
+        rem = rem_tmp;
+        let tlv = match parsed {
+            Ok(tlv) => tlv,
+            Err(_e) => return Err(-1),
+        };
+//println!("parsed: {:X?}", tlv);
+        let mut tag : u8 = tlv.tag().into(); // Into::<u8>::into(tlv.tag());
+//        let my_tag /*: u8*/ = Into::<u8>::into(Tag::try_from(127_u8).unwrap().tag());
+        let _my_tag /*: u8*/ = Into::<u8>::into(tlv.tag());
+        assert_eq!( tag & 0xF0, 0x80);
+        assert_eq!((tag & 0x0F).count_ones() as usize, tlv.length());
+        assert_eq!( tag & 0x04, 4); // ins must be included
+        let mut sae_info = SAEinfo::default();
+        sae_info.tag_AMDO = tag;
+        let cla_ins_p1_p2 = match convert_amdo_to_cla_ins_p1_p2_array(tag, tlv.value()) {
+            Ok(cla_ins_p1_p2)  => cla_ins_p1_p2,
+            Err(e)      => return Err(e),
+        };
+        sae_info.cla = cla_ins_p1_p2[0];
+        sae_info.ins = cla_ins_p1_p2[1];
+        sae_info.p1  = cla_ins_p1_p2[2];
+        sae_info.p2  = cla_ins_p1_p2[3];
+
+        /* at least 1 SCDO must follow */
+        assert!(!rem.is_empty());
+
+        let (parsed, rem_tmp) = Tlv::parse(rem);
+        rem = rem_tmp;
+        let tlv = match parsed {
+            Ok(tlv) => tlv,
+            Err(_e) => return Err(-1),
+        };
+//println!("parsed: {:X?}", tlv);
+        tag = tlv.tag().into();
+        assert!([0x90, 0x97, 0x9E, 0xA4, 0xA0, 0xAF].contains(&tag));
+        sae_info.tag_SCDO = tag;
+        match tag {
+            0x90 => sae_info.scb = 0,
+            0x97 => sae_info.scb = 0xFF,
+            0x9E => {
+                assert_eq!(1, tlv.length());
+                sae_info.scb = tlv.value()[0];
+            },
+            0xA4 => {
+                assert!(tlv.length()>=6 && tlv.length().is_multiple_of(&3));
+                let mut sac_info = SACinfo::default();
+                idx_virtual += 1;
+                let mut idx_ref = 0_usize;
+                sac_info.reference = idx_virtual;
+                sac_info.crts_len  = 1;
+                sac_info.crts[0].tag = u32::from(tag);
+                for chunk in tlv.value().chunks(3) {
+                    assert_eq!(1, chunk[1]);
+                    match chunk[0] {
+                        0x95 => { sac_info.crts[0].usage         = u32::from(chunk[2]); },
+                        0x83 => { sac_info.crts[0].refs[idx_ref] = u32::from(chunk[2]); idx_ref += 1; },
+                        0x81 => { /*if card.type_== SC_CARD_TYPE_ACOS5_EVO_V4 {TODO EVO also has tag 0x81} else {panic!()}*/ }
+                        _    => panic!("unexpected"),
+                    }
+                    if      chunk[0]==0x95 { sac_info.crts[0].usage         = u32::from(chunk[2]); }
+                    else if chunk[0]==0x83 { sac_info.crts[0].refs[idx_ref] = u32::from(chunk[2]); idx_ref += 1;}
+                    else                   { panic!(); } // TODO EVO also has tag 0x81
+                }
+                if (*vec_sac_info).is_none() { *vec_sac_info = Some(Vec::new()) }
+//                (*vec_sac_info).unwrap().push(sac_info);
+                (*vec_sac_info).as_mut().unwrap().push(sac_info);
+            },
+            _ => {} // TODO for now: skip support of tags A0 and AF
+        }
+        vec_sae_info.push(sae_info);
+    } // loop
+    vec_sae_info.shrink_to_fit();
+    Ok(vec_sae_info)
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_se_parse_crts() {
-        let mut seinfo : SeInfo =  Default::default();
+    fn test_se_parse_sac() {
+        let mut seinfo = SACinfo::default();
         let data : [u8; 11] = [/* 80 01 01 */ 0xA4, 0x06, 0x83, 0x01, 0x81, 0x95, 0x01, 0x08,   0x00, 0x00, 0x00];
-        let rv = se_parse_crts(/*card: &mut sc_card,*/ 1, &data, &mut seinfo);
+        let rv = se_parse_sac(/*card: &mut sc_card,*/ 1, &data, &mut seinfo);
         assert_eq!(rv as usize, data.len()-3);
 //        assert_eq!(seinfo.next, std::ptr::null_mut());
         assert_eq!(seinfo.reference, 1);
         assert_eq!(seinfo.crts_len,  1);
-        assert_eq!(seinfo.crts[0],   sc_crt{tag: 0xA4, usage: 0x08, algo: 0, refs: [0x81,0,0,0,0,0,0,0]});
+        assert_eq!(seinfo.crts[0],   sc_crt{tag: 0xA4, usage: 8, algo: 0, refs: [0x81,0,0,0,0,0,0,0]});
 
-        seinfo =  Default::default();
+        seinfo =  SACinfo::default();
         let data : [u8; 33] = [/* 80 01 02 */
             0xB4, 0x09, 0x83, 0x01, 0x01, 0x95, 0x01, 0x08, 0x80, 0x01, 0x02,
             0xB8, 0x09, 0x83, 0x01, 0x01, 0x95, 0x01, 0x08, 0x80, 0x01, 0x02,
             0xA4, 0x06, 0x83, 0x01, 0x81, 0x95, 0x01, 0x08,       0x00, 0x00, 0x00];
-        let rv = se_parse_crts(/*card: &mut sc_card,*/ 2, &data, &mut seinfo);
+        let rv = se_parse_sac(/*card: &mut sc_card,*/ 2, &data, &mut seinfo);
         assert_eq!(rv as usize, data.len()-3);
-//        assert_eq!(seinfo.next, std::ptr::null_mut());
         assert_eq!(seinfo.reference, 2);
         assert_eq!(seinfo.crts_len,  3);
-        assert_eq!(seinfo.crts[0],   sc_crt{tag: 0xB4, usage: 0x08, algo: 0x02, refs: [0x01,0,0,0,0,0,0,0]});
-        assert_eq!(seinfo.crts[1],   sc_crt{tag: 0xB8, usage: 0x08, algo: 0x02, refs: [0x01,0,0,0,0,0,0,0]});
-        assert_eq!(seinfo.crts[2],   sc_crt{tag: 0xA4, usage: 0x08, algo: 0x00, refs: [0x81,0,0,0,0,0,0,0]});
+        assert_eq!(seinfo.crts[0],   sc_crt{tag: 0xB4, usage: 8, algo: 2, refs: [   1,0,0,0,0,0,0,0]});
+        assert_eq!(seinfo.crts[1],   sc_crt{tag: 0xB8, usage: 8, algo: 2, refs: [   1,0,0,0,0,0,0,0]});
+        assert_eq!(seinfo.crts[2],   sc_crt{tag: 0xA4, usage: 8, algo: 0, refs: [0x81,0,0,0,0,0,0,0]});
 
-        seinfo =  Default::default();
+        seinfo =  SACinfo::default();
         let data : [u8; 14] = [/* 80 01 04 */
             0xA4, 0x09, 0x83, 0x01, 0x01, 0x83, 0x01, 0x81, 0x95, 0x01, 0x08,      0x00, 0x00, 0x00];
-        let rv = se_parse_crts(/*card: &mut sc_card,*/ 4, &data, &mut seinfo);
+        let rv = se_parse_sac(/*card: &mut sc_card,*/ 4, &data, &mut seinfo);
         assert_eq!(rv as usize, data.len()-3);
-//        assert_eq!(seinfo.next, std::ptr::null_mut());
         assert_eq!(seinfo.reference, 4);
         assert_eq!(seinfo.crts_len,  1);
-        assert_eq!(seinfo.crts[0],   sc_crt{tag: 0xA4, usage: 0x08, algo: 0x00, refs: [0x01,0x81,0,0,0,0,0,0]});
+        assert_eq!(seinfo.crts[0],   sc_crt{tag: 0xA4, usage: 8, algo: 0, refs: [0x01,0x81,0,0,0,0,0,0]});
 
-        seinfo =  Default::default();
+        seinfo =  SACinfo::default();
         let data : [u8; 31] = [/* 80 01 05 */
             0xB4, 0x08, 0x84, 0x00, 0x95, 0x01, 0x30, 0x80, 0x01, 0x02,
             0xB8, 0x08, 0x84, 0x00, 0x95, 0x01, 0x30, 0x80, 0x01, 0x02,
             0xA4, 0x06, 0x83, 0x01, 0x82, 0x95, 0x01, 0x80,       0x00, 0x00, 0x00];
-        let rv = se_parse_crts(/*card: &mut sc_card,*/ 5, &data, &mut seinfo);
+        let rv = se_parse_sac(/*card: &mut sc_card,*/ 5, &data, &mut seinfo);
         assert_eq!(rv as usize, data.len()-3);
-//        assert_eq!(seinfo.next, std::ptr::null_mut());
         assert_eq!(seinfo.reference, 5);
         assert_eq!(seinfo.crts_len,  3);
-        assert_eq!(seinfo.crts[0],   sc_crt{tag: 0xB4, usage: 0x30, algo: 0x02, refs: [0x84,0,0,0,0,0,0,0]});
-        assert_eq!(seinfo.crts[1],   sc_crt{tag: 0xB8, usage: 0x30, algo: 0x02, refs: [0x84,0,0,0,0,0,0,0]});
-        assert_eq!(seinfo.crts[2],   sc_crt{tag: 0xA4, usage: 0x80, algo: 0x00, refs: [0x82,0,0,0,0,0,0,0]});
+        assert_eq!(seinfo.crts[0],   sc_crt{tag: 0xB4, usage: 0x30, algo: 2, refs: [0x84,0,0,0,0,0,0,0]});
+        assert_eq!(seinfo.crts[1],   sc_crt{tag: 0xB8, usage: 0x30, algo: 2, refs: [0x84,0,0,0,0,0,0,0]});
+        assert_eq!(seinfo.crts[2],   sc_crt{tag: 0xA4, usage: 0x80, algo: 0, refs: [0x82,0,0,0,0,0,0,0]});
 
-        seinfo =  Default::default();
+        seinfo =  SACinfo::default();
         let data : [u8; 9] = [/* 80 01 06 */
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00,     0x00, 0x00, 0x00];
-        let rv = se_parse_crts(/*card: &mut sc_card,*/ 6, &data, &mut seinfo);
+        let rv = se_parse_sac(/*card: &mut sc_card,*/ 6, &data, &mut seinfo);
         assert_eq!(rv as usize, 0);
-        assert_eq!(seinfo, Default::default());
-//        assert_eq!(seinfo.next, std::ptr::null_mut());
+        assert_eq!(seinfo, SACinfo::default());
 
-        seinfo =  Default::default();
+        seinfo =  SACinfo::default();
         let data : [u8; 11] = [/* 80 01 01 */
             0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x08,     0x00, 0x00, 0x00];
-        let rv = se_parse_crts(/*card: &mut sc_card,*/ 1, &data, &mut seinfo);
+        let rv = se_parse_sac(/*card: &mut sc_card,*/ 1, &data, &mut seinfo);
         assert_eq!(rv as usize, data.len()-3);
-//        assert_eq!(seinfo.next, std::ptr::null_mut());
         assert_eq!(seinfo.reference, 1);
         assert_eq!(seinfo.crts_len,  1);
-        assert_eq!(seinfo.crts[0],   sc_crt{tag: 0xA4, usage: 0x08, algo: 0x00, refs: [1,0,0,0,0,0,0,0]});
+        assert_eq!(seinfo.crts[0],   sc_crt{tag: 0xA4, usage: 8, algo: 0, refs: [1,0,0,0,0,0,0,0]});
     }
+/*
+    #[test]
+    fn test_se_parse_sae() {
+pub fn se_parse_sae(vec_sac_info: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp_sae: &[u8]) -> Result<Vec<SAEinfo>, c_int>
+
+    }
+*/
 }

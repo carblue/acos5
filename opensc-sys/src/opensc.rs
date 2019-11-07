@@ -40,12 +40,10 @@
 #endif
 */
 
-#[cfg(impl_display)]
-use std::fmt;
-#[cfg(impl_display)]
-use std::ffi::CStr;
-use std::ffi::CString;
+use std::ffi::{CString};
 use std::os::raw::{c_char, c_uchar, c_int, c_uint, c_ulong, c_void};
+#[cfg(impl_default)]
+use std::ptr::{null, null_mut};
 
 use libc::FILE;
 
@@ -56,7 +54,9 @@ use crate::types::{sc_apdu, sc_path, sc_file, sc_acl_entry, sc_object_id, sc_lv_
 use crate::scconf::{scconf_context, scconf_block};
 use crate::internal::{sc_atr_table};
 use crate::sm::{sm_context};
-use crate::simclist::{list_t, list_attributes_s, list_entry_s};
+use crate::simclist::{list_t};
+#[cfg(impl_default)]
+use crate::simclist::{list_attributes_s};
 
 /*
    WARNING
@@ -79,17 +79,17 @@ pub const SC_SEC_OPERATION_WRAP         : c_int = 0x0005;
 pub const SC_SEC_OPERATION_UNWRAP       : c_int = 0x0006;
 
 /* sc_security_env flags */
-pub const SC_SEC_ENV_ALG_REF_PRESENT         : c_uint = 0x0001;
-pub const SC_SEC_ENV_FILE_REF_PRESENT        : c_uint = 0x0002;
-pub const SC_SEC_ENV_KEY_REF_PRESENT         : c_uint = 0x0004;
+pub const SC_SEC_ENV_ALG_REF_PRESENT         : c_ulong = 0x0001;
+pub const SC_SEC_ENV_FILE_REF_PRESENT        : c_ulong = 0x0002;
+pub const SC_SEC_ENV_KEY_REF_PRESENT         : c_ulong = 0x0004;
 /* FIXME: the flag below is misleading */
 #[cfg(    v0_17_0)]
-pub const SC_SEC_ENV_KEY_REF_ASYMMETRIC      : c_uint = 0x0008;
+pub const SC_SEC_ENV_KEY_REF_ASYMMETRIC      : c_ulong = 0x0008;
 #[cfg(not(v0_17_0))]
-pub const SC_SEC_ENV_KEY_REF_SYMMETRIC       : c_uint = 0x0008;
-pub const SC_SEC_ENV_ALG_PRESENT             : c_uint = 0x0010;
+pub const SC_SEC_ENV_KEY_REF_SYMMETRIC       : c_ulong = 0x0008;
+pub const SC_SEC_ENV_ALG_PRESENT             : c_ulong = 0x0010;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_SEC_ENV_TARGET_FILE_REF_PRESENT : c_uint = 0x0020;  /* unused */
+pub const SC_SEC_ENV_TARGET_FILE_REF_PRESENT : c_ulong = 0x0020;  /* unused */
 
 /* sc_security_env additional parameters */
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
@@ -360,14 +360,14 @@ pub struct sc_supported_algo_info {
 
 #[cfg(impl_default)]
 impl Default for sc_supported_algo_info {
-    fn default() -> sc_supported_algo_info {
-        sc_supported_algo_info {
+    fn default() -> Self {
+        Self {
             reference: 0,
             mechanism: 0,
             #[cfg(not(v0_17_0))]
-            parameters : std::ptr::null_mut(),
+            parameters : null_mut(),
             operations: 0,
-            algo_id: Default::default(),
+            algo_id: sc_object_id::default(),
             algo_ref: 0
         }
     }
@@ -392,10 +392,10 @@ pub type sc_sec_env_param_t = sc_sec_env_param;
 #[cfg(impl_default)]
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 impl Default for sc_sec_env_param {
-    fn default() -> sc_sec_env_param {
-        sc_sec_env_param {
+    fn default() -> Self {
+        Self {
             param_type: 0,
-            value: std::ptr::null_mut(),
+            value: null_mut(),
             value_len: 0
         }
     }
@@ -411,7 +411,7 @@ pub struct sc_security_env {
 
     pub algorithm_ref   : c_uint,     /* if used, set flag SC_SEC_ENV_ALG_REF_PRESENT */
     pub file_ref        : sc_path,    /* if used, set flag SC_SEC_ENV_FILE_REF_PRESENT */
-    pub key_ref : [c_uchar; 8usize],  /* if used, set flag SC_SEC_ENV_KEY_REF_PRESENT */
+    pub key_ref : [c_uchar; 8],  /* if used, set flag SC_SEC_ENV_KEY_REF_PRESENT */
     pub key_ref_len : usize,
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     pub target_file_ref : sc_path,    /* unused;  target key file in unwrap operation; if used, set flag SC_SEC_ENV_TARGET_FILE_REF_PRESENT */
@@ -429,21 +429,21 @@ pub type sc_security_env_t = sc_security_env;
 
 #[cfg(impl_default)]
 impl Default for sc_security_env {
-    fn default() -> sc_security_env {
-        sc_security_env {
+    fn default() -> Self {
+        Self {
             flags: 0,
             operation: 0,
             algorithm: 0,
             algorithm_flags: 0,
             algorithm_ref: 0,
-            file_ref: Default::default(),
-            key_ref: [0; 8usize],
+            file_ref: sc_path::default(),
+            key_ref: [0; 8],
             key_ref_len: 0,
             #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-            target_file_ref : Default::default(),
-            supported_algos: [Default::default(); SC_MAX_SUPPORTED_ALGORITHMS],
+            target_file_ref : sc_path::default(),
+            supported_algos: [sc_supported_algo_info::default(); SC_MAX_SUPPORTED_ALGORITHMS],
             #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-            params : [Default::default(); SC_SEC_ENV_MAX_PARAMS],
+            params : [sc_sec_env_param::default(); SC_SEC_ENV_MAX_PARAMS],
         }
     }
 }
@@ -458,11 +458,11 @@ pub struct sc_algorithm_id {
 
 #[cfg(impl_default)]
 impl Default for sc_algorithm_id {
-    fn default() -> sc_algorithm_id {
-        sc_algorithm_id {
+    fn default() -> Self {
+        Self {
             algorithm: 0,
-            oid: Default::default(),
-            params: std::ptr::null_mut()
+            oid: sc_object_id::default(),
+            params: null_mut()
         }
     }
 }
@@ -470,7 +470,7 @@ impl Default for sc_algorithm_id {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pbkdf2_params {
-    pub salt : [c_uchar; 16usize],
+    pub salt : [c_uchar; 16],
     pub salt_len : usize,
     pub iterations : c_int,
     pub key_length : usize,
@@ -521,16 +521,16 @@ pub struct sc_algorithm_info__union_sc_ec_info {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub union sc_algorithm_info__union {
-    pub _rsa : sc_algorithm_info__union_sc_rsa_info,
-    pub _ec  : sc_algorithm_info__union_sc_ec_info,
+    pub rsa : sc_algorithm_info__union_sc_rsa_info,
+    pub ec  : sc_algorithm_info__union_sc_ec_info,
 //    _bindgen_union_align : [u64 ; 14usize],
 }
 
-#[cfg(impl_default)]
+#[cfg(acos5_impl_default)]
 impl Default for sc_algorithm_info__union {
-    fn default() -> sc_algorithm_info__union {
-        sc_algorithm_info__union {
-            _rsa : sc_algorithm_info__union_sc_rsa_info { exponent : 0x1_0001 },
+    fn default() -> Self {
+        Self {
+            rsa : sc_algorithm_info__union_sc_rsa_info { exponent : 0x1_0001 },
         }
     }
 }
@@ -550,14 +550,15 @@ pub struct sc_algorithm_info {
 pub type sc_algorithm_info_t = sc_algorithm_info;
 */
 
+#[cfg(acos5_impl_default)]
 #[cfg(impl_default)]
 impl Default for sc_algorithm_info {
-    fn default() -> sc_algorithm_info {
-        sc_algorithm_info {
+    fn default() -> Self {
+        Self {
             algorithm: 0,
             key_length: 0,
             flags: 0,
-            u: Default::default()
+            u: sc_algorithm_info__union::default()
         }
     }
 }
@@ -592,10 +593,10 @@ pub struct sc_ef_atr {
 
     pub aid : sc_aid,
 
-    pub pre_issuing : [c_uchar ; 6usize],
+    pub pre_issuing : [c_uchar ; 6],
     pub pre_issuing_len : usize,
 
-    pub issuer_data : [c_uchar ; 16usize],
+    pub issuer_data : [c_uchar ; 16],
     pub issuer_data_len : usize,
 
     pub allocation_oid : sc_object_id,
@@ -696,10 +697,10 @@ pub type sc_reader_t = sc_reader;
  * It is supposed to support pin pads (with or without display)
  * attached to the reader.
  */
-pub const SC_PIN_CMD_VERIFY          : c_uint = 0;
-pub const SC_PIN_CMD_CHANGE          : c_uint = 1;
-pub const SC_PIN_CMD_UNBLOCK         : c_uint = 2;
-pub const SC_PIN_CMD_GET_INFO        : c_uint = 3;
+pub const SC_PIN_CMD_VERIFY          : c_uint = 0; // ins = 0x20;
+pub const SC_PIN_CMD_CHANGE          : c_uint = 1; // ins = 0x24;
+pub const SC_PIN_CMD_UNBLOCK         : c_uint = 2; // ins = 0x2C;
+pub const SC_PIN_CMD_GET_INFO        : c_uint = 3; // ins = 0x20;
 pub const SC_PIN_CMD_GET_SESSION_PIN : c_uint = 4;  // since opensc source release v0.17.0
 
 /* flags */
@@ -737,11 +738,35 @@ pub struct sc_pin_cmd_pin {
     pub length_offset : usize, /* Effective PIN length offset in the APDU */
 
     pub max_tries  : c_int, /* Used for signaling back from SC_PIN_CMD_GET_INFO */
-    pub tries_left : c_int, /* Used for signaling back from SC_PIN_CMD_GET_INFO */
+    pub tries_left : c_int, /* Used for signaling back from SC_PIN_CMD_GET_INFO  or if the command failed */
     pub logged_in : c_int,  /* Used for signaling back from SC_PIN_CMD_GET_INFO, see SC_PIN_STATE_* */  // since opensc source release v0.17.0
 
     pub acls : [sc_acl_entry; SC_MAX_SDO_ACLS],
 }
+
+#[cfg(acos5_impl_default)]
+impl Default for sc_pin_cmd_pin {
+    fn default() -> Self {
+        Self {
+            prompt: null(),
+            data: null(),
+            len: 0,
+            min_length: 4,    // not imposed by acos
+            max_length: 8,    // this may be different for ACOS5-EVO
+            stored_length: 8, // this may be different for ACOS5-EVO
+            encoding: 0,      // 0 == SC_PIN_ENCODING_ASCII
+            pad_length: 8,
+            pad_char: 0xFF,
+            offset: 5,        // this may be different for ACOS5-EVO
+            length_offset: 0,
+            max_tries: 8, // 1-14 or 0xFF
+            tries_left: 0,
+            logged_in: 0, // 0 == SC_PIN_STATE_LOGGED_OUT
+            acls: [sc_acl_entry::default(); SC_MAX_SDO_ACLS]
+        }
+    }
+}
+
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -756,6 +781,21 @@ pub struct sc_pin_cmd_data {
     pub pin2 : sc_pin_cmd_pin,
 
     pub apdu : *mut sc_apdu,  /* APDU of the PIN command */
+}
+
+#[cfg(acos5_impl_default)]
+impl Default for sc_pin_cmd_data {
+    fn default() -> Self {
+        Self {
+            cmd: 0,      // 0 == SC_PIN_CMD_VERIFY
+            flags: 2,    // 2 == SC_PIN_CMD_NEED_PADDING  TODO check that for acos5 and how it works
+            pin_type: 1, // 1 == SC_AC_CHV
+            pin_reference: 0,
+            pin1: sc_pin_cmd_pin::default(),
+            pin2: sc_pin_cmd_pin::default(),
+            apdu: null_mut(),
+        }
+    }
 }
 
 #[repr(C)]
@@ -1084,14 +1124,14 @@ pub type sc_card_driver_t = sc_card_driver;
 
 #[cfg(impl_default)]
 impl Default for sc_card_driver {
-    fn default() -> sc_card_driver {
-        sc_card_driver {
-            name:       std::ptr::null(),
-            short_name: std::ptr::null(),
-            ops:        std::ptr::null_mut(),
-            atr_map:    std::ptr::null_mut(),
+    fn default() -> Self {
+        Self {
+            name:       null(),
+            short_name: null(),
+            ops:        null_mut(),
+            atr_map:    null_mut(),
             natrs:      0,
-            dll:        std::ptr::null_mut()
+            dll:        null_mut()
         }
     }
 }
@@ -1139,7 +1179,7 @@ pub const SC_CTX_FLAG_DISABLE_COLORS        : c_uint = 0x0000_0020;  // since op
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_context {
     pub conf : *mut scconf_context,
-    pub conf_blocks : [*mut scconf_block; 3usize],
+    pub conf_blocks : [*mut scconf_block; 3],
     pub app_name : *mut c_char,
     pub debug : c_int,
     #[cfg(any(v0_17_0, v0_18_0))]
@@ -1171,29 +1211,29 @@ pub type sc_context_t = sc_context;
 
 #[cfg(impl_default)]
 impl Default for sc_context {
-    fn default() -> sc_context {
-        sc_context {
-            conf: std::ptr::null_mut(),
-            conf_blocks: [std::ptr::null_mut(); 3],
-            app_name: std::ptr::null_mut(),
+    fn default() -> Self {
+        Self {
+            conf: null_mut(),
+            conf_blocks: [null_mut(); 3],
+            app_name: null_mut(),
             debug: 0,
             #[cfg(any(v0_17_0, v0_18_0))]
             reopen_log_file : 0,
             flags : 0,
 
-            debug_file: std::ptr::null_mut(),
-            debug_filename: std::ptr::null_mut(),
-            preferred_language: std::ptr::null_mut(),
+            debug_file: null_mut(),
+            debug_filename: null_mut(),
+            preferred_language: null_mut(),
             readers: list_t {
-                head_sentinel: std::ptr::null_mut(),
-                tail_sentinel: std::ptr::null_mut(),
-                mid:           std::ptr::null_mut(),
+                head_sentinel: null_mut(),
+                tail_sentinel: null_mut(),
+                mid:           null_mut(),
                 numels: 0,
-                spareels: unsafe { std::mem::transmute::<usize, *mut *mut list_entry_s>(0) },
+                spareels: null_mut(),
                 spareelsnum: 0,
                 iter_active: 0,
                 iter_pos: 0,
-                iter_curentry: std::ptr::null_mut(),
+                iter_curentry: null_mut(),
                 attrs: list_attributes_s {
                     comparator: None,
                     seeker: None,
@@ -1204,22 +1244,22 @@ impl Default for sc_context {
                     unserializer: None
                 }
             },
-            reader_driver: std::ptr::null_mut(),
-            reader_drv_data:std::ptr::null_mut(),
-            card_drivers: [std::ptr::null_mut(); SC_MAX_CARD_DRIVERS],
-            forced_driver: std::ptr::null_mut(),
-            thread_ctx: std::ptr::null_mut(),
-            mutex: std::ptr::null_mut(),
+            reader_driver: null_mut(),
+            reader_drv_data:null_mut(),
+            card_drivers: [null_mut(); SC_MAX_CARD_DRIVERS],
+            forced_driver: null_mut(),
+            thread_ctx: null_mut(),
+            mutex: null_mut(),
             magic: 0
         }
     }
 }
 
 #[cfg(impl_display)]
-impl fmt::Display for sc_context {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl std::fmt::Display for sc_context {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         assert!(!self.app_name.is_null());
-        let app_name = unsafe { CStr::from_ptr(self.app_name) };
+        let app_name = unsafe { std::ffi::CStr::from_ptr(self.app_name) };
         write!(f, "app_name: {:?}, debug: {}, magic: {}, card_drivers[{:?}, {:?}, {:?}, {:?}, ...],\n\
           conf_blocks[{:?}, {:?}, {:?}]",
         app_name, self.debug, self.magic,
@@ -2234,13 +2274,13 @@ assert_eq!(vec.len(), cap-1);
 assert_eq!(c_string.as_bytes_with_nul().len(), cap);
 //println!("Length raw : {}", cap);
 
-    let raw: *mut c_char = c_string.into_raw(); // = std::ptr::null_mut();
+    let raw: *mut c_char = c_string.into_raw(); // = null_mut();
 /*
      due to a bug in C code (before commit https://github.com/OpenSC/OpenSC/commit/fd20ffe6081c3bc4b0c207f16787f353cd21c61f) in line:  if (pos + 3 + sep_len >= end)
      which should be correctly:       if (pos + 3 + in_len==0?0:sep_len >  end)
      the BUFFER_TOO_SMALL checking in C requires 1-2 exessive bytes to be pretended to be offered (i.e. 1-2 more than actually required)
      thus currently cheat sc_bin_to_hex to be offered 2 more bytes than actually allocated
-     let in_ : *const c_uchar = std::ptr::null();
+     let in_ : *const c_uchar = null();
 
      frankmorgner:bin_hex
 */
@@ -2256,7 +2296,8 @@ assert_eq!(c_string.as_bytes_with_nul().len(), cap);
         Err(rv)
     }
 }
-pub fn sc_bytes2apdu_wrapper(ctx: *mut sc_context, in_: &[c_uchar], apdu: &mut sc_apdu) -> c_int {
+
+pub fn sc_bytes2apdu_wrapper(ctx: &mut sc_context, in_: &[c_uchar], apdu: &mut sc_apdu) -> c_int {
     unsafe { sc_bytes2apdu(ctx, in_.as_ptr(), in_.len(), apdu) }
 }
 

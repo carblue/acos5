@@ -7,13 +7,7 @@ use std::collections::{HashSet};
 //use opensc_sys::opensc::{sc_context, sc_card/*, sc_print_path, sc_file_free, sc_file_new*/};
 
 use opensc_sys::pkcs15::{sc_pkcs15_card, SC_PKCS15_SKDF, SC_PKCS15_TYPE_SKEY, sc_pkcs15_skey_info /*, sc_pkcs15_object*/};
-//use opensc_sys::pkcs15::{SC_PKCS15_TYPE_PRKEY_RSA, SC_PKCS15_TYPE_PUBKEY_RSA, SC_PKCS15_TYPE_CERT, SC_PKCS15_TYPE_DATA_OBJECT};
-
-//use opensc_sys::profile::{sc_profile};
-//use opensc_sys::errors::{SC_ERROR_INCONSISTENT_CONFIGURATION/*, SC_SUCCESS, SC_ERROR_NOT_SUPPORTED, sc_strerror*/}; //, SC_ERROR_INVALID_ARGUMENTS
-//use opensc_sys::sm::{sm_info};
-//use opensc_sys::scconf::{scconf_block, scconf_find_blocks, scconf_get_str};
-//use opensc_sys::types::{sc_file, SC_PATH_TYPE_FILE_ID, SC_FILE_TYPE_BSO};
+use opensc_sys::errors::{SC_ERROR_INVALID_ARGUMENTS };
 use opensc_sys::log::{sc_dump_hex};
 
 use crate::constants_types::*;
@@ -24,20 +18,25 @@ use crate::missing_exports::{find_df_by_type};
 
 pub fn rsa_modulus_bits_canonical(rsa_modulus_bits: usize) -> usize { ((rsa_modulus_bits + 8) /256) *256 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_sign_loss))]
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_possible_truncation))]
 pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mut u16) -> c_int
 {
-    assert!(!p15card.card.is_null());
-    let card = unsafe { &mut *p15card.card };
+    if p15card.card.is_null() || unsafe { (*p15card.card).ctx.is_null() } {
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+//    let card = unsafe { &mut *p15card.card };
+    let card_ctx = unsafe { &mut *(*p15card.card).ctx };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun  = CStr::from_bytes_with_nul(b"first_of_free_indices\0").unwrap();
     if cfg!(log) {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
+        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
     let df_path = match find_df_by_type(p15card, SC_PKCS15_SKDF) {
         Ok(df) => if df.enumerated==1 {&df.path} else {return -1},
         Err(e) => return e,
     };
-    wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(df_path.value.as_ptr(), df_path.len) }, CStr::from_bytes_with_nul(b"df_list.path of SC_PKCS15_SKDF: %s\0").unwrap());
+    wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(df_path.value.as_ptr(), df_path.len) }, CStr::from_bytes_with_nul(b"df_list.path of SC_PKCS15_SKDF: %s\0").unwrap());
     let mut obj_list_ptr = p15card.obj_list;
     if obj_list_ptr.is_null() {
         return -1;
@@ -46,8 +45,6 @@ pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mu
     for i in 0..255 { index_possible.insert(i+1); }
 
     /*
-
-
     P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:156:first_of_free_indices: obj_list.type_: 304
     P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:157:first_of_free_indices: obj_list.label: SM1
     P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:158:first_of_free_indices: obj_list.flags: 3
@@ -83,37 +80,43 @@ pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mu
     P:4411; T:0x140611560458048 22:28:26.289 [opensc-pkcs11] acos5:165:first_of_free_indices: skey_info.path: 3F0041004102
     P:4411; T:0x140611560458048 22:28:26.289 [opensc-pkcs11] acos5:166:first_of_free_indices: skey_info.path.index: 3
     P:4411; T:0x140611560458048 22:28:26.289 [opensc-pkcs11] acos5:167:first_of_free_indices: skey_info.path.count: 37
-
     */
     while !obj_list_ptr.is_null() {
         let obj_list = unsafe { &*obj_list_ptr };
         if (obj_list.type_ & SC_PKCS15_TYPE_SKEY) == SC_PKCS15_TYPE_SKEY {
             assert!(!obj_list.data.is_null());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, obj_list.type_, CStr::from_bytes_with_nul(b"obj_list.type_: %X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, obj_list.label.as_ptr(), CStr::from_bytes_with_nul(b"obj_list.label: %s\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, obj_list.flags, CStr::from_bytes_with_nul(b"obj_list.flags: %X\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, obj_list.content.len, CStr::from_bytes_with_nul(b"obj_list.content.len: %zu\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, obj_list.type_, CStr::from_bytes_with_nul(b"obj_list.type_: %X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, obj_list.label.as_ptr(), CStr::from_bytes_with_nul(b"obj_list.label: %s\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, obj_list.flags, CStr::from_bytes_with_nul(b"obj_list.flags: %X\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, obj_list.content.len, CStr::from_bytes_with_nul(b"obj_list.content.len: %zu\0").unwrap());
             let skey_info = unsafe { &*(obj_list.data as *mut sc_pkcs15_skey_info) };
-            wr_do_log_t(card.ctx, f_log, line!(), fun, skey_info.id.len, CStr::from_bytes_with_nul(b"skey_info.id.len: %zu\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(skey_info.id.value.as_ptr(), skey_info.id.len) }, CStr::from_bytes_with_nul(b"skey_info.id: %s\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, skey_info.key_reference, CStr::from_bytes_with_nul(b"skey_info.key_reference: %d\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, skey_info.key_type, CStr::from_bytes_with_nul(b"skey_info.key_type: %lu\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, unsafe { sc_dump_hex(skey_info.path.value.as_ptr(), skey_info.path.len) }, CStr::from_bytes_with_nul(b"skey_info.path: %s\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, skey_info.path.index, CStr::from_bytes_with_nul(b"skey_info.path.index: %d\0").unwrap());
-            wr_do_log_t(card.ctx, f_log, line!(), fun, skey_info.path.count, CStr::from_bytes_with_nul(b"skey_info.path.count: %d\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, skey_info.id.len, CStr::from_bytes_with_nul(b"skey_info.id.len: %zu\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(skey_info.id.value.as_ptr(), skey_info.id.len) }, CStr::from_bytes_with_nul(b"skey_info.id: %s\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, skey_info.key_reference, CStr::from_bytes_with_nul(b"skey_info.key_reference: %d\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, skey_info.key_type, CStr::from_bytes_with_nul(b"skey_info.key_type: %lu\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(skey_info.path.value.as_ptr(), skey_info.path.len) }, CStr::from_bytes_with_nul(b"skey_info.path: %s\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, skey_info.path.index, CStr::from_bytes_with_nul(b"skey_info.path.index: %d\0").unwrap());
+            wr_do_log_t(card_ctx, f_log, line!(), fun, skey_info.path.count, CStr::from_bytes_with_nul(b"skey_info.path.count: %d\0").unwrap());
+            assert!(skey_info.path.index >= 0 && skey_info.path.index <= 255);
+            //TODO temporarily allow cast_sign_loss
+            //TODO temporarily allow cast_possible_truncation
             index_possible.remove(&(skey_info.path.index as u8));
             if *file_id_sym_keys == 0 {
                 assert!(skey_info.path.len>=2);
-                *file_id_sym_keys = u16_from_array_begin(&skey_info.path.value[skey_info.path.len-2..skey_info.path.len]);
+                *file_id_sym_keys = u16::from_be_bytes([skey_info.path.value[skey_info.path.len-2],
+                                                        skey_info.path.value[skey_info.path.len-1]]);
             }
         }
         obj_list_ptr = obj_list.next;
     }
-    let mut index_possible_min = 256u16;
+    let mut index_possible_min = 256_u16;
     for elem in &index_possible {
-        if index_possible_min > *elem as u16 { index_possible_min = *elem as u16; }
+        if  index_possible_min > u16::from(*elem) {
+            index_possible_min = u16::from(*elem);
+        }
     }
-    (index_possible_min as u8) as c_int
+    //TODO temporarily allow cast_possible_truncation
+    i32::from(index_possible_min as u8)
 }
 
 /*

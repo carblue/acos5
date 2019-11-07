@@ -116,11 +116,11 @@ pub struct sm_type_params_gp {
 pub struct sm_gp_keyset {
     pub version : c_int,
     pub index : c_int,
-    pub enc : [c_uchar; 16usize],
-    pub mac : [c_uchar; 16usize],
-    pub kek : [c_uchar; 16usize],
+    pub enc : [c_uchar; 16],
+    pub mac : [c_uchar; 16],
+    pub kek : [c_uchar; 16],
 
-    pub kmc : [c_uchar; 48usize],
+    pub kmc : [c_uchar; 48],
     pub kmc_len : c_uint,
 }
 
@@ -141,7 +141,7 @@ pub struct sm_gp_session {
     pub session_enc : *mut c_uchar,
     pub session_mac : *mut c_uchar,
     pub session_kek : *mut c_uchar,
-    pub mac_icv : [c_uchar; 8usize],
+    pub mac_icv : [c_uchar; 8],
 }
 
 /* CWA, IAS/ECC data types */
@@ -150,18 +150,9 @@ pub struct sm_gp_session {
  * @struct sm_type_params_cwa
  */
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct sm_type_params_cwa {
     pub crt_at : sc_crt,
-}
-
-#[cfg(impl_default)]
-impl Default for sm_type_params_cwa {
-    fn default() -> sm_type_params_cwa {
-        sm_type_params_cwa {
-            crt_at: Default::default(),
-        }
-    }
 }
 
 /*
@@ -171,22 +162,11 @@ impl Default for sm_type_params_cwa {
  * - 'ENC' and 'MAC' 3DES keys.
  */
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct sm_cwa_keyset {
     pub sdo_reference : c_uint,
-    pub enc : [c_uchar; 16usize],
-    pub mac : [c_uchar; 16usize],
-}
-
-#[cfg(impl_default)]
-impl Default for sm_cwa_keyset {
-    fn default() -> sm_cwa_keyset {
-        sm_cwa_keyset {
-            sdo_reference: 0,
-            enc: [0u8; 16usize],
-            mac: [0u8; 16usize]
-        }
-    }
+    pub enc : [c_uchar; 16],
+    pub mac : [c_uchar; 16],
 }
 
 /*
@@ -197,22 +177,11 @@ impl Default for sm_cwa_keyset {
  * - 'big' random.
  */
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct sm_cwa_token_data {
-    pub sn : [c_uchar; 8usize],
-    pub rnd : [c_uchar; 8usize],
-    pub k : [c_uchar; 32usize],
-}
-
-#[cfg(impl_default)]
-impl Default for sm_cwa_token_data {
-    fn default() -> sm_cwa_token_data {
-        sm_cwa_token_data {
-            sn: [0u8; 8usize],
-            rnd: [0u8; 8usize],
-            k: [0u8; 32usize]
-        }
-    }
+    pub sn :  [c_uchar; 8],
+    pub rnd : [c_uchar; 8],
+    pub k :   [c_uchar; 32],
 }
 
 /*
@@ -233,10 +202,10 @@ pub struct sm_cwa_session {
     pub icc : sm_cwa_token_data,
     pub ifd : sm_cwa_token_data,
 
-    pub session_enc : [c_uchar; 16usize],
-    pub session_mac : [c_uchar; 16usize],
+    pub session_enc : [c_uchar; 16],
+    pub session_mac : [c_uchar; 16],
 
-    pub ssc : [c_uchar; 8usize],
+    pub ssc : [c_uchar; 8],
 
     pub host_challenge : [c_uchar; SM_SMALL_CHALLENGE_LEN],
     pub card_challenge : [c_uchar; SM_SMALL_CHALLENGE_LEN],
@@ -247,18 +216,18 @@ pub struct sm_cwa_session {
 
 #[cfg(impl_default)]
 impl Default for sm_cwa_session {
-    fn default() -> sm_cwa_session {
-        sm_cwa_session {
-            cwa_keyset: Default::default(),
-            params: Default::default(),
-            icc: Default::default(),
-            ifd: Default::default(),
-            session_enc: [0u8; 16usize],
-            session_mac: [0u8; 16usize],
-            ssc: [0u8; 8usize],
-            host_challenge: [0u8; SM_SMALL_CHALLENGE_LEN],
-            card_challenge: [0u8; SM_SMALL_CHALLENGE_LEN],
-            mdata: [0u8; 0x48usize],
+    fn default() -> Self {
+        Self {
+            cwa_keyset: sm_cwa_keyset::default(),
+            params: sm_type_params_cwa::default(),
+            icc: sm_cwa_token_data::default(),
+            ifd: sm_cwa_token_data::default(),
+            session_enc: [0; 16],
+            session_mac: [0; 16],
+            ssc: [0; 8],
+            host_challenge: [0; SM_SMALL_CHALLENGE_LEN],
+            card_challenge: [0; SM_SMALL_CHALLENGE_LEN],
+            mdata: [0; 0x48],
             mdata_len: 0
         }
     }
@@ -279,12 +248,12 @@ pub struct sm_dh_session {
     pub icc_p : sc_tlv_data,
     pub shared_secret : sc_tlv_data,
 
-    pub session_enc : [c_uchar; 16usize],
-    pub session_mac : [c_uchar; 16usize],
+    pub session_enc : [c_uchar; 16],
+    pub session_mac : [c_uchar; 16],
 
-    pub card_challenge : [c_uchar; 32usize],
+    pub card_challenge : [c_uchar; 32],
 
-    pub ssc : [c_uchar; 8usize],
+    pub ssc : [c_uchar; 8],
 }
 
 /*
@@ -307,7 +276,7 @@ pub union sm_info__union {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sm_info {
-    pub config_section : [c_char; 64usize],
+    pub config_section : [c_char; 64],
     pub card_type : c_uint,
 
     pub cmd : c_uint,      /* e.g. SM_CMD_EXTERNAL_AUTH */
@@ -340,7 +309,7 @@ pub struct sm_card_response {
     pub data : [c_uchar; SC_MAX_APDU_BUFFER_SIZE],
     pub data_len : usize,
 
-    pub mac : [c_uchar; 8usize],
+    pub mac : [c_uchar; 8],
     pub mac_len : usize,
 
     pub sw1 : c_uchar,
@@ -409,7 +378,7 @@ pub struct sm_module_operations {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sm_module {
-    pub filename : [c_char; 128usize],
+    pub filename : [c_char; 128],
     pub handle : *mut c_void,
 
     pub ops : sm_module_operations,
@@ -431,7 +400,7 @@ pub type sm_module_t = sm_module;
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sm_context {
-    pub config_section : [c_char; 64usize],
+    pub config_section : [c_char; 64],
     pub sm_mode  : c_uint,  /* e.g. SM_MODE_NONE */
     pub sm_flags : c_uint,  /* unused */
 

@@ -70,6 +70,8 @@
 
 
 use std::os::raw::{c_char, c_uint, c_int, c_void, c_uchar};
+#[cfg(impl_default)]
+use std::ptr::{null, null_mut};
 
 use crate::opensc::{sc_context, sc_algorithm_id};
 use crate::types::{sc_object_id};
@@ -88,14 +90,14 @@ pub struct sc_asn1_entry {
 
 #[cfg(impl_default)]
 impl Default for sc_asn1_entry {
-    fn default() -> sc_asn1_entry {
-        sc_asn1_entry {
-            name :  std::ptr::null(),
+    fn default() -> Self {
+        Self {
+            name :  null(),
             type_:  0,
             tag  :  0,
             flags:  0,
-            parm :  std::ptr::null_mut(),
-            arg  :  std::ptr::null_mut(),
+            parm :  null_mut(),
+            arg  :  null_mut(),
         }
     }
 }
@@ -516,6 +518,7 @@ pub const SC_ASN1_TAG_ESCAPE_MARKER     : c_uint = 31;
 #[cfg(test)]
 mod tests {
     use std::ffi::CStr;
+    use std::ptr::{null, null_mut};
     use libc::free;
     use crate::errors::SC_SUCCESS;
     use crate::pkcs15::{sc_pkcs15_id, sc_pkcs15_pubkey_rsa/*, SC_PKCS15_MAX_ID_SIZE*/};
@@ -530,11 +533,11 @@ mod tests {
 
     #[test]
     fn test_sc_format_asn1_entry() {
-        let mut entry = sc_asn1_entry { flags: 0x50, ..Default::default() };
+        let mut entry = sc_asn1_entry { flags: 0x50, ..sc_asn1_entry::default() };
         let mut state = State { state: 20 };
         let state_ptr= &mut state as *mut _ as *mut c_void;
         let mut arg = 127i8;
-        let arg_ptr = &mut arg   as *mut _ as *mut c_void;
+        let arg_ptr  = &mut arg   as *mut _ as *mut c_void;
 
         unsafe { sc_format_asn1_entry(&mut entry, state_ptr, arg_ptr, 1); }
         assert_eq!(entry.flags, 0x51);
@@ -559,14 +562,14 @@ mod tests {
         let name2 = CStr::from_bytes_with_nul(b"name2\0").unwrap(); //.as_ptr();
 
         let src = [
-            sc_asn1_entry { name: name1.as_ptr(), flags: 0x50, parm: state_ptr, arg: arg_ptr, ..Default::default() },
-            sc_asn1_entry { name: name2.as_ptr(), flags: 0x60, parm: state_ptr, arg: arg_ptr, ..Default::default() },
-            Default::default()
+            sc_asn1_entry { name: name1.as_ptr(), flags: 0x50, parm: state_ptr, arg: arg_ptr, ..sc_asn1_entry::default() },
+            sc_asn1_entry { name: name2.as_ptr(), flags: 0x60, parm: state_ptr, arg: arg_ptr, ..sc_asn1_entry::default() },
+            sc_asn1_entry::default()
         ];
         let mut dest = [
-            Default::default(),
-            Default::default(),
-            Default::default()
+            sc_asn1_entry::default(),
+            sc_asn1_entry::default(),
+            sc_asn1_entry::default()
         ];
 
         unsafe { sc_copy_asn1_entry(src.first().unwrap(), dest.first_mut().unwrap()); }
@@ -584,25 +587,25 @@ mod tests {
 
         let   c_asn1_public_key = [
             sc_asn1_entry { name: public_key_coefficients.as_ptr(), type_: SC_ASN1_STRUCT,
-                tag: SC_ASN1_TAG_SEQUENCE | SC_ASN1_CONS/*, flags: 0*/, ..Default::default() },
-            Default::default()
+                tag: SC_ASN1_TAG_SEQUENCE | SC_ASN1_CONS/*, flags: 0*/, ..sc_asn1_entry::default() },
+            sc_asn1_entry::default()
         ];
-        let mut asn1_public_key = [Default::default(), Default::default()];
+        let mut asn1_public_key = [sc_asn1_entry::default(); 2];
         unsafe { sc_copy_asn1_entry(c_asn1_public_key.first().unwrap(), asn1_public_key.first_mut().unwrap()) };
 
         let   c_asn1_rsa_pub_coefficients = [
             sc_asn1_entry { name: modulus.as_ptr(),  type_: SC_ASN1_OCTET_STRING, tag: SC_ASN1_TAG_INTEGER,
-                flags: SC_ASN1_ALLOC | SC_ASN1_UNSIGNED, ..Default::default() },
+                flags: SC_ASN1_ALLOC | SC_ASN1_UNSIGNED, ..sc_asn1_entry::default() },
             sc_asn1_entry { name: exponent.as_ptr(), type_: SC_ASN1_OCTET_STRING, tag: SC_ASN1_TAG_INTEGER,
-                flags: SC_ASN1_ALLOC | SC_ASN1_UNSIGNED, ..Default::default() },
-            Default::default()
+                flags: SC_ASN1_ALLOC | SC_ASN1_UNSIGNED, ..sc_asn1_entry::default() },
+            sc_asn1_entry::default()
         ];
-        let mut asn1_rsa_pub_coeff : [sc_asn1_entry;3] = [Default::default(),Default::default(),Default::default()];
+        let mut asn1_rsa_pub_coeff = [sc_asn1_entry::default(); 3];
         unsafe { sc_copy_asn1_entry(c_asn1_rsa_pub_coefficients.first().unwrap(),
                                      asn1_rsa_pub_coeff.first_mut().unwrap()) };
         ////////////////////////
-        let mut ctx = Default::default();
-        let mut newp= std::ptr::null();
+        let mut ctx = sc_context::default();
+        let mut newp= null();
         let mut left = 0;
         let buf : [c_uchar; 105] = [
             0x30, 0x67,
@@ -646,9 +649,9 @@ mod tests {
             , 0x03, 0x01, 0x00, 0x01
         ];
         unsafe { sc_format_asn1_entry(asn1_public_key.as_mut_ptr(), asn1_rsa_pub_coeff.as_mut_ptr() as *mut c_void,
-                                      std::ptr::null_mut() as *mut c_void, 0) };
+                                      null_mut() as *mut c_void, 0) };
 
-        let mut key : sc_pkcs15_pubkey_rsa = Default::default();
+        let mut key = sc_pkcs15_pubkey_rsa::default();
         let key_modulus_parm_ptr : *mut c_void = &mut key.modulus.data  as *mut _ as *mut c_void;
         let key_modulus_arg_ptr  : *mut c_void = &mut key.modulus.len   as *mut _ as *mut c_void;
         let key_exponent_parm_ptr: *mut c_void = &mut key.exponent.data as *mut _ as *mut c_void;
@@ -699,7 +702,7 @@ mod tests {
 
     #[test]
     fn test_sc_asn1_find_tag() {
-        let mut ctx : sc_context = Default::default();
+        let mut ctx = sc_context::default();
         let file5031 : [c_uchar; 60] = [
             0xA8, 0x0A, 0x30, 0x08, 0x04, 0x06, 0x3F, 0x00, 0x41, 0x00, 0x41, 0x11, 0xA0, 0x0A, 0x30, 0x08,
             0x04, 0x06, 0x3F, 0x00, 0x41, 0x00, 0x41, 0x12, 0xA1, 0x0A, 0x30, 0x08, 0x04, 0x06, 0x3F, 0x00,
@@ -737,7 +740,7 @@ mod tests {
 
     #[test]
     fn test_sc_asn1_skip_tag() {
-        let mut ctx : sc_context = Default::default();
+        let mut ctx = sc_context::default();
         let file_prkdf : [c_uchar; 53] = [
             0x30, 0x31, 0x30, 0x0F, 0x0C, 0x06, 0x43, 0x41, 0x72, 0x6F, 0x6F, 0x74, 0x03, 0x02, 0x06, 0xC0,
             0x04, 0x01, 0x01, 0x30, 0x0C, 0x04, 0x01, 0x03, 0x03, 0x03, 0x06, 0x20, 0x40, 0x03, 0x02, 0x03,
@@ -827,7 +830,7 @@ mod tests {
 
     #[test]
     fn test_sc_asn1_decode_bit_string_ni() {
-        let array_in      : [c_uchar; 2] = [0x06, 0xC0];
+        let array_in      = [0x06, 0xC0];
         let mut array_out : [c_uchar; 2] = [0, 0];
         let rv = unsafe { sc_asn1_decode_bit_string_ni(array_in.as_ptr(), array_in.len(),
             array_out.as_mut_ptr() as *mut c_void, array_out.len()) };
@@ -839,7 +842,7 @@ mod tests {
     #[test]
     fn test_sc_asn1_decode_object_id() {
         let array_in : [c_uchar; 9] = [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B];
-        let mut oid_out : sc_object_id = Default::default();
+        let mut oid_out = sc_object_id::default();
         let     oid_exp = sc_object_id { value: [1, 2, 840, 113549, 1, 1, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1] };
         let rv = unsafe { sc_asn1_decode_object_id(array_in.as_ptr(), array_in.len(), &mut oid_out) };
         assert_eq!(rv, SC_SUCCESS);
@@ -850,7 +853,7 @@ mod tests {
     fn test_sc_asn1_encode_object_id() {
         let der_exp = [0x2Au8, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B];
         let id = sc_object_id { value: [1, 2, 840, 113549, 1, 1, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1] };
-        let mut buf_ptr : *mut c_uchar = std::ptr::null_mut();
+        let mut buf_ptr = null_mut();
         let mut buf_len = 0usize;
 
         let rv = unsafe { sc_asn1_encode_object_id(&mut buf_ptr, &mut buf_len, &id) };
@@ -866,30 +869,30 @@ mod tests {
 
     #[test]
     fn test_sc_asn1_decode_algorithm_id() {
-        let mut ctx : sc_context = Default::default();
+        let mut ctx = sc_context::default();
         /*
         SEQUENCE (2 elem)
           OBJECT IDENTIFIER 1.2.840.113549.1.1.11 sha256WithRSAEncryption (PKCS #1)
             NULL
         */
         let in_ : [c_uchar; 13] = [/*30 0D*/ 0x06,0x09,0x2A,0x86,0x48,0x86,0xF7,0x0D,0x01,0x01,0x0B,  0x05,0x00];
-        let mut id : sc_algorithm_id = Default::default();
+        let mut id = sc_algorithm_id::default();
         let rv = unsafe { sc_asn1_decode_algorithm_id(&mut ctx, in_.as_ptr(), in_.len(), &mut id, 0) };
         assert_eq!(rv, SC_SUCCESS);
         assert_eq!(id.algorithm, 0xFFFF_FFFF);
         assert_eq!(id.oid, sc_object_id { value: [1, 2, 840, 113549, 1, 1, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1] });
-        assert_eq!(id.params, std::ptr::null_mut());
+        assert_eq!(id.params, null_mut());
 
         unsafe { sc_asn1_clear_algorithm_id(&mut id); }
-        assert_eq!(id.params, std::ptr::null_mut());
+        assert_eq!(id.params, null_mut());
     }
 
     #[test]
     fn test_sc_asn1_encode_algorithm_id() {
         let der_exp = [/*30 0C*/ 0x06u8, 0x08, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x07, 0x05, 0x00];
-        let mut ctx : sc_context = Default::default();
-        let id = sc_algorithm_id { algorithm: SC_ALGORITHM_SHA1, ..Default::default() };
-        let mut buf_ptr : *mut c_uchar = std::ptr::null_mut();
+        let mut ctx = sc_context::default();
+        let id = sc_algorithm_id { algorithm: SC_ALGORITHM_SHA1, ..sc_algorithm_id::default() };
+        let mut buf_ptr : *mut c_uchar = null_mut();
         let mut buf_len = 0usize;
 
         let rv = unsafe { sc_asn1_encode_algorithm_id(&mut ctx, &mut buf_ptr, &mut buf_len, &id, 0) };
@@ -927,8 +930,8 @@ mod tests {
 
     #[test]
     fn test_sc_asn1_write_element() {
-        let mut ctx : sc_context = Default::default();
-        let mut p : *mut c_uchar = std::ptr::null_mut();//= buf.as_mut_ptr();
+        let mut ctx = sc_context::default();
+        let mut p : *mut c_uchar = null_mut();//= buf.as_mut_ptr();
         let mut outlen = 0usize;
         let data = [0x01, 0x02, 0x03, 0x04];
         let rv = unsafe { sc_asn1_write_element(&mut ctx, 0x04, data.as_ptr(), data.len(), &mut p, &mut outlen) };
@@ -945,7 +948,7 @@ mod tests {
     #[test]
     #[allow(non_snake_case)]
     fn test__sc_asn1_decode() {
-        let mut ctx : sc_context = Default::default();
+        let mut  ctx = sc_context::default();
         let label  : &CStr = CStr::from_bytes_with_nul(b"label\0").unwrap();
         let flags  : &CStr = CStr::from_bytes_with_nul(b"flags\0").unwrap();
         #[allow(non_snake_case)]
@@ -966,18 +969,18 @@ mod tests {
         let flags_arg_ptr  = Box::into_raw(flags_arg);
 
         #[allow(non_snake_case)]
-        let auth_id_parm : Box<sc_pkcs15_id> = Box::new(Default::default());
+        let auth_id_parm = Box::new(sc_pkcs15_id::default());
         let auth_id_parm_ptr = Box::into_raw(auth_id_parm);
 
         let asn1_array = &mut [
             sc_asn1_entry { name: label.as_ptr(),  type_: SC_ASN1_UTF8STRING, tag: SC_ASN1_TAG_UTF8STRING,
                 flags: SC_ASN1_OPTIONAL,
-                parm: label_parm_ptr as *mut c_void, arg: label_arg_ptr as *mut c_void, ..Default::default() },
+                parm: label_parm_ptr as *mut c_void, arg: label_arg_ptr as *mut c_void, ..sc_asn1_entry::default() },
             sc_asn1_entry { name: flags.as_ptr(),  type_: SC_ASN1_BIT_FIELD,  tag: SC_ASN1_TAG_BIT_STRING,
                 flags: SC_ASN1_OPTIONAL, parm: flags_parm_ptr   as *mut c_void, arg: flags_arg_ptr as *mut c_void },
             sc_asn1_entry { name: authId.as_ptr(), type_: SC_ASN1_PKCS15_ID,  tag: SC_ASN1_TAG_OCTET_STRING,
-                flags: SC_ASN1_OPTIONAL, parm: auth_id_parm_ptr as *mut c_void, ..Default::default() },
-            Default::default()
+                flags: SC_ASN1_OPTIONAL, parm: auth_id_parm_ptr as *mut c_void, ..sc_asn1_entry::default() },
+            sc_asn1_entry::default()
         ];
         let asn1 : *mut sc_asn1_entry = asn1_array.as_mut_ptr();
         let file_prkdf : [c_uchar; 51] = [
@@ -989,7 +992,7 @@ mod tests {
 
         let mut in_  : *const c_uchar = file_prkdf.as_ptr();
         in_ = unsafe { in_.offset(4) };
-        let mut newp : *const c_uchar = std::ptr::null();
+        let mut newp : *const c_uchar = null();
         let mut left : usize = 0;
 
         /* WARNING: asn1 may be changed to point to another element of asn1_array */
@@ -1006,7 +1009,7 @@ mod tests {
         }
         assert_eq!(vec,  [0x30, 0x0C, 0x04, 0x01, 0x03, 0x03, 0x03, 0x06, 0x20, 0x40, 0x03, 0x02, 0x03]);
 //        assert_eq!(*asn1, sc_asn1_entry { name: label.as_ptr(),  type_: SC_ASN1_UTF8STRING,
-//            tag: SC_ASN1_TAG_UTF8STRING, flags: SC_ASN1_OPTIONAL | SC_ASN1_PRESENT, ..Default::default() });
+//            tag: SC_ASN1_TAG_UTF8STRING, flags: SC_ASN1_OPTIONAL | SC_ASN1_PRESENT, ..sc_asn1_entry::default() });
 
         assert_eq!(asn1_array[0].flags, SC_ASN1_OPTIONAL | SC_ASN1_PRESENT);
         let label_arg    = unsafe { Box::from_raw(label_arg_ptr) };
@@ -1023,7 +1026,7 @@ mod tests {
         let auth_id_parm = unsafe { Box::from_raw(auth_id_parm_ptr) };
         assert_eq!(auth_id_parm.len,      1);
         assert_eq!(auth_id_parm.value[0], 1);
-        assert_eq!(asn1_array[2].arg,   std::ptr::null_mut());
+        assert_eq!(asn1_array[2].arg,   null_mut());
     }
 
     /// Undocumented, untested
@@ -1038,7 +1041,7 @@ mod tests {
     #[test]
     #[allow(non_snake_case)]
     fn test__sc_asn1_encode() {
-        let mut ctx : sc_context = Default::default();
+        let mut  ctx = sc_context::default();
         let label  : &CStr = CStr::from_bytes_with_nul(b"label\0").unwrap();
         let flags  : &CStr = CStr::from_bytes_with_nul(b"flags\0").unwrap();
         #[allow(non_snake_case)]
@@ -1058,21 +1061,21 @@ mod tests {
         let flags_arg  : Box<usize>   = Box::new(4);
         let flags_arg_ptr  = Box::into_raw(flags_arg);
 
-        let auth_id_parm : Box<sc_pkcs15_id> = Box::new(Default::default());
+        let auth_id_parm = Box::new(sc_pkcs15_id::default());
         let auth_id_parm_ptr = Box::into_raw(auth_id_parm);
 
         let asn1_array = &mut [
             sc_asn1_entry { name: label.as_ptr(),  type_: SC_ASN1_UTF8STRING, tag: SC_ASN1_TAG_UTF8STRING,
                 flags: SC_ASN1_OPTIONAL,
-                parm: label_parm_ptr as *mut c_void, arg: label_arg_ptr as *mut c_void, ..Default::default() },
+                parm: label_parm_ptr as *mut c_void, arg: label_arg_ptr as *mut c_void, ..sc_asn1_entry::default() },
             sc_asn1_entry { name: flags.as_ptr(),  type_: SC_ASN1_BIT_FIELD,  tag: SC_ASN1_TAG_BIT_STRING,
                 flags: SC_ASN1_OPTIONAL, parm: flags_parm_ptr   as *mut c_void, arg: flags_arg_ptr as *mut c_void },
             sc_asn1_entry { name: authId.as_ptr(), type_: SC_ASN1_PKCS15_ID,  tag: SC_ASN1_TAG_OCTET_STRING,
-                flags: SC_ASN1_OPTIONAL, parm: auth_id_parm_ptr as *mut c_void, ..Default::default() },
-            Default::default()
+                flags: SC_ASN1_OPTIONAL, parm: auth_id_parm_ptr as *mut c_void, ..sc_asn1_entry::default() },
+            sc_asn1_entry::default()
         ];
 
-        let mut ptr : *mut c_uchar = std::ptr::null_mut();
+        let mut ptr : *mut c_uchar = null_mut();
         let mut size = 0usize;
         let rv = unsafe { _sc_asn1_encode(&mut ctx, asn1_array.as_ptr(), &mut ptr, &mut size, 0) };
         assert_eq!(rv,   SC_SUCCESS);
@@ -1092,14 +1095,14 @@ mod tests {
     #[test]
     fn test_sc_der_copy() {
         use crate::pkcs15::{sc_der_copy, sc_pkcs15_der};
-        let mut file_prkdf : [c_uchar; 51] = [
+        let mut file_prkdf = [
             0x30, 0x31, 0x30, 0x0F, 0x0C, 0x06, 0x43, 0x41, 0x72, 0x6F, 0x6F, 0x74, 0x03, 0x02, 0x06, 0xC0,
             0x04, 0x01, 0x01, 0x30, 0x0C, 0x04, 0x01, 0x03, 0x03, 0x03, 0x06, 0x20, 0x40, 0x03, 0x02, 0x03,
             0xB8, 0xA1, 0x10, 0x30, 0x0E, 0x30, 0x08, 0x04, 0x06, 0x3F, 0x00, 0x41, 0x00, 0x41, 0xF1, 0x02,
             0x02, 0x10, 0x00
         ];
         let     pkcs15_der = sc_pkcs15_der { value: file_prkdf.as_mut_ptr(), len: file_prkdf.len() };
-        let mut pkcs15_der_copied = Default::default();
+        let mut pkcs15_der_copied = sc_pkcs15_der::default();
         let rv = unsafe { sc_der_copy(&mut pkcs15_der_copied, &pkcs15_der) };
         assert_eq!(rv, SC_SUCCESS);
         assert_eq!(pkcs15_der.len,   pkcs15_der_copied.len);

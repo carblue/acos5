@@ -22,6 +22,8 @@
 #[cfg(v0_17_0)]
 use std::os::raw::c_ulonglong;
 use std::os::raw::{c_ulong, c_uchar, c_char, c_int, c_uint, c_void};
+use std::ptr::null_mut;
+
 use crate::opensc::{sc_card, sc_app_info, sc_context, sc_ec_parameters, sc_algorithm_id, sc_supported_algo_info};
 use crate::types::{sc_file, sc_object_id, sc_path, sc_aid, SC_MAX_SUPPORTED_ALGORITHMS};
 #[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
@@ -31,7 +33,7 @@ use crate::aux_data::sc_auxiliary_data;
 
 ////pub const SC_PKCS15_CACHE_DIR        ".eid"
 
-pub const SC_PKCS15_PIN_MAGIC       : usize = 0x31415926;
+pub const SC_PKCS15_PIN_MAGIC       : usize = 0x3141_5926;
 pub const SC_PKCS15_MAX_PINS        : usize = 8;
 pub const SC_PKCS15_MAX_LABEL_SIZE  : usize = 255;
 pub const SC_PKCS15_MAX_ID_SIZE     : usize = 255;
@@ -54,19 +56,18 @@ pub struct sc_pkcs15_id {
 pub type sc_pkcs15_id_t = sc_pkcs15_id;
 */
 
-#[cfg(impl_default)]
 impl Default for sc_pkcs15_id {
-    fn default() -> sc_pkcs15_id {
-        sc_pkcs15_id {
+    fn default() -> Self {
+        Self {
             value: [0; SC_PKCS15_MAX_ID_SIZE],
             len: 0
         }
     }
 }
 
-pub const SC_PKCS15_CO_FLAG_PRIVATE     : u32 =   0x00000001;
-pub const SC_PKCS15_CO_FLAG_MODIFIABLE  : u32 =   0x00000002;
-pub const SC_PKCS15_CO_FLAG_OBJECT_SEEN : u32 =   0x80000000; /* for PKCS #11 module */
+pub const SC_PKCS15_CO_FLAG_PRIVATE     : u32 =   0x0000_0001;
+pub const SC_PKCS15_CO_FLAG_MODIFIABLE  : u32 =   0x0000_0002;
+pub const SC_PKCS15_CO_FLAG_OBJECT_SEEN : u32 =   0x8000_0000; /* for PKCS #11 module */
 
 pub const SC_PKCS15_PIN_FLAG_CASE_SENSITIVE            : u32 =  0x0001;
 pub const SC_PKCS15_PIN_FLAG_LOCAL                     : u32 =  0x0002;
@@ -189,11 +190,10 @@ pub struct sc_pkcs15_bignum {
 pub type sc_pkcs15_bignum_t = sc_pkcs15_bignum;
 */
 
-#[cfg(impl_default)]
 impl Default for sc_pkcs15_bignum {
-    fn default() -> sc_pkcs15_bignum {
-        sc_pkcs15_bignum {
-            data: std::ptr::null_mut(),
+    fn default() -> Self {
+        Self {
+            data: null_mut(),
             len: 0
         }
     }
@@ -211,11 +211,10 @@ pub struct sc_pkcs15_der {
 pub type sc_pkcs15_der_t = sc_pkcs15_der;
 */
 
-#[cfg(impl_default)]
 impl Default for sc_pkcs15_der {
-    fn default() -> sc_pkcs15_der {
-        sc_pkcs15_der {
-            value: std::ptr::null_mut(),
+    fn default() -> Self {
+        Self {
+            value: null_mut(),
             len: 0
         }
     }
@@ -257,20 +256,10 @@ pub type sc_pkcs15_skey_t = sc_pkcs15_data_t;
 */
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone,  PartialEq)]
+#[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct sc_pkcs15_pubkey_rsa {
     pub modulus:  sc_pkcs15_bignum,
     pub exponent: sc_pkcs15_bignum,
-}
-
-#[cfg(impl_default)]
-impl Default for sc_pkcs15_pubkey_rsa {
-    fn default() -> sc_pkcs15_pubkey_rsa {
-        sc_pkcs15_pubkey_rsa {
-            modulus:  Default::default(),
-            exponent: Default::default()
-        }
-    }
 }
 
 #[repr(C)]
@@ -524,7 +513,7 @@ pub const SC_PKCS15_ACCESS_RULE_MODE_INT_AUTH    : u32 =  0x200;
 pub const SC_PKCS15_ACCESS_RULE_MODE_EXT_AUTH    : u32 =  0x400;
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Default, /*Debug,*/ Copy, Clone)]
 pub struct sc_pkcs15_accessrule {
     pub access_mode : c_uint,
     pub auth_id : sc_pkcs15_id,
@@ -534,16 +523,6 @@ pub struct sc_pkcs15_accessrule {
 #[allow(non_camel_case_types)]
 pub type sc_pkcs15_accessrule_t = sc_pkcs15_accessrule;
 */
-
-#[cfg(impl_default)]
-impl Default for sc_pkcs15_accessrule {
-    fn default() -> sc_pkcs15_accessrule {
-        sc_pkcs15_accessrule {
-            access_mode: 0,
-            auth_id: Default::default()
-        }
-    }
-}
 
 /*
 /* From Windows Smart Card Minidriver Specification
@@ -587,11 +566,10 @@ pub struct sc_pkcs15_key_params {
     pub free_params : Option< unsafe extern "C" fn (arg1: *mut c_void) >,
 }
 
-#[cfg(impl_default)]
 impl Default for sc_pkcs15_key_params {
-    fn default() -> sc_pkcs15_key_params {
-        sc_pkcs15_key_params {
-            data: std::ptr::null_mut() as *mut c_void,
+    fn default() -> Self {
+        Self {
+            data: null_mut() as *mut c_void,
             len: 0,
             free_params: None
         }
@@ -628,14 +606,14 @@ pub type sc_pkcs15_prkey_info_t = sc_pkcs15_prkey_info;
 */
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct sc_pkcs15_pubkey_info__bindgen_ty_1 {
     pub raw  : sc_pkcs15_der,
     pub spki : sc_pkcs15_der,
 }
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Default, /*Debug,*/ Copy, Clone)]
 pub struct sc_pkcs15_pubkey_info {
     pub id : sc_pkcs15_id,  /* correlates to private key id */
     pub usage : c_uint,
@@ -662,27 +640,6 @@ pub struct sc_pkcs15_pubkey_info {
 pub type sc_pkcs15_pubkey_info_t = sc_pkcs15_pubkey_info;
 */
 
-
-#[cfg(impl_default)]
-impl Default for sc_pkcs15_pubkey_info {
-    fn default() -> sc_pkcs15_pubkey_info {
-        sc_pkcs15_pubkey_info {
-            id: Default::default(),
-            usage: 0,
-            access_flags: 0,
-            native: 0,
-            key_reference: 0,
-            modulus_length: 0,
-            field_length: 0,
-            algo_refs: [0u32; SC_MAX_SUPPORTED_ALGORITHMS],
-            subject: Default::default(),
-            params: Default::default(),
-            path: Default::default(),
-            direct: sc_pkcs15_pubkey_info__bindgen_ty_1 { raw: Default::default(), spki: Default::default() }
-        }
-    }
-}
-
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_pkcs15_skey_info {
@@ -697,6 +654,7 @@ pub struct sc_pkcs15_skey_info {
     pub path : sc_path, /* if on card */
     pub data : sc_pkcs15_der,
 }
+
 /*
 #[doc(hidden)]
 #[allow(non_camel_case_types)]
@@ -779,21 +737,21 @@ pub type sc_pkcs15_object_t = sc_pkcs15_object;
 #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
 #[cfg(impl_default)]
 impl Default for sc_pkcs15_object {
-    fn default() -> sc_pkcs15_object {
-        sc_pkcs15_object {
+    fn default() -> Self {
+        Self {
             type_: 0,
-            label: [0i8; SC_PKCS15_MAX_LABEL_SIZE],
+            label: [0; SC_PKCS15_MAX_LABEL_SIZE],
             flags: 0,
-            auth_id: Default::default(),
+            auth_id: sc_pkcs15_id::default(),
             usage_counter: 0,
             user_consent: 0,
-            access_rules: [Default::default(); SC_PKCS15_MAX_ACCESS_RULES],
-            data: std::ptr::null_mut(),
-            emulated: std::ptr::null_mut(),
-            df: std::ptr::null_mut(),
-            next: std::ptr::null_mut(),
-            prev: std::ptr::null_mut(),
-            content: Default::default(),
+            access_rules: [sc_pkcs15_accessrule::default(); SC_PKCS15_MAX_ACCESS_RULES],
+            data: null_mut(),
+            emulated: null_mut(),
+            df: null_mut(),
+            next: null_mut(),
+            prev: null_mut(),
+            content: sc_pkcs15_der::default(),
 //            session_object: 0,
         }
     }
@@ -802,21 +760,21 @@ impl Default for sc_pkcs15_object {
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 #[cfg(impl_default)]
 impl Default for sc_pkcs15_object {
-    fn default() -> sc_pkcs15_object {
-        sc_pkcs15_object {
+    fn default() -> Self {
+        Self {
             type_: 0,
-            label: [0i8; SC_PKCS15_MAX_LABEL_SIZE],
+            label: [0; SC_PKCS15_MAX_LABEL_SIZE],
             flags: 0,
-            auth_id: Default::default(),
+            auth_id: sc_pkcs15_id::default(),
             usage_counter: 0,
             user_consent: 0,
-            access_rules: [Default::default(); SC_PKCS15_MAX_ACCESS_RULES],
-            data: std::ptr::null_mut(),
-            emulated: std::ptr::null_mut(),
-            df: std::ptr::null_mut(),
-            next: std::ptr::null_mut(),
-            prev: std::ptr::null_mut(),
-            content: Default::default(),
+            access_rules: [sc_pkcs15_accessrule::default(); SC_PKCS15_MAX_ACCESS_RULES],
+            data: null_mut(),
+            emulated: null_mut(),
+            df: null_mut(),
+            next: null_mut(),
+            prev: null_mut(),
+            content: sc_pkcs15_der::default(),
             session_object: 0,
         }
     }
@@ -868,7 +826,7 @@ pub struct sc_pkcs15_unusedspace {
 pub type sc_pkcs15_unusedspace_t = sc_pkcs15_unusedspace;
 */
 
-pub const SC_PKCS15_CARD_MAGIC      : u32 =  0x10203040;
+pub const SC_PKCS15_CARD_MAGIC      : u32 =  0x1020_3040;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -999,7 +957,7 @@ pub const SC_PKCS15_TOKEN_PRN_GENERATION  : c_uint =  0x04;
 pub const SC_PKCS15_TOKEN_EID_COMPLIANT   : c_uint =  0x08;
 
 /* flags suitable for struct sc_pkcs15_card */
-pub const SC_PKCS15_CARD_FLAG_EMULATED : u32 = 0x02000000;
+pub const SC_PKCS15_CARD_FLAG_EMULATED : u32 = 0x0200_0000;
 
 /* suitable for struct sc_pkcs15_card.opts.private_certificate */
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]

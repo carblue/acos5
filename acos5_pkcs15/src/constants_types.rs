@@ -1,5 +1,5 @@
 /*
- * constants_types.rs: Driver 'acos5' - Code common to driver, pkcs15 and sm libraries, partially also acos5_gui
+ * constants_types.rs: Driver 'acos5' - Code common to driver and pkcs15 libraries, partially also acos5_gui
  *
  * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
@@ -18,9 +18,8 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-use std::os::raw::{c_uchar, c_int, c_uint, c_char, c_ulong};
+use std::os::raw::{c_uchar, c_int, c_uint, c_char, c_ulong, c_ushort};
 use std::collections::HashMap;
-//use num_traits::*;
 
 use opensc_sys::opensc::{sc_security_env};
 use opensc_sys::types::{sc_crt, sc_object_id, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
@@ -46,7 +45,7 @@ pub const ATR_V4   : &[u8; 57] = b"3b:9e:96:80:01:41:05:40:00:00:00:00:00:00:00:
 pub const ATR_MASK : &[u8; 57] = b"FF:FF:FF:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF\0";
 pub const NAME_V2  : &[u8; 43] = b"ACOS5-64 V2.00: Smart Card or CryptoMate64\0";
 pub const NAME_V3  : &[u8; 46] = b"ACOS5-64 V3.00: Smart Card or CryptoMate Nano\0";
-pub const NAME_V4  : &[u8; 44] = b"ACOS5-EVO: Smart Card EVO or CryptoMate EVO\0";
+pub const NAME_V4  : &[u8; 50] = b"ACOS5-EVO V4.00: Smart Card EVO or CryptoMate EVO\0";
 
 pub const CARD_DRV_NAME       : &[u8; 108] = b"'acos5_external', supporting ACOS5 Smart Card V2.00 (CryptoMate64), V3.00 (CryptoMate Nano) and V4.00 (EVO)\0";
 pub const CARD_DRV_SHORT_NAME : &[u8;  15] =  b"acos5_external\0";
@@ -60,12 +59,6 @@ pub const RETURNING_INT       : &[u8;  20] = b"returning with: %d\n\0";
 pub const CARD_DRIVER         : &[u8;  12] = b"card_driver\0";
 pub const MODULE              : &[u8;   7] = b"module\0";
 pub const LIB_DRIVER_NIX      : &[u8;  12] = b"libacos5.so\0";
-
-pub const CARD_SM_SHORT_NAME  : &[u8;   9] = b"acos5_sm\0";
-pub const SECURE_MESSAGING    : &[u8;  17] = b"secure_messaging\0";
-pub const MODULE_PATH         : &[u8;  12] = b"module_path\0";
-pub const MODULE_NAME         : &[u8;  12] = b"module_name\0";
-pub const LIB_SM_NIX          : &[u8;  15] = b"libacos5_sm.so\0";
 
 pub const USER_CONSENT_CMD_NIX : &[u8;  18] = b"/usr/bin/pinentry\0"; // substituted by IUP
 
@@ -100,26 +93,24 @@ pub const FDB_ECC_KEY_EF         : u8 = 0x19; // Elliptic Curve Cryptography Key
 /* Proprietary internal EF */
 pub const FDB_SE_FILE            : u8 = 0x1C; // Security Environment File, exactly 1 file only in each DF; DF's header/FCI points to this
 
-/* the Control Reference Template Tags (CRT) understood by acos
+/* the Control Reference Template (CRT) Tags understood by acos
 ATTENTION with CRT_TAG_CT Confidentiality Template: In reality acos makes no difference for asym/sym, there is 0xB8 only
 The distinction is artificial and for some reason, corrected later
 */
 pub const CRT_TAG_HT      : u32 = 0xAA;   // Hash Template                 : AND:      Algorithm
 pub const CRT_TAG_AT      : u32 = 0xA4;   // Authentication Template       : AND: UQB, Pin_Key,
 pub const CRT_TAG_DST     : u32 = 0xB6;   // Digital Signature Template    : AND: UQB, Algorithm, KeyFile_RSA
-pub const CRT_TAG_CT_ASYM : u32 = 0xB8+1; // Confidentiality Template      : AND: UQB, Algorithm       OR: KeyFile_RSA
-pub const CRT_TAG_CT_SYM  : u32 = 0xB8+0; // Confidentiality Template      : AND: UQB, Algorithm       OR: ID_Pin_Key_Local_Global, HP_Key_Session  ; OPT: Initial_Vector
+//pub const CRT_TAG_CT_ASYM : u32 = 0xB8+1; // Confidentiality Template      : AND: UQB, Algorithm       OR: KeyFile_RSA
+//pub const CRT_TAG_CT_SYM  : u32 = 0xB8+0; // Confidentiality Template      : AND: UQB, Algorithm       OR: ID_Pin_Key_Local_Global, HP_Key_Session  ; OPT: Initial_Vector
 pub const CRT_TAG_CT      : u32 = 0xB8;   // Confidentiality Template
 pub const CRT_TAG_CCT     : u32 = 0xB4;   // Cryptographic Checksum Templ. : AND: UQB, Algorithm  ;    OR: ID_Pin_Key_Local_Global, HP_Key_Session  ; OPT: Initial_Vector
+pub const CRT_TAG_KAT     : u32 = 0xA6;   // Key Agreement Template. The KAT defines which parameters to use in key derivation operations. available only with EVO
 pub const CRT_TAG_NA      : u32 = 0x00;   // N/A unknown
-//5.4.6. Key Agreement Template
-//The KAT defines which parameters to use in key derivation operations.
-//pub const CRT_TAG_KAT     : u32 =
 
 // the following bytes indicate, whether an SC Byte encodes Secure Messaging, it does't guarantee, that the referred command allows SM at all
-pub const SM_MODE_NONE           : u8 = 0; // SM is not enforced/impossible as of SCB setting
-pub const SM_MODE_CCT            : u8 = 1; // SM is enforced, providing Authenticity, specified by a  Cryptographic Checksum Template
-pub const SM_MODE_CCT_AND_CT_SYM : u8 = 2; // SM is enforced, providing Authenticity and Confidentiality, specified by a  Cryptographic Checksum Template and Confidentiality Template (ref. key for sym. algorithm)
+//pub const SM_MODE_NONE           : u8 = 0; // SM is not enforced/impossible as of SCB setting
+//pub const SM_MODE_CCT            : u8 = 1; // SM is enforced, providing Authenticity, specified by a  Cryptographic Checksum Template
+//pub const SM_MODE_CCT_AND_CT_SYM : u8 = 2; // SM is enforced, providing Authenticity and Confidentiality, specified by a  Cryptographic Checksum Template and Confidentiality Template (ref. key for sym. algorithm)
 
                                                  /* PKCS #15 DF types, see pkcs15.rs */
 pub const PKCS15_FILE_TYPE_PRKDF         : u8 =  SC_PKCS15_PRKDF;         // = 0,
@@ -260,68 +251,33 @@ pub struct acos5_ec_curve {
 
 // struct for SC_CARDCTL_GET_FILE_INFO and SC_CARDCTL_GET_COS_VERSION
 #[repr(C)]
-#[derive(Debug, Copy, Clone,  PartialEq)]
+#[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct CardCtlArray8 {
     pub reference  : c_uchar,      // IN  indexing begins with 0, used for SC_CARDCTL_GET_FILE_INFO
     pub value      : [c_uchar; 8], // OUT
 }
 
-impl Default for CardCtlArray8 {
-    fn default() -> CardCtlArray8 {
-        CardCtlArray8 {
-            reference: 0, // used by SC_CARDCTL_GET_FILE_INFO only
-            value: [0u8; 8]
-        }
-    }
-}
-
 // struct for SC_CARDCTL_GET_ROM_SHA1
 #[repr(C)]
-#[derive(Debug, Copy, Clone,  PartialEq)]
+#[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct CardCtlArray20 {
     pub value      : [c_uchar; 20], // OUT
 }
 
-impl Default for CardCtlArray20 {
-    fn default() -> CardCtlArray20 {
-        CardCtlArray20 {
-            value: [0u8; 20]
-        }
-    }
-}
-
 // struct for SC_CARDCTL_GET_PIN_AUTH_STATE and SC_CARDCTL_GET_KEY_AUTH_STATE
 #[repr(C)]
-#[derive(Debug, Copy, Clone,  PartialEq)]
+#[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct CardCtlAuthState {
     pub reference  : c_uchar, // IN  pin/key reference, | 0x80 for local
     pub value      : bool,    // OUT
 }
 
-impl Default for CardCtlAuthState {
-    fn default() -> CardCtlAuthState {
-        CardCtlAuthState {
-            reference: 0,
-            value: false
-        }
-    }
-}
-
 // struct for SC_CARDCTL_GET_FILES_HASHMAP_INFO
 #[repr(C)]
-#[derive(Debug, Copy, Clone,  PartialEq)]
+#[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct CardCtlArray32 {
     pub key    : u16,           // IN   file_id
     pub value  : [c_uchar; 32], // OUT  in the order as acos5_gui defines // alias  TreeTypeFS = Tree_k_ary!ub32;
-}
-
-impl Default for CardCtlArray32 {
-    fn default() -> CardCtlArray32 {
-        CardCtlArray32 {
-            key: 0,
-            value: [0u8; 32]
-        }
-    }
 }
 
 // struct for SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST and SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE, SC_CARDCTL_ACOS5_ENCRYPT_ASYM// data: *mut CardCtl_generate_crypt_asym, do_generate_asym, do_crypt_asym
@@ -348,8 +304,8 @@ pub struct CardCtl_generate_crypt_asym {
 }
 
 impl Default for CardCtl_generate_crypt_asym {
-    fn default() -> CardCtl_generate_crypt_asym {
-        CardCtl_generate_crypt_asym {
+    fn default() -> Self {
+        Self {
             rsa_pub_exponent: [0; 16],
             data: [0; RSA_MAX_LEN_MODULUS],
             data_len: 0,
@@ -373,7 +329,7 @@ impl Default for CardCtl_generate_crypt_asym {
    acos5_gui will always call sc_card_ctl(SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT) prior to sc_card_ctl(SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST) */
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
-pub struct CardCtl_generate_asym_inject {
+pub struct CardCtl_generate_inject_asym {
     pub rsa_pub_exponent : [c_uchar; 16], // IN public exponent
     pub file_id_priv : u16,       // OUT  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5_external.profile,
     pub file_id_pub  : u16,       // OUT  if both are !=0, then the given values are preferred
@@ -383,9 +339,9 @@ pub struct CardCtl_generate_asym_inject {
     pub do_create_files : bool, // IN if this is set to true, then the files MUST exist and set in file_id_priv and file_id_pub
 }
 
-impl Default for CardCtl_generate_asym_inject {
-    fn default() -> CardCtl_generate_asym_inject {
-        CardCtl_generate_asym_inject {
+impl Default for CardCtl_generate_inject_asym {
+    fn default() -> Self {
+        Self {
             rsa_pub_exponent: [0; 16],
             file_id_priv: 0,
             file_id_pub: 0,
@@ -425,15 +381,15 @@ pub struct CardCtl_crypt_sym {
 }
 
 impl Default for CardCtl_crypt_sym {
-    fn default() -> CardCtl_crypt_sym {
-        CardCtl_crypt_sym {
+    fn default() -> Self {
+        Self {
             infile: std::ptr::null(),
             indata: [0; RSA_MAX_LEN_MODULUS+16],
             indata_len: 0,
             outfile: std::ptr::null(),
             outdata: [0; RSA_MAX_LEN_MODULUS+32],
             outdata_len: 0,
-            iv: [0u8; 16],
+            iv: [0; 16],
             iv_len: 0,
             key_ref: 0,
             block_size: 16, // set as default: AES 256 bit CBC, encryption with local key and PKCS5 padding
@@ -451,26 +407,56 @@ impl Default for CardCtl_crypt_sym {
 /////////////////////////////////////////////////////////////////////////////////
 /* Stores 1 record of SecurityEnvironment File, intended to be placed in a Vec */
 #[repr(C)]
-#[derive(Debug, Copy, Clone,  PartialEq)]
-pub struct SeInfo {
+#[derive(Default, Debug, Copy, Clone,  PartialEq)]
+pub struct SACinfo /*SeInfo*/ {
     pub reference  : c_uint, // the SE file's record no == stored id in record
     pub crts_len   : usize,                       /* what is used actually in crts */
     pub crts       : [sc_crt; SC_MAX_CRTS_IN_SE], // align(8) // SC_MAX_CRTS_IN_SE==12
 }
 
-impl Default for SeInfo {
-    fn default() -> SeInfo {
-        SeInfo {
-            reference:  0,
-            crts_len:   0,
-            crts:       [Default::default(); SC_MAX_CRTS_IN_SE],
-        }
-    }
+/*
+AB 0B 84 01 2C
+        97 00
+      84 01 24
+        9E 01 42
+
+enum SCDO_TAG : ubyte { // Security Condition Data Object (SCDO) tags
+	Always_Deny  = 0x97, //0  len 0
+	Always_Allow = 0x90, //1  len 0
+	SC_Byte      = 0x9E, //2  len 1
+	AuthT        = 0xA4, //3  len var
+	Any          = 0xA0, //4  len var
+	All          = 0xAF, //5  len var
+}
+*/
+/*
+#[repr(C)]
+#[derive(Default, Debug, Copy, Clone,  PartialEq)]
+pub struct SCDO { // for SCDO_TAGs Always_Deny ..AuthT every scdo content is in scdo[0] and tag==tag_sub ; for SCDO_TAG.All and SCDO_TAG.Any, tag!=tag_sub
+    pub tag_sub : c_uchar, // tells, which of the following fields is relevant
+    pub scb     : c_int,   // reference_and_SM indication;
+    pub crt     : sc_crt,  // for SCDO_TAG.AuthT
+}
+*/
+#[allow(non_snake_case)]
+#[repr(C)]
+#[derive(Default, Debug, Copy, Clone,  PartialEq)]
+pub struct SAEinfo {
+    pub tag_AMDO : c_uchar,    // AMDO TAG: 0x80 < tag_AMDO < 0x90
+    pub cla : c_uchar,
+    pub ins : c_uchar,
+    pub p1  : c_uchar,
+    pub p2  : c_uchar,
+
+    pub tag_SCDO : c_uchar,    // SCDO TAG: 0x90 <= tag_SCDO <= 0xAF  ; the 'leading' tag of a <AMDO><SCDO_oneAtLeast><SCDO_opt><SCDO_opt> group, that of <SCDO_oneAtLeast>
+    pub scb : c_uchar,
+//    pub scdo : [SCDO; 3], // CONVENTION : max 3 conditions for SCDO_TAG.Any or SCDO_TAG.All
+//    pub scdo_len : c_int,
 }
 
 pub type KeyTypeFiles   = u16;
-//                          path                    File Info       scb8                SeInfo
-pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, Option<Vec<SeInfo>>);
+//                          path                    File Info       scb8                SACinfo               SAEinfo
+pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, Option<Vec<SACinfo>>, Option<Vec<SAEinfo>>);
 // File Info originally:  {FDB, DCB, FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI}
 // File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,   LCSI}
 //                              ^ path len actually used
@@ -482,11 +468,15 @@ pub struct DataPrivate { // see settings in acos5_init
     pub files : HashMap< KeyTypeFiles, ValueTypeFiles >,
     pub sec_env : sc_security_env, // remember the input of last call to acos5_64_set_security_env; especially algorithm_flags will be required in compute_signature
     pub agc : CardCtl_generate_crypt_asym,  // asym_generate_crypt_data
-    pub agi : CardCtl_generate_asym_inject, // asym_generate_inject_data
+    pub agi : CardCtl_generate_inject_asym, // asym_generate_inject_data
 //  pub sec_env_algo_flags : c_uint, // remember the padding scheme etc. selected for RSA; required in acos5_64_set_security_env
-    pub sec_env_mod_len : c_uint,
+    pub time_stamp : std::time::Instant,
+    pub sec_env_mod_len : c_ushort, //c_uint,
+    pub rfu_align_pad1  : c_ushort,
     pub rsa_caps : c_uint, // remember how the rsa_algo_flags where set for _sc_card_add_rsa_alg
     pub does_mf_exist : bool,
+    pub is_fips_mode : bool, // the Operation Mode Byte (for V3 or V4) is set to FIPS, opposed to 64K or any other mode: Special restrictions may apply
+    pub is_fips_compliant : bool, // if is_fips_mode==true and also get_fips_compliance reports true, then this is true, else false (e.g. always for V2)
     pub is_running_init : bool, // true as long as acos5_64_init runs: It may be used to control behavior of acos5_64_list_files (lazily filling hashmap)
     /* some commands like sign, decipher etc. may supply > 256 bytes to get_response, but the exact number will not be known (the only info is 0x6100),
        thus guessing, there are another 256 bytes will be turned on with: true; guessing is limited to those commands, that turn on this feature.
@@ -496,10 +486,10 @@ pub struct DataPrivate { // see settings in acos5_init
     pub is_running_compute_signature : bool, /* acos5_64_decipher needs to know, whether it was called by acos5_64_compute_signature */
     pub is_running_cmd_long_response : bool,
     pub is_unwrap_op_in_progress : bool,
+    pub rfu_align_pad2 : bool, // reserved future use, just inserted for alignment reason (fill the gap)
     pub sym_key_file_id : u16,
     pub sym_key_rec_idx : u8,
     pub sym_key_rec_cnt : u8,
-    pub time_stamp : std::time::Instant,
     #[cfg(enable_acos5_ui)]
     pub ui_ctx : ui_context,
 }
@@ -513,41 +503,7 @@ pub fn is_DFMF(fdb: c_uchar) -> bool
     (fdb & FDB_DF) == FDB_DF
 }
 
-
-pub fn array2_from_u16(number: u16) -> [u8; 2]
-{
-    let mut res = [0u8; 2];
-    res[0] = (number >> 8)   as u8;
-    res[1] = (number & 0xFF) as u8;
-    res
-}
-
-/**
- * Converts the first 2 bytes of input slice to an u16; panics if slice.len()<2
- * @apiNote
- * @param   array  IN slice; most significant byte at index 0, i.e. &[0x3F, 0] will be converted to 0x3F00
- * @return  the u16 result of conversion
- */
-pub fn u16_from_array_begin(array: &[u8]) -> u16
-{
-    assert!(array.len()>=2);
-    (array[0] as u16) << 8  |  array[1] as u16
-}
-
-pub fn u16_from_array_end(array: &[u8]) -> u16
-{
-    let len = array.len();
-    assert!(len>=2);
-    (array[len-2] as u16) << 8  |  array[len-1] as u16
-}
-
-
-pub fn u32_from_array_begin(array: &[u8]) -> u32
-{
-    assert!(array.len()>=4);
-    (array[0] as u32) << 24  |  (array[1] as u32) << 16  |  (array[2] as u32) << 8  |  array[3] as u32
-}
-
+////////////////
 ////////////////
 
 
@@ -576,8 +532,8 @@ pub struct ui_context {
 
 #[cfg(enable_acos5_ui)]
 impl Default for ui_context {
-    fn default() -> ui_context {
-        ui_context {
+    fn default() -> Self {
+        Self {
 //            user_consent_app: std::ptr::null(),
             user_consent_enabled: 0
         }

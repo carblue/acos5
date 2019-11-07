@@ -81,13 +81,13 @@ pub fn me_get_max_recv_size(card_ref: &sc_card) -> usize
     if /*card_ref == NULL ||*/ card_ref.reader.is_null() {
         return 0;
     }
-    let card_reader_ref = unsafe { & *card_ref.reader };
+    let card_reader_ref = unsafe { &*card_ref.reader };
     let mut max_recv_size = card_ref.max_recv_size;
 
     /* initialize max_recv_size to a meaningful value */
     if max_recv_size == 0 {
-        max_recv_size = if (card_ref.caps & SC_CARD_CAP_APDU_EXT) != 0 {0x1_0000}
-                        else {SC_READER_SHORT_APDU_MAX_RECV_SIZE};
+        max_recv_size = if (card_ref.caps & SC_CARD_CAP_APDU_EXT) == 0 {SC_READER_SHORT_APDU_MAX_RECV_SIZE}
+                        else {0x1_0000};
     }
 
     /*  Override card limitations with reader limitations. */
@@ -140,27 +140,24 @@ fn me_card_add_algorithm(card: &mut sc_card, info_ref: &sc_algorithm_info) -> c_
 
 pub fn me_card_add_symmetric_alg(card: &mut sc_card, algorithm: c_uint, key_length: c_uint, flags: c_uint) -> c_int
 { // same as in opensc
-    let info = sc_algorithm_info { algorithm, key_length, flags, .. Default::default() };
+    let info = sc_algorithm_info { algorithm, key_length, flags, .. sc_algorithm_info::default() };
     me_card_add_algorithm(card, &info)
 }
 
-pub fn me_card_find_alg(card: &mut sc_card,
-                        algorithm: c_uint, key_length: c_uint, param_ptr: *mut c_void) -> *mut sc_algorithm_info
+pub fn me_card_find_alg(card: &mut sc_card, algorithm: c_uint, key_length: c_uint,
+                        param: Option<*mut c_void>) -> Option<*mut sc_algorithm_info>
 {
     for info in unsafe { std::slice::from_raw_parts_mut(card.algorithms, card.algorithm_count as usize) } {
         if info.algorithm != algorithm   { continue; }
         if info.key_length != key_length { continue; }
 
-        if !param_ptr.is_null() {
-            if info.algorithm == SC_ALGORITHM_EC {
-                if unsafe { sc_compare_oid(param_ptr as *mut sc_object_id, &info.u._ec.params.id) } != 0 {
-                    continue;
-                }
-            }
+        if param.is_some() && info.algorithm == SC_ALGORITHM_EC &&
+              unsafe { sc_compare_oid(param.unwrap() as *mut sc_object_id, &info.u.ec.params.id) } != 0 {
+            continue;
         }
-        return info as *mut sc_algorithm_info;
+        return Some(info as *mut sc_algorithm_info);
     }
-    std::ptr::null_mut() as *mut sc_algorithm_info
+    None
 }
 
 /*
@@ -218,9 +215,9 @@ pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: c_uint, caps: c_uint,
             /* Work with RSA, EC and maybe GOSTR? */
             if (caps & SC_ALGORITHM_RAW_MASK) == 0 {
                 if cfg!(log) { // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "raw encryption is not supported");
-                    wr_do_log_sds(ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"raw decipher is not supported\0").unwrap().as_ptr(),
-                                   SC_ERROR_NOT_SUPPORTED, unsafe { sc_strerror(SC_ERROR_NOT_SUPPORTED) },
-                                   CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap() );
+                    unsafe { wr_do_log_sds(ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"raw decipher is not supported\0").unwrap().as_ptr(),
+                                   SC_ERROR_NOT_SUPPORTED, sc_strerror(SC_ERROR_NOT_SUPPORTED),
+                                   CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap() )};
                 }
                 return SC_ERROR_NOT_SUPPORTED;
             }
@@ -238,9 +235,9 @@ pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: c_uint, caps: c_uint,
         }}
         else {
              if cfg!(log) { // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "unsupported algorithm");
-                wr_do_log_sds(ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"unsupported algorithm\0").unwrap().as_ptr(),
-                               SC_ERROR_NOT_SUPPORTED, unsafe { sc_strerror(SC_ERROR_NOT_SUPPORTED) },
-                               CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap() );
+                unsafe { wr_do_log_sds(ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"unsupported algorithm\0").unwrap().as_ptr(),
+                               SC_ERROR_NOT_SUPPORTED, sc_strerror(SC_ERROR_NOT_SUPPORTED),
+                               CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap() )};
             }
             return SC_ERROR_NOT_SUPPORTED;
         }
@@ -300,9 +297,9 @@ pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: c_uint, caps: c_uint,
         }
         else {
             if cfg!(log) { // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "unsupported algorithm");
-                wr_do_log_sds(ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"unsupported algorithm\0").unwrap().as_ptr(),
-                              SC_ERROR_NOT_SUPPORTED, unsafe { sc_strerror(SC_ERROR_NOT_SUPPORTED) },
-                              CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap() );
+                unsafe { wr_do_log_sds(ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"unsupported algorithm\0").unwrap().as_ptr(),
+                              SC_ERROR_NOT_SUPPORTED, sc_strerror(SC_ERROR_NOT_SUPPORTED),
+                              CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap() )};
             }
             return SC_ERROR_NOT_SUPPORTED;
         }
@@ -457,7 +454,7 @@ mod tests {
 
     #[test]
     fn test_me_pkcs1_strip_02_padding() {
-        let mut vec = vec![0u8, 2,  1,2,3,4,5,6,7,8,  0,  0xAB];
+        let mut vec = vec![0_u8, 2,  1,2,3,4,5,6,7,8,  0,  0xAB];
         assert_eq!(me_pkcs1_strip_02_padding(&mut vec), 11);
         assert_eq!(vec[0], 0xAB);
     }

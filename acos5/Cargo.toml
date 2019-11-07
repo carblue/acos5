@@ -7,10 +7,12 @@ edition = "2018"
 [dependencies]
 libc = "0.2"
 num-integer = "0.1"
+#tlv_parser = "0.6"
+iso7816-tlv = { path = "../iso7816-tlv" }
 opensc-sys = { path = "../opensc-sys" }
 
 [build-dependencies]
-pkg-config = "=0.3.14"
+pkg-config = "0.3"
 
 [lib]
 name = "acos5"

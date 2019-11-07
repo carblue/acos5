@@ -29,6 +29,18 @@ use opensc_sys::errors::{SC_SUCCESS};
 use crate::constants_types::*;
 use crate::wrappers::*;
 
+/* The following 2 functions take the file id from the last valid path component */
+pub fn file_id_from_path_value(path_value: &[u8]) -> u16
+{
+    let len = path_value.len();
+    assert!(len>=2);
+    u16::from_be_bytes([path_value[len-2], path_value[len-1]])
+}
+
+pub fn file_id_from_cache_current_path(card: &sc_card) -> u16
+{
+    file_id_from_path_value(&card.cache.current_path.value[..card.cache.current_path.len])
+}
 
 /*
  * What it does
@@ -38,23 +50,24 @@ use crate::wrappers::*;
  */
 pub fn current_path_df(card: &mut sc_card) -> &[u8]
 {
+    assert!(!card.ctx.is_null());
+    let card_ctx = unsafe { &mut *card.ctx };
     let len = card.cache.current_path.len;
-//    assert!(len>=2);
-    let file_id = u16_from_array_end(&card.cache.current_path.value[..len]);
+    assert!(len>=2);
+    let file_id = file_id_from_cache_current_path(card);
 
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     assert!(dp.files.contains_key(&file_id));
-    let fdb = (&dp.files[&file_id]).1[0];
+    let fdb = dp.files[&file_id].1[0];
     card.drv_data = Box::into_raw(dp) as *mut c_void;
-    if ![FDB_MF, FDB_DF, FDB_TRANSPARENT_EF, FDB_LINEAR_FIXED_EF, FDB_LINEAR_VARIABLE_EF, FDB_CYCLIC_EF, FDB_SE_FILE,
+    if cfg!(log) && ![FDB_MF, FDB_DF, FDB_TRANSPARENT_EF, FDB_LINEAR_FIXED_EF, FDB_LINEAR_VARIABLE_EF, FDB_CYCLIC_EF, FDB_SE_FILE,
         FDB_RSA_KEY_EF, FDB_CHV_EF, FDB_SYMMETRIC_KEY_EF, FDB_PURSE_EF, FDB_ECC_KEY_EF].contains(&fdb) {
         let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
         let fun   = CStr::from_bytes_with_nul(b"current_path_df\0").unwrap();
         let fmt   = CStr::from_bytes_with_nul(b"### fdb: %d is incorrect ##################################\0").unwrap();
-        #[cfg(log)]
-        wr_do_log_t(card.ctx, f_log, line!(), fun, fdb, fmt);
+        wr_do_log_t(card_ctx, f_log, line!(), fun, fdb, fmt);
     }
-    &card.cache.current_path.value[.. len - if is_DFMF(fdb) {0} else {2}]
+    &card.cache.current_path.value[..card.cache.current_path.len - if is_DFMF(fdb) {0} else {2}]
 }
 
 /* If one of the 'is_search_ruleX_match()' functions returns true, it's sufficient for cos5 to just select the file_id
@@ -91,7 +104,7 @@ pub fn is_search_rule0_match(path_target: &[u8], current_path_ef: &[u8]) -> bool
  */
 pub fn is_search_rule1_match(path_target: &[u8], current_path_df: &[u8]) -> bool
 {
-    if path_target.len()==2 && path_target==&[0x3Fu8, 0xFF][..] { return true; }
+    if path_target.len()==2 && path_target==&[0x3F_u8, 0xFF][..] { return true; }
     path_target == current_path_df
 }
 
@@ -148,7 +161,7 @@ pub fn is_search_rule4_match(path_target: &[u8], current_path_df: &[u8]) -> bool
  */
 pub fn is_search_rule5_match(path_target: &[u8]) -> bool
 {
-    path_target.len() == 2 && path_target == &[0x3Fu8, 0][..]
+    path_target.len() == 2 && path_target == &[0x3F_u8, 0][..]
 }
 
 /* select_file target is a EF/DF located (directly) within MF */
@@ -160,7 +173,7 @@ pub fn is_search_rule5_match(path_target: &[u8]) -> bool
  */
 pub fn is_search_rule6_match(path_target: &[u8]) -> bool
 {
-    path_target.len() == 4 && &path_target[..2] == &[0x3Fu8, 0][..]
+    path_target.len() == 4 && path_target[..2] == [0x3F_u8, 0][..]
 }
 
 /* select_file target is known to be non-selectable (reserved or erroneous file id) */
@@ -173,10 +186,9 @@ pub fn is_search_rule6_match(path_target: &[u8]) -> bool
 pub fn is_impossible_file_match(path_target: &sc_path) -> bool {
     let len = path_target.len;
     assert!(len>=2);
-    let file_id = u16_from_array_begin(&path_target.value[len-2..len]);
+    let file_id = u16::from_be_bytes([path_target.value[len-2], path_target.value[len-1]]);
     match file_id {
-        0 => true,
-        0xFFFF => true,
+        0 | 0xFFFF => true,
         _ => false,
     }
 }
@@ -195,12 +207,15 @@ It's rarely called and implements just those remaining cases that came across so
  */
 pub fn cut_path(card: &mut sc_card, path: &mut sc_path) -> c_int
 {
+    assert!(!card.ctx.is_null());
+    let card_ctx = unsafe { &mut *card.ctx };
     let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
     let fun     = CStr::from_bytes_with_nul(b"cut_path\0").unwrap();
     let fmt_1   = CStr::from_bytes_with_nul(b"                     called.   in_type: %d,   in_value: %s\0").unwrap();
     let fmt_3   = CStr::from_bytes_with_nul(b"                  returning:  out_type: %d,  out_value: %s\0").unwrap();
-    #[cfg(log)]
-    wr_do_log_tu(card.ctx, f_log, line!(), fun, path.type_, unsafe{sc_dump_hex(path.value.as_ptr(), path.len)}, fmt_1);
+    if cfg!(log) {
+        wr_do_log_tu(card_ctx, f_log, line!(), fun, path.type_, unsafe{sc_dump_hex(path.value.as_ptr(), path.len)}, fmt_1);
+    }
 
     assert!(card.cache.current_path.len>=2);
     assert!(path.len>=4);
@@ -242,8 +257,9 @@ pub fn cut_path(card: &mut sc_card, path: &mut sc_path) -> c_int
         path.len -= 2;
     }
 
-    #[cfg(log)]
-    wr_do_log_tu(card.ctx, f_log, line!(), fun, path.type_, unsafe{sc_dump_hex(path.value.as_ptr(), path.len)}, fmt_3);
+    if cfg!(log) {
+        wr_do_log_tu(card_ctx, f_log, line!(), fun, path.type_, unsafe{sc_dump_hex(path.value.as_ptr(), path.len)}, fmt_3);
+    }
     SC_SUCCESS
 }
 

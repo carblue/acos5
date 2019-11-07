@@ -8,4 +8,4 @@ edition = "2018"
 libc = "0.2"
 
 [build-dependencies]
-pkg-config = "=0.3.14"
+pkg-config = "0.3"

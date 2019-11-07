@@ -35,7 +35,7 @@ use crate::scconf::{scconf_block};
 #include "libopensc/sc-ossl-compat.h"
 #endif
 */
-pub const SC_FILE_MAGIC : c_uint =  0x14426950;
+pub const SC_FILE_MAGIC : c_uint =  0x1442_6950;
 /*
 #ifndef _WIN32
 #define msleep(t) usleep((t) * 1000)
@@ -73,8 +73,8 @@ pub struct sc_atr_table {
 
 #[cfg(impl_default)]
 impl Default for sc_atr_table {
-    fn default() -> sc_atr_table {
-        sc_atr_table {
+    fn default() -> Self {
+        Self {
             atr      :  std::ptr::null(),
             atrmask  :  std::ptr::null(),
             name     :  std::ptr::null(),

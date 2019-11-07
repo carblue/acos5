@@ -40,7 +40,7 @@ pub struct auth_info {
     pub type_ : c_uint,        /* CHV, AUT, PRO */
     pub ref_ : c_uint,
     pub key_len : usize,
-    pub key : [c_uchar; 32usize],
+    pub key : [c_uchar; 32],
 }
 
 #[repr(C)]
