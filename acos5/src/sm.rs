@@ -27,6 +27,11 @@ use crate::crypto::{DES_KEY_SZ, DES_KEY_SZ_u8, des_ecb3_unpadded_8, des_ede3_cbc
 use crate::wrappers::*;
 
 /*
+TODO There is a lot of code duplication here: Abstract as much as possible for the 4 APDU cases, but first test thoroughly
+  that all is working as expected
+*/
+
+/*
 /*
  * @struct sm_module_operations
  *    API to use external SM modules:
@@ -126,34 +131,35 @@ fn test(_ctx: *mut sc_context, _sm_info: *mut sm_info, out: *mut c_char) -> c_in
 }
 */
 
-fn get_cwa_keyset_enc_card(cwa: &sm_cwa_session) -> [c_uchar; 24] {
-    let mut result = [0_u8; 24];
+fn get_cwa_keyset_enc_card(cwa: &sm_cwa_session) -> [c_uchar; 3*DES_KEY_SZ] {
+    let mut result = [0_u8; 3*DES_KEY_SZ];
     unsafe { copy_nonoverlapping(cwa.cwa_keyset.enc.as_ptr(), result.as_mut_ptr(), 2*DES_KEY_SZ) };
     unsafe { copy_nonoverlapping(cwa.icc.k.as_ptr(),          result.as_mut_ptr().add(2*DES_KEY_SZ), DES_KEY_SZ) };
     result
 }
 
-fn get_cwa_keyset_mac_host(cwa: &sm_cwa_session) -> [c_uchar; 24] {
-    let mut result = [0_u8; 24];
+fn get_cwa_keyset_mac_host(cwa: &sm_cwa_session) -> [c_uchar; 3*DES_KEY_SZ] {
+    let mut result = [0_u8; 3*DES_KEY_SZ];
     unsafe { copy_nonoverlapping(cwa.cwa_keyset.mac.as_ptr(), result.as_mut_ptr(), 2*DES_KEY_SZ) };
     unsafe { copy_nonoverlapping(cwa.ifd.k.as_ptr(),          result.as_mut_ptr().add(2*DES_KEY_SZ), DES_KEY_SZ) };
     result
 }
 //
-fn get_cwa_session_enc(cwa: &sm_cwa_session) -> [c_uchar; 24] {
-    let mut result = [0_u8; 24];
+fn get_cwa_session_enc(cwa: &sm_cwa_session) -> [c_uchar; 3*DES_KEY_SZ] {
+    let mut result = [0_u8; 3*DES_KEY_SZ];
     unsafe { copy_nonoverlapping(cwa.session_enc.as_ptr(),         result.as_mut_ptr(), 2*DES_KEY_SZ) };
     unsafe { copy_nonoverlapping(cwa.icc.k.as_ptr().add(DES_KEY_SZ), result.as_mut_ptr().add(2*DES_KEY_SZ), DES_KEY_SZ) };
     result
 }
 
-fn get_cwa_session_mac(cwa: &sm_cwa_session) -> [c_uchar; 24] {
-    let mut result = [0_u8; 24];
+fn get_cwa_session_mac(cwa: &sm_cwa_session) -> [c_uchar; 3*DES_KEY_SZ] {
+    let mut result = [0_u8; 3*DES_KEY_SZ];
     unsafe { copy_nonoverlapping(cwa.session_mac.as_ptr(),         result.as_mut_ptr(), 2*DES_KEY_SZ) };
     unsafe { copy_nonoverlapping(cwa.ifd.k.as_ptr().add(DES_KEY_SZ), result.as_mut_ptr().add(2*DES_KEY_SZ), DES_KEY_SZ) };
     result
 }
 
+/* increments ssc by 1; only the last 2 bytes will change, and possibly wrap */
 fn sm_incr_ssc(ssc: &mut [u8; DES_KEY_SZ]) {
     if ssc[7] != 0xFF {
         ssc[7] += 1;
@@ -227,7 +233,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> c_in
 
 ////            sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "keyset::enc(%"SC_FORMAT_LEN_SIZE_T"u) %s", strlen(value), value);
     wr_do_log_tu(ctx, f_log, line!(), fun, unsafe { strlen(value) }, value, CStr::from_bytes_with_nul(b"keyset::enc(%zu) %s\0").unwrap());
-    if unsafe { strlen(value) } == 24 {
+    if unsafe { strlen(value) } == 3*DES_KEY_SZ {
         unsafe { copy_nonoverlapping(value as *const c_uchar,                cwa_keyset.enc.as_mut_ptr(), 2*DES_KEY_SZ) };
         unsafe { copy_nonoverlapping(value.add(2*DES_KEY_SZ) as *const c_uchar, cwa_session.icc.k.as_mut_ptr(), DES_KEY_SZ) };
     }
@@ -242,13 +248,13 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> c_in
 
 ////                sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "ENC(%"SC_FORMAT_LEN_SIZE_T"u) %s", hex_len, sc_dump_hex(hex, hex_len));
         wr_do_log_tu(ctx, f_log, line!(), fun, hex_len, unsafe {sc_dump_hex(hex.as_ptr(), hex_len)}, CStr::from_bytes_with_nul(b"ENC(%zu) %s\0").unwrap());
-        if hex_len != 24 {
+        if hex_len != 3*DES_KEY_SZ {
             return SC_ERROR_INVALID_DATA;
         }
         unsafe { copy_nonoverlapping(hex.as_ptr(),                cwa_keyset.enc.as_mut_ptr(), 2*DES_KEY_SZ) };
         unsafe { copy_nonoverlapping(hex.as_ptr().add(2*DES_KEY_SZ), cwa_session.icc.k.as_mut_ptr(), DES_KEY_SZ) };
     }
-////            sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "%s %s", name, sc_dump_hex(cwa_keyset->enc, 24));
+////            sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "%s %s", name, sc_dump_hex(cwa_keyset->enc, 3*DES_KEY_SZ));
     wr_do_log_tu(ctx, f_log, line!(), fun, name.as_ptr(), unsafe {sc_dump_hex(cwa_keyset.enc.as_ptr(), 2*DES_KEY_SZ)}, CStr::from_bytes_with_nul(b"%s %s\0").unwrap());
 
     /* Keyset MAC */
@@ -270,7 +276,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> c_in
 
 ////            sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "keyset::mac(%"SC_FORMAT_LEN_SIZE_T"u) %s", strlen(value), value);
     wr_do_log_tu(ctx, f_log, line!(), fun, unsafe { strlen(value) }, value, CStr::from_bytes_with_nul(b"keyset::mac(%zu) %s\0").unwrap());
-    if unsafe { strlen(value) } == 24 {
+    if unsafe { strlen(value) } == 3*DES_KEY_SZ {
         unsafe { copy_nonoverlapping(value as *const c_uchar,                cwa_keyset.mac.as_mut_ptr(), 2*DES_KEY_SZ) };
         unsafe { copy_nonoverlapping(value.add(2*DES_KEY_SZ) as *const c_uchar, cwa_session.ifd.k.as_mut_ptr(), DES_KEY_SZ) };
     }
@@ -285,7 +291,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> c_in
 
 ////                sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "MAC(%"SC_FORMAT_LEN_SIZE_T"u) %s", hex_len, sc_dump_hex(hex, hex_len));
         wr_do_log_tu(ctx, f_log, line!(), fun, hex_len, unsafe {sc_dump_hex(hex.as_ptr(), hex_len)}, CStr::from_bytes_with_nul(b"MAC(%zu) %s\0").unwrap());
-        if hex_len != 24 {
+        if hex_len != 3*DES_KEY_SZ {
             return SC_ERROR_INVALID_DATA;
         }
 
@@ -414,7 +420,7 @@ fn sm_cwa_initialize(card: &mut sc_card/*, sm_info: &mut sm_info, _rdata: &mut s
     }
 
     /* session keys generation. acos5 does it internally automatically and we must do the same here */
-    let mut deriv_data = Vec::with_capacity(24);
+    let mut deriv_data = Vec::with_capacity(3*DES_KEY_SZ);
     deriv_data.extend_from_slice(&scwa.card_challenge[4..8]);
     deriv_data.extend_from_slice(&scwa.host_challenge[0..4]);
     deriv_data.extend_from_slice(&scwa.card_challenge[0..4]);
@@ -425,8 +431,8 @@ fn sm_cwa_initialize(card: &mut sc_card/*, sm_info: &mut sm_info, _rdata: &mut s
 
     let sess_enc_buf = des_ecb3_unpadded_8(deriv_data.as_slice(), &get_cwa_keyset_enc_card(scwa)[..], Encrypt);
     let sess_mac_buf = des_ecb3_unpadded_8(deriv_data.as_slice(), &get_cwa_keyset_mac_host(scwa)[..], Encrypt);
-    assert_eq!(24, sess_enc_buf.len());
-    assert_eq!(24, sess_mac_buf.len());
+    assert_eq!(3*DES_KEY_SZ, sess_enc_buf.len());
+    assert_eq!(3*DES_KEY_SZ, sess_mac_buf.len());
 
     unsafe { copy_nonoverlapping(sess_enc_buf.as_ptr(),                         card.sm_ctx.info.session.cwa.session_enc.as_mut_ptr(), 2*DES_KEY_SZ) };
     unsafe { copy_nonoverlapping(sess_enc_buf.as_ptr().add(2*DES_KEY_SZ), card.sm_ctx.info.session.cwa.icc.k.as_mut_ptr().add(DES_KEY_SZ), DES_KEY_SZ) };
@@ -1135,12 +1141,25 @@ pub fn sm_pin_cmd_get_policy(card: &mut sc_card, pin_cmd_data: &mut sc_pin_cmd_d
     rv
 }
 
-/*
+
 #[cfg(test)]
 mod tests {
+    use crate::crypto::DES_KEY_SZ;
+    use super::sm_incr_ssc;
+
     #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+    fn test_sm_incr_ssc() {
+        let mut ssc: [u8; DES_KEY_SZ]  = [1,2,3,4,5,6, 0xFE,0xFE];
+        sm_incr_ssc(&mut ssc);
+        assert_eq!(ssc, [1,2,3,4,5,6, 0xFE,0xFF]);
+        sm_incr_ssc(&mut ssc);
+        assert_eq!(ssc, [1,2,3,4,5,6, 0xFF,0x00]);
+        sm_incr_ssc(&mut ssc);
+        assert_eq!(ssc, [1,2,3,4,5,6, 0xFF,0x01]);
+        ssc = [1,2,3,4,5,6, 0xFF,0xFF];
+        sm_incr_ssc(&mut ssc);
+        assert_eq!(ssc, [1,2,3,4,5,6, 0,0]);
+        sm_incr_ssc(&mut ssc);
+        assert_eq!(ssc, [1,2,3,4,5,6, 0,1]);
     }
 }
-*/

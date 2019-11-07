@@ -6,6 +6,7 @@ use num_integer::Integer;
 use std::os::raw::{c_uchar, c_int, c_ulong, c_long};
 //use std::ptr::{copy_nonoverlapping};
 
+//from openssl  des.h and rand.h
 pub const DES_KEY_SZ : usize = 8; // sizeof(DES_cblock)
 #[allow(non_upper_case_globals)]
 pub const DES_KEY_SZ_u8 : c_uchar = DES_KEY_SZ as c_uchar;
@@ -23,7 +24,7 @@ pub struct DES_key_schedule {
     ks: [DES_cblock; 16],
 }
 
-
+// TODO is this portable ?
 #[link(name = "crypto")]
 extern {
     pub fn RAND_bytes(buf: *mut c_uchar, num: c_int) -> c_int; // RAND_bytes() returns 1 on success, 0 otherwise

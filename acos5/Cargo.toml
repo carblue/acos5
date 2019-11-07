@@ -7,8 +7,7 @@ edition = "2018"
 [dependencies]
 libc = "0.2"
 num-integer = "0.1"
-#tlv_parser = "0.6"
-iso7816-tlv = { path = "../iso7816-tlv" }
+iso7816-tlv = "0.3"
 opensc-sys = { path = "../opensc-sys" }
 
 [build-dependencies]

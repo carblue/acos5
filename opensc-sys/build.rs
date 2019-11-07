@@ -32,7 +32,7 @@ fn main() {
                 "0.17.0" => println!("cargo:rustc-cfg=v0_17_0"),
                 "0.18.0" => println!("cargo:rustc-cfg=v0_18_0"),
                 "0.19.0" => println!("cargo:rustc-cfg=v0_19_0"),
-                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"), // experimental only: it's git-master Latest commit c3f23b836e5a1766c36617fe1da30d22f7b63de2, defined as version 0.20.0 in config.h
+                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"), // experimental only: it's git-master Latest commit a8de0070fd351b56895191653bf35888d0d3ab39, defined as version 0.20.0 in config.h
 //                "0.21.0" => println!("cargo:rustc-cfg=v0_21_0"), // experimental only: it's git-master, Latest commit ?, defined as version 0.21.0 in config.h
                 _ => ()
             }

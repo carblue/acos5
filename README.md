@@ -3,13 +3,13 @@ This repository now embraces all "driver-related" referring to ACOS5, an ACS fam
 Motivation:
 For platform-independent, serious use of a cryptographic token from software like Firefox, Thunderbird, ssh etc., a PKCS#11 implementing library is required.<br>
 There is none known to me for ACOS5 that is open source, nothing in this regard downloadable from ACS for free, instead, You'll have to pay a lot more for a proprietary ACS PKCS#11 library than for a single hardware token.<br>
-The only thing downloadable from ACS for free (and as open source) is [acsccid](https://github.com/acshk/acsccid "https://github.com/acshk/acsccid"), a PC/SC driver for Linux/Mac OS X. But I never installed that for production use of my CryptoMate64 and CryptoMate Nano, so the debian/Ubuntu-supplied [ccid](https://ccid.apdu.fr/ "https://ccid.apdu.fr/") seems to be sufficient (if it's new enough to list those as supported ones).<br>
+The only software downloadable from ACS for free (and as open source) is [acsccid](https://github.com/acshk/acsccid "https://github.com/acshk/acsccid"), a PC/SC driver for Linux/Mac OS X. But I never installed that for production use of my CryptoMate64 and CryptoMate Nano, so the debian/Ubuntu-supplied [ccid](https://ccid.apdu.fr/ "https://ccid.apdu.fr/") seems to be sufficient (if it's new enough to list those as supported ones).<br>
 So be careful what You get from ACS when it is called driver.
 
 OpenSC offers a PKCS#11 implementing open source library if it get's augmented by a hardware specific driver, which is missing currently for ACOS5 in OpenSC v0.20.0, and the one available in earlier versions was rudimentary/incomplete.
 
 With this repo's components 'acos5' and 'acos5_pkcs15' as plug-ins, OpenSC supports ACOS5 as well. (Fortunately OpenSC allows such plug-ins as - in OpenSC lingo - external modules/shared libraries).<br>
-They got implemented in the Rust programming language, so You will need the Rust compiler and cargo build tool from [Rust, cargo](https://www.rust-lang.org/tools/install "https://www.rust-lang.org/tools/install") to build those libraries from source code).<br>
+They got implemented in the Rust programming language, so You will need the Rust compiler and cargo build tool from [Rust, cargo](https://www.rust-lang.org/tools/install "https://www.rust-lang.org/tools/install") to build those libraries from source code.<br>
 If there is anybody willing to transform the Rust code into a C code internal OpenSC driver 'acos5', then I'll be happy to support that undertaking.<br>
 External modules need some configuration once in opensc.conf, such that they get 'registered' and used by OpenSC, explained below.
 
@@ -45,6 +45,7 @@ Steps towards driver binary builds libacos5.so/dll/dylib and libacos5_pkcs15.so/
 =========================================================================================
 1. Install OpenSC (if it's not there already). The driver will call into libopensc.so (opensc.dll/libopensc.dylib), will need the configuration file opensc.conf to be adapted, and the build process will need an installed package pkgconfig in order to read from opensc.pc (You have to create that: see how the script .travis.yml constructs/adapts it from opensc-pkcs11.pc (if that is available), or copys a basic version, that must be adapted).
 For details read on in opensc-sys binding.<br>
+Same as OpenSC's libraries, also this driver will depend on OpenSSL's crypto library.<br>
 Invoke `opensc-tool --info` in order to know Your installed OpenSC version. The driver build will be tied to that specific OpenSC version.
 
 2. Install the Rust compiler and cargo build manager (it's bundled) from [Rust, cargo](https://www.rust-lang.org/tools/install "https://www.rust-lang.org/tools/install")<br>

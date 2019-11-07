@@ -99,9 +99,9 @@ pub const SC_PKCS15_PIN_TYPE_HALFNIBBLE_BCD : u32 =   3;
 pub const SC_PKCS15_PIN_TYPE_ISO9564_1      : u32 =   4;
 
 pub const SC_PKCS15_PIN_AUTH_TYPE_PIN       : u32 =   0;
-pub const SC_PKCS15_PIN_AUTH_TYPE_BIOMETRIC : u32 =   1;
-pub const SC_PKCS15_PIN_AUTH_TYPE_AUTH_KEY  : u32 =   2;
-pub const SC_PKCS15_PIN_AUTH_TYPE_SM_KEY    : u32 =   3;
+pub const SC_PKCS15_PIN_AUTH_TYPE_BIOMETRIC : u32 =   1; // unused, not supported
+pub const SC_PKCS15_PIN_AUTH_TYPE_AUTH_KEY  : u32 =   2; // no card uses that so far
+pub const SC_PKCS15_PIN_AUTH_TYPE_SM_KEY    : u32 =   3; // unused
 
 /* PinAttributes as they are defined in PKCS#15 v1.1 for PIN authentication object */
 #[repr(C)]
@@ -689,8 +689,8 @@ pub const SC_PKCS15_TYPE_DATA_OBJECT      : u32 =  0x500;
 
 pub const SC_PKCS15_TYPE_AUTH             : u32 =  0x600;
 pub const SC_PKCS15_TYPE_AUTH_PIN         : u32 =  0x601;
-pub const SC_PKCS15_TYPE_AUTH_BIO         : u32 =  0x602;
-pub const SC_PKCS15_TYPE_AUTH_AUTHKEY     : u32 =  0x603;
+pub const SC_PKCS15_TYPE_AUTH_BIO         : u32 =  0x602; // unused, not supported
+pub const SC_PKCS15_TYPE_AUTH_AUTHKEY     : u32 =  0x603; // no card uses that so far
 
 //#define SC_PKCS15_TYPE_TO_CLASS(t)        (1 << ((t) >> 8))
 pub const SC_PKCS15_SEARCH_CLASS_PRKEY    : u32 =  0x0002;
