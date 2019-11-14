@@ -19,7 +19,7 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-use std::os::raw::{c_int, c_uchar, c_char, c_ulong};
+use std::os::raw::{c_uchar, c_char, c_int, c_ulong};
 
 //#define _CTL_PREFIX(a, b, c) (((a) << 24) | ((b) << 16) | ((c) << 8))
 

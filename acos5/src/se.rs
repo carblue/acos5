@@ -427,7 +427,7 @@ pub fn se_parse_sae(vec_sac_info: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp
     use crate::no_cdecl::{convert_amdo_to_cla_ins_p1_p2_array};
 
     // add the A4 tag as virtual SE-file record (SAC), starting with se record id 16, the max. of real ones is 14
-    let mut idx_virtual = 15_u32;
+    let mut idx_virtual = 15_u8;
     let mut vec_sae_info = Vec::with_capacity(6);
     let mut rem = value_bytes_tag_fcp_sae;
     assert!(rem.len()<=32);
@@ -444,7 +444,7 @@ pub fn se_parse_sae(vec_sac_info: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp
 //println!("parsed: {:X?}", tlv);
         let mut tag : u8 = tlv.tag().into(); // Into::<u8>::into(tlv.tag());
 //        let my_tag /*: u8*/ = Into::<u8>::into(Tag::try_from(127_u8).unwrap().tag());
-        let _my_tag /*: u8*/ = Into::<u8>::into(tlv.tag());
+//        let _my_tag /*: u8*/ = Into::<u8>::into(tlv.tag());
         assert_eq!( tag & 0xF0, 0x80);
         assert_eq!((tag & 0x0F).count_ones() as usize, tlv.length());
         assert_eq!( tag & 0x04, 4); // ins must be included
@@ -480,13 +480,19 @@ pub fn se_parse_sae(vec_sac_info: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp
                 sae_info.scb = tlv.value()[0];
             },
             0xA4 => {
+/*
+  Some([SACinfo { reference: 10, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [81, 81, 0, 0, 0, 0, 0, 0] },
+A4 6  83 1 81  95 1 8
+        SACinfo { reference:  1, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [81,  0, 0, 0, 0, 0, 0, 0] },
+*/
                 assert!(tlv.length()>=6 && tlv.length().is_multiple_of(&3));
                 let mut sac_info = SACinfo::default();
                 idx_virtual += 1;
-                let mut idx_ref = 0_usize;
-                sac_info.reference = idx_virtual;
+                sae_info.scb       = idx_virtual;
+                sac_info.reference = idx_virtual.into();
                 sac_info.crts_len  = 1;
                 sac_info.crts[0].tag = u32::from(tag);
+                let mut idx_ref = 0_usize;
                 for chunk in tlv.value().chunks(3) {
                     assert_eq!(1, chunk[1]);
                     match chunk[0] {
@@ -495,9 +501,6 @@ pub fn se_parse_sae(vec_sac_info: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp
                         0x81 => { /*if card.type_== SC_CARD_TYPE_ACOS5_EVO_V4 {TODO EVO also has tag 0x81} else {panic!()}*/ }
                         _    => panic!("unexpected"),
                     }
-                    if      chunk[0]==0x95 { sac_info.crts[0].usage         = u32::from(chunk[2]); }
-                    else if chunk[0]==0x83 { sac_info.crts[0].refs[idx_ref] = u32::from(chunk[2]); idx_ref += 1;}
-                    else                   { panic!(); } // TODO EVO also has tag 0x81
                 }
                 if (*vec_sac_info).is_none() { *vec_sac_info = Some(Vec::new()) }
 //                (*vec_sac_info).unwrap().push(sac_info);

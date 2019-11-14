@@ -26,7 +26,36 @@ use opensc_sys::types::{sc_crt, sc_object_id, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZ
 use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUSTED,
                          SC_PKCS15_SKDF, SC_PKCS15_CDF, SC_PKCS15_CDF_TRUSTED, SC_PKCS15_CDF_USEFUL,
                          SC_PKCS15_DODF, SC_PKCS15_AODF};
+/*
+Limits:
 
+file size:
+V2:
+V3:
+V4: 38911
+
+MRL, NOR:
+V2: 255, 255
+V3:
+V4: 4096, 65535
+
+CHV:
+V2: max. 21 bytes (5+2*8), Pin ids from 1-?; max 31 global pins + 31 local pins
+V3:
+V4: max. 45 bytes (5+2*20), Pin ids from 1-30
+
+Sym key:
+V2: max 37 bytes, SE ids from 1-14
+V3:
+V4: min 12/20, Key ids from 1-30
+
+
+SE file:
+V2: max 37 bytes
+V3:
+V4: min 12/20, Key ids from 1-30
+
+*/
 // see also useful declarations in libopensc/iasecc.h:
 pub const ACOS5_OBJECT_REF_LOCAL  : u8 = 0x80;
 pub const ACOS5_OBJECT_REF_GLOBAL : u8 = 0x00;
@@ -202,16 +231,16 @@ pub const SC_CARDCTL_PKCS11_INIT_PIN         : c_ulong =  0x0000_0009;
  *
  * for an internal driver these will move to cardctl.h
 */
-pub const SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF : c_ulong =  0x0000_0011; // data: *mut usize,  get_count_files_curr_DF
+pub const SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF : c_ulong =  0x0000_0011; // data: *mut u16,  get_count_files_curr_df
 pub const SC_CARDCTL_ACOS5_GET_FILE_INFO           : c_ulong =  0x0000_0012; // data: *mut CardCtlArray8,  get_file_info
 pub const SC_CARDCTL_ACOS5_GET_FREE_SPACE          : c_ulong =  0x0000_0014; // data: *mut c_uint,  get_free_space
-pub const SC_CARDCTL_ACOS5_GET_IDENT_SELF          : c_ulong =  0x0000_0015; // data: *mut c_uint,  get_ident_self
+pub const SC_CARDCTL_ACOS5_GET_IDENT_SELF          : c_ulong =  0x0000_0015; // data: *mut bool,  get_ident_self
 pub const SC_CARDCTL_ACOS5_GET_COS_VERSION         : c_ulong =  0x0000_0016; // data: *mut CardCtlArray8,  get_cos_version
 /* available only since ACOS5-64 V3: */
 pub const SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE: c_ulong =  0x0000_0017; // data: *mut c_uint,  get_manufacture_date
 pub const SC_CARDCTL_ACOS5_GET_ROM_SHA1            : c_ulong =  0x0000_0018; // data: *mut CardCtlArray20,  get_rom_sha1
-pub const SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE        : c_ulong =  0x0000_0019; // data: *mut c_uint,  get_op_mode_byte
-pub const SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE     : c_ulong =  0x0000_001A; // data: *mut c_uint,  get_fips_compliance
+pub const SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE        : c_ulong =  0x0000_0019; // data: *mut c_uchar,  get_op_mode_byte
+pub const SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE     : c_ulong =  0x0000_001A; // data: *mut bool,  get_fips_compliance
 pub const SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE      : c_ulong =  0x0000_001B; // data: *mut CardCtlAuthState,  get_pin_auth_state
 pub const SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE      : c_ulong =  0x0000_001C; // data: *mut CardCtlAuthState,  get_key_auth_state
 

@@ -1137,13 +1137,13 @@ impl Default for sc_card_driver {
 }
 
 /**
- * @struct sc_thread_context_t
+ * @struct sc_thread_context
  * Structure for the locking function to use when using libopensc
  * in a multi-threaded application.
  */
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct sc_thread_context_t {
+pub struct sc_thread_context {
     /** the version number of this structure (0 for this version) */
     pub ver : c_uint,
     /** creates a mutex object */
@@ -1157,6 +1157,11 @@ pub struct sc_thread_context_t {
     /** returns unique identifier for the thread (can be NULL) */
     pub thread_id : Option< unsafe extern "C" fn () -> c_ulong >,
 }
+/*
+#[doc(hidden)]
+#[allow(non_camel_case_types)]
+pub type sc_thread_context_t = sc_thread_context;
+*/
 
 /** Stop modifying or using external resources
  *
@@ -1166,14 +1171,14 @@ pub struct sc_thread_context_t {
  * process indicates that shall the reader shall ignore those resources when
  * calling sc_disconnect_card.
  */
-pub const SC_CTX_FLAG_TERMINATE             : c_uint = 0x0000_0001;  // since opensc source release v0.16.0
+pub const SC_CTX_FLAG_TERMINATE             : c_ulong = 0x0000_0001;  // since opensc source release v0.16.0
 /** removed in 0.18.0 and later */
-pub const SC_CTX_FLAG_PARANOID_MEMORY       : c_uint = 0x0000_0002;  // since opensc source release v0.16.0
-pub const SC_CTX_FLAG_DEBUG_MEMORY          : c_uint = 0x0000_0004;  // since opensc source release v0.16.0
-pub const SC_CTX_FLAG_ENABLE_DEFAULT_DRIVER : c_uint = 0x0000_0008;  // since opensc source release v0.16.0
-pub const SC_CTX_FLAG_DISABLE_POPUPS        : c_uint = 0x0000_0010;  // since opensc source release v0.17.0
+pub const SC_CTX_FLAG_PARANOID_MEMORY       : c_ulong = 0x0000_0002;  // since opensc source release v0.16.0
+pub const SC_CTX_FLAG_DEBUG_MEMORY          : c_ulong = 0x0000_0004;  // since opensc source release v0.16.0
+pub const SC_CTX_FLAG_ENABLE_DEFAULT_DRIVER : c_ulong = 0x0000_0008;  // since opensc source release v0.16.0
+pub const SC_CTX_FLAG_DISABLE_POPUPS        : c_ulong = 0x0000_0010;  // since opensc source release v0.17.0
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_CTX_FLAG_DISABLE_COLORS        : c_uint = 0x0000_0020;  // since opensc source release v0.20.0
+pub const SC_CTX_FLAG_DISABLE_COLORS        : c_ulong = 0x0000_0020;  // since opensc source release v0.20.0
 
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
@@ -1198,7 +1203,7 @@ pub struct sc_context {
     pub card_drivers : [*mut sc_card_driver; SC_MAX_CARD_DRIVERS],
     pub forced_driver : *mut sc_card_driver,
 
-    pub thread_ctx : *mut sc_thread_context_t,
+    pub thread_ctx : *mut sc_thread_context,
     pub mutex : *mut c_void,
 
     pub magic : c_uint,
@@ -1355,7 +1360,7 @@ pub fn sc_establish_context(ctx: *mut *mut sc_context, app_name: *const c_char) 
  */
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct sc_context_param_t {
+pub struct sc_context_param {
     /** version number of this structure (0 for this version) */
     pub ver : c_uint,
     /** name of the application (used for finding application
@@ -1365,7 +1370,24 @@ pub struct sc_context_param_t {
     /** context flags */
     pub flags : c_ulong,
     /** mutex functions to use (optional) */
-    pub thread_ctx : *mut sc_thread_context_t,
+    pub thread_ctx : *mut sc_thread_context,
+}
+/*
+#[doc(hidden)]
+#[allow(non_camel_case_types)]
+pub type sc_context_param_t = sc_context_param;
+*/
+
+#[cfg(impl_default)]
+impl Default for sc_context_param {
+    fn default() -> Self {
+        Self {
+            ver: 0,
+            app_name: null(),
+            flags: 0,
+            thread_ctx: null_mut()
+        }
+    }
 }
 
 extern "C" {
@@ -1384,11 +1406,11 @@ fn sc_context_repair(ctx: *mut *mut sc_context) -> c_int; // not declared pub be
  * @param  ctx   pointer to a sc_context pointer for the newly
  *               created sc_context object.
  * @param  parm  parameters for the sc_context creation (see
- *               sc_context_param_t for a description of the supported
+ *               sc_context_param for a description of the supported
  *               options)..
  * @return SC_SUCCESS on success and an error code otherwise.
  */
-pub fn sc_context_create(ctx: *mut *mut sc_context, parm: *const sc_context_param_t) -> c_int;
+pub fn sc_context_create(ctx: *mut *mut sc_context, parm: *const sc_context_param) -> c_int;
 /**
  * Releases an established OpenSC context
  * @param ctx A pointer to the context structure to be released

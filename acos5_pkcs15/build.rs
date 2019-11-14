@@ -54,8 +54,7 @@ fn main() {
 
     /* other conditionaĺ compilation settings */
     println!("cargo:rustc-cfg=log"); // enables driver log output to file debug_file, set in opensc.conf (e.g. debug_file = "/tmp/opensc-debug.log";). Otherwise the driver will be almost quiet referring that
-//    println!("cargo:rustc-cfg=test_my_V2_token"); //
-//    println!("cargo:rustc-cfg=test_my_V3_token"); //
+//    println!("cargo:rustc-cfg=test_v2_v3_token");
 //    println!("cargo:rustc-cfg=dev_relax_signature_constraints_for_raw"); // this is an insecure setting, meant to be used only temporarily for pkcs11-tool -t with  SC_ALGORITHM_RSA_RAW added to rsa_algo_flags in acos5_init
 //    println!("cargo:rustc-cdylib-link-arg=-Wl,-soname,libacos5.so.6"); //doesn't work currently
 

@@ -134,6 +134,7 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 }
 
 #[no_mangle]
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::missing_safety_doc))]
 pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> *mut c_void {
     if !name.is_null() && CStr::from_ptr(name) == CStr::from_bytes_with_nul(CARD_DRV_SHORT_NAME).unwrap() {
         acos5_get_pkcs15init_ops as *mut c_void
@@ -388,6 +389,8 @@ extern "C" fn acos5_pkcs15_create_pin(profile_ptr: *mut sc_profile, p15card_ptr:
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_sign_loss))]
 //TODO temporarily allow cast_possible_truncation
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_possible_truncation))]
+//TODO temporarily allow too_many_lines
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_lines))]
 extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
                                              p15card_ptr: *mut sc_pkcs15_card,
                                              object_ptr: *mut sc_pkcs15_object) -> c_int

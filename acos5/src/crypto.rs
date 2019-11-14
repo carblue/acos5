@@ -3,7 +3,7 @@
 
 use num_integer::Integer;
 
-use std::os::raw::{c_uchar, c_int, c_ulong, c_long};
+use std::os::raw::{c_uchar, c_char, c_int, c_ulong, c_long};
 //use std::ptr::{copy_nonoverlapping};
 
 //from openssl  des.h and rand.h
@@ -18,6 +18,13 @@ pub type DES_cblock       = [c_uchar; DES_KEY_SZ];
 pub type const_DES_cblock = [c_uchar; DES_KEY_SZ];
 pub type DES_LONG = c_ulong;
 
+pub const OPENSSL_VERSION:     c_int =  0;
+pub const OPENSSL_CFLAGS:      c_int =  1;
+pub const OPENSSL_BUILT_ON:    c_int =  2;
+pub const OPENSSL_PLATFORM:    c_int =  3;
+pub const OPENSSL_DIR:         c_int =  4;
+pub const OPENSSL_ENGINES_DIR: c_int =  5;
+
 #[repr(C)]
 #[derive(Default, Debug)]
 pub struct DES_key_schedule {
@@ -27,6 +34,8 @@ pub struct DES_key_schedule {
 // TODO is this portable ?
 #[link(name = "crypto")]
 extern {
+    pub fn OpenSSL_version_num() -> c_ulong;
+    pub fn OpenSSL_version(type_: c_int) -> *const c_char;
     pub fn RAND_bytes(buf: *mut c_uchar, num: c_int) -> c_int; // RAND_bytes() returns 1 on success, 0 otherwise
 
     #[allow(dead_code)]

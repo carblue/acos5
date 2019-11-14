@@ -18,13 +18,13 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-use std::os::raw::{c_void, c_int};
+use std::os::raw::{c_void/*, c_int*/};
 use std::ffi::{CStr};
 
 use opensc_sys::opensc::{sc_card};
-use opensc_sys::types::{sc_path, SC_MAX_PATH_SIZE};
-use opensc_sys::log::{sc_dump_hex};
-use opensc_sys::errors::{SC_SUCCESS};
+use opensc_sys::types::{sc_path/*, SC_MAX_PATH_SIZE*/};
+//use opensc_sys::log::{sc_dump_hex};
+//use opensc_sys::errors::{SC_SUCCESS};
 
 use crate::constants_types::*;
 use crate::wrappers::*;
@@ -70,112 +70,6 @@ pub fn current_path_df(card: &mut sc_card) -> &[u8]
     &card.cache.current_path.value[..card.cache.current_path.len - if is_DFMF(fdb) {0} else {2}]
 }
 
-/* If one of the 'is_search_ruleX_match()' functions returns true, it's sufficient for cos5 to just select the file_id
-   These functions represent the built-in search strategy of cos5 for target: "File ID":
-
-   Search Sequence for Target "File ID" is:
-   current DF ->
-   current DF's children ->
-   current DF’s parent ->
-   current DF’s siblings ->
-   MF ->
-   MF’s children
-
-   There is another built-in search strategy for DF
-*/
-
-/* select_file target is what is currently selected already (potentially superfluous select) */
-/*
- * What it does
- * @apiNote
- * @param
- * @return
- */
-pub fn is_search_rule0_match(path_target: &[u8], current_path_ef: &[u8]) -> bool {
-    path_target == current_path_ef
-}
-
-/* select_file target is the currently selected DF */
-/*
- * What it does
- * @apiNote
- * @param
- * @return
- */
-pub fn is_search_rule1_match(path_target: &[u8], current_path_df: &[u8]) -> bool
-{
-    if path_target.len()==2 && path_target==&[0x3F_u8, 0xFF][..] { return true; }
-    path_target == current_path_df
-}
-
-/* select_file target is a EF/DF located (directly) within currently selected DF */
-/*
- * What it does
- * @apiNote
- * @param
- * @return
- */
-pub fn is_search_rule2_match(path_target: &[u8], current_path_df: &[u8]) -> bool
-{
-    let len_current_path_df = current_path_df.len();
-    assert!(len_current_path_df+2<=SC_MAX_PATH_SIZE);
-    path_target.len() == len_current_path_df+2 && &path_target[..len_current_path_df] == current_path_df
-}
-
-/* select_file target is the parent DF of currently selected DF */
-/*
- * What it does
- * @apiNote
- * @param
- * @return
- */
-pub fn is_search_rule3_match(path_target: &[u8], current_path_df: &[u8]) -> bool
-{
-    assert!(current_path_df.len()>=2);
-    let len_current_path_parent_df= current_path_df.len()-2;
-    let current_path_parent_df = &current_path_df[..len_current_path_parent_df];
-    path_target.len() == len_current_path_parent_df && &path_target[..len_current_path_parent_df]==current_path_parent_df
-}
-
-/* select_file target is a EF/DF located (directly) within the parent DF of currently selected DF */
-/*
- * What it does
- * @apiNote
- * @param
- * @return
- */
-pub fn is_search_rule4_match(path_target: &[u8], current_path_df: &[u8]) -> bool
-{
-    assert!(current_path_df.len()>=2);
-    let len_current_path_parent_df= current_path_df.len()-2;
-    let current_path_parent_df = &current_path_df[..len_current_path_parent_df];
-    path_target.len()==len_current_path_parent_df+2 && &path_target[..len_current_path_parent_df]==current_path_parent_df
-}
-
-/* select_file target is MF */
-/*
- * What it does
- * @apiNote
- * @param
- * @return
- */
-pub fn is_search_rule5_match(path_target: &[u8]) -> bool
-{
-    path_target.len() == 2 && path_target == &[0x3F_u8, 0][..]
-}
-
-/* select_file target is a EF/DF located (directly) within MF */
-/*
- * What it does
- * @apiNote
- * @param
- * @return
- */
-pub fn is_search_rule6_match(path_target: &[u8]) -> bool
-{
-    path_target.len() == 4 && path_target[..2] == [0x3F_u8, 0][..]
-}
-
 /* select_file target is known to be non-selectable (reserved or erroneous file id) */
 /*
  * What it does
@@ -195,133 +89,194 @@ pub fn is_impossible_file_match(path_target: &sc_path) -> bool {
 
 /*
 The task of cut_path:
-Truncate as much as possible from the path to be selected for performance reasons (less select s issued)
-
-It's rarely called and implements just those remaining cases that came across so far, otherwise it does nothing
+Truncate as much as possible from the path to be selected for performance reasons (less select s issued),
+based on acos5 search rules for files
 */
-/*
- * What it does
- * @apiNote
- * @param
- * @return
- */
-pub fn cut_path(card: &mut sc_card, path: &mut sc_path) -> c_int
+pub fn cut_path_file_id(path_target: &mut [u8], path_target_len: &mut usize, current_path_df: &[u8])
 {
-    assert!(!card.ctx.is_null());
-    let card_ctx = unsafe { &mut *card.ctx };
-    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
-    let fun     = CStr::from_bytes_with_nul(b"cut_path\0").unwrap();
-    let fmt_1   = CStr::from_bytes_with_nul(b"                     called.   in_type: %d,   in_value: %s\0").unwrap();
-    let fmt_3   = CStr::from_bytes_with_nul(b"                  returning:  out_type: %d,  out_value: %s\0").unwrap();
-    if cfg!(log) {
-        wr_do_log_tu(card_ctx, f_log, line!(), fun, path.type_, unsafe{sc_dump_hex(path.value.as_ptr(), path.len)}, fmt_1);
-    }
+    /*
+    Search Sequence for Target File ID is:
+       current DF
+    -> current DF's children
+    -> current DF’s parent
+    -> current DF’s siblings
 
-    assert!(card.cache.current_path.len>=2);
-    assert!(path.len>=4);
-    let c_path = &card.cache.current_path.value[..card.cache.current_path.len];
-    let t_path = &mut path.value[..path.len];
-    if c_path == t_path {
-        t_path[0] = t_path[t_path.len()-2];
-        t_path[1] = t_path[t_path.len()-1];
-        path.len = 2;
-        return SC_SUCCESS;
-    }
+    -> MF
+    -> MF’s children
 
-    if c_path.len()>=4 && t_path.len()>=4 && c_path[0..4] == t_path[0..4] {
-        if c_path.len() < t_path.len() { // In principle it's_search_rule6_match: true, but path_target.len() > 4
-            for i in 4..path.len { // shift left in path.value
-                t_path[i-4] = t_path[i];
+    */
+    let c_len = current_path_df.len();
+    let t_len = path_target.len();
+    assert!(c_len>=2);
+    assert!(t_len>=2);
+    assert_eq!(current_path_df[0], 0x3F);
+    assert_eq!(current_path_df[1], 0);
+//println!("path from: {:X?},  {}", current_path_df, current_path_df.len());
+//println!("path to:   {:X?},  {}", path_target,     path_target.len());
+
+    if c_len <= t_len {
+        for i in 0..c_len/2 {
+            let j = c_len - i*2; // min j is 2
+            if path_target.starts_with(&current_path_df[..j]) && (j<=4 || i<=1) {
+                let rot = if t_len==j || (i>1 && j==4) {j-2} else if j==2 {2} else {j};
+                path_target.rotate_left(rot);
+                *path_target_len = t_len - rot;
+//println!("path to:   {:X?},  {}", &path_target[..*path_target_len], *path_target_len);
+//println!("path:   i: {}, j: {}, rot: {}", i, j, rot);
+//println!();
+                break;
             }
-            t_path[path.len-4] = 0;
-            t_path[path.len-3] = 0;
-            t_path[path.len-2] = 0;
-            t_path[path.len-1] = 0;
-            path.len -= 4;
         }
-        else {
-            for i in 2..path.len { // shift left in path.value
-                t_path[i-2] = t_path[i];
+    }
+    else { // t_len < c_len
+        let k = (c_len - t_len)/2;
+        for i in 0..t_len/2 {
+            let j = t_len - i*2; // min j is 2
+            if path_target.starts_with(&current_path_df[..j]) && (j<=4 || i+k<=1) {
+                let rot = if j==2 && t_len>2 {2} else {j-2};
+                path_target.rotate_left(rot);
+                *path_target_len = t_len - rot;
+//println!("path to:   {:X?},  {}", &path_target[..*path_target_len], *path_target_len);
+//println!("path:   i: {}, j: {}, rot: {}, k: {}", i, j, rot, k);
+//println!();
+                break;
             }
-            t_path[path.len-2] = 0;
-            t_path[path.len-1] = 0;
-            path.len -= 2;
         }
     }
-    else if  c_path[0..2] == t_path[0..2] {
-        for i in 2..path.len { // shift left in path.value
-            t_path[i-2] = t_path[i];
-        }
-        t_path[path.len-2] = 0;
-        t_path[path.len-1] = 0;
-        path.len -= 2;
-    }
-
-    if cfg!(log) {
-        wr_do_log_tu(card_ctx, f_log, line!(), fun, path.type_, unsafe{sc_dump_hex(path.value.as_ptr(), path.len)}, fmt_3);
-    }
-    SC_SUCCESS
 }
 
 
 #[cfg(test)]
 mod tests {
-    use super::{is_search_rule1_match, is_search_rule2_match, is_search_rule3_match,
-                is_search_rule4_match, is_search_rule5_match, is_search_rule6_match};
+    use super::{cut_path_file_id};
 
-    /* select_file target is the currently selected DF */
     #[test]
-    fn test_is_search_rule1_match() {
-        let path_target            = &[0x3Fu8, 0, 0x41, 0, 0x43, 0, 0x43, 5];
-        let path_current_df        = &[0x3Fu8, 0, 0x41, 0, 0x43, 0];
-        assert_eq!(is_search_rule1_match(path_target, path_current_df), false);
+    fn test_cut_path_file_id1() { // $ cargo test test_cut_path_file_id1 -- --nocapture
+        // c_len <= t_len
+        let current_path_df= &[0x3F, 0, 0xC0, 0, 0xC1, 0][..];
+        let mut path_target = [0x3F, 0, 0xC0, 0, 0xAB, 0];
+        let mut path_target_len = path_target.len();
+        cut_path_file_id(&mut path_target[..], &mut path_target_len, current_path_df);
+        assert_eq!(path_target.len(), 6);
+        assert_eq!(path_target, [0xAB, 0, 0x3F, 0, 0xC0, 0]);
+        assert_eq!(path_target_len, 2);
+////
+        let current_path_df= &[0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0][..];
+        let mut path_target= [0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0];
+        path_target_len = path_target.len();
+        cut_path_file_id(&mut path_target[..], &mut path_target_len, current_path_df);
+        assert_eq!(path_target.len(), 10);
+        assert_eq!(path_target, [0xC3, 0, 0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0]);
+        assert_eq!(path_target_len, 2);
+
+//        let current_path_df = &[0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0][..];
+        path_target=             [0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xAB, 0];
+        path_target_len = path_target.len();
+        cut_path_file_id(&mut path_target[..], &mut path_target_len, current_path_df);
+        assert_eq!(path_target, [0xAB, 0, 0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0]);
+        assert_eq!(path_target_len, 2);
+////
+//         let current_path_df      = &[0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0][..];
+        let mut path_target = [0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0, 0xC5, 0];
+        path_target_len = path_target.len();
+        cut_path_file_id(&mut path_target[..], &mut path_target_len, current_path_df);
+        assert_eq!(path_target.len(), 14);
+        assert_eq!(path_target, [0xC4, 0, 0xC5, 0, 0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0]);
+        assert_eq!(path_target_len, 4);
+
+// let current_path_df = &[0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0][..];
+        path_target     = [0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xAB, 0, 0xC4, 0, 0xC5, 0];
+        path_target_len = path_target.len();
+        cut_path_file_id(&mut path_target[..], &mut path_target_len, current_path_df);
+        assert_eq!(path_target, [0xAB, 0, 0xC4, 0, 0xC5, 0, 0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0]);
+        assert_eq!(path_target_len, 6);
+
+// let current_path_df = &[0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0][..];
+        path_target     = [0x3F, 0, 0xC0, 0, 0xC1, 0, 0xAB, 0, 0xC3, 0, 0xC4, 0, 0xC5, 0];
+        path_target_len = path_target.len();
+        cut_path_file_id(&mut path_target[..], &mut path_target_len, current_path_df);
+        assert_eq!(path_target, [0xC0, 0, 0xC1, 0, 0xAB, 0, 0xC3, 0, 0xC4, 0, 0xC5, 0, 0x3F, 0]);
+        assert_eq!(path_target_len, 12);
+
+// let current_path_df = &[0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0][..];
+        path_target     = [0x3F, 0, 0xC0, 0, 0xAB, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0, 0xC5, 0];
+        path_target_len = path_target.len();
+        cut_path_file_id(&mut path_target[..], &mut path_target_len, current_path_df);
+        assert_eq!(path_target, [0xC0, 0, 0xAB, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0, 0xC5, 0, 0x3F, 0]);
+        assert_eq!(path_target_len, 12);
+
+// let current_path_df = &[0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0][..];
+        path_target     = [0x3F, 0, 0xAB, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0, 0xC5, 0];
+        path_target_len = path_target.len();
+        cut_path_file_id(&mut path_target[..], &mut path_target_len, current_path_df);
+        assert_eq!(path_target, [0xAB, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0, 0xC5, 0, 0x3F, 0]);
+        assert_eq!(path_target_len, 12);
+
+// let current_path_df = &[0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0][..];
+        path_target     = [0xAB, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0, 0xC5, 0];
+        path_target_len = path_target.len();
+        cut_path_file_id(&mut path_target[..], &mut path_target_len, current_path_df);
+        assert_eq!(path_target, [0xAB, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0, 0xC5, 0]);
+        assert_eq!(path_target_len, 14);
     }
 
-    /* select_file target is a EF/DF located (directly) within currently selected DF */
     #[test]
-    fn test_is_search_rule2_match() {
-        let path_target            = &[0x3Fu8, 0, 0x41, 0, 0x43, 0, 0x43, 5];
-        let path_current_df        = &[0x3Fu8, 0, 0x41, 0, 0x43, 0];
-        assert_eq!(is_search_rule2_match(path_target, path_current_df), true);
+    fn test_cut_path_file_id2() { // $ cargo test test_cut_path_file_id2 -- --nocapture
+        // t_len < c_len
+        let current_path_df = &[0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0, 0xC5, 0][..];
+        let mut path_target = [0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0];
+        let mut path_target_len = path_target.len();
+        cut_path_file_id(&mut path_target[..], &mut path_target_len, current_path_df);
+        assert_eq!(path_target.len(), 12);
+        assert_eq!(path_target, [0xC4, 0, 0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0]);
+        assert_eq!(path_target_len, 2);
 
-        let path_current_df        = &[0x3Fu8, 0, 0x41, 0];
-        assert_eq!(is_search_rule2_match(path_target, path_current_df), false);
-    }
+//      let current_path_df =       &[0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0, 0xC5, 0][..];
+        let mut path_target= [0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0, 0xAB, 0];
+        let mut path_target_len = path_target.len();
+        cut_path_file_id(&mut path_target[..], &mut path_target_len, current_path_df);
+        assert_eq!(path_target.len(), 12);
+        assert_eq!(path_target, [0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0, 0xAB, 0, 0x3F, 0]);
+        assert_eq!(path_target_len, 10);
 
-    /* select_file target is the parent DF of currently selected DF */
-    #[test]
-    fn test_is_search_rule3_match() {
-        let path_target            = &[0x3Fu8, 0, 0x41, 0];
-        let path_current_df        = &[0x3Fu8, 0, 0x41, 0, 0x43, 0];
-        assert_eq!(is_search_rule3_match(path_target, path_current_df), true);
+//      let current_path_df =       &[0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0, 0xC5, 0][..];
+        let mut path_target= [0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xAB, 0, 0xC4, 0];
+        let mut path_target_len = path_target.len();
+        cut_path_file_id(&mut path_target[..], &mut path_target_len, current_path_df);
+        assert_eq!(path_target.len(), 12);
+        assert_eq!(path_target, [0xC0, 0, 0xC1, 0, 0xC2, 0, 0xAB, 0, 0xC4, 0, 0x3F, 0]);
+        assert_eq!(path_target_len, 10);
 
-        let path_target            = &[0x3Fu8, 0, 0x41, 0, 0x41, 1];
-        assert_eq!(is_search_rule3_match(path_target, path_current_df), false);
+//      let current_path_df =       &[0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0, 0xC5, 0][..];
+        let mut path_target= [0x3F, 0, 0xC0, 0, 0xC1, 0, 0xAB, 0, 0xC3, 0, 0xC4, 0];
+        let mut path_target_len = path_target.len();
+        cut_path_file_id(&mut path_target[..], &mut path_target_len, current_path_df);
+        assert_eq!(path_target.len(), 12);
+        assert_eq!(path_target, [0xC0, 0, 0xC1, 0, 0xAB, 0, 0xC3, 0, 0xC4, 0, 0x3F, 0]);
+        assert_eq!(path_target_len, 10);
 
-        let path_target            = &[0x3Fu8, 0];
-        let path_current_df        = &[0x3Fu8, 0, 0x41, 0];
-        assert_eq!(is_search_rule3_match(path_target, path_current_df), true);
-    }
+//      let current_path_df =       &[0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0, 0xC5, 0][..];
+        let mut path_target= [0x3F, 0, 0xC0, 0, 0xAB, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0];
+        let mut path_target_len = path_target.len();
+        cut_path_file_id(&mut path_target[..], &mut path_target_len, current_path_df);
+        assert_eq!(path_target.len(), 12);
+        assert_eq!(path_target, [0xC0, 0, 0xAB, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0, 0x3F, 0]);
+        assert_eq!(path_target_len, 10);
 
-    /* select_file target is a EF/DF located (directly) within the parent DF of currently selected DF */
-    #[test]
-    fn test_is_search_rule4_match() {
-        let path_target            = &[0x3Fu8, 0, 0x41, 0, 0x41, 1];
-        let path_current_df        = &[0x3Fu8, 0, 0x41, 0, 0x43, 0];
-        assert_eq!(is_search_rule4_match(path_target, path_current_df), true);
-    }
+//      let current_path_df =       &[0x3F, 0, 0xC0, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0, 0xC5, 0][..];
+        let mut path_target= [0x3F, 0, 0xAB, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0];
+        let mut path_target_len = path_target.len();
+        cut_path_file_id(&mut path_target[..], &mut path_target_len, current_path_df);
+        assert_eq!(path_target.len(), 12);
+        assert_eq!(path_target, [0xAB, 0, 0xC1, 0, 0xC2, 0, 0xC3, 0, 0xC4, 0, 0x3F, 0]);
+        assert_eq!(path_target_len, 10);
 
-    /* select_file target is MF */
-    #[test]
-    fn test_is_search_rule5_match() {
-        assert_eq!(is_search_rule5_match(&[0x3Fu8, 0]), true);
-        assert_eq!(is_search_rule5_match(&[0x3Fu8, 0, 0x41, 0]), false);
-    }
-
-    /* select_file target is a EF/DF located (directly) within MF */
-    #[test]
-    fn test_is_search_rule6_match() {
-        assert_eq!(is_search_rule6_match(&[0x3Fu8, 0, 0x41, 0]), true);
-        assert_eq!(is_search_rule6_match(&[0x3Fu8, 0, 0x41, 0, 0x41, 1]), false);
+        let current_path_df = &[0x3F, 0, 0xC0, 0, 0xC1, 0][..];
+        let mut path_target = [0x3F, 0, 0xAB, 0];
+        let mut path_target_len = path_target.len();
+        cut_path_file_id(&mut path_target[..], &mut path_target_len, current_path_df);
+        assert_eq!(path_target.len(), 4);
+        assert_eq!(path_target, [0xAB, 0, 0x3F, 0]);
+        assert_eq!(path_target_len, 2);
     }
 }

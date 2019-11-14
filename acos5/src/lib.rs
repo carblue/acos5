@@ -49,7 +49,9 @@ Case     Command data     Expected response data
 
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::doc_markdown))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::similar_names))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::cast_lossless))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::cognitive_complexity))]
+
+//#![cfg_attr(feature = "cargo-clippy", allow(clippy::cast_lossless))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::module_name_repetitions))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::if_not_else))]
 //#![cfg_attr(feature = "cargo-clippy", allow(clippy::unseparated_literal_suffix))]
@@ -59,6 +61,7 @@ Case     Command data     Expected response data
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::cast_possible_truncation))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::cast_sign_loss))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::cast_possible_wrap))]
+
 
 extern crate libc;
 extern crate num_integer;
@@ -90,7 +93,7 @@ use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_securit
                          SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT, SC_SEC_ENV_ALG_PRESENT,
                          SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR, sc_select_file,
                          SC_CARD_CAP_ISO7816_PIN_INFO, SC_ALGORITHM_AES, sc_file_free, sc_read_binary,
-                         SC_ALGORITHM_ECDSA_RAW, SC_ALGORITHM_EXT_EC_NAMEDCURVE
+                         SC_ALGORITHM_ECDSA_RAW, SC_ALGORITHM_EXT_EC_NAMEDCURVE//, sc_path_set
 //                         SC_ALGORITHM_ECDH_CDH_RAW, SC_ALGORITHM_ECDSA_HASH_NONE, SC_ALGORITHM_ECDSA_HASH_SHA1,
 //                         SC_ALGORITHM_EXT_EC_UNCOMPRESES,
 //                         sc_pin_cmd_pin, sc_pin_cmd, sc_update_binary, sc_verify,
@@ -106,7 +109,14 @@ use opensc_sys::opensc::{sc_update_record, SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM
 //                         , SC_SEC_OPERATION_WRAP
 };
 
-use opensc_sys::types::{sc_aid, SC_MAX_AID_SIZE, SC_AC_CHV, sc_path, sc_file, sc_serial_number, SC_PATH_TYPE_PATH, SC_MAX_PATH_SIZE, SC_PATH_TYPE_FILE_ID, SC_PATH_TYPE_PATH_PROT, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT, SC_FILE_TYPE_DF, SC_FILE_TYPE_INTERNAL_EF, SC_FILE_EF_TRANSPARENT, SC_AC_NONE, SC_AC_KEY_REF_NONE, SC_AC_OP_LIST_FILES, SC_AC_OP_SELECT, SC_AC_OP_DELETE, SC_AC_OP_CREATE_EF, SC_AC_OP_CREATE_DF, SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_READ, SC_AC_OP_UPDATE, SC_AC_OP_CRYPTO, SC_AC_OP_DELETE_SELF, SC_AC_OP_CREATE, SC_AC_OP_WRITE, SC_AC_OP_GENERATE, SC_APDU_FLAGS_CHAINING, SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT, sc_apdu};
+use opensc_sys::types::{sc_aid, SC_MAX_AID_SIZE, SC_AC_CHV, sc_path, sc_file, sc_serial_number, SC_PATH_TYPE_PATH, SC_PATH_TYPE_DF_NAME,
+                        SC_MAX_PATH_SIZE, SC_PATH_TYPE_FILE_ID, SC_PATH_TYPE_PATH_PROT, SC_PATH_TYPE_FROM_CURRENT,
+                        SC_PATH_TYPE_PARENT, SC_FILE_TYPE_DF, SC_FILE_TYPE_INTERNAL_EF, SC_FILE_EF_TRANSPARENT, SC_AC_NONE,
+                        SC_AC_KEY_REF_NONE, SC_AC_OP_LIST_FILES, SC_AC_OP_SELECT, SC_AC_OP_DELETE, SC_AC_OP_CREATE_EF,
+                        SC_AC_OP_CREATE_DF, SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_READ,
+                        SC_AC_OP_UPDATE, SC_AC_OP_CRYPTO, SC_AC_OP_DELETE_SELF, SC_AC_OP_CREATE, SC_AC_OP_WRITE,
+                        SC_AC_OP_GENERATE, SC_APDU_FLAGS_CHAINING, SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_1,
+                        SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT, sc_apdu};
 
 use opensc_sys::errors::{sc_strerror, SC_SUCCESS, SC_ERROR_INTERNAL, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
                          SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY, SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING,
@@ -167,6 +177,12 @@ use crate::wrappers::*;
 
 
 /*
+#[cfg(test)]
+#[cfg(test_v2_v3_token)]
+mod   test_v2_v3;
+*/
+
+/*
 macro_rules! offset_of {
     ($ty:ty, $field:ident) => {
         unsafe { &(*(0 as *const $ty)).$field as *const _ as usize }
@@ -212,6 +228,7 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 /// @param   name passed in by OpenSC (acc. opensc.conf: assoc. 'acos5_external' <-> ATR or card_driver acos5_external {...})
 /// @return  function pointer; calling that returns acos5_external's sc_card_driver struct address
 #[no_mangle]
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::missing_safety_doc))]
 pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> *mut c_void {
     if !name.is_null() && CStr::from_ptr(name) == CStr::from_bytes_with_nul(CARD_DRV_SHORT_NAME).unwrap() {
         acos5_get_card_driver as *mut c_void
@@ -609,12 +626,12 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> c_int
 //    rsa_algo_flags |= SC_ALGORITHM_RSA_HASH_SHA256;
 //    rsa_algo_flags |= SC_ALGORITHM_MGF1_SHA256;
 
-    let is_v3_fips_compliant = card.type_ == SC_CARD_TYPE_ACOS5_64_V3 &&
+    let is_fips_compliant = card.type_ > SC_CARD_TYPE_ACOS5_64_V2 &&
         get_op_mode_byte(card).unwrap()==0 && get_fips_compliance(card).unwrap();
     let mut rv;
-    let     rsa_key_len_from : u32 = if is_v3_fips_compliant { 2048 } else {  512 };
-    let     rsa_key_len_step : u32 = if is_v3_fips_compliant { 1024 } else {  256 };
-    let     rsa_key_len_to   : u32 = if is_v3_fips_compliant { 3072 } else { 4096 };
+    let     rsa_key_len_from : u32 = if is_fips_compliant { 2048 } else {  512 };
+    let     rsa_key_len_step : u32 = if is_fips_compliant { 1024 } else {  256 };
+    let     rsa_key_len_to   : u32 = if is_fips_compliant { 3072 } else { 4096 };
     let mut rsa_key_len = rsa_key_len_from;
     while   rsa_key_len <= rsa_key_len_to {
         rv = unsafe { _sc_card_add_rsa_alg(card, rsa_key_len, rsa_algo_flags as c_ulong, 0/*0x10001*/) };
@@ -634,7 +651,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> c_int
     }
 
     /* ACOS5 is capable of DES, but I think we can just skip that insecure algo; and the next, 3DES/128 with key1==key3 should NOT be used */
-//    me_card_add_symmetric_alg(card, SC_ALGORITHM_DES,  64,  0);
+    me_card_add_symmetric_alg(card, SC_ALGORITHM_DES,  64,  0);
 //    me_card_add_symmetric_alg(card, SC_ALGORITHM_3DES, 128, 0);
     me_card_add_symmetric_alg(card, SC_ALGORITHM_3DES, 192, 0);
 
@@ -752,6 +769,7 @@ DataPrivate:                                                size_of: 1784, align
     unsafe { sc_format_path(CStr::from_bytes_with_nul(b"3F00\0").unwrap().as_ptr(), &mut path_mf); } // type = SC_PATH_TYPE_PATH;
     rv = enum_dir(card, &path_mf, true/*, 0*/); /* FIXME Doing to much here degrades performance, possibly for no value */
     assert_eq!(rv, SC_SUCCESS);
+    unsafe { sc_select_file(card, &path_mf, null_mut()) };
 
     let sm_info = &mut card.sm_ctx.info;
 //  char[64]  config_section;  will be set from opensc.conf later by sc_card_sm_check
@@ -811,6 +829,21 @@ extern "C" fn acos5_finish(card_ptr: *mut sc_card) -> c_int
         wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
     }
 ////////////////////
+/*
+    let mut path_x = sc_path::default();
+    unsafe { sc_format_path(CStr::from_bytes_with_nul(b"i3F00\0").unwrap().as_ptr(), &mut path_x); }
+    let mut rv = unsafe { sc_select_file(card, &path_x, null_mut()) };
+    assert_eq!(SC_SUCCESS, rv);
+
+    path_x = sc_path::default();
+//    let mut file_x = null_mut::<sc_file>();
+    let df_name = [b'd', b'i', b'r', b'e', b'c', b't', b'o', b'r', b'y', b'1'];
+    rv = unsafe { sc_path_set(&mut path_x, SC_PATH_TYPE_DF_NAME, df_name.as_ptr(), df_name.len(), 0, -1) };
+    assert_eq!(SC_SUCCESS, rv);
+    rv = unsafe { sc_select_file(card, &path_x, null_mut()) };
+    assert_eq!(SC_SUCCESS, rv);
+//    unsafe { sc_file_free(file_x) };
+*/
 /* some testing
     if false && card.type_ > SC_CARD_TYPE_ACOS5_64_V2 {
         let mut path = sc_path::default();
@@ -854,74 +887,6 @@ println!("sc_update_binary: rv: {}", rv);
     00c0000020
     00200081083132333435363738
     00d60000020102
-
-    Beginning script execution...
-
-    Sending: 00 A4 00 00 02 41 00
-    Received: 61 32
-    0x32 bytes of response still available.
-
-    Sending: 00 C0 00 00 32
-    Received: 6F 30 83 02 41 00 88 01 00 8A 01 05 82 02 38 00
-    8D 02 41 03 84 10 41 43 4F 53 50 4B 43 53 2D 31
-    35 76 31 2E 30 30 8C 08 7F 03 FF 01 01 01 01 01
-    AB 00 90 00
-    Normal processing.
-
-    Sending: 00 A4 00 00 02 45 00
-    Received: 61 28
-    0x28 bytes of response still available.
-
-    Sending: 00 C0 00 00 28
-    Received: 6F 26 83 02 45 00 88 01 00 8A 01 05 82 02 38 00
-    8D 02 45 03 84 00 8C 08 7F 00 FF 01 01 01 43 01
-    AB 06 84 01 20 9E 01 43 90 00
-    Normal processing.
-
-    Sending: 00 A4 00 00 02 45 03
-    Received: 61 20
-    0x20 bytes of response still available.
-
-    Sending: 00 C0 00 00 20
-    Received: 6F 1E 83 02 45 03 88 01 03 8A 01 05 82 06 1C 00
-    00 38 00 03 8C 08 7F 01 FF 01 01 00 00 00 AB 00
-    90 00
-    Normal processing.
-
-    Sending: 00 B2 01 04 0B
-    Received: 80 01 01 A4 06 83 01 81 95 01 08 90 00
-    Normal processing.
-
-    Sending: 00 B2 02 04 15
-    Received: 80 01 02 A4 06 83 01 81 95 01 80 B4 08 84 00 95
-    01 30 80 01 02 90 00
-    Normal processing.
-
-    Sending: 00 B2 03 04 1F
-    Received: 80 01 03 A4 06 83 01 81 95 01 80 B4 08 84 00 95
-    01 30 80 01 02 B8 08 84 00 95 01 30 80 01 02 90
-    00
-    Normal processing.
-
-    Sending: 00 A4 00 00 02 45 04
-    Received: 61 20
-    0x20 bytes of response still available.
-
-    Sending: 00 C0 00 00 20
-    Received: 6F 1E 83 02 45 04 88 01 04 8A 01 05 82 02 01 00
-    80 02 00 10 8C 08 7F 00 FF FF FF FF 01 00 AB 00
-    90 00
-    Normal processing.
-
-    Sending: 00 20 00 81 08 31 32 33 34 35 36 37 38
-    Received: 69 82
-    Command not allowed. Security status not satisfied.
-
-    Sending: 00 D6 00 00 02 01 02
-    Received: 69 82
-    Command not allowed. Security status not satisfied.
-
-    Script was executed without error...
     */
 ////////////////////
     assert!(!card.drv_data.is_null(), "drv_data is null");
@@ -1034,7 +999,7 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: c_uint, count: usi
             }
             return rv;
         }
-        count as c_int
+        i32::from(count)
     }
 }
 
@@ -1077,7 +1042,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
                     Ok(val) => val,
                     Err(e) => return e,
                 };
-                unsafe { *(data_ptr as *mut usize) = count_files_curr_df };
+                unsafe { *(data_ptr as *mut u16) = count_files_curr_df };
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_GET_FILE_INFO =>
@@ -1106,7 +1071,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
                     Ok(val) => val,
                     Err(e) => return e,
                 };
-                unsafe { *(data_ptr as *mut c_uint) = if is_hw_acos5 {1} else {0} };
+                unsafe { *(data_ptr as *mut bool) = is_hw_acos5 };
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_GET_COS_VERSION =>
@@ -1122,7 +1087,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
 
         SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE =>
             {
-                let manufacture_date = if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 {0_u32}
+                let manufacture_date = if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return SC_ERROR_NO_CARD_SUPPORT; }
                     else {
                         match get_manufacture_date(card) {
                             Ok(val) => val,
@@ -1134,7 +1099,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             },
         SC_CARDCTL_ACOS5_GET_ROM_SHA1 =>
             {
-                let rom_sha1 = if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 {[0_u8; 20]}
+                let rom_sha1 = if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return SC_ERROR_NO_CARD_SUPPORT; }
                     else {
                         match get_rom_sha1(card) {
                             Ok(val) => val,
@@ -1146,24 +1111,30 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             },
         SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE =>
             {
-                let op_mode_byte = match get_op_mode_byte(card) {
-                    Ok(val) => val,
-                    Err(e) => return e,
-                };
-                unsafe { *(data_ptr as *mut c_uint) = u32::from(op_mode_byte) };
+                let op_mode_byte = if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return SC_ERROR_NO_CARD_SUPPORT; }
+                    else {
+                        match get_op_mode_byte(card) {
+                            Ok(val) => val,
+                            Err(e) => return e,
+                        }
+                    };
+                unsafe { *(data_ptr as *mut u8) = op_mode_byte };
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE =>
             {
+                if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return SC_ERROR_NO_CARD_SUPPORT; }
                 let is_fips_compliant = match get_fips_compliance(card) {
                     Ok(val) => val,
                     Err(e) => return e,
                 };
-                unsafe { *(data_ptr as *mut c_uint) = if is_fips_compliant {1} else {0} };
+                unsafe { *(data_ptr as *mut bool) = is_fips_compliant };
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE =>
             {
+                if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return SC_ERROR_NO_CARD_SUPPORT; }
+
                 let pin_auth_state_ptr = data_ptr as *mut CardCtlAuthState;
                 let reference = unsafe { (*pin_auth_state_ptr).reference };
                 let pin_auth_state = match get_pin_auth_state(card, reference) {
@@ -1175,6 +1146,8 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             },
         SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE =>
             {
+                if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return SC_ERROR_NO_CARD_SUPPORT; }
+
                 let key_auth_state_ptr = data_ptr as *mut CardCtlAuthState;
                 let reference = unsafe { (*key_auth_state_ptr).reference };
                 let key_auth_state = match get_key_auth_state(card, reference) {
@@ -1337,106 +1310,33 @@ To clear the accumulated CRT’s, issue a SELECT FILE command
     SC_PATH_TYPE_FILE_ID can be handled by iso7816_select_file (for file_out_ptr == NULL sets incorrectly sets p2 = 0x0C, but then on error sw1sw2 == 0x6A86 corrects to p2=0
     SC_PATH_TYPE_PATH will set P1 to 8, unknown by acos, but can be worked around splitting the path into len=2 temporary path segments with SC_PATH_TYPE_FILE_ID
 */
-// TODO if !file_out_ptr.is_null() then all file_out_ptr returned - but the last - must be free'd
-
-    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || path_ptr.is_null() {
+    if card_ptr.is_null() || path_ptr.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
-    let card       = unsafe { &mut *card_ptr };
-    let card_ctx = unsafe { &mut *card.ctx };
-    let card_ref = unsafe { & *card_ptr };
+    let card = unsafe { &mut *card_ptr };
     let path_ref = unsafe { & *path_ptr };
-
-    if card.cache.current_path.len==0 || path_ref.len==0 || (path_ref.type_==SC_PATH_TYPE_FILE_ID && path_ref.len!=2) { // first setting of  card.cache.current_path.len  done in acos5_init
+    // first setting of  card.cache.current_path.len  done in acos5_init
+    if card.cache.current_path.len==0 || (path_ref.type_==SC_PATH_TYPE_FILE_ID && path_ref.len!=2) ||
+        !(path_ref.len>=2 && path_ref.len<=16 && path_ref.len%2==0) || is_impossible_file_match(path_ref) {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
-    assert!(path_ref.len>=2);
 
-    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
-    let fun   = CStr::from_bytes_with_nul(b"acos5_select_file\0").unwrap();
-    let fmt   = CStr::from_bytes_with_nul(b"        called\0").unwrap();
-    if cfg!(log) {
-        wr_do_log(card_ctx, f_log, line!(), fun, fmt);
-    }
-
-    let target_file_id = u16::from_be_bytes([path_ref.value[path_ref.len-2], path_ref.value[path_ref.len-1]]);
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let does_mf_exist = dp.does_mf_exist;
-    let does_target_file_id_exist = dp.files.contains_key(&target_file_id);
+    let target_file_id = file_id_from_path_value(&path_ref.value[..path_ref.len]); // wrong result for SC_PATH_TYPE_DF_NAME, but doesn't matter
     /* if we are not called from within "is_running_init==true", then we must be sure that dp.files.2 is Some, i.e. we know the scb8 of target file when returning from select_file
        We don't know what comes next after select_file: it may be a cmd that enforces using SM (retrievable from scb8) */
-    let need_to_process_fci = !dp.is_running_init && does_target_file_id_exist && dp.files[&target_file_id].2.is_none();
+    let need_to_process_fci = !dp.is_running_init && dp.files.contains_key(&target_file_id) && dp.files[&target_file_id].2.is_none();
     card.drv_data = Box::into_raw(dp) as *mut c_void;
     if !does_mf_exist { return SC_ERROR_NOT_ALLOWED;}
-    if path_ref.len>=2 && path_ref.value[0]==0xe8
-                       && path_ref.value[1]==0x28 { return SC_ERROR_NOT_ALLOWED; }
-//    card.c:812:sc_select_file: called; type=1, path=e828bd080fa000000167455349474e::
-    if is_impossible_file_match(path_ref) { return SC_ERROR_NOT_ALLOWED; }
-
-    if path_ref.type_ == SC_PATH_TYPE_PATH {
-        let len = path_ref.len;
-        let path_target = &path_ref.value[..len];
-        let current_path_ef = &card_ref.cache.current_path.value[..card.cache.current_path.len];
-        let current_path_df = current_path_df(card);
-        let path1 = sc_path { value: [path_ref.value[len-2],  path_ref.value[len-1], 0,0,0,0,0,0,0,0,0,0,0,0,0,0], len: 2, ..sc_path::default() }; // SC_PATH_TYPE_FILE_ID
-
-        if      is_search_rule1_match(path_target, current_path_df) { // path_target is the currently selected DF: select_file MUST NOT be dropped
-            if cfg!(log) {
-                wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule1_match: \
-                    true (select_file target is the currently selected DF)\0").unwrap());
-            }
-            return tracking_select_file(card, &path1, file_out_ptr, need_to_process_fci)
-        }
-        else if is_search_rule0_match(path_target, current_path_ef) { // path_target is what is currently selected already (potentially superfluous select)
-            if cfg!(log) {
-                wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule0_match: \
-                    true (select_file target is what is currently selected already (potentially superfluous select) !!!)\0").unwrap());
-            }
-            return tracking_select_file(card, &path1, file_out_ptr, need_to_process_fci)
-        }
-        else if is_search_rule2_match(path_target, current_path_df) { // path_target is a EF/DF located (directly) within currently selected DF: select_file MUST NOT be dropped
-            if cfg!(log) {
-                wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule2_match: \
-                    true (select_file target is a EF/DF located (directly) within currently selected DF)\0").unwrap());
-            }
-            return tracking_select_file(card, &path1, file_out_ptr, need_to_process_fci)
-        }
-        else if is_search_rule3_match(path_target, current_path_df) {
-            if cfg!(log) {
-                wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule3_match: \
-                    true (select_file target is the parent DF of currently selected DF)\0").unwrap());
-            }
-            return tracking_select_file(card, &path1, file_out_ptr, need_to_process_fci)
-        }
-        else if is_search_rule4_match(path_target, current_path_df) {
-            if cfg!(log) {
-                wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule4_match: \
-true (select_file target is a EF/DF located (directly) within the parent DF of currently selected DF)\0").unwrap());
-            }
-            return tracking_select_file(card, &path1, file_out_ptr, need_to_process_fci)
-        }
-        else if is_search_rule5_match(path_target) {
-            if cfg!(log) {
-                wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule5_match: \
-                    true (select_file target is MF)\0").unwrap());
-            }
-            return tracking_select_file(card, &path1, file_out_ptr, need_to_process_fci)
-        }
-        else if is_search_rule6_match(path_target) {
-            if cfg!(log) {
-                wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"        is_search_rule6_match: \
-                    true (select_file target is a EF/DF located (directly) within MF)\0").unwrap());
-            }
-            return tracking_select_file(card, &path1, file_out_ptr, need_to_process_fci)
-        }
-    }
 
     match path_ref.type_ {
-        SC_PATH_TYPE_PATH        =>  select_file_by_path(card, path_ref, file_out_ptr, need_to_process_fci),
-        SC_PATH_TYPE_PATH_PROT | SC_PATH_TYPE_FROM_CURRENT | SC_PATH_TYPE_PARENT
-            => SC_ERROR_KEYPAD_MSG_TOO_LONG,
-            /* for SC_PATH_TYPE_FILE_ID and SC_PATH_TYPE_DF_NAME : */
-        _   =>  tracking_select_file(card, path_ref, file_out_ptr, need_to_process_fci),
+        SC_PATH_TYPE_PATH     => select_file_by_path(card, path_ref, file_out_ptr, need_to_process_fci),
+        SC_PATH_TYPE_DF_NAME  => tracking_select_file(card, path_ref, file_out_ptr,
+                                                      if file_out_ptr.is_null() {true} else {false}),
+        SC_PATH_TYPE_PATH_PROT | SC_PATH_TYPE_FROM_CURRENT | SC_PATH_TYPE_PARENT  => SC_ERROR_NO_CARD_SUPPORT,
+            /* for SC_PATH_TYPE_FILE_ID : */
+        _  => tracking_select_file(card, path_ref, file_out_ptr, need_to_process_fci),
     }
 }
 
@@ -1859,14 +1759,14 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut c_uchar, bu
 
     /* retrieve the number of files in the currently selected directory*/
     let numfiles = match get_count_files_curr_df(card) {
-        Ok(val) => if val > buflen/2 {buflen/2} else {val},
+        Ok(val) => if val > (buflen/2) as u16 {(buflen/2) as u16} else {val},
         Err(e) => return e,
     };
     if numfiles > 0 {
         let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
 
         /* collect the IDs of files in the currently selected directory, restrict to max. 255, because addressing has 1 byte only */
-        for i  in 0.. std::cmp::min(numfiles, 255) { // [0..254] or [1..255]
+        for i  in 0.. std::cmp::min(numfiles as usize, 255) { // [0..254] or [1..255]
             let mut rbuf = match get_file_info(card, i as u8 + if card.type_==SC_CARD_TYPE_ACOS5_EVO_V4 {1_u8} else {0_u8}) {
                 Ok(val) => val,
                 Err(e) => {
@@ -1900,7 +1800,7 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut c_uchar, bu
         } // for
         card.drv_data = Box::into_raw(dp) as *mut c_void;
     }
-    (numfiles as c_int)*2
+    i32::from(numfiles)*2
 }
 
 
@@ -1924,7 +1824,6 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut c_uchar, bu
  */
 //TODO temporarily allow cognitive_complexity
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::cognitive_complexity))]
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::collapsible_if))]
 extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
                                 buf_ref_ptr: *const c_uchar, buflen: usize) -> c_int
 {
@@ -2092,7 +1991,7 @@ file_id: 4300
             unsafe { copy_nonoverlapping((file.size as u16).to_be_bytes().as_ptr(), dp_files_value.1.as_mut_ptr().add(4), 2); }
         }
 //      dp_files_value.1[6] = sfi;
-        dp_files_value.1[7] = lcsi;
+//      dp_files_value.1[7] = lcsi;
     }
     if  dp_files_value.2.is_none() {
         dp_files_value.2  = Some(scb8);
@@ -2110,7 +2009,6 @@ file_id: 4300
         */
     /* if dp_files_value.1[0] == FDB_MF && dp_files_value.1[4..] == [0u8, 0, 0xFF, 0xFF] */  // correct the initially unknown/incorrect lcsi setting
     dp_files_value.1[7] = lcsi;
-    //TODO temporarily allow collapsible_if
     if is_DFMF(fdb) {
         if  dp_files_value.1[4..6] == [0_u8; 2] {
             unsafe { copy_nonoverlapping(sefile_id.as_ptr(), dp_files_value.1.as_mut_ptr().add(4), 2); }
@@ -3739,93 +3637,3 @@ extern "C" fn acos5_update_record(card_ptr: *mut sc_card, rec_nr: c_uint,
     let buf      = unsafe { std::slice::from_raw_parts(buf_ptr, usize::from(count)) };
     manage_common_update(card, rec_nr, buf, SC_RECORD_BY_REC_NR, false)
 }
-
-#[cfg(test)]
-mod tests {
-//    use std::ffi::CStr;
-//    use crate::opensc::sc_get_version;
-
-    // TODO This will be a very specific test of my CryptoMate64 token serial# xy
-    #[cfg(test_my_V2_token)]
-    #[test]
-    fn test_my_V2_token() { // $ cargo test test_my_V2_token -- --nocapture
-        println!("This will be a very specific test of my CryptoMate64 token serial# xy");
-    }
-
-    // TODO This will be a very specific test of my CryptoMate Nano token serial# yz
-    #[cfg(test_my_V3_token)]
-    #[test]
-    fn test_my_V3_token() { // $ cargo test test_my_V3_token -- --nocapture
-        println!("This will be a very specific test of my CryptoMate Nano token serial# yz");
-    }
-}
-
-/*
-Hashmap: {
-          3F00: ([3F, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],     [3F, 2, 3F, 0,  0, 3, FF, 1], Some([0, 0, 0, 0, 0, 0, 0, FF]),      Some([SACinfo { reference: 1, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [1, 0, 0, 0, 0, 0, 0, 0] } ] }]),
-                                                                                                                                            None),
-             1: ([3F, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],     [ A, 4,  0, 1, 15, 1, 12, 5], None, None, None),
-             2: ([3F, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],     [ C, 4,  0, 2, 25, 4, 11, 5], None, None, None),
-             3: ([3F, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],     [1C, 4,  0, 3, 30, 1, FF, 5], Some([0, 1, 0, 1, 1, FF, 1, FF]), None, None),
-          2F00: ([3F, 0, 2F, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],    [ 1, 4, 2F, 0, 0, 21, FF, 5], None, None, None),
-          4100: ([3F, 0, 41, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],    [38, 4, 41, 0, 41, 3, FF, 5], Some([1, 1, 1, 1, 0, FF, 3, FF]),    Some([SACinfo { reference: 1, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] } ] },
-                                                                                                                                                 SACinfo { reference: 2, crts_len: 3, crts: [sc_crt { tag: B4, usage: 8, algo: 2, refs: [1, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: B8, usage: 8, algo: 2, refs: [1, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: A4, usage: 8, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
-                                                                                                                                                 SACinfo { reference: 3, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [1, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
-                                                                                                                                                 SACinfo { reference: 4, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [1, 81, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
-                                                                                                                                                 SACinfo { reference: 5, crts_len: 2, crts: [sc_crt { tag: B4, usage: 30, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: A4, usage: 80, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
-                                                                                                                                                 SACinfo { reference: 6, crts_len: 3, crts: [sc_crt { tag: B4, usage: 30, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: B8, usage: 30, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: A4, usage: 80, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] }]),
-                                                                                                                                           None),
-          4101: ([3F, 0, 41, 0, 41, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   [ A, 6, 41, 1, 15, 1, 12, 5], None, None, None),
-          4102: ([3F, 0, 41, 0, 41, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   [ C, 6, 41, 2, 25, C, 11, 5], None, None, None),
-          4103: ([3F, 0, 41, 0, 41, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   [1C, 6, 41, 3, 38, 8, FF, 5], Some([0, 3, 0, FF, 0, FF, 3, FF]), None, None),
-          4104: ([3F, 0, 41, 0, 41, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   [ 2, 6, 41, 4, 10, 2, FF, 1], None, None, None),
-
-          4111: ([3F, 0, 41, 0, 41, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 41, 11, 0, 80, FF, 1], None, None, None),
-          4112: ([3F, 0, 41, 0, 41, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 41, 12, 3, 0, FF, 1], None, None, None),
-          4113: ([3F, 0, 41, 0, 41, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 41, 13, 6, 0, FF, 1], None, None, None),
-          4114: ([3F, 0, 41, 0, 41, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 41, 14, 1, 0, FF, 1], None, None, None),
-          4115: ([3F, 0, 41, 0, 41, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 41, 15, 1, 0, FF, 1], None, None, None),
-          5031: ([3F, 0, 41, 0, 50, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 50, 31, 0, 6C, FF, 5], None, None, None),
-          5032: ([3F, 0, 41, 0, 50, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 50, 32, 0, C0, FF, 5], None, None, None),
-
-          4131: ([3F, 0, 41, 0, 41, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, 31, 2, 15, 9, 5], Some([ 0, 1, 0, 1, 0, FF, 1, FF]), None, None),
-          41F1: ([3F, 0, 41, 0, 41, F1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, F1, 5, 5, 10, 5], Some([FF, 1, 1, 1, 0, FF, 1, FF]), None, None),
-          4132: ([3F, 0, 41, 0, 41, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, 32, 2, 15, 9, 5], Some([ 0, 1, 0, 1, 0, FF, 1, FF]), None, None),
-          41F2: ([3F, 0, 41, 0, 41, F2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, F2, 5, 5, 10, 5], Some([FF, 1, 1, 1, 0, FF, 1, FF]), None, None),
-          4133: ([3F, 0, 41, 0, 41, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, 33, 2, 15, 9, 5], Some([ 0, 1, 0, 1, 0, FF, 1, FF]), None, None),
-          41F3: ([3F, 0, 41, 0, 41, F3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, F3, 5, 5, 10, 5], Some([FF, 1, 1, 1, 0, FF, 1, FF]), None, None),
-          4134: ([3F, 0, 41, 0, 41, 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, 34, 2, 15, 9, 5], Some([ 0, 1, 0, 1, 0, FF, 1, FF]), None, None),
-          41F4: ([3F, 0, 41, 0, 41, F4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 9, 6, 41, F4, 5, 5, 10, 5], Some([FF, 1, 1, 1, 0, FF, 1, FF]), None, None),
-
-          4120: ([3F, 0, 41, 0, 41, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 41, 20, 6, 80, FF, 5], None, None, None),
-          4121: ([3F, 0, 41, 0, 41, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 6, 41, 21, 6, 80, FF, 5], None, None, None),
-          4129: ([3F, 0, 41, 0, 41, 29, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 2, 6, 41, 29, 14, 2, FF, 5], None, None, None),
-          5155: ([3F, 0, 41, 0, 51, 55, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  [ 4, 6, 51, 55, 82, 2, FF, 5], None, None, None),
-
-          4300: ([3F, 0, 41, 0, 43, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   [38, 6, 43, 0, 43, 3, FF, 5], Some([42, 42, 0, 0, 0, FF, 0, FF]), Some([SACinfo { reference: 1, crts_len: 2, crts: [sc_crt { tag: B4, usage: 70, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: A4, usage: 80, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
-                                                                                                                                                SACinfo { reference: 2, crts_len: 3, crts: [sc_crt { tag: B4, usage: 70, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: B8, usage: 70, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: A4, usage: 80, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
-                                                                                                                                                SACinfo { reference: 3, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] }]),
-                                                                                                                                          Some([SAEinfo { tag_AMDO: 84, cla: 0, ins: 2C, p1: 0, p2: 0, tag_SCDO: 97, scb: 0 },
-                                                                                                                                                SAEinfo { tag_AMDO: 84, cla: 0, ins: 24, p1: 0, p2: 0, tag_SCDO: 9E, scb: 42 }])),
-          4301: ([3F, 0, 41, 0, 43, 0, 43, 1, 0, 0, 0, 0, 0, 0, 0, 0],  [ A, 8, 43, 1, 15, 1, 12, 5], None, None, None),
-          4302: ([3F, 0, 41, 0, 43, 0, 43, 2, 0, 0, 0, 0, 0, 0, 0, 0],  [ C, 8, 43, 2, 25, 2, 11, 5], None, None, None),
-          4303: ([3F, 0, 41, 0, 43, 0, 43, 3, 0, 0, 0, 0, 0, 0, 0, 0],  [1C, 8, 43, 3, 38, 3, FF, 5], Some([ 0, 0, 0, 0, 0, FF, 0, FF]), None, None),
-          4305: ([3F, 0, 41, 0, 43, 0, 43, 5, 0, 0, 0, 0, 0, 0, 0, 0],  [ 1, 8, 43, 5, 0, 10, FF, 5], None, None, None),
-          4331: ([3F, 0, 41, 0, 43, 0, 43, 31, 0, 0, 0, 0, 0, 0, 0, 0], [ 9, 8, 43, 31, 2, 15, 9, 5], Some([ 0, 0, 0, 0, 0, FF, 0, FF]), None, None),
-          43F1: ([3F, 0, 41, 0, 43, 0, 43, F1, 0, 0, 0, 0, 0, 0, 0, 0], [ 9, 8, 43, F1, 5, 5, 10, 5], Some([42, 3, 0, 0, 0, FF, 0, FF]), None, None),
-    }
-
-Hashmap: {2F00: ([3F, 0, 2F, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 4, 2F, 0, 0, 21, FF, 5], None, None, None), 4100: ([3F, 0, 41, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [38, 4, 41, 0, 41, 3, FF, 5], Some([1, 1, 1, 1, 1, FF, 3, FF]), Some([SACinfo { reference: 1, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] }, SACinfo { reference: 2, crts_len: 3, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: B4, usage: 8, algo: 2, refs: [1, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: B8, usage: 8, algo: 2, refs: [1, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] }, SACinfo { reference: 3, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [1, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] }, SACinfo { reference: 4, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [1, 81, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] }, SACinfo { reference: 5, crts_len: 2, crts: [sc_crt { tag: A4, usage: 80, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: B4, usage: 30, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] }, SACinfo { reference: 6, crts_len: 3, crts: [sc_crt { tag: A4, usage: 80, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: B4, usage: 30, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: B8, usage: 30, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] }]), None), 4117: ([3F, 0, 41, 0, 41, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 17, 1, 0, FF, 5], None, None, None), 3: ([3F, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1C, 4, 0, 3, 30, 1, FF, 5], Some([0, 1, 0, 1, 1, FF, 1, FF]), None, None), 4103: ([3F, 0, 41, 0, 41, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1C, 6, 41, 3, 38, 8, FF, 5], Some([0, 3, 0, 3, 3, FF, 3, FF]), None, None), 4102: ([3F, 0, 41, 0, 41, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [C, 6, 41, 2, 25, C, 11, 5], None, None, None), 4116: ([3F, 0, 41, 0, 41, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 16, 1, 0, FF, 5], None, None, None), 5031: ([3F, 0, 41, 0, 50, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 50, 31, 0, 6C, FF, 5], None, None, None),
-4500: ([3F, 0, 41, 0, 45, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [38, 6, 45, 0, 45, 3, FF, 5], Some([1, 43, 1, 1, 1, FF, 0, FF]),
-    Some([SACinfo { reference: 10, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }] },
-          SACinfo { reference: 1,  crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] }] },
-          SACinfo { reference: 2,  crts_len: 2, crts: [sc_crt { tag: A4, usage: 80, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] },
-                                                       sc_crt { tag: B4, usage: 30, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }] },
-          SACinfo { reference: 3,  crts_len: 3, crts: [sc_crt { tag: A4, usage: 80, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] },
-                                                       sc_crt { tag: B4, usage: 30, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] },
-                                                       sc_crt { tag: B8, usage: 30, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] }] },
-    Some([SAEinfo { tag_AMDO: 84, cla: 0, ins: 20, p1: 0, p2: 0, tag_SCDO: 9E, scb: 43 }])),
-
-    4503: ([3F, 0, 41, 0, 45, 0, 45, 3, 0, 0, 0, 0, 0, 0, 0, 0], [1C, 8, 45, 3, 38, 3, FF, 5], Some([0, 0, 0, 1, 1, FF, 1, FF]), None, None), 3F00: ([3F, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [3F, 2, 3F, 0, 0, 3, FF, 5], Some([1, 1, 1, 1, 1, FF, 1, FF]), Some([SACinfo { reference: 1, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [1, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }, sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] }]), None), 4129: ([3F, 0, 41, 0, 41, 29, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [2, 6, 41, 29, 14, 2, FF, 5], None, None, None), 41A0: ([3F, 0, 41, 0, 41, A0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [9, 6, 41, A0, 3, C5, 10, 5], Some([FF, 1, 1, 1, 1, FF, 1, FF]), None, None), 4110: ([3F, 0, 41, 0, 41, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 10, 3, 0, FF, 5], None, None, None), 4504: ([3F, 0, 41, 0, 45, 0, 45, 4, 0, 0, 0, 0, 0, 0, 0, 0], [1, 8, 45, 4, 0, 10, FF, 5], Some([0, 1, FF, FF, FF, FF, 0, FF]), None, None), 4115: ([3F, 0, 41, 0, 41, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 15, 1, 0, FF, 5], None, None, None), 4118: ([3F, 0, 41, 0, 41, 18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 18, 1, 0, FF, 5], None, None, None), 4501: ([3F, 0, 41, 0, 45, 0, 45, 1, 0, 0, 0, 0, 0, 0, 0, 0], [A, 8, 45, 1, 15, 1, 12, 5], None, None, None), 4112: ([3F, 0, 41, 0, 41, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 12, 1, 0, FF, 5], None, None, None), 4101: ([3F, 0, 41, 0, 41, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [A, 6, 41, 1, 15, 1, 12, 5], None, None, None), 5032: ([3F, 0, 41, 0, 50, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 50, 32, 0, C0, FF, 5], None, None, None), 41D0: ([3F, 0, 41, 0, 41, D0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [9, 6, 41, D0, 1, 95, 9, 5], Some([0, 1, 1, 1, 1, FF, 1, FF]), None, None), 4502: ([3F, 0, 41, 0, 45, 0, 45, 2, 0, 0, 0, 0, 0, 0, 0, 0], [C, 8, 45, 2, 25, 2, 11, 5], None, None, None), 4111: ([3F, 0, 41, 0, 41, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 11, 3, 0, FF, 5], None, None, None), 1: ([3F, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [A, 4, 0, 1, 15, 1, 12, 5], None, None, None), 4114: ([3F, 0, 41, 0, 41, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 14, 1, 0, FF, 5], None, None, None), 5155: ([3F, 0, 41, 0, 51, 55, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [4, 6, 51, 55, 82, 2, FF, 5], None, None, None), 4113: ([3F, 0, 41, 0, 41, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 13, 2, 0, FF, 5], None, None, None)}
-
-*/

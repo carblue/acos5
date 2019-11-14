@@ -25,6 +25,7 @@ use std::os::raw::{c_int, c_void, c_uint, c_uchar, c_char, c_ulong};
 use std::ffi::{/*CString,*/ CStr};
 use std::fs;//::{read/*, write*/};
 use std::ptr::{copy_nonoverlapping, null_mut};
+use std::convert::TryFrom;
 
 use num_integer::Integer;
 
@@ -75,7 +76,7 @@ use opensc_sys::iso7816::{ISO7816_TAG_FCI, ISO7816_TAG_FCP};
 use crate::wrappers::*;
 use crate::constants_types::*;
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
-use crate::path::{cut_path, file_id_from_cache_current_path};
+use crate::path::{cut_path_file_id, file_id_from_cache_current_path, file_id_from_path_value, current_path_df};
 use crate::missing_exports::me_get_max_recv_size;
 use crate::cmd_card_info::{get_card_life_cycle_byte_EEPROM, get_op_mode_byte_EEPROM, get_zeroize_card_disable_byte_EEPROM};
 use crate::sm::{sm_common_read, sm_common_update};
@@ -121,9 +122,9 @@ fn iso7816_select_file_replacement(card: &mut sc_card, in_path_ref: &sc_path, fi
     wr_do_log_tu(card_ctx, f_log, line!(), fun, card.cache.current_path.type_,
         unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, fmt_1);
 */
-    if cfg!(log)  &&  !file_out_ptr.is_null() {
-        wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe{*file_out_ptr},
-                    CStr::from_bytes_with_nul(b"called with *file_out_ptr: %p\n\0").unwrap())
+    if cfg!(log) {
+        wr_do_log_t(card_ctx, f_log, line!(), fun, file_out_ptr,
+                    CStr::from_bytes_with_nul(b"called with file_out_ptr: %p\n\0").unwrap())
     }
 
     /*
@@ -425,8 +426,8 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out_ptr
 {
     /* if !file_out_ptr_addr.is_null(), then process_fci will be called anyway, thus we must ensure, that process_fci will also be called
        for:  file_out_ptr_addr.is_null() && need_to_process_fci */
-    assert_eq!(path_ref.type_, SC_PATH_TYPE_FILE_ID);
-    assert_eq!(path_ref.len,   2);
+    assert!((path_ref.type_ == SC_PATH_TYPE_FILE_ID && path_ref.len==2) ||
+            (path_ref.type_ == SC_PATH_TYPE_DF_NAME && path_ref.len>0));
     assert!(!card.ctx.is_null());
     let card_ctx = unsafe { &mut *card.ctx };
     let force_process_fci = file_out_ptr_addr.is_null() && need_to_process_fci;
@@ -445,6 +446,10 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out_ptr
 
 //  let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).select_file.unwrap()(card, path_ref, file_out_ptr_addr) };
     let rv = iso7816_select_file_replacement(card, path_ref, if force_process_fci {&mut file_out_ptr_tmp} else {file_out_ptr_addr});
+    let mut file_id : u16 = 0;
+    if rv==SC_SUCCESS && path_ref.type_ == SC_PATH_TYPE_DF_NAME {
+        file_id = u16::try_from(unsafe { if force_process_fci {(*file_out_ptr_tmp).id } else {(*(*file_out_ptr_addr)).id} }).unwrap();
+    }
     if force_process_fci && !file_out_ptr_tmp.is_null() {
         unsafe { sc_file_free(file_out_ptr_tmp) };
     }
@@ -468,15 +473,16 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out_ptr
               SC_ERROR_CARD_CMD_FAILED,
               SC_ERROR_SECURITY_STATUS_NOT_SATISFIED ].contains(&rv) {
         // file got selected
-        if path_ref.value[0..2] != [0x3F_u8, 0xFF][..] {
-            let file_id = u16::from_be_bytes([path_ref.value[0], path_ref.value[1]]);
-            let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-            assert!(dp.files.contains_key(&file_id));
-            let dp_files_value = &dp.files[&file_id];
-            card.cache.current_path.value = dp_files_value.0;
-            card.cache.current_path.len   = usize::from(dp_files_value.1[1]);
-            card.drv_data = Box::into_raw(dp) as *mut c_void;
+        if path_ref.type_ != SC_PATH_TYPE_DF_NAME {
+            file_id = if path_ref.value[0..2] == [0x3F_u8, 0xFF][..] {file_id_from_path_value(current_path_df(card))}
+                      else {u16::from_be_bytes([path_ref.value[0], path_ref.value[1]])};
         }
+        let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        assert!(dp.files.contains_key(&file_id));
+        let dp_files_value = &dp.files[&file_id];
+        card.cache.current_path.value = dp_files_value.0;
+        card.cache.current_path.len   = dp_files_value.1[1].into();
+        card.drv_data = Box::into_raw(dp) as *mut c_void;
     }
     else {
         panic!("calling `iso7816_select_file_replacement` returned the error code rv: {}. Function \
@@ -484,12 +490,11 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out_ptr
     }
 
     if cfg!(log) {
-        wr_do_log_tu(card_ctx, f_log, line!(), fun, card.cache.current_path.type_,
-            unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, fmt_3);
+        wr_do_log_tu(card_ctx, f_log, line!(), fun, card.cache.current_path.type_, unsafe {sc_dump_hex
+            (card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, fmt_3);
     }
     rv
 }
-
 
 
 /* process path by chunks, 2 byte each and select_file with SC_PATH_TYPE_FILE_ID */
@@ -502,15 +507,15 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out_ptr
 pub fn select_file_by_path(card: &mut sc_card, path_ref: &sc_path, file_out_ptr: *mut *mut sc_file, need_to_process_fci: bool) -> c_int
 {
     /* manage file_out_ptr and need_to_process_fci: They need to be active only eventually for the target file_id */
-    let mut path1 = *path_ref;
-    let rv = cut_path(card, &mut path1);
-    if rv != SC_SUCCESS {
-        return rv;
-    }
-    if  path1.len%2 != 0 {
+    if  path_ref.len%2 != 0 {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
-    assert!(path1.len>=2);
+    let mut path1 = *path_ref;
+    cut_path_file_id(&mut path1.value[..path1.len], &mut path1.len, current_path_df(card));
+    if  path1.len%2 != 0 || path1.len==0 {
+        return SC_ERROR_CARD_CMD_FAILED;
+    }
+
     let target_idx = path1.len/2 -1; // it's the max. i index in the following loop
     let mut rv;
 
@@ -620,9 +625,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
         assert_eq!(rv, SC_SUCCESS);
         assert!(!file_out_ptr_mut.is_null());
         let acl_entry_read_method = unsafe { (*sc_file_get_acl_entry(file_out_ptr_mut, SC_AC_OP_READ)).method };
-        if !file_out_ptr_mut.is_null() {
-            unsafe { sc_file_free(file_out_ptr_mut) };
-        }
+        unsafe { sc_file_free(file_out_ptr_mut) };
 
         let is_local =  path_ref.len>=6;
 //      let len /*_card_serial_number*/ = if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 {6_u8} else {8_u8};
@@ -699,15 +702,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
         let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
         assert!(dp.files.contains_key(&file_id_dir));
         let dp_files_value = dp.files.get_mut(&file_id_dir).unwrap(); // Option< &mut () >
-/*
-        if dp_files_value.3.is_none() {
-            dp_files_value.3 = Some(vec_sac_info);
-        }
-        else {
-             (&mut dp_files_value.3).as_mut().unwrap().extend_from_slice(&vec_sac_info);
-        }
-*/
-
+        /* DF's SAE processing was done already, i.e. dp_files_value.3 may be Some */
         if let Some(vec) = (&mut dp_files_value.3).as_mut() {
             vec.extend_from_slice(&vec_sac_info);
         }
