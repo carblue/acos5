@@ -54,7 +54,7 @@
 //! `tar xfvz opensc-*.tar.gz`\
 //! `cd opensc-*`\
 //! `./bootstrap`\
-//! `./configure --prefix=/usr --libdir=/usr/lib/x86_64-linux-gnu --sysconfdir=/etc/opensc`\
+//! `./configure --prefix=/usr --sysconfdir=/etc/opensc --libdir=/usr/lib/x86_64-linux-gnu`\
 //! `make`\
 //! `sudo checkinstall`
 //!
@@ -485,9 +485,9 @@ mod tests {
                     size_of::<sc_pkcs15_prkey_info>: {}, size_of::<sc_pkcs15_pubkey_info>: {}",
                          sl, sc, sr, sse, sef, srd, spc, sco, scc, spo, sca, sf, sccc, ip, is,  prki, puki);
                 #[cfg(any(target_pointer_width = "32", windows))]
-                { assert_eq!(sc,  1384); }
+                { assert_eq!(sc,  1376); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
-                { assert_eq!(sc,  1400); }
+                { assert_eq!(sc,  1392); }
                 #[cfg(any(target_pointer_width = "32", windows))]
                 { assert_eq!(sr,   200); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]

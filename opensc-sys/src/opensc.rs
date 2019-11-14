@@ -924,7 +924,6 @@ pub struct sc_card {
 
     pub app : [*mut sc_app_info; SC_MAX_CARD_APPS],
     pub app_count : c_int,
-    pub ef_dir : *mut sc_file,
 
     pub ef_atr : *mut sc_ef_atr,
 

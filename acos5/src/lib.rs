@@ -109,9 +109,10 @@ use opensc_sys::opensc::{sc_update_record, SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM
 //                         , SC_SEC_OPERATION_WRAP
 };
 
-use opensc_sys::types::{sc_aid, SC_MAX_AID_SIZE, SC_AC_CHV, sc_path, sc_file, sc_serial_number, SC_PATH_TYPE_PATH, SC_PATH_TYPE_DF_NAME,
-                        SC_MAX_PATH_SIZE, SC_PATH_TYPE_FILE_ID, SC_PATH_TYPE_PATH_PROT, SC_PATH_TYPE_FROM_CURRENT,
-                        SC_PATH_TYPE_PARENT, SC_FILE_TYPE_DF, SC_FILE_TYPE_INTERNAL_EF, SC_FILE_EF_TRANSPARENT, SC_AC_NONE,
+use opensc_sys::types::{sc_aid, SC_MAX_AID_SIZE, SC_AC_CHV, sc_path, sc_file, sc_serial_number, SC_MAX_PATH_SIZE,
+                        SC_PATH_TYPE_FILE_ID, SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH,
+//                        SC_PATH_TYPE_PATH_PROT, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
+                        SC_FILE_TYPE_DF, SC_FILE_TYPE_INTERNAL_EF, SC_FILE_EF_TRANSPARENT, SC_AC_NONE,
                         SC_AC_KEY_REF_NONE, SC_AC_OP_LIST_FILES, SC_AC_OP_SELECT, SC_AC_OP_DELETE, SC_AC_OP_CREATE_EF,
                         SC_AC_OP_CREATE_DF, SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_READ,
                         SC_AC_OP_UPDATE, SC_AC_OP_CRYPTO, SC_AC_OP_DELETE_SELF, SC_AC_OP_CREATE, SC_AC_OP_WRITE,
@@ -181,6 +182,7 @@ use crate::wrappers::*;
 #[cfg(test_v2_v3_token)]
 mod   test_v2_v3;
 */
+
 
 /*
 macro_rules! offset_of {
@@ -1334,9 +1336,9 @@ To clear the accumulated CRT’s, issue a SELECT FILE command
         SC_PATH_TYPE_PATH     => select_file_by_path(card, path_ref, file_out_ptr, need_to_process_fci),
         SC_PATH_TYPE_DF_NAME  => tracking_select_file(card, path_ref, file_out_ptr,
                                                       if file_out_ptr.is_null() {true} else {false}),
-        SC_PATH_TYPE_PATH_PROT | SC_PATH_TYPE_FROM_CURRENT | SC_PATH_TYPE_PARENT  => SC_ERROR_NO_CARD_SUPPORT,
-            /* for SC_PATH_TYPE_FILE_ID : */
-        _  => tracking_select_file(card, path_ref, file_out_ptr, need_to_process_fci),
+        SC_PATH_TYPE_FILE_ID  => tracking_select_file(card, path_ref, file_out_ptr, need_to_process_fci),
+        /*SC_PATH_TYPE_PATH_PROT | SC_PATH_TYPE_FROM_CURRENT | SC_PATH_TYPE_PARENT  => SC_ERROR_NO_CARD_SUPPORT,*/
+        _  => SC_ERROR_NO_CARD_SUPPORT,
     }
 }
 
