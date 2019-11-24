@@ -77,7 +77,7 @@ use std::os::raw::{c_char, c_ulong, c_void};
 use std::ffi::CStr;
 use std::ptr::{copy_nonoverlapping, null_mut, null};
 use std::collections::HashMap;
-use std::slice::from_raw_parts;
+use std::slice::{from_raw_parts, from_raw_parts_mut};
 use std::convert::TryFrom;
 
 
@@ -162,7 +162,7 @@ use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_arra
     generate_asym, encrypt_asym, get_files_hashmap_info, update_hashmap,
     /*, create_mf_file_system*/ convert_acl_array_to_bytes_tag_fcp_sac, get_sec_env_mod_len,
     ACL_CATEGORY_DF_MF, ACL_CATEGORY_EF_CHV, ACL_CATEGORY_KEY, ACL_CATEGORY_SE,
-    get_is_running_compute_signature, set_is_running_compute_signature, manage_common_read, manage_common_update,
+    get_is_running_compute_signature, set_is_running_compute_signature,
     common_read, common_update, acos5_supported_ec_curves, logout_pin
 };
 
@@ -3371,8 +3371,8 @@ extern "C" fn acos5_append_record(card_ptr: *mut sc_card,
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *card_ptr };
-    let buf      = unsafe { std::slice::from_raw_parts(buf_ptr, count) };
-    manage_common_update(card, 0, buf, 0, false)
+    let buf      = unsafe { from_raw_parts(buf_ptr, count) };
+    common_update(card, 0, buf, 0, false)
 }
 
 /* returns how many bytes were read or an error code */
@@ -3388,7 +3388,7 @@ extern "C" fn acos5_read_binary(card_ptr: *mut sc_card, idx: u32,
     let idx = u16::try_from(idx).unwrap();
     let count = u16::try_from(count).unwrap();
     let card = unsafe { &mut *card_ptr };
-    let buf      = unsafe { std::slice::from_raw_parts_mut(buf_ptr, usize::from(count)) };
+    let buf      = unsafe { from_raw_parts_mut(buf_ptr, usize::from(count)) };
     common_read(card, idx, buf, flags, true)
 }
 
@@ -3401,8 +3401,8 @@ extern "C" fn acos5_read_record(card_ptr: *mut sc_card, rec_nr: u32,
     let rec_nr = u16::try_from(rec_nr).unwrap();
     let count = u16::try_from(count).unwrap();
     let card = unsafe { &mut *card_ptr };
-    let buf      = unsafe { std::slice::from_raw_parts_mut(buf_ptr, usize::from(count)) };
-    manage_common_read(card, rec_nr, buf, SC_RECORD_BY_REC_NR, false)
+    let buf      = unsafe { from_raw_parts_mut(buf_ptr, usize::from(count)) };
+    common_read(card, rec_nr, buf, SC_RECORD_BY_REC_NR, false)
 }
 
 extern "C" fn acos5_update_binary(card_ptr: *mut sc_card, idx: u32,
@@ -3414,7 +3414,7 @@ extern "C" fn acos5_update_binary(card_ptr: *mut sc_card, idx: u32,
     let idx = u16::try_from(idx).unwrap();
     let count = u16::try_from(count).unwrap();
     let card = unsafe { &mut *card_ptr };
-    let buf      = unsafe { std::slice::from_raw_parts(buf_ptr, usize::from(count)) };
+    let buf      = unsafe { from_raw_parts(buf_ptr, usize::from(count)) };
     common_update(card, idx, buf, flags, true)
 }
 
@@ -3428,6 +3428,6 @@ extern "C" fn acos5_update_record(card_ptr: *mut sc_card, rec_nr: u32,
     let rec_nr = u16::try_from(rec_nr).unwrap();
     let count = u16::try_from(count).unwrap();
     let card = unsafe { &mut *card_ptr };
-    let buf      = unsafe { std::slice::from_raw_parts(buf_ptr, usize::from(count)) };
-    manage_common_update(card, rec_nr, buf, SC_RECORD_BY_REC_NR, false)
+    let buf      = unsafe { from_raw_parts(buf_ptr, usize::from(count)) };
+    common_update(card, rec_nr, buf, SC_RECORD_BY_REC_NR, false)
 }

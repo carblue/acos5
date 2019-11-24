@@ -122,6 +122,9 @@ pub fn logout_key(card: &mut sc_card, reference: u8) -> i32 {
     if reference==0 || (reference&0x7F)>31 {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
+    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    dp.sm_cmd = 0;
+    card.drv_data = Box::into_raw(dp) as p_void;
 
     let command = [0x80, 0x8A, 0, reference];
     let mut apdu = sc_apdu::default();
@@ -2089,6 +2092,7 @@ SOPUK: 8  [31, 32, 33, 34, 35, 36, 37, 38]
     log3ifr!(ctx,f,line!());
 }
 
+/*
 /* manage: a single call to common_read will deliver max. 255 bytes or less if SM is applied. TODO ACOS5-EVO can deliver max. 4096 bytes with extended APDU
    managing calls ref. read_binary is done already by sc_read_binary: There is a loop that calls card's read_binary as often as required with appropriate params,
    but that is missing for records: Under 'Secure Messaging', a single call can deliver max. 239/240 bytes, thus a second invocation ref. read_record may be required (TODO even more for ACOS5-EVO).
@@ -2176,7 +2180,7 @@ pub fn manage_common_update(card: &mut sc_card, idx: u16, buf: &[u8], flags: c_u
         }
     }
 }
-
+*/
 
 pub fn common_read(card: &mut sc_card, idx: u16, buf: &mut [u8]/*, count: usize*/, flags: c_ulong, bin: bool) -> i32
 {
