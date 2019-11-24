@@ -3,27 +3,27 @@
 
 use num_integer::Integer;
 
-use std::os::raw::{c_uchar, c_char, c_int, c_ulong, c_long};
-//use std::ptr::{copy_nonoverlapping};
+use std::os::raw::{c_char, c_ulong, c_long};
+use std::convert::TryFrom;
 
 //from openssl  des.h and rand.h
-pub const DES_KEY_SZ : usize = 8; // sizeof(DES_cblock)
 #[allow(non_upper_case_globals)]
-pub const DES_KEY_SZ_u8 : c_uchar = DES_KEY_SZ as c_uchar;
+pub const DES_KEY_SZ_u8 : u8    = 8; // sizeof(DES_cblock)
+pub const DES_KEY_SZ    : usize = 8; // sizeof(DES_cblock)
 
-pub const Encrypt: c_int = 1;
-pub const Decrypt: c_int = 0;
+pub const Encrypt: i32 = 1;
+pub const Decrypt: i32 = 0;
 
-pub type DES_cblock       = [c_uchar; DES_KEY_SZ];
-pub type const_DES_cblock = [c_uchar; DES_KEY_SZ];
+pub type DES_cblock       = [u8; DES_KEY_SZ];
+pub type const_DES_cblock = [u8; DES_KEY_SZ];
 pub type DES_LONG = c_ulong;
 
-pub const OPENSSL_VERSION:     c_int =  0;
-pub const OPENSSL_CFLAGS:      c_int =  1;
-pub const OPENSSL_BUILT_ON:    c_int =  2;
-pub const OPENSSL_PLATFORM:    c_int =  3;
-pub const OPENSSL_DIR:         c_int =  4;
-pub const OPENSSL_ENGINES_DIR: c_int =  5;
+pub const OPENSSL_VERSION:     i32 =  0;
+pub const OPENSSL_CFLAGS:      i32 =  1;
+pub const OPENSSL_BUILT_ON:    i32 =  2;
+pub const OPENSSL_PLATFORM:    i32 =  3;
+pub const OPENSSL_DIR:         i32 =  4;
+pub const OPENSSL_ENGINES_DIR: i32 =  5;
 
 #[repr(C)]
 #[derive(Default, Debug)]
@@ -35,26 +35,26 @@ pub struct DES_key_schedule {
 #[link(name = "crypto")]
 extern {
     pub fn OpenSSL_version_num() -> c_ulong;
-    pub fn OpenSSL_version(type_: c_int) -> *const c_char;
-    pub fn RAND_bytes(buf: *mut c_uchar, num: c_int) -> c_int; // RAND_bytes() returns 1 on success, 0 otherwise
+    pub fn OpenSSL_version(type_: i32) -> *const c_char;
+    pub fn RAND_bytes(buf: *mut u8, num: i32) -> i32; // RAND_bytes() returns 1 on success, 0 otherwise
 
     #[allow(dead_code)]
-    fn DES_set_key_checked  (block_key: *const c_uchar, ks: *mut DES_key_schedule) -> c_int;
-    fn DES_set_key_unchecked(block_key: *const c_uchar, ks: *mut DES_key_schedule);
-    fn DES_ecb3_encrypt(input: *const c_uchar, output: *mut c_uchar,
+    fn DES_set_key_checked  (block_key: *const u8, ks: *mut DES_key_schedule) -> i32;
+    fn DES_set_key_unchecked(block_key: *const u8, ks: *mut DES_key_schedule);
+    fn DES_ecb3_encrypt(input: *const u8, output: *mut u8,
                         ks1: *const DES_key_schedule,
                         ks2: *const DES_key_schedule,
                         ks3: *const DES_key_schedule,
-                        enc: c_int);
+                        enc: i32);
     /* DES_ede3_cbc_encrypt encrypts (or decrypts, if enc is DES_DECRYPT) len bytes from in to out with 3DES in CBC mode.
        3DES uses three keys, thus the function takes three different DES_key_schedules.*/
-    fn DES_ede3_cbc_encrypt(input: *const c_uchar, output: *mut c_uchar,
+    fn DES_ede3_cbc_encrypt(input: *const u8, output: *mut u8,
                             length: c_long,
                             ks1: *const DES_key_schedule,
                             ks2: *const DES_key_schedule,
                             ks3: *const DES_key_schedule,
                             ivec: *mut DES_cblock,
-                            enc: c_int);
+                            enc: i32);
 }
 
 /*
@@ -142,7 +142,7 @@ if pi==00, then it's known, that no 0x80 byte was added
 /* pi is relevant only for Decrypt:
    The 0x80 padding is
 */
-pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode: c_int, pi: u8) -> Vec<u8> {
+pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode: i32, pi: u8) -> Vec<u8> {
     assert_eq!(3*DES_KEY_SZ, key.len());
     assert!(mode==Encrypt || data.len().is_multiple_of(&DES_KEY_SZ));
 
@@ -166,7 +166,7 @@ pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode:
             DES_set_key_unchecked(item.as_ptr(), &mut ks[i]);
         }
 
-        DES_ede3_cbc_encrypt(data.as_ptr(), out_block.as_mut_ptr(), out_block.len() as c_long,
+        DES_ede3_cbc_encrypt(data.as_ptr(), out_block.as_mut_ptr(), c_long::try_from(out_block.len()).unwrap(),
                              &ks[0], &ks[1], &ks[2], ivec, mode);
     }
 

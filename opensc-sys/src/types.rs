@@ -22,12 +22,9 @@
 // Binding state: tabs:    ?, header:    ? (except pub const type checks), checkAPI15-19:    ?, checkEXPORTS15-19:    ?, compareD17-18:    ?, doc:    ?, tests:    ?
 // TODO check IN, OUT etc., rename paramater names for a unified interface; #DEFINE/#UNDEF influence on struct size etc.: none: OKAY  (no direct (non-#include #define influence on struct sizes))
 
-use std::os::raw::{c_uchar, c_uint, c_int, c_ulong};
+use std::os::raw::c_ulong;
 #[cfg(impl_default)]
 use std::ptr::{null, null_mut};
-//use std::option::Option;
-
-//typedef unsigned char u8; pub type u8 = c_uchar ;  std::os::raw::c_uchar definition: type c_uchar = u8;
 
 /* various maximum values */
 pub const SC_MAX_CARD_DRIVERS           : usize =    48;
@@ -66,42 +63,42 @@ pub const SC_MAX_SUPPORTED_ALGORITHMS   : usize =     8;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_lv_data {
-    pub value : *mut c_uchar,
+    pub value : *mut u8,
     pub len   : usize,
 }
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_tlv_data {
-    pub tag   : c_uint,
-    pub value : *mut c_uchar,
+    pub tag   : u32,
+    pub value : *mut u8,
     pub len   : usize,
 }
 
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct sc_object_id {
-    pub value : [c_int; SC_MAX_OBJECT_ID_OCTETS],
+    pub value : [i32; SC_MAX_OBJECT_ID_OCTETS],
 }
 
 #[repr(C)]
-#[derive(Default, Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone, PartialEq)]
 pub struct sc_aid {
-    pub value : [c_uchar; SC_MAX_AID_SIZE],
+    pub value : [u8; SC_MAX_AID_SIZE],
     pub len   : usize,
 }
 
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_atr {
-    pub value : [c_uchar; SC_MAX_ATR_SIZE],
+    pub value : [u8; SC_MAX_ATR_SIZE],
     pub len   : usize,
 }
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_uid { // since opensc source release v0.17.0
-    pub value : [c_uchar; SC_MAX_UID_SIZE],
+    pub value : [u8; SC_MAX_UID_SIZE],
     pub len   : usize,
 }
 
@@ -109,18 +106,18 @@ pub struct sc_uid { // since opensc source release v0.17.0
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_iid {
-    pub value : [c_uchar; SC_MAX_IIN_SIZE],
+    pub value : [u8; SC_MAX_IIN_SIZE],
     pub len   : usize,
 }
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_version {
-    pub hw_major : c_uchar,
-    pub hw_minor : c_uchar,
+    pub hw_major : u8,
+    pub hw_minor : u8,
 
-    pub fw_major : c_uchar,
-    pub fw_minor : c_uchar,
+    pub fw_major : u8,
+    pub fw_minor : u8,
 }
 
 /* Discretionary ASN.1 data object */
@@ -132,31 +129,31 @@ pub struct sc_ddo {
     pub oid : sc_object_id,
 
     pub len   : usize,
-    pub value : *mut c_uchar,
+    pub value : *mut u8,
 }
 
-pub const SC_PATH_TYPE_FILE_ID:      c_int =  0;
-pub const SC_PATH_TYPE_DF_NAME:      c_int =  1;
-pub const SC_PATH_TYPE_PATH:         c_int =  2;
+pub const SC_PATH_TYPE_FILE_ID:      i32 =  0;
+pub const SC_PATH_TYPE_DF_NAME:      i32 =  1;
+pub const SC_PATH_TYPE_PATH:         i32 =  2;
 /* path of a file containing EnvelopedData objects */
-pub const SC_PATH_TYPE_PATH_PROT:    c_int =  3;
-pub const SC_PATH_TYPE_FROM_CURRENT: c_int =  4;
-pub const SC_PATH_TYPE_PARENT:       c_int =  5;
+pub const SC_PATH_TYPE_PATH_PROT:    i32 =  3;
+pub const SC_PATH_TYPE_FROM_CURRENT: i32 =  4;
+pub const SC_PATH_TYPE_PARENT:       i32 =  5;
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct sc_path {
-    pub value : [c_uchar; SC_MAX_PATH_SIZE],
+    pub value : [u8; SC_MAX_PATH_SIZE],
     pub len : usize,
 
  /* The next two fields are used in PKCS15, where
   * a Path object can reference a portion of a file -
   * count octets starting at offset index.
   */
-    pub index : c_int,
-    pub count : c_int,
+    pub index : i32,
+    pub count : i32,
 
-    pub type_ : c_int,
+    pub type_ : i32,
 
     pub aid : sc_aid,
 }
@@ -183,95 +180,95 @@ impl Default for sc_path {
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct sc_crt {
-    pub tag   : c_uint,
-    pub usage : c_uint,  /* Usage Qualifier Byte */
-    pub algo  : c_uint,  /* Algorithm ID */
-    pub refs  : [c_uint; 8], /* Security Object References */
+    pub tag   : u32,
+    pub usage : u32,  /* Usage Qualifier Byte */
+    pub algo  : u32,  /* Algorithm ID */
+    pub refs  : [u32; 8], /* Security Object References */
 }
 
 #[allow(non_snake_case)]
 #[cfg(impl_newAT_newCCT_newCT)]
 impl sc_crt {
     /* new with Authentication Template tag 0xA4 */
-    pub fn new_AT(usage: c_uint) -> Self {
+    pub fn new_AT(usage: u32) -> Self {
         Self { tag: 0xA4, usage, ..Self::default() }
     }
 
     /* new with Cryptographic Checksum Template tag 0xB4 */
-    pub fn new_CCT(usage: c_uint) -> Self {
+    pub fn new_CCT(usage: u32) -> Self {
         Self { tag: 0xB4, usage, ..Self::default() }
     }
 
     /* new with Confidentiality Template tag 0xB8 */
-    pub fn new_CT(usage: c_uint) -> Self {
+    pub fn new_CT(usage: u32) -> Self {
         Self { tag: 0xB8, usage, ..Self::default() }
     }
 }
 
 /* Access Control flags */
-pub const SC_AC_NONE             : c_uint =  0x0000_0000;
-pub const SC_AC_CHV              : c_uint =  0x0000_0001; /* Card Holder Verif. */
-pub const SC_AC_TERM             : c_uint =  0x0000_0002; /* Terminal auth. */
-pub const SC_AC_PRO              : c_uint =  0x0000_0004; /* Secure Messaging */
-pub const SC_AC_AUT              : c_uint =  0x0000_0008; /* Key auth. */
-pub const SC_AC_SYMBOLIC         : c_uint =  0x0000_0010; /* internal use only */
-pub const SC_AC_SEN              : c_uint =  0x0000_0020; /* Security Environment. */
-pub const SC_AC_SCB              : c_uint =  0x0000_0040; /* IAS/ECC SCB byte. */
-pub const SC_AC_IDA              : c_uint =  0x0000_0080; /* PKCS#15 authentication ID */
-pub const SC_AC_SESSION          : c_uint =  0x0000_0100; /* Session PIN */ // since opensc source release v0.17.0
+pub const SC_AC_NONE             : u32 =  0x0000_0000;
+pub const SC_AC_CHV              : u32 =  0x0000_0001; /* Card Holder Verif. */
+pub const SC_AC_TERM             : u32 =  0x0000_0002; /* Terminal auth. */
+pub const SC_AC_PRO              : u32 =  0x0000_0004; /* Secure Messaging */
+pub const SC_AC_AUT              : u32 =  0x0000_0008; /* Key auth. */
+pub const SC_AC_SYMBOLIC         : u32 =  0x0000_0010; /* internal use only */
+pub const SC_AC_SEN              : u32 =  0x0000_0020; /* Security Environment. */
+pub const SC_AC_SCB              : u32 =  0x0000_0040; /* IAS/ECC SCB byte. */
+pub const SC_AC_IDA              : u32 =  0x0000_0080; /* PKCS#15 authentication ID */
+pub const SC_AC_SESSION          : u32 =  0x0000_0100; /* Session PIN */ // since opensc source release v0.17.0
 #[cfg(not(v0_17_0))]
-pub const SC_AC_CONTEXT_SPECIFIC : c_uint =  0x0000_0200; /* Context specific login */ // since opensc source release v0.18.0
+pub const SC_AC_CONTEXT_SPECIFIC : u32 =  0x0000_0200; /* Context specific login */ // since opensc source release v0.18.0
 
-pub const SC_AC_UNKNOWN          : c_uint =  0xFFFF_FFFE;
-pub const SC_AC_NEVER            : c_uint =  0xFFFF_FFFF;
+pub const SC_AC_UNKNOWN          : u32 =  0xFFFF_FFFE;
+pub const SC_AC_NEVER            : u32 =  0xFFFF_FFFF;
 
 /* Operations relating to access control */
-pub const SC_AC_OP_SELECT                : c_uint =   0;
-pub const SC_AC_OP_LOCK                  : c_uint =   1;
-pub const SC_AC_OP_DELETE                : c_uint =   2;
-pub const SC_AC_OP_CREATE                : c_uint =   3;
-pub const SC_AC_OP_REHABILITATE          : c_uint =   4;
-pub const SC_AC_OP_INVALIDATE            : c_uint =   5;
-pub const SC_AC_OP_LIST_FILES            : c_uint =   6;
-pub const SC_AC_OP_CRYPTO                : c_uint =   7;
-pub const SC_AC_OP_DELETE_SELF           : c_uint =   8;
-pub const SC_AC_OP_PSO_DECRYPT           : c_uint =   9;
-pub const SC_AC_OP_PSO_ENCRYPT           : c_uint =  10;
-pub const SC_AC_OP_PSO_COMPUTE_SIGNATURE : c_uint =  11;
-pub const SC_AC_OP_PSO_VERIFY_SIGNATURE  : c_uint =  12;
-pub const SC_AC_OP_PSO_COMPUTE_CHECKSUM  : c_uint =  13;
-pub const SC_AC_OP_PSO_VERIFY_CHECKSUM   : c_uint =  14;
-pub const SC_AC_OP_INTERNAL_AUTHENTICATE : c_uint =  15;
-pub const SC_AC_OP_EXTERNAL_AUTHENTICATE : c_uint =  16;
-pub const SC_AC_OP_PIN_DEFINE            : c_uint =  17;
-pub const SC_AC_OP_PIN_CHANGE            : c_uint =  18;
-pub const SC_AC_OP_PIN_RESET             : c_uint =  19;
-pub const SC_AC_OP_ACTIVATE              : c_uint =  20;
-pub const SC_AC_OP_DEACTIVATE            : c_uint =  21;
-pub const SC_AC_OP_READ                  : c_uint =  22;
-pub const SC_AC_OP_UPDATE                : c_uint =  23;
-pub const SC_AC_OP_WRITE                 : c_uint =  24;
-pub const SC_AC_OP_RESIZE                : c_uint =  25;
-pub const SC_AC_OP_GENERATE              : c_uint =  26;
-pub const SC_AC_OP_CREATE_EF             : c_uint =  27;
-pub const SC_AC_OP_CREATE_DF             : c_uint =  28;
-pub const SC_AC_OP_ADMIN                 : c_uint =  29;
-pub const SC_AC_OP_PIN_USE               : c_uint =  30;
+pub const SC_AC_OP_SELECT                : u32 =   0;
+pub const SC_AC_OP_LOCK                  : u32 =   1;
+pub const SC_AC_OP_DELETE                : u32 =   2;
+pub const SC_AC_OP_CREATE                : u32 =   3;
+pub const SC_AC_OP_REHABILITATE          : u32 =   4;
+pub const SC_AC_OP_INVALIDATE            : u32 =   5;
+pub const SC_AC_OP_LIST_FILES            : u32 =   6;
+pub const SC_AC_OP_CRYPTO                : u32 =   7;
+pub const SC_AC_OP_DELETE_SELF           : u32 =   8;
+pub const SC_AC_OP_PSO_DECRYPT           : u32 =   9;
+pub const SC_AC_OP_PSO_ENCRYPT           : u32 =  10;
+pub const SC_AC_OP_PSO_COMPUTE_SIGNATURE : u32 =  11;
+pub const SC_AC_OP_PSO_VERIFY_SIGNATURE  : u32 =  12;
+pub const SC_AC_OP_PSO_COMPUTE_CHECKSUM  : u32 =  13;
+pub const SC_AC_OP_PSO_VERIFY_CHECKSUM   : u32 =  14;
+pub const SC_AC_OP_INTERNAL_AUTHENTICATE : u32 =  15;
+pub const SC_AC_OP_EXTERNAL_AUTHENTICATE : u32 =  16;
+pub const SC_AC_OP_PIN_DEFINE            : u32 =  17;
+pub const SC_AC_OP_PIN_CHANGE            : u32 =  18;
+pub const SC_AC_OP_PIN_RESET             : u32 =  19;
+pub const SC_AC_OP_ACTIVATE              : u32 =  20;
+pub const SC_AC_OP_DEACTIVATE            : u32 =  21;
+pub const SC_AC_OP_READ                  : u32 =  22;
+pub const SC_AC_OP_UPDATE                : u32 =  23;
+pub const SC_AC_OP_WRITE                 : u32 =  24;
+pub const SC_AC_OP_RESIZE                : u32 =  25;
+pub const SC_AC_OP_GENERATE              : u32 =  26;
+pub const SC_AC_OP_CREATE_EF             : u32 =  27;
+pub const SC_AC_OP_CREATE_DF             : u32 =  28;
+pub const SC_AC_OP_ADMIN                 : u32 =  29;
+pub const SC_AC_OP_PIN_USE               : u32 =  30;
 /* If you add more OPs here, make sure you increase SC_MAX_AC_OPS*/
 pub const SC_MAX_AC_OPS                : usize =  31;
 
 /* the use of SC_AC_OP_ERASE is deprecated, SC_AC_OP_DELETE should be used
  * instead  */
 #[deprecated(since="0.0.0", note="please use `SC_AC_OP_DELETE` instead")]
-pub const SC_AC_OP_ERASE                 : c_uint =  SC_AC_OP_DELETE;
+pub const SC_AC_OP_ERASE                 : u32 =  SC_AC_OP_DELETE;
 
 pub const SC_AC_KEY_REF_NONE             : c_ulong =  0xFFFF_FFFF;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_acl_entry {
-    pub method  : c_uint, /* See SC_AC_* */
-    pub key_ref : c_uint, /* SC_AC_KEY_REF_NONE or an integer */
+    pub method  : u32, /* See SC_AC_* */
+    pub key_ref : u32, /* SC_AC_KEY_REF_NONE or an integer */
 
     pub crts    : [sc_crt; SC_MAX_CRTS_IN_SE],
 
@@ -297,66 +294,66 @@ pub type sc_acl_entry_t = sc_acl_entry;
 */
 
 /* File types */
-pub const SC_FILE_TYPE_DF          : c_uint =  0x04;
-pub const SC_FILE_TYPE_INTERNAL_EF : c_uint =  0x03;
-pub const SC_FILE_TYPE_WORKING_EF  : c_uint =  0x01;
-pub const SC_FILE_TYPE_BSO         : c_uint =  0x10;
+pub const SC_FILE_TYPE_DF          : u32 =  0x04;
+pub const SC_FILE_TYPE_INTERNAL_EF : u32 =  0x03;
+pub const SC_FILE_TYPE_WORKING_EF  : u32 =  0x01;
+pub const SC_FILE_TYPE_BSO         : u32 =  0x10;
 
 /* EF structures */
-pub const SC_FILE_EF_UNKNOWN             : c_uint =  0x00; // e.g. for MF, DF
-pub const SC_FILE_EF_TRANSPARENT         : c_uint =  0x01;
-pub const SC_FILE_EF_LINEAR_FIXED        : c_uint =  0x02;
-pub const SC_FILE_EF_LINEAR_FIXED_TLV    : c_uint =  0x03;
-pub const SC_FILE_EF_LINEAR_VARIABLE     : c_uint =  0x04;
-pub const SC_FILE_EF_LINEAR_VARIABLE_TLV : c_uint =  0x05;
-pub const SC_FILE_EF_CYCLIC              : c_uint =  0x06;
-pub const SC_FILE_EF_CYCLIC_TLV          : c_uint =  0x07;
+pub const SC_FILE_EF_UNKNOWN             : u32 =  0x00; // e.g. for MF, DF
+pub const SC_FILE_EF_TRANSPARENT         : u32 =  0x01;
+pub const SC_FILE_EF_LINEAR_FIXED        : u32 =  0x02;
+pub const SC_FILE_EF_LINEAR_FIXED_TLV    : u32 =  0x03;
+pub const SC_FILE_EF_LINEAR_VARIABLE     : u32 =  0x04;
+pub const SC_FILE_EF_LINEAR_VARIABLE_TLV : u32 =  0x05;
+pub const SC_FILE_EF_CYCLIC              : u32 =  0x06;
+pub const SC_FILE_EF_CYCLIC_TLV          : u32 =  0x07;
 
 /* File status flags */
-pub const SC_FILE_STATUS_ACTIVATED   : c_uint =  0x00;
-pub const SC_FILE_STATUS_INVALIDATED : c_uint =  0x01;
-pub const SC_FILE_STATUS_CREATION    : c_uint =  0x02; /* Full access in this state,
+pub const SC_FILE_STATUS_ACTIVATED   : u32 =  0x00;
+pub const SC_FILE_STATUS_INVALIDATED : u32 =  0x01;
+pub const SC_FILE_STATUS_CREATION    : u32 =  0x02; /* Full access in this state,
       (at least for SetCOS 4.4 */
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct sc_file {
     pub path : sc_path,
-    pub name : [c_uchar; SC_MAX_AID_SIZE /*16usize*/], /* DF name */
+    pub name : [u8; SC_MAX_AID_SIZE /*16usize*/], /* DF name */
     pub namelen : usize, /* length of DF name */
 
-    pub type_        : c_uint, /* See constant values defined above */  // binding: name changed from type to type_
-    pub ef_structure : c_uint, /* See constant values defined above */
-    pub status       : c_uint, /* See constant values defined above */
-    pub shareable    : c_uint, /* true(1), false(0) according to ISO 7816-4:2005 Table 14 */
+    pub type_        : u32, /* See constant values defined above */  // binding: name changed from type to type_
+    pub ef_structure : u32, /* See constant values defined above */
+    pub status       : u32, /* See constant values defined above */
+    pub shareable    : u32, /* true(1), false(0) according to ISO 7816-4:2005 Table 14 */
     pub size         : usize,  /* Size of file (in bytes) */
-    pub id           : c_int,  /* file identifier (2 bytes) */
-    pub sid          : c_int,  /* short EF identifier (1 byte) */
+    pub id           : i32,  /* file identifier (2 bytes) */
+    pub sid          : i32,  /* short EF identifier (1 byte) */
     pub acl          : [*mut sc_acl_entry; SC_MAX_AC_OPS], /* Access Control List */
 
     #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-    pub record_length : c_int, /* In case of fixed-length or cyclic EF */
+    pub record_length : i32, /* In case of fixed-length or cyclic EF */
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     pub record_length : usize, /* In case of fixed-length or cyclic EF */
     #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-    pub record_count  : c_int, /* Valid, if not transparent EF or DF */
+    pub record_count  : i32, /* Valid, if not transparent EF or DF */
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     pub record_count  : usize, /* Valid, if not transparent EF or DF */
 
-    pub sec_attr      : *mut c_uchar, /* security data in proprietary format. tag '86' */
+    pub sec_attr      : *mut u8, /* security data in proprietary format. tag '86' */
     pub sec_attr_len  : usize,
 
-    pub prop_attr     : *mut c_uchar, /* proprietary information. tag '85'*/
+    pub prop_attr     : *mut u8, /* proprietary information. tag '85'*/
     pub prop_attr_len : usize,
 
-    pub type_attr     : *mut c_uchar, /* file descriptor data. tag '82'.
+    pub type_attr     : *mut u8, /* file descriptor data. tag '82'.
         replaces the file's type information (DF, EF, ...) */
     pub type_attr_len : usize,
 
-    pub encoded_content     : *mut c_uchar, /* file's content encoded to be used in the file creation command */
+    pub encoded_content     : *mut u8, /* file's content encoded to be used in the file creation command */
     pub encoded_content_len : usize, /* size of file's encoded content in bytes */
 
-    pub magic : c_uint,
+    pub magic : u32,
 }
 /*
 #[doc(hidden)]
@@ -393,20 +390,20 @@ impl Default for sc_file {
 }
 */
 /* Different APDU cases */
-pub const SC_APDU_CASE_NONE    : c_int =  0x00;
-pub const SC_APDU_CASE_1       : c_int =  0x01;
-pub const SC_APDU_CASE_2_SHORT : c_int =  0x02;
-pub const SC_APDU_CASE_3_SHORT : c_int =  0x03;
-pub const SC_APDU_CASE_4_SHORT : c_int =  0x04;
-pub const SC_APDU_SHORT_MASK   : c_int =  0x0f;
-pub const SC_APDU_EXT          : c_int =  0x10;
-pub const SC_APDU_CASE_2_EXT   : c_int =  SC_APDU_CASE_2_SHORT | SC_APDU_EXT;
-pub const SC_APDU_CASE_3_EXT   : c_int =  SC_APDU_CASE_3_SHORT | SC_APDU_EXT;
-pub const SC_APDU_CASE_4_EXT   : c_int =  SC_APDU_CASE_4_SHORT | SC_APDU_EXT;
+pub const SC_APDU_CASE_NONE    : i32 =  0x00;
+pub const SC_APDU_CASE_1       : i32 =  0x01;
+pub const SC_APDU_CASE_2_SHORT : i32 =  0x02;
+pub const SC_APDU_CASE_3_SHORT : i32 =  0x03;
+pub const SC_APDU_CASE_4_SHORT : i32 =  0x04;
+pub const SC_APDU_SHORT_MASK   : i32 =  0x0f;
+pub const SC_APDU_EXT          : i32 =  0x10;
+pub const SC_APDU_CASE_2_EXT   : i32 =  SC_APDU_CASE_2_SHORT | SC_APDU_EXT;
+pub const SC_APDU_CASE_3_EXT   : i32 =  SC_APDU_CASE_3_SHORT | SC_APDU_EXT;
+pub const SC_APDU_CASE_4_EXT   : i32 =  SC_APDU_CASE_4_SHORT | SC_APDU_EXT;
 /* following types let OpenSC decides whether to use short or extended APDUs */
-pub const SC_APDU_CASE_2       : c_int =  0x22;
-pub const SC_APDU_CASE_3       : c_int =  0x23;
-pub const SC_APDU_CASE_4       : c_int =  0x24;
+pub const SC_APDU_CASE_2       : i32 =  0x22;
+pub const SC_APDU_CASE_3       : i32 =  0x23;
+pub const SC_APDU_CASE_4       : i32 =  0x24;
 
 /* use command chaining if the Lc value is greater than normally allowed */
 pub const SC_APDU_FLAGS_CHAINING     : c_ulong =  0x0000_0001;
@@ -426,24 +423,24 @@ pub const SC_APDU_ALLOCATE_FLAG_RESP : c_ulong =  0x04;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_apdu {
-    pub cse : c_int,   /* APDU case */
-    pub cla : c_uchar, /* CLA bytes */
-    pub ins : c_uchar, /* INS bytes */
-    pub p1  : c_uchar, /* P1 bytes */
-    pub p2  : c_uchar, /* P2 bytes */
+    pub cse : i32,   /* APDU case */
+    pub cla : u8, /* CLA bytes */
+    pub ins : u8, /* INS bytes */
+    pub p1  : u8, /* P1 bytes */
+    pub p2  : u8, /* P2 bytes */
     pub lc : usize,   /* Lc bytes */
     pub le : usize,   /* Le bytes */
-    pub data : *const c_uchar, /* S-APDU data */
+    pub data : *const u8, /* S-APDU data */
     pub datalen : usize,   /* length of data in S-APDU */
-    pub resp : *mut c_uchar,  /* R-APDU data buffer */
+    pub resp : *mut u8,  /* R-APDU data buffer */
     pub resplen : usize,   /* in: size of R-APDU buffer,
                            * out: length of data returned in R-APDU */
-    pub control : c_uchar,  /* Set if APDU should go to the reader */
-    pub allocation_flags : c_uint, /* APDU allocation flags */
+    pub control : u8,  /* Set if APDU should go to the reader */
+    pub allocation_flags : u32, /* APDU allocation flags */
 
-    pub sw1 : c_uint,  /* Status words returned in R-APDU */
-    pub sw2 : c_uint,  /* Status words returned in R-APDU */
-    pub mac : [c_uchar; 8],
+    pub sw1 : u32,  /* Status words returned in R-APDU */
+    pub sw2 : u32,  /* Status words returned in R-APDU */
+    pub mac : [u8; 8],
     pub mac_len : usize,
 
     pub flags : c_ulong, //unsigned long flags;
@@ -485,25 +482,25 @@ impl Default for sc_apdu {
 
 /* Card manager Production Life Cycle data (CPLC)
  * (from the Open Platform specification) */
-pub const SC_CPLC_TAG      : c_uint   =  0x9F7F;
+pub const SC_CPLC_TAG      : u32   =  0x9F7F;
 pub const SC_CPLC_DER_SIZE : usize = 45;
 
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_cplc {
-    pub ic_fabricator : [c_uchar; 2],
-    pub ic_type : [c_uchar; 2],
-    pub os_data : [c_uchar; 6],
-    pub ic_date : [c_uchar; 2],
-    pub ic_serial : [c_uchar; 4],
-    pub ic_batch_id : [c_uchar; 2],
-    pub ic_module_data : [c_uchar; 4],
-    pub icc_manufacturer : [c_uchar; 2],
-    pub ic_embed_date : [c_uchar; 2],
-    pub pre_perso_data : [c_uchar; 6],
-    pub personalizer_data : [c_uchar; 6],
+    pub ic_fabricator : [u8; 2],
+    pub ic_type : [u8; 2],
+    pub os_data : [u8; 6],
+    pub ic_date : [u8; 2],
+    pub ic_serial : [u8; 4],
+    pub ic_batch_id : [u8; 2],
+    pub ic_module_data : [u8; 4],
+    pub icc_manufacturer : [u8; 2],
+    pub ic_embed_date : [u8; 2],
+    pub pre_perso_data : [u8; 6],
+    pub personalizer_data : [u8; 6],
 
-    pub value : [c_uchar; SC_CPLC_DER_SIZE],
+    pub value : [u8; SC_CPLC_DER_SIZE],
     pub len : usize,
 }
 
@@ -512,8 +509,8 @@ pub struct sc_cplc {
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone)]
 pub struct sc_iin {
-    pub mii : c_uchar,              /* industry identifier */
-    pub country : c_uint,           /* country identifier */
+    pub mii : u8,              /* industry identifier */
+    pub country : u32,           /* country identifier */
     pub issuer_id : c_ulong,        /* issuer identifier */
 }
 
@@ -523,7 +520,7 @@ pub const SC_MAX_SERIALNR : usize = 32;
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone)]
 pub struct sc_serial_number {
-    pub value : [c_uchar; SC_MAX_SERIALNR],
+    pub value : [u8; SC_MAX_SERIALNR],
     pub len : usize,
 
     pub iin : sc_iin,
@@ -539,17 +536,17 @@ pub type sc_serial_number_t = sc_serial_number;
  * Structure to supply the linked APDU data used in
  * communication with the external (SM) modules.
  */
-pub const SC_REMOTE_APDU_FLAG_NOT_FATAL     : c_uint   =  0x01;
-pub const SC_REMOTE_APDU_FLAG_RETURN_ANSWER : c_uint   =  0x02;
+pub const SC_REMOTE_APDU_FLAG_NOT_FATAL     : u32   =  0x01;
+pub const SC_REMOTE_APDU_FLAG_RETURN_ANSWER : u32   =  0x02;
 
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_remote_apdu {
-    pub sbuf : [c_uchar; 2*SC_MAX_APDU_BUFFER_SIZE],
-    pub rbuf : [c_uchar; 2*SC_MAX_APDU_BUFFER_SIZE],
+    pub sbuf : [u8; 2*SC_MAX_APDU_BUFFER_SIZE],
+    pub rbuf : [u8; 2*SC_MAX_APDU_BUFFER_SIZE],
     pub apdu : sc_apdu,
 
-    pub flags : c_uint, /* e.g. SC_REMOTE_APDU_FLAG_RETURN_ANSWER */
+    pub flags : u32, /* e.g. SC_REMOTE_APDU_FLAG_RETURN_ANSWER */
 
     pub next : *mut sc_remote_apdu,
 }
@@ -576,7 +573,7 @@ impl Default for sc_remote_apdu {
 #[derive(Debug, Copy, Clone)]
 pub struct sc_remote_data {
     pub data : *mut sc_remote_apdu,
-    pub length : c_int,
+    pub length : i32,
 
     /**
      * Handler to allocate a new @c sc_remote_apdu data and add it to the list.
@@ -584,7 +581,7 @@ pub struct sc_remote_data {
      * @param out Pointer to newly allocated member
      */
     pub alloc : Option< unsafe extern "C" fn (rdata: *mut sc_remote_data,
-                                              out: *mut *mut sc_remote_apdu) -> c_int >,
+                                              out: *mut *mut sc_remote_apdu) -> i32 >,
     /**
      * Handler to free the list of @c sc_remote_apdu data
      * @param rdata Self pointer to the @c sc_remote_data

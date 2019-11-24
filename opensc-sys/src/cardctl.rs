@@ -19,7 +19,7 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-use std::os::raw::{c_uchar, c_char, c_int, c_ulong};
+use std::os::raw::{c_char, c_ulong};
 
 //#define _CTL_PREFIX(a, b, c) (((a) << 24) | ((b) << 16) | ((c) << 8))
 
@@ -310,11 +310,11 @@ pub const SC_CARDCTRL_LIFECYCLE_OTHER : c_ulong = 2;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_cardctl_default_key {
-    pub method : c_int,           /* SC_AC_XXX */
-    pub key_ref : c_int,          /* key reference */
+    pub method : i32,           /* SC_AC_XXX */
+    pub key_ref : i32,          /* key reference */
 
     pub len : usize,              /* in: max size, out: actual size */
-    pub key_data : *mut c_uchar,  /* out: key data */
+    pub key_data : *mut u8,  /* out: key data */
 }
 
 /*
@@ -323,7 +323,7 @@ pub struct sc_cardctl_default_key {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_cardctl_pkcs11_init_token {
-    pub so_pin : *const c_uchar,
+    pub so_pin : *const u8,
     pub so_pin_len : usize,
     pub label : *const c_char,
 }
@@ -339,7 +339,7 @@ pub type sc_cardctl_pkcs11_init_token_t = sc_cardctl_pkcs11_init_token;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_cardctl_pkcs11_init_pin {
-    pub pin : *const c_uchar,
+    pub pin : *const u8,
     pub pin_len : usize,
 }
 /*

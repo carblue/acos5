@@ -19,199 +19,199 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-use std::os::raw::{c_char, c_int};
+use std::os::raw::c_char;
 
 /// "Success"
-pub const SC_SUCCESS                             : c_int =   0;
+pub const SC_SUCCESS                             : i32 =   0;
 
 /* Errors related to reader operation */
 /// "Generic reader error"
-pub const SC_ERROR_READER                        : c_int =  -1100;
+pub const SC_ERROR_READER                        : i32 =  -1100;
 /// "No readers found"
-pub const SC_ERROR_NO_READERS_FOUND              : c_int =  -1101;
+pub const SC_ERROR_NO_READERS_FOUND              : i32 =  -1101;
 /* Unused: -1102 */
 /* Unused: -1103 */
 /// "Card not present"
-pub const SC_ERROR_CARD_NOT_PRESENT              : c_int =  -1104;
+pub const SC_ERROR_CARD_NOT_PRESENT              : i32 =  -1104;
 /// "Card removed"
-pub const SC_ERROR_CARD_REMOVED                  : c_int =  -1105;
+pub const SC_ERROR_CARD_REMOVED                  : i32 =  -1105;
 /// "Card reset"
-pub const SC_ERROR_CARD_RESET                    : c_int =  -1106;
+pub const SC_ERROR_CARD_RESET                    : i32 =  -1106;
 /// "Transmit failed"
-pub const SC_ERROR_TRANSMIT_FAILED               : c_int =  -1107;
+pub const SC_ERROR_TRANSMIT_FAILED               : i32 =  -1107;
 /// "Timed out while waiting for user input"
-pub const SC_ERROR_KEYPAD_TIMEOUT                : c_int =  -1108;
+pub const SC_ERROR_KEYPAD_TIMEOUT                : i32 =  -1108;
 /// "Input operation cancelled by user"
-pub const SC_ERROR_KEYPAD_CANCELLED              : c_int =  -1109;
+pub const SC_ERROR_KEYPAD_CANCELLED              : i32 =  -1109;
 /// "The two PINs did not match"
-pub const SC_ERROR_KEYPAD_PIN_MISMATCH           : c_int =  -1110;
+pub const SC_ERROR_KEYPAD_PIN_MISMATCH           : i32 =  -1110;
 /// "Message too long (keypad)"
-pub const SC_ERROR_KEYPAD_MSG_TOO_LONG           : c_int =  -1111;
+pub const SC_ERROR_KEYPAD_MSG_TOO_LONG           : i32 =  -1111;
 /// "Timeout while waiting for event from card reader"
-pub const SC_ERROR_EVENT_TIMEOUT                 : c_int =  -1112;
+pub const SC_ERROR_EVENT_TIMEOUT                 : i32 =  -1112;
 /// "Unresponsive card (correctly inserted?)"
-pub const SC_ERROR_CARD_UNRESPONSIVE             : c_int =  -1113;
+pub const SC_ERROR_CARD_UNRESPONSIVE             : i32 =  -1113;
 /// "Reader detached (hotplug device?)"
-pub const SC_ERROR_READER_DETACHED               : c_int =  -1114;
+pub const SC_ERROR_READER_DETACHED               : i32 =  -1114;
 /// "Reader reattached (hotplug device?)"
-pub const SC_ERROR_READER_REATTACHED             : c_int =  -1115;
+pub const SC_ERROR_READER_REATTACHED             : i32 =  -1115;
 /// "Reader in use by another application"
-pub const SC_ERROR_READER_LOCKED                 : c_int =  -1116;
+pub const SC_ERROR_READER_LOCKED                 : i32 =  -1116;
 
 /* Resulting from a card command or related to the card*/
 /// "Card command failed"
-pub const SC_ERROR_CARD_CMD_FAILED               : c_int =  -1200;
+pub const SC_ERROR_CARD_CMD_FAILED               : i32 =  -1200;
 /// "File not found"
-pub const SC_ERROR_FILE_NOT_FOUND                : c_int =  -1201;
+pub const SC_ERROR_FILE_NOT_FOUND                : i32 =  -1201;
 /// "Record not found"
-pub const SC_ERROR_RECORD_NOT_FOUND              : c_int =  -1202;
+pub const SC_ERROR_RECORD_NOT_FOUND              : i32 =  -1202;
 /// "Unsupported CLA byte in APDU"
-pub const SC_ERROR_CLASS_NOT_SUPPORTED           : c_int =  -1203;
+pub const SC_ERROR_CLASS_NOT_SUPPORTED           : i32 =  -1203;
 /// "Unsupported INS byte in APDU"
-pub const SC_ERROR_INS_NOT_SUPPORTED             : c_int =  -1204;
+pub const SC_ERROR_INS_NOT_SUPPORTED             : i32 =  -1204;
 /// "Incorrect parameters in APDU"
-pub const SC_ERROR_INCORRECT_PARAMETERS          : c_int =  -1205;
+pub const SC_ERROR_INCORRECT_PARAMETERS          : i32 =  -1205;
 /// "Wrong length"
-pub const SC_ERROR_WRONG_LENGTH                  : c_int =  -1206;
+pub const SC_ERROR_WRONG_LENGTH                  : i32 =  -1206;
 /// "Card memory failure"
-pub const SC_ERROR_MEMORY_FAILURE                : c_int =  -1207;
+pub const SC_ERROR_MEMORY_FAILURE                : i32 =  -1207;
 /// "Card does not support the requested operation"
-pub const SC_ERROR_NO_CARD_SUPPORT               : c_int =  -1208;
+pub const SC_ERROR_NO_CARD_SUPPORT               : i32 =  -1208;
 /// "Not allowed"
-pub const SC_ERROR_NOT_ALLOWED                   : c_int =  -1209;
+pub const SC_ERROR_NOT_ALLOWED                   : i32 =  -1209;
 /// "Card is invalid or cannot be handled"
-pub const SC_ERROR_INVALID_CARD                  : c_int =  -1210;
+pub const SC_ERROR_INVALID_CARD                  : i32 =  -1210;
 /// "Security status not satisfied"
-pub const SC_ERROR_SECURITY_STATUS_NOT_SATISFIED : c_int =  -1211;
+pub const SC_ERROR_SECURITY_STATUS_NOT_SATISFIED : i32 =  -1211;
 /// "Authentication method blocked"
-pub const SC_ERROR_AUTH_METHOD_BLOCKED           : c_int =  -1212;
+pub const SC_ERROR_AUTH_METHOD_BLOCKED           : i32 =  -1212;
 /// "Unknown data received from card"
-pub const SC_ERROR_UNKNOWN_DATA_RECEIVED         : c_int =  -1213;
+pub const SC_ERROR_UNKNOWN_DATA_RECEIVED         : i32 =  -1213;
 /// "PIN code or key incorrect"
-pub const SC_ERROR_PIN_CODE_INCORRECT            : c_int =  -1214;
+pub const SC_ERROR_PIN_CODE_INCORRECT            : i32 =  -1214;
 /// "File already exists"
-pub const SC_ERROR_FILE_ALREADY_EXISTS           : c_int =  -1215;
+pub const SC_ERROR_FILE_ALREADY_EXISTS           : i32 =  -1215;
 /// "Data object not found"
-pub const SC_ERROR_DATA_OBJECT_NOT_FOUND         : c_int =  -1216;
+pub const SC_ERROR_DATA_OBJECT_NOT_FOUND         : i32 =  -1216;
 /// "Not enough memory on card"
-pub const SC_ERROR_NOT_ENOUGH_MEMORY             : c_int =  -1217;
+pub const SC_ERROR_NOT_ENOUGH_MEMORY             : i32 =  -1217;
 /// "Part of returned data may be corrupted"
-pub const SC_ERROR_CORRUPTED_DATA                : c_int =  -1218;
+pub const SC_ERROR_CORRUPTED_DATA                : i32 =  -1218;
 /// "End of file/record reached before reading Le bytes"
-pub const SC_ERROR_FILE_END_REACHED              : c_int =  -1219;
+pub const SC_ERROR_FILE_END_REACHED              : i32 =  -1219;
 /// "Reference data not usable"
-pub const SC_ERROR_REF_DATA_NOT_USABLE           : c_int =  -1220;
+pub const SC_ERROR_REF_DATA_NOT_USABLE           : i32 =  -1220;
 
 /* Returned by OpenSC library when called with invalid arguments */
 /// "Invalid arguments"
-pub const SC_ERROR_INVALID_ARGUMENTS             : c_int =  -1300;
+pub const SC_ERROR_INVALID_ARGUMENTS             : i32 =  -1300;
 /* Unused: -1301 */
 /* Unused: -1302 */
 /// "Buffer too small"
-pub const SC_ERROR_BUFFER_TOO_SMALL              : c_int =  -1303;
+pub const SC_ERROR_BUFFER_TOO_SMALL              : i32 =  -1303;
 /// "Invalid PIN length"
-pub const SC_ERROR_INVALID_PIN_LENGTH            : c_int =  -1304;
+pub const SC_ERROR_INVALID_PIN_LENGTH            : i32 =  -1304;
 /// "Invalid data"
-pub const SC_ERROR_INVALID_DATA                  : c_int =  -1305;
+pub const SC_ERROR_INVALID_DATA                  : i32 =  -1305;
 
 /* Resulting from OpenSC internal operation */
 /// "Internal error"
-pub const SC_ERROR_INTERNAL                      : c_int =  -1400;
+pub const SC_ERROR_INTERNAL                      : i32 =  -1400;
 /// "Invalid ASN.1 object"
-pub const SC_ERROR_INVALID_ASN1_OBJECT           : c_int =  -1401;
+pub const SC_ERROR_INVALID_ASN1_OBJECT           : i32 =  -1401;
 /// "Required ASN.1 object not found"
-pub const SC_ERROR_ASN1_OBJECT_NOT_FOUND         : c_int =  -1402;
+pub const SC_ERROR_ASN1_OBJECT_NOT_FOUND         : i32 =  -1402;
 /// "Premature end of ASN.1 stream"
-pub const SC_ERROR_ASN1_END_OF_CONTENTS          : c_int =  -1403;
+pub const SC_ERROR_ASN1_END_OF_CONTENTS          : i32 =  -1403;
 /// "Out of memory"
-pub const SC_ERROR_OUT_OF_MEMORY                 : c_int =  -1404;
+pub const SC_ERROR_OUT_OF_MEMORY                 : i32 =  -1404;
 /// "Too many objects"
-pub const SC_ERROR_TOO_MANY_OBJECTS              : c_int =  -1405;
+pub const SC_ERROR_TOO_MANY_OBJECTS              : i32 =  -1405;
 /// "Object not valid"
-pub const SC_ERROR_OBJECT_NOT_VALID              : c_int =  -1406;
+pub const SC_ERROR_OBJECT_NOT_VALID              : i32 =  -1406;
 /// "Requested object not found"
-pub const SC_ERROR_OBJECT_NOT_FOUND              : c_int =  -1407;
+pub const SC_ERROR_OBJECT_NOT_FOUND              : i32 =  -1407;
 /// "Not supported"
-pub const SC_ERROR_NOT_SUPPORTED                 : c_int =  -1408;
+pub const SC_ERROR_NOT_SUPPORTED                 : i32 =  -1408;
 /// "Passphrase required"
-pub const SC_ERROR_PASSPHRASE_REQUIRED           : c_int =  -1409;
+pub const SC_ERROR_PASSPHRASE_REQUIRED           : i32 =  -1409;
 /// "Inconsistent configuration"
-pub const SC_ERROR_INCONSISTENT_CONFIGURATION    : c_int =  -1410;
+pub const SC_ERROR_INCONSISTENT_CONFIGURATION    : i32 =  -1410;
 /// "Decryption failed"
-pub const SC_ERROR_DECRYPT_FAILED                : c_int =  -1411;
+pub const SC_ERROR_DECRYPT_FAILED                : i32 =  -1411;
 /// "Wrong padding"
-pub const SC_ERROR_WRONG_PADDING                 : c_int =  -1412;
+pub const SC_ERROR_WRONG_PADDING                 : i32 =  -1412;
 /// "Unsupported card"
-pub const SC_ERROR_WRONG_CARD                    : c_int =  -1413;
+pub const SC_ERROR_WRONG_CARD                    : i32 =  -1413;
 /// "Unable to load external module"
-pub const SC_ERROR_CANNOT_LOAD_MODULE            : c_int =  -1414;
+pub const SC_ERROR_CANNOT_LOAD_MODULE            : i32 =  -1414;
 /// "EF offset too large"
-pub const SC_ERROR_OFFSET_TOO_LARGE              : c_int =  -1415;
+pub const SC_ERROR_OFFSET_TOO_LARGE              : i32 =  -1415;
 /// "Not implemented"
-pub const SC_ERROR_NOT_IMPLEMENTED               : c_int =  -1416;
+pub const SC_ERROR_NOT_IMPLEMENTED               : i32 =  -1416;
 /// "Invalid Simple TLV object",
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ERROR_INVALID_TLV_OBJECT            : c_int =  -1417; // since opensc source release v0.19.0
+pub const SC_ERROR_INVALID_TLV_OBJECT            : i32 =  -1417; // since opensc source release v0.19.0
 /// "Premature end of Simple TLV stream"
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ERROR_TLV_END_OF_CONTENTS           : c_int =  -1418; // since opensc source release v0.19.0
+pub const SC_ERROR_TLV_END_OF_CONTENTS           : i32 =  -1418; // since opensc source release v0.19.0
 
 /* Relating to PKCS #15 init stuff */
 /// "Generic PKCS#15 initialization error"
-pub const SC_ERROR_PKCS15INIT                    : c_int =  -1500;
+pub const SC_ERROR_PKCS15INIT                    : i32 =  -1500;
 /// "Syntax error"
-pub const SC_ERROR_SYNTAX_ERROR                  : c_int =  -1501;
+pub const SC_ERROR_SYNTAX_ERROR                  : i32 =  -1501;
 /// "Inconsistent or incomplete PKCS#15 profile"
-pub const SC_ERROR_INCONSISTENT_PROFILE          : c_int =  -1502;
+pub const SC_ERROR_INCONSISTENT_PROFILE          : i32 =  -1502;
 /// "Key length/algorithm not supported by card"
-pub const SC_ERROR_INCOMPATIBLE_KEY              : c_int =  -1503;
+pub const SC_ERROR_INCOMPATIBLE_KEY              : i32 =  -1503;
 /// "No default (transport) key available"
-pub const SC_ERROR_NO_DEFAULT_KEY                : c_int =  -1504;
+pub const SC_ERROR_NO_DEFAULT_KEY                : i32 =  -1504;
 /// "Non unique object ID"
-pub const SC_ERROR_NON_UNIQUE_ID                 : c_int =  -1505;
+pub const SC_ERROR_NON_UNIQUE_ID                 : i32 =  -1505;
 /// "Unable to load key and certificate(s) from file"
-pub const SC_ERROR_CANNOT_LOAD_KEY               : c_int =  -1506;
+pub const SC_ERROR_CANNOT_LOAD_KEY               : i32 =  -1506;
 /* Unused: -1007 */
 /// "File template not found"
-pub const SC_ERROR_TEMPLATE_NOT_FOUND            : c_int =  -1508;
+pub const SC_ERROR_TEMPLATE_NOT_FOUND            : i32 =  -1508;
 /// "Invalid PIN reference"
-pub const SC_ERROR_INVALID_PIN_REFERENCE         : c_int =  -1509;
+pub const SC_ERROR_INVALID_PIN_REFERENCE         : i32 =  -1509;
 /// "File too small"
-pub const SC_ERROR_FILE_TOO_SMALL                : c_int =  -1510;
+pub const SC_ERROR_FILE_TOO_SMALL                : i32 =  -1510;
 
 /* Related to secure messaging */
 /// "Generic Secure Messaging error"
-pub const SC_ERROR_SM                            : c_int =  -1600;
+pub const SC_ERROR_SM                            : i32 =  -1600;
 /// "Data enciphering error"
-pub const SC_ERROR_SM_ENCRYPT_FAILED             : c_int =  -1601;
+pub const SC_ERROR_SM_ENCRYPT_FAILED             : i32 =  -1601;
 /// "Invalid secure messaging level"
-pub const SC_ERROR_SM_INVALID_LEVEL              : c_int =  -1602;
+pub const SC_ERROR_SM_INVALID_LEVEL              : i32 =  -1602;
 ///"No session keys"
-pub const SC_ERROR_SM_NO_SESSION_KEYS            : c_int =  -1603;
+pub const SC_ERROR_SM_NO_SESSION_KEYS            : i32 =  -1603;
 /// "Invalid session keys"
-pub const SC_ERROR_SM_INVALID_SESSION_KEY        : c_int =  -1604;
+pub const SC_ERROR_SM_INVALID_SESSION_KEY        : i32 =  -1604;
 /// "Secure Messaging not initialized"
-pub const SC_ERROR_SM_NOT_INITIALIZED            : c_int =  -1605;
+pub const SC_ERROR_SM_NOT_INITIALIZED            : i32 =  -1605;
 /// "Cannot authenticate card"
-pub const SC_ERROR_SM_AUTHENTICATION_FAILED      : c_int =  -1606;
+pub const SC_ERROR_SM_AUTHENTICATION_FAILED      : i32 =  -1606;
 /// "Random generation error"
-pub const SC_ERROR_SM_RAND_FAILED                : c_int =  -1607;
+pub const SC_ERROR_SM_RAND_FAILED                : i32 =  -1607;
 /// "Secure messaging keyset not found"
-pub const SC_ERROR_SM_KEYSET_NOT_FOUND           : c_int =  -1608;
+pub const SC_ERROR_SM_KEYSET_NOT_FOUND           : i32 =  -1608;
 /// "IFD data missing"
-pub const SC_ERROR_SM_IFD_DATA_MISSING           : c_int =  -1609;
+pub const SC_ERROR_SM_IFD_DATA_MISSING           : i32 =  -1609;
 /// "SM not applied"
-pub const SC_ERROR_SM_NOT_APPLIED                : c_int =  -1610;
+pub const SC_ERROR_SM_NOT_APPLIED                : i32 =  -1610;
 /// "SM session already active"
-pub const SC_ERROR_SM_SESSION_ALREADY_ACTIVE     : c_int =  -1611;
+pub const SC_ERROR_SM_SESSION_ALREADY_ACTIVE     : i32 =  -1611;
 /// "Invalid checksum"
-pub const SC_ERROR_SM_INVALID_CHECKSUM           : c_int =  -1612;
+pub const SC_ERROR_SM_INVALID_CHECKSUM           : i32 =  -1612;
 
 /* Errors that do not fit the categories above */
 /// "Unknown error"
-pub const SC_ERROR_UNKNOWN                       : c_int =  -1900;
+pub const SC_ERROR_UNKNOWN                       : i32 =  -1900;
 /// "PKCS#15 compatible smart card not found"
-pub const SC_ERROR_PKCS15_APP_NOT_FOUND          : c_int =  -1901;
+pub const SC_ERROR_PKCS15_APP_NOT_FOUND          : i32 =  -1901;
 
 extern "C" {
     /// Returns the text (C string) associated with the error number `sc_errno` defined in this module.
@@ -227,14 +227,18 @@ extern "C" {
     ///
     /// Rust: No memory problem!  returns pointer to .rodata of libopensc.so
     /// @test available
-    pub fn sc_strerror(sc_errno: c_int) -> *const c_char;
+    pub fn sc_strerror(sc_errno: i32) -> *const c_char;
 }
 
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::{CStr};
+    use std::ffi::CStr;
     use super::*;
+
+    macro_rules! cstru {
+        ($x:expr) => (CStr::from_bytes_with_nul_unchecked($x))
+    }
 
     #[test]
     fn test_sc_strerror() {
@@ -277,41 +281,41 @@ mod tests {
 
         unsafe {
 //          assert_eq!(CStr::from_ptr(data0.as_ptr() as *const c_char).to_bytes_with_nul(), CStr::from_ptr(sc_strerror(SC_SUCCESS)).to_bytes_with_nul());
-            assert_eq!(CStr::from_bytes_with_nul(data0    ).unwrap(), CStr::from_ptr(sc_strerror( SC_SUCCESS)));
-            assert_eq!(CStr::from_bytes_with_nul(data1    ).unwrap(), CStr::from_ptr(sc_strerror(  1)));
-            assert_eq!(CStr::from_bytes_with_nul(data1n   ).unwrap(), CStr::from_ptr(sc_strerror( -1)));
-            assert_eq!(CStr::from_bytes_with_nul(data1099 ).unwrap(), CStr::from_ptr(sc_strerror(  1099)));
-            assert_eq!(CStr::from_bytes_with_nul(data1099n).unwrap(), CStr::from_ptr(sc_strerror( -1099)));
+            assert_eq!(cstru!(data0    ), CStr::from_ptr(sc_strerror( SC_SUCCESS)));
+            assert_eq!(cstru!(data1    ), CStr::from_ptr(sc_strerror(  1)));
+            assert_eq!(cstru!(data1n   ), CStr::from_ptr(sc_strerror( -1)));
+            assert_eq!(cstru!(data1099 ), CStr::from_ptr(sc_strerror(  1099)));
+            assert_eq!(cstru!(data1099n), CStr::from_ptr(sc_strerror( -1099)));
 
-            assert_eq!(CStr::from_bytes_with_nul(data1117 ).unwrap(), CStr::from_ptr(sc_strerror( 1117)));
-            assert_eq!(CStr::from_bytes_with_nul(data1117n).unwrap(), CStr::from_ptr(sc_strerror( -1117)));
-            assert_eq!(CStr::from_bytes_with_nul(data1221n).unwrap(), CStr::from_ptr(sc_strerror( -1221)));
-            assert_eq!(CStr::from_bytes_with_nul(data1306n).unwrap(), CStr::from_ptr(sc_strerror( -1306)));
+            assert_eq!(cstru!(data1117 ), CStr::from_ptr(sc_strerror( 1117)));
+            assert_eq!(cstru!(data1117n), CStr::from_ptr(sc_strerror( -1117)));
+            assert_eq!(cstru!(data1221n), CStr::from_ptr(sc_strerror( -1221)));
+            assert_eq!(cstru!(data1306n), CStr::from_ptr(sc_strerror( -1306)));
 
             #[cfg(    any(v0_17_0, v0_18_0))]
-            assert_eq!(CStr::from_bytes_with_nul(data1417n).unwrap(), CStr::from_ptr(sc_strerror(  -1417)));
+            assert_eq!(cstru!(data1417n), CStr::from_ptr(sc_strerror(  -1417)));
             #[cfg(not(any(v0_17_0, v0_18_0)))]
-            assert_eq!(CStr::from_bytes_with_nul(data1419n).unwrap(), CStr::from_ptr(sc_strerror(  -1419)));
-            assert_eq!(CStr::from_bytes_with_nul(data1511n).unwrap(), CStr::from_ptr(sc_strerror(  -1511)));
-            assert_eq!(CStr::from_bytes_with_nul(data1613n).unwrap(), CStr::from_ptr(sc_strerror(-1613)));
-            assert_eq!(CStr::from_bytes_with_nul(data1902 ).unwrap(), CStr::from_ptr(sc_strerror( 1902)));
-            assert_eq!(CStr::from_bytes_with_nul(data1902n).unwrap(), CStr::from_ptr(sc_strerror(-1902)));
+            assert_eq!(cstru!(data1419n), CStr::from_ptr(sc_strerror(  -1419)));
+            assert_eq!(cstru!(data1511n), CStr::from_ptr(sc_strerror(  -1511)));
+            assert_eq!(cstru!(data1613n), CStr::from_ptr(sc_strerror(-1613)));
+            assert_eq!(cstru!(data1902 ), CStr::from_ptr(sc_strerror( 1902)));
+            assert_eq!(cstru!(data1902n), CStr::from_ptr(sc_strerror(-1902)));
 
-            assert_eq!(CStr::from_bytes_with_nul(data1100 ).unwrap(), CStr::from_ptr(sc_strerror(-SC_ERROR_READER)));
-            assert_eq!(CStr::from_bytes_with_nul(data1100n).unwrap(), CStr::from_ptr(sc_strerror( SC_ERROR_READER)));
-            assert_eq!(CStr::from_bytes_with_nul(data1116n).unwrap(), CStr::from_ptr(sc_strerror(SC_ERROR_READER_LOCKED)));
-            assert_eq!(CStr::from_bytes_with_nul(data1200n).unwrap(), CStr::from_ptr(sc_strerror(SC_ERROR_CARD_CMD_FAILED)));
-            assert_eq!(CStr::from_bytes_with_nul(data1220n).unwrap(), CStr::from_ptr(sc_strerror(SC_ERROR_REF_DATA_NOT_USABLE)));
+            assert_eq!(cstru!(data1100 ), CStr::from_ptr(sc_strerror(-SC_ERROR_READER)));
+            assert_eq!(cstru!(data1100n), CStr::from_ptr(sc_strerror( SC_ERROR_READER)));
+            assert_eq!(cstru!(data1116n), CStr::from_ptr(sc_strerror(SC_ERROR_READER_LOCKED)));
+            assert_eq!(cstru!(data1200n), CStr::from_ptr(sc_strerror(SC_ERROR_CARD_CMD_FAILED)));
+            assert_eq!(cstru!(data1220n), CStr::from_ptr(sc_strerror(SC_ERROR_REF_DATA_NOT_USABLE)));
 
             #[cfg(not(any(v0_17_0, v0_18_0)))]
-            assert_eq!(CStr::from_bytes_with_nul(data1417n).unwrap(), CStr::from_ptr(sc_strerror( SC_ERROR_INVALID_TLV_OBJECT)));
+            assert_eq!(cstru!(data1417n), CStr::from_ptr(sc_strerror( SC_ERROR_INVALID_TLV_OBJECT)));
             #[cfg(not(any(v0_17_0, v0_18_0)))]
-            assert_eq!(CStr::from_bytes_with_nul(data1418n).unwrap(), CStr::from_ptr(sc_strerror(  SC_ERROR_TLV_END_OF_CONTENTS)));
+            assert_eq!(cstru!(data1418n), CStr::from_ptr(sc_strerror(  SC_ERROR_TLV_END_OF_CONTENTS)));
 
-            assert_eq!(CStr::from_bytes_with_nul(data1600n).unwrap(), CStr::from_ptr(sc_strerror(SC_ERROR_SM)));
-            assert_eq!(CStr::from_bytes_with_nul(data1612n).unwrap(), CStr::from_ptr(sc_strerror( SC_ERROR_SM_INVALID_CHECKSUM)));
-            assert_eq!(CStr::from_bytes_with_nul(data1900n).unwrap(), CStr::from_ptr(sc_strerror(SC_ERROR_UNKNOWN)));
-            assert_eq!(CStr::from_bytes_with_nul(data1901n).unwrap(), CStr::from_ptr(sc_strerror(SC_ERROR_PKCS15_APP_NOT_FOUND)));
+            assert_eq!(cstru!(data1600n), CStr::from_ptr(sc_strerror(SC_ERROR_SM)));
+            assert_eq!(cstru!(data1612n), CStr::from_ptr(sc_strerror( SC_ERROR_SM_INVALID_CHECKSUM)));
+            assert_eq!(cstru!(data1900n), CStr::from_ptr(sc_strerror(SC_ERROR_UNKNOWN)));
+            assert_eq!(cstru!(data1901n), CStr::from_ptr(sc_strerror(SC_ERROR_PKCS15_APP_NOT_FOUND)));
         }
     }
 }

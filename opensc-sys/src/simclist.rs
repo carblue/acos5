@@ -76,7 +76,7 @@ typedef INT64   int64_t;
 #endif
 */
 
-use std::os::raw::{c_uint, c_int, c_void};
+use std::os::raw::c_void;
 
 
 /**
@@ -110,7 +110,7 @@ typedef struct {
  * It is responsibility of the function to handle possible NULL values.
  */
 #[allow(non_camel_case_types)]
-pub type element_comparator = Option< unsafe extern "C" fn (a: *const c_void, b: *const c_void) -> c_int >;
+pub type element_comparator = Option< unsafe extern "C" fn (a: *const c_void, b: *const c_void) -> i32 >;
 
 /**
  * a seeker of elements.
@@ -124,7 +124,7 @@ pub type element_comparator = Option< unsafe extern "C" fn (a: *const c_void, b:
  * argument.
  */
 #[allow(non_camel_case_types)]
-pub type element_seeker = Option< unsafe extern "C" fn (el: *const c_void, indicator: *const c_void) -> c_int >;
+pub type element_seeker = Option< unsafe extern "C" fn (el: *const c_void, indicator: *const c_void) -> i32 >;
 
 /**
  * an element length meter.
@@ -213,7 +213,7 @@ pub struct list_attributes_s {
     pub seeker       : element_seeker,
     /* user-set routine for determining the length of an element */
     pub meter        : element_meter,
-    pub copy_data    : c_int,
+    pub copy_data    : i32,
     /* user-set routine for computing the hash of an element */
     pub hasher       : element_hash_computer,
     /* user-set routine for serializing an element */
@@ -230,11 +230,11 @@ pub struct list_t {
     pub tail_sentinel : *mut list_entry_s,
     pub mid :           *mut list_entry_s,
 
-    pub numels : c_uint,
+    pub numels : u32,
 
     /* array of spare elements */
     pub spareels : *mut *mut list_entry_s,
-    pub spareelsnum : c_uint,
+    pub spareelsnum : u32,
 /*
 #ifdef SIMCLIST_WITH_THREADS
     /* how many threads are currently running */
@@ -243,8 +243,8 @@ pub struct list_t {
 */
 
     /* service variables for list iteration */
-    pub iter_active : c_int,
-    pub iter_pos : c_uint,
+    pub iter_active : i32,
+    pub iter_pos : u32,
     pub iter_curentry : *mut list_entry_s,
 
     /* list attributes */

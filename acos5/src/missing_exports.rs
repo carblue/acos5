@@ -35,8 +35,8 @@ see file src/libopensc/libopensc.exports
 */
 
 use libc::{realloc};
-//use std::ffi::CStr;
-use std::os::raw::{c_int, c_uint, c_void};
+
+use std::convert::TryFrom;
 
 use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, SC_CARD_CAP_APDU_EXT,
                          SC_READER_SHORT_APDU_MAX_RECV_SIZE, //SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_PROTO_T0,
@@ -65,13 +65,13 @@ use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, SC_CARD_CAP
 //use opensc_sys::opensc::{SC_ALGORITHM_RAW_MASK, SC_ALGORITHM_RSA_PADS};
 
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL, SC_ERROR_OUT_OF_MEMORY
-//                        ,SC_ERROR_NOT_SUPPORTED, sc_strerror,
+//                        ,SC_ERROR_NOT_SUPPORTED,
 //                         , SC_ERROR_KEYPAD_MSG_TOO_LONG
 };
 
 use opensc_sys::types::{sc_object_id};
 
-//use crate::constants_types::*;
+use crate::constants_types::p_void;
 //use crate::wrappers::*;
 
 
@@ -109,7 +109,7 @@ pub fn me_get_max_send_size(card_ref: &sc_card) -> usize
 
     /* initialize max_send_size to a meaningful value */
     if max_send_size == 0 {
-        max_send_size = if card_ref.caps as c_uint & SC_CARD_CAP_APDU_EXT != 0 &&
+        max_send_size = if (card_ref.caps & SC_CARD_CAP_APDU_EXT) != 0 &&
             card_reader_ref.active_protocol != SC_PROTO_T0 {0x1_0000-1} else {SC_READER_SHORT_APDU_MAX_SEND_SIZE};
     }
 
@@ -121,16 +121,16 @@ pub fn me_get_max_send_size(card_ref: &sc_card) -> usize
 }
 */
 
-fn me_card_add_algorithm(card: &mut sc_card, info_ref: &sc_algorithm_info) -> c_int
+fn me_card_add_algorithm(card: &mut sc_card, info_ref: &sc_algorithm_info) -> i32
 {
-    let mut p_ptr = unsafe { realloc(card.algorithms as *mut c_void, ((card.algorithm_count + 1) as usize) *
+    let mut p_ptr = unsafe { realloc(card.algorithms as p_void, usize::try_from(card.algorithm_count + 1).unwrap() *
         std::mem::size_of::<sc_algorithm_info>()) } as *mut sc_algorithm_info;
 
     if p_ptr.is_null() {
         return SC_ERROR_OUT_OF_MEMORY;
     }
     card.algorithms = p_ptr;
-    unsafe { p_ptr = p_ptr.add(card.algorithm_count as usize) };
+    unsafe { p_ptr = p_ptr.add(usize::try_from(card.algorithm_count).unwrap()) };
     card.algorithm_count += 1;
     let p =  unsafe {&mut *p_ptr};
     *p = *info_ref;
@@ -138,16 +138,16 @@ fn me_card_add_algorithm(card: &mut sc_card, info_ref: &sc_algorithm_info) -> c_
     SC_SUCCESS
 }
 
-pub fn me_card_add_symmetric_alg(card: &mut sc_card, algorithm: c_uint, key_length: c_uint, flags: c_uint) -> c_int
+pub fn me_card_add_symmetric_alg(card: &mut sc_card, algorithm: u32, key_length: u32, flags: u32) -> i32
 { // same as in opensc
     let info = sc_algorithm_info { algorithm, key_length, flags, .. sc_algorithm_info::default() };
     me_card_add_algorithm(card, &info)
 }
 
-pub fn me_card_find_alg(card: &mut sc_card, algorithm: c_uint, key_length: c_uint,
-                        param: Option<*mut c_void>) -> Option<*mut sc_algorithm_info>
+pub fn me_card_find_alg(card: &mut sc_card, algorithm: u32, key_length: u32,
+                        param: Option<p_void>) -> Option<*mut sc_algorithm_info>
 {
-    for info in unsafe { std::slice::from_raw_parts_mut(card.algorithms, card.algorithm_count as usize) } {
+    for info in unsafe { std::slice::from_raw_parts_mut(card.algorithms, usize::try_from(card.algorithm_count).unwrap()) } {
         if info.algorithm != algorithm   { continue; }
         if info.key_length != key_length { continue; }
 
@@ -170,10 +170,10 @@ pub fn me_card_find_alg(card: &mut sc_card, algorithm: c_uint, key_length: c_uin
  * @param  sflags  OUT the security env. algorithm flag to use
  * @return SC_SUCCESS on success and an error code otherwise
  */
-pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: c_uint, caps: c_uint,
-                             pflags: &mut c_uint, sflags: &mut c_uint) -> c_int
+pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: u32, caps: u32,
+                             pflags: &mut u32, sflags: &mut u32) -> i32
 {
-    const DIGEST_INFO_PREFIX: [c_uint; 9] = [
+    const DIGEST_INFO_PREFIX: [u32; 9] = [
         SC_ALGORITHM_RSA_HASH_NONE,
         SC_ALGORITHM_RSA_HASH_MD5,
         SC_ALGORITHM_RSA_HASH_SHA1,
@@ -185,13 +185,9 @@ pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: c_uint, caps: c_uint,
         SC_ALGORITHM_RSA_HASH_MD5_SHA1
     ];
 
-    let file = CStr::from_bytes_with_nul(CRATE).unwrap();
-    let fun  = CStr::from_bytes_with_nul(b"me_get_encoding_flags\0").unwrap();
-    if cfg!(log) {
-        wr_do_log(ctx, file, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
-        wr_do_log_tt(ctx, file, line!(), fun, iflags, caps,
-                     CStr::from_bytes_with_nul(b"iFlags 0x%X, card capabilities 0x%X\0").unwrap());
-    }
+    let f = cstru!(b"me_get_encoding_flags\0");
+    log3ifc!(ctx,f,line!());
+    log3ift!(ctx,f,line!(), cstru!(b"iFlags 0x%X, card capabilities 0x%X\0"), iflags, caps);
 
     #[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
     {
@@ -214,12 +210,10 @@ pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: c_uint, caps: c_uint,
         {
             /* Work with RSA, EC and maybe GOSTR? */
             if (caps & SC_ALGORITHM_RAW_MASK) == 0 {
-                if cfg!(log) { // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "raw encryption is not supported");
-                    unsafe { wr_do_log_sds(ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"raw decipher is not supported\0").unwrap().as_ptr(),
-                                   SC_ERROR_NOT_SUPPORTED, sc_strerror(SC_ERROR_NOT_SUPPORTED),
-                                   CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap() )};
-                }
-                return SC_ERROR_NOT_SUPPORTED;
+                // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "raw encryption is not supported");
+                let rv = SC_ERROR_NOT_SUPPORTED;
+                log3ifr!(ctx,f,line!(), cstru!(b"raw decipher is not supported\0"), rv);
+                return rv;
             }
             *sflags |= caps & SC_ALGORITHM_RAW_MASK; /* adds in the one raw type */
             *pflags = 0;
@@ -234,12 +228,10 @@ pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: c_uint, caps: c_uint,
             }
         }}
         else {
-             if cfg!(log) { // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "unsupported algorithm");
-                unsafe { wr_do_log_sds(ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"unsupported algorithm\0").unwrap().as_ptr(),
-                               SC_ERROR_NOT_SUPPORTED, sc_strerror(SC_ERROR_NOT_SUPPORTED),
-                               CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap() )};
-            }
-            return SC_ERROR_NOT_SUPPORTED;
+             // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "unsupported algorithm");
+            let rv = SC_ERROR_NOT_SUPPORTED;
+            log3ifr!(ctx,f,line!(), cstru!(b"unsupported algorithm\0"), rv);
+            return rv;
         }
     }
 
@@ -296,19 +288,14 @@ pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: c_uint, caps: c_uint,
             else { *pflags = 0; }
         }
         else {
-            if cfg!(log) { // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "unsupported algorithm");
-                unsafe { wr_do_log_sds(ctx, file, line!(), fun, CStr::from_bytes_with_nul(b"unsupported algorithm\0").unwrap().as_ptr(),
-                              SC_ERROR_NOT_SUPPORTED, sc_strerror(SC_ERROR_NOT_SUPPORTED),
-                              CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap() )};
-            }
-            return SC_ERROR_NOT_SUPPORTED;
+            // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "unsupported algorithm");
+            let rv = SC_ERROR_NOT_SUPPORTED;
+            log3ifr!(ctx,f,line!(), cstru!(b"unsupported algorithm\0"), rv);
+            return rv;
         }
     }
-    if cfg!(log) {
-        wr_do_log_tt(ctx, file, line!(), fun,*pflags, *sflags,
-                     CStr::from_bytes_with_nul(b"pad flags 0x%X, secure algorithm flags 0x%X\0").unwrap());
-        wr_do_log_tu(ctx, file, line!(), fun,SC_SUCCESS, unsafe { sc_strerror(SC_SUCCESS) }, CStr::from_bytes_with_nul(RETURNING_INT_CSTR).unwrap());
-    }
+    log3ift!(ctx,f,line!(), cstru!(b"pad flags 0x%X, secure algorithm flags 0x%X\0"), *pflags, *sflags);
+    log3ifr!(ctx,f,line!(), SC_SUCCESS);
     SC_SUCCESS
 } // pub fn me_get_encoding_flags
 */
@@ -362,7 +349,7 @@ PKCS #1: RSA Cryptography Specifications  Version 2.2  https://tools.ietf.org/ht
 ///     NULL
 ///   OCTET STRING (64 byte) 2B16E868F69142C1F72BAE04A5F375343F223FA9A7690B431D5D26169970F3029FD436…
 ///
-pub fn me_pkcs1_strip_01_padding(in_dat: &[u8]) -> Result<&[u8], c_int>
+pub fn me_pkcs1_strip_01_padding(in_dat: &[u8]) -> Result<&[u8], i32>
 {
     let  in_len = in_dat.len();
     let mut len = in_dat.len();
@@ -389,7 +376,7 @@ pub fn me_pkcs1_strip_01_padding(in_dat: &[u8]) -> Result<&[u8], c_int>
 }
 
 /*
-pub fn me_pkcs1_add_01_padding(digest_info: &[u8], outlen: usize) -> Result<Vec<u8>, c_int>
+pub fn me_pkcs1_add_01_padding(digest_info: &[u8], outlen: usize) -> Result<Vec<u8>, i32>
 {
     if 11+digest_info.len() > outlen {
         return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
@@ -410,7 +397,7 @@ pub fn me_pkcs1_add_01_padding(digest_info: &[u8], outlen: usize) -> Result<Vec<
 
 /* remove pkcs1 BT02 padding */
 /* returns length of padding to be removed from vec's crgram_len such that net message/plain text remains */
-pub fn me_pkcs1_strip_02_padding(vec: &mut Vec<u8>) -> c_int //-> Result<Vec<u8>, c_int>
+pub fn me_pkcs1_strip_02_padding(vec: &mut Vec<u8>) -> i32 //-> Result<Vec<u8>, i32>
 {
 //0  1  2  3  4  5  6  7  8  9  10  11
 //00 02 1  2  3  4  5  6  7  8  00          PS_Len==8 is the minimum length of PS
@@ -430,7 +417,7 @@ pub fn me_pkcs1_strip_02_padding(vec: &mut Vec<u8>) -> c_int //-> Result<Vec<u8>
         return SC_ERROR_WRONG_PADDING;
     }
     vec.drain(..pos);
-    pos as c_int
+    i32::try_from(pos).unwrap()
 }
 
 #[cfg(test)]

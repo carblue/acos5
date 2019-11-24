@@ -22,7 +22,7 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-use std::os::raw::{c_char, c_int, c_void};
+use std::os::raw::{c_char, c_void};
 
 pub const SCCONF_BOOLEAN : u32 = 11;
 pub const SCCONF_INTEGER : u32 = 12;
@@ -58,7 +58,7 @@ pub union scconf_item__union {
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct scconf_item {
     pub next  : *mut scconf_item,
-    pub type_ : c_int,
+    pub type_ : i32,
     pub key   : *mut c_char,
     pub value : scconf_item__union,
 }
@@ -87,7 +87,7 @@ pub type _scconf_block = scconf_block; // scconf_block and _scconf_block got swa
 #[derive(Debug, Copy, Clone)]
 pub struct scconf_context {
     pub filename : *mut c_char,
-    pub debug    : c_int,
+    pub debug    : i32,
     pub root     : *mut scconf_block,
     pub errmsg   : *mut c_char,
 }
@@ -108,18 +108,18 @@ extern "C" {
     /* Parse configuration
      * Returns 1 = ok, 0 = error, -1 = error opening config file
      */
-    pub fn scconf_parse(config : *mut scconf_context) -> c_int;
+    pub fn scconf_parse(config : *mut scconf_context) -> i32;
 
     /* Parse a static configuration string
      * Returns 1 = ok, 0 = error
      */
-    pub fn scconf_parse_string(config: *mut scconf_context, string: *const c_char) -> c_int;
+    pub fn scconf_parse_string(config: *mut scconf_context, string: *const c_char) -> i32;
 
     /* Write config to a file
      * If the filename is NULL, use the config->filename
      * Returns 0 = ok, else = errno
      */
-    pub fn scconf_write(config: *mut scconf_context, filename: *const c_char) -> c_int;
+    pub fn scconf_write(config: *mut scconf_context, filename: *const c_char) -> i32;
 
     /* Find a block by the item_name
      * If the block is NULL, the root block is used
@@ -146,12 +146,12 @@ extern "C" {
     /* Return the first value of the option as integer
      * If no option found, return def
      */
-    pub fn scconf_get_int(block: *const scconf_block, option: *const c_char, def: c_int) -> c_int;
+    pub fn scconf_get_int(block: *const scconf_block, option: *const c_char, def: i32) -> i32;
 
     /* Return the first value of the option as boolean
      * If no option found, return def
      */
-    pub fn scconf_get_bool(block: *const scconf_block, option: *const c_char, def: c_int) -> c_int;
+    pub fn scconf_get_bool(block: *const scconf_block, option: *const c_char, def: i32) -> i32;
 
     /* Write value to a block as a string
      */
@@ -159,11 +159,11 @@ extern "C" {
 
     /* Write value to a block as an integer
      */
-    pub fn scconf_put_int( block: *mut scconf_block, option: *const c_char, value: c_int) -> c_int;
+    pub fn scconf_put_int( block: *mut scconf_block, option: *const c_char, value: i32) -> i32;
 
     /* Write value to a block as a boolean
      */
-    pub fn scconf_put_bool(block: *mut scconf_block, option: *const c_char, value: c_int) -> c_int;
+    pub fn scconf_put_bool(block: *mut scconf_block, option: *const c_char, value: i32) -> i32;
 
     /* Add block structure
      * If the block is NULL, the root block is used
@@ -182,7 +182,7 @@ extern "C" {
     /* Add item to block structure
      * If the block is NULL, the root block is used
      */
-    pub fn scconf_item_add(config: *mut scconf_context, block: *mut scconf_block, item: *mut scconf_item, type_: c_int,
+    pub fn scconf_item_add(config: *mut scconf_context, block: *mut scconf_block, item: *mut scconf_item, type_: i32,
                            key: *const c_char, data: *const c_void) -> *mut scconf_item;
 
     /* Copy item structure (recursive)
@@ -207,11 +207,11 @@ extern "C" {
 
     /* Return the length of an list array
      */
-    pub fn scconf_list_array_length(list: *const scconf_list) -> c_int;
+    pub fn scconf_list_array_length(list: *const scconf_list) -> i32;
 
     /* Return the combined length of the strings on all arrays
      */
-    pub fn scconf_list_strings_length(list: *const scconf_list) -> c_int;
+    pub fn scconf_list_strings_length(list: *const scconf_list) -> i32;
 
     /* Return an allocated string that contains all
      * the strings in a list separated by the filler

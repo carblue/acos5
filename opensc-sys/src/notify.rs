@@ -20,6 +20,7 @@
  */
 
 use std::os::raw::c_char;
+
 use crate::types::sc_atr;
 use crate::opensc::sc_context;
 use crate::strings::ui_str;

@@ -19,7 +19,7 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-use std::os::raw::{c_char, c_uchar, c_int, c_uint, c_void};
+use std::os::raw::{c_char, c_void};
 use crate::opensc::{sc_card, sc_app_info};
 use crate::types::{sc_path, sc_file};
 use crate::scconf::{scconf_list};
@@ -37,10 +37,10 @@ use crate::pkcs15_init::{sc_pkcs15init_operations};
 #[derive(Debug, Copy, Clone)]
 pub struct auth_info {
     pub next : *mut auth_info,
-    pub type_ : c_uint,        /* CHV, AUT, PRO */
-    pub ref_ : c_uint,
+    pub type_ : u32,        /* CHV, AUT, PRO */
+    pub ref_ : u32,
     pub key_len : usize,
-    pub key : [c_uchar; 32],
+    pub key : [u8; 32],
 }
 
 #[repr(C)]
@@ -49,13 +49,13 @@ pub struct file_info {
     pub ident : *mut c_char,
     pub next : *mut file_info,
     pub file : *mut sc_file,
-    pub dont_free : c_uint,
+    pub dont_free : u32,
     pub parent : *mut file_info,
 
     /* Template support */
     pub instance : *mut file_info,
     pub base_template : *mut sc_profile,
-    pub inst_index : c_uint,
+    pub inst_index : u32,
     pub inst_path : sc_path,
 
     /* Profile extension dependent on the application ID (sub-profile).
@@ -70,10 +70,10 @@ pub struct file_info {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct pin_info {
-    pub id : c_int,
+    pub id : i32,
     pub next : *mut pin_info,
     pub file_name : *mut c_char, /* obsolete */
-    pub file_offset : c_uint, /* obsolete */
+    pub file_offset : u32, /* obsolete */
     pub file : *mut file_info, /* obsolete */
 
     pub pin : sc_pkcs15_auth_info,
@@ -118,9 +118,9 @@ pub const SC_PKCS15INIT_MAX_OPTIONS : usize = 16;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_profile__bindgen_ty_1 {
-    pub direct_certificates : c_uint,
-    pub encode_df_length : c_uint,
-    pub do_last_update : c_uint,
+    pub direct_certificates : u32,
+    pub encode_df_length : u32,
+    pub do_last_update : u32,
 }
 
 #[repr(C)]
@@ -144,15 +144,15 @@ pub struct sc_profile {
     pub template_list : *mut sc_template,
     pub macro_list : *mut sc_macro,
 
-    pub pin_domains : c_uint,
-    pub pin_maxlen : c_uint,
-    pub pin_minlen : c_uint,
-    pub pin_pad_char : c_uint,
-    pub pin_encoding : c_uint,
-    pub pin_attempts : c_uint,
-    pub puk_attempts : c_uint,
-    pub rsa_access_flags : c_uint,
-    pub dsa_access_flags : c_uint,
+    pub pin_domains : u32,
+    pub pin_maxlen : u32,
+    pub pin_minlen : u32,
+    pub pin_pad_char : u32,
+    pub pin_encoding : u32,
+    pub pin_attempts : u32,
+    pub puk_attempts : u32,
+    pub rsa_access_flags : u32,
+    pub dsa_access_flags : u32,
 
     pub pkcs15 : sc_profile__bindgen_ty_1,
 
@@ -162,34 +162,34 @@ pub struct sc_profile {
     /* flag to indicate whether the TokenInfo::lastUpdate field
      * needs to be updated (in other words: if the card content
      * has been changed) */
-    pub dirty : c_int,
+    pub dirty : i32,
 
     /* PKCS15 object ID style */
-    pub id_style : c_uint,
+    pub id_style : u32,
 
     /* Minidriver support style */
-    pub md_style : c_uint,
+    pub md_style : u32,
 }
 
 extern "C" {
     fn sc_profile_new() -> *mut sc_profile;
-    fn sc_profile_load(arg1: *mut sc_profile, arg2: *const c_char) -> c_int;
-    fn sc_profile_finish(arg1: *mut sc_profile, arg2: *const sc_app_info) -> c_int;
+    fn sc_profile_load(arg1: *mut sc_profile, arg2: *const c_char) -> i32;
+    fn sc_profile_finish(arg1: *mut sc_profile, arg2: *const sc_app_info) -> i32;
     fn sc_profile_free(arg1: *mut sc_profile);
-    fn sc_profile_build_pkcs15(arg1: *mut sc_profile) -> c_int;
-    fn sc_profile_get_pin_info(arg1: *mut sc_profile, arg2: c_int, arg3: *mut sc_pkcs15_auth_info);
-    fn sc_profile_get_pin_id(arg1: *mut sc_profile, arg2: c_uint, arg3: *mut c_int) -> c_int;
-    fn sc_profile_get_file(arg1: *mut sc_profile, arg2: *const c_char, arg3: *mut *mut sc_file) -> c_int;
-    fn sc_profile_get_file_by_path(arg1 : *mut sc_profile, arg2: *const sc_path, arg3: *mut *mut sc_file) -> c_int;
-    fn sc_profile_get_path(arg1: *mut sc_profile, arg2: *const c_char, arg3: *mut sc_path) -> c_int;
+    fn sc_profile_build_pkcs15(arg1: *mut sc_profile) -> i32;
+    fn sc_profile_get_pin_info(arg1: *mut sc_profile, arg2: i32, arg3: *mut sc_pkcs15_auth_info);
+    fn sc_profile_get_pin_id(arg1: *mut sc_profile, arg2: u32, arg3: *mut i32) -> i32;
+    fn sc_profile_get_file(arg1: *mut sc_profile, arg2: *const c_char, arg3: *mut *mut sc_file) -> i32;
+    fn sc_profile_get_file_by_path(arg1 : *mut sc_profile, arg2: *const sc_path, arg3: *mut *mut sc_file) -> i32;
+    fn sc_profile_get_path(arg1: *mut sc_profile, arg2: *const c_char, arg3: *mut sc_path) -> i32;
     fn sc_profile_get_file_in(arg1 : *mut sc_profile, arg2: *const sc_path, arg3: *const c_char, arg4: *mut *mut sc_file)
-        -> c_int;
+        -> i32;
     fn sc_profile_instantiate_template(arg1: *mut sc_profile, arg2: *const c_char, arg3: *const sc_path,
-        arg4: *const c_char, arg5: *const sc_pkcs15_id, arg6: *mut *mut sc_file) -> c_int;
-    fn sc_profile_add_file(arg1: *mut sc_profile, arg2: *const c_char, arg3: *mut sc_file) -> c_int;
-    fn sc_profile_get_file_instance(arg1: *mut sc_profile, arg2: *const c_char, arg3: c_int, arg4: *mut *mut sc_file)
-        -> c_int;
-    fn sc_profile_get_pin_id_by_reference(arg1: *mut sc_profile, arg2: c_uint, arg3: c_int,
-        arg4: *mut sc_pkcs15_auth_info) -> c_int;
-    fn sc_profile_get_parent(profile: *mut sc_profile, arg1: *const c_char, arg2: *mut *mut sc_file) -> c_int;
+        arg4: *const c_char, arg5: *const sc_pkcs15_id, arg6: *mut *mut sc_file) -> i32;
+    fn sc_profile_add_file(arg1: *mut sc_profile, arg2: *const c_char, arg3: *mut sc_file) -> i32;
+    fn sc_profile_get_file_instance(arg1: *mut sc_profile, arg2: *const c_char, arg3: i32, arg4: *mut *mut sc_file)
+        -> i32;
+    fn sc_profile_get_pin_id_by_reference(arg1: *mut sc_profile, arg2: u32, arg3: i32,
+        arg4: *mut sc_pkcs15_auth_info) -> i32;
+    fn sc_profile_get_parent(profile: *mut sc_profile, arg1: *const c_char, arg2: *mut *mut sc_file) -> i32;
 }

@@ -18,7 +18,7 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-use std::os::raw::{c_uchar, c_int, c_uint, c_char, c_ulong, c_ushort};
+use std::os::raw::{c_char, c_ulong, c_void};
 use std::collections::HashMap;
 
 use opensc_sys::opensc::{sc_security_env};
@@ -26,6 +26,11 @@ use opensc_sys::types::{sc_crt, sc_object_id, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZ
 use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUSTED,
                          SC_PKCS15_SKDF, SC_PKCS15_CDF, SC_PKCS15_CDF_TRUSTED, SC_PKCS15_CDF_USEFUL,
                          SC_PKCS15_DODF, SC_PKCS15_AODF};
+
+
+#[allow(non_camel_case_types)]
+pub type p_void = *mut c_void;
+
 /*
 Limits:
 
@@ -40,7 +45,7 @@ V3:
 V4: 4096, 65535
 
 CHV:
-V2: max. 21 bytes (5+2*8), Pin ids from 1-?; max 31 global pins + 31 local pins
+V2: max. 21 bytes (5+2*8), Pin ids from 1-31; max 31 global pins + 31 local pins
 V3:
 V4: max. 45 bytes (5+2*20), Pin ids from 1-30
 
@@ -56,6 +61,7 @@ V3:
 V4: min 12/20, Key ids from 1-30
 
 */
+
 // see also useful declarations in libopensc/iasecc.h:
 pub const ACOS5_OBJECT_REF_LOCAL  : u8 = 0x80;
 pub const ACOS5_OBJECT_REF_GLOBAL : u8 = 0x00;
@@ -64,6 +70,7 @@ pub const ACOS5_OBJECT_REF_MIN    : u8 = 0x01;
 pub const ACOS5_OBJECT_REF_MAX    : u8 = 0x1F;
 
 // for an internal driver these 3 will move to cards.h
+pub const SC_CARD_TYPE_ACOS5_BASE   : i32 = 16001;
 pub const SC_CARD_TYPE_ACOS5_64_V2  : i32 = 16003;
 pub const SC_CARD_TYPE_ACOS5_64_V3  : i32 = 16004;
 pub const SC_CARD_TYPE_ACOS5_EVO_V4 : i32 = 16005;
@@ -82,8 +89,10 @@ pub const CARD_DRV_SHORT_NAME : &[u8;  15] =  b"acos5_external\0";
 pub const CRATE               : &[u8;   6] = b"acos5\0"; // search acos5 mention in debug log file; each function should at least log CALLED, except small helpers or code that is clearly covered by only one possible surrounding function's called
 pub const CALLED              : &[u8;   7] = b"called\0";
 pub const RETURNING           : &[u8;  10] = b"returning\0";
-pub const RETURNING_INT_CSTR  : &[u8;  25] = b"returning with: %d (%s)\n\0";
 pub const RETURNING_INT       : &[u8;  20] = b"returning with: %d\n\0";
+pub const RETURNING_INT_CSTR  : &[u8;  25] = b"returning with: %d (%s)\n\0";
+pub const CSTR_INT_CSTR       : &[u8;  13] =             b"%s: %d (%s)\n\0";
+
 /*
 pub const CARD_DRIVER         : &[u8;  12] = b"card_driver\0";
 pub const MODULE              : &[u8;   7] = b"module\0";
@@ -188,28 +197,28 @@ pub const BLOCKCIPHER_PAD_TYPE_ANSIX9_23          : u8 =  4; // If N padding byt
 // BLOCKCIPHER_PAD_TYPE_W3C is not recommended
 //b const BLOCKCIPHER_PAD_TYPE_W3C                : u8 =  5; // If N padding bytes are required (1 < N ≤ B Blocksize) set the last byte as N and all the preceding N-1 padding bytes as arbitrary byte values.
 
-//pub const SC_SEC_ENV_PARAM_DES_ECB           : c_uint = 3;
-//pub const SC_SEC_ENV_PARAM_DES_CBC           : c_uint = 4;
+//pub const SC_SEC_ENV_PARAM_DES_ECB           : u32 = 3;
+//pub const SC_SEC_ENV_PARAM_DES_CBC           : u32 = 4;
 
 /* see opensc-sys: opensc.rs
-pub const SC_SEC_OPERATION_DECIPHER     : c_int = 0x0001;
-pub const SC_SEC_OPERATION_SIGN         : c_int = 0x0002;
-pub const SC_SEC_OPERATION_AUTHENTICATE : c_int = 0x0003;
-pub const SC_SEC_OPERATION_DERIVE       : c_int = 0x0004;
+pub const SC_SEC_OPERATION_DECIPHER     : i32 = 0x0001;
+pub const SC_SEC_OPERATION_SIGN         : i32 = 0x0002;
+pub const SC_SEC_OPERATION_AUTHENTICATE : i32 = 0x0003;
+pub const SC_SEC_OPERATION_DERIVE       : i32 = 0x0004;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_SEC_OPERATION_WRAP         : c_int = 0x0005;
+pub const SC_SEC_OPERATION_WRAP         : i32 = 0x0005;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_SEC_OPERATION_UNWRAP       : c_int = 0x0006;
+pub const SC_SEC_OPERATION_UNWRAP       : i32 = 0x0006;
 */
-////pub const SC_SEC_OPERATION_ENCIPHER : c_int = 0x0007;
-pub const SC_SEC_OPERATION_GENERATE_RSAPRIVATE : c_int = 0x0008; // sc_set_security_env must know this related to file id
-pub const SC_SEC_OPERATION_GENERATE_RSAPUBLIC  : c_int = 0x0009; // sc_set_security_env must know this related to file id
+////pub const SC_SEC_OPERATION_ENCIPHER : i32 = 0x0007;
+pub const SC_SEC_OPERATION_GENERATE_RSAPRIVATE : i32 = 0x0008; // sc_set_security_env must know this related to file id
+pub const SC_SEC_OPERATION_GENERATE_RSAPUBLIC  : i32 = 0x0009; // sc_set_security_env must know this related to file id
 
-pub const SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC  : c_int = 0x000A; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
-pub const SC_SEC_OPERATION_DECIPHER_RSAPRIVATE : c_int = 0x000B; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
+pub const SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC  : i32 = 0x000A; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
+pub const SC_SEC_OPERATION_DECIPHER_RSAPRIVATE : i32 = 0x000B; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
 
-pub const SC_SEC_OPERATION_ENCIPHER_SYMMETRIC  : c_int = 0x000C; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
-pub const SC_SEC_OPERATION_DECIPHER_SYMMETRIC  : c_int = 0x000D; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
+pub const SC_SEC_OPERATION_ENCIPHER_SYMMETRIC  : i32 = 0x000C; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
+pub const SC_SEC_OPERATION_DECIPHER_SYMMETRIC  : i32 = 0x000D; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
 
 /*
 /*
@@ -233,13 +242,13 @@ pub const SC_CARDCTL_PKCS11_INIT_PIN         : c_ulong =  0x0000_0009;
 */
 pub const SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF : c_ulong =  0x0000_0011; // data: *mut u16,  get_count_files_curr_df
 pub const SC_CARDCTL_ACOS5_GET_FILE_INFO           : c_ulong =  0x0000_0012; // data: *mut CardCtlArray8,  get_file_info
-pub const SC_CARDCTL_ACOS5_GET_FREE_SPACE          : c_ulong =  0x0000_0014; // data: *mut c_uint,  get_free_space
+pub const SC_CARDCTL_ACOS5_GET_FREE_SPACE          : c_ulong =  0x0000_0014; // data: *mut u32,  get_free_space
 pub const SC_CARDCTL_ACOS5_GET_IDENT_SELF          : c_ulong =  0x0000_0015; // data: *mut bool,  get_ident_self
 pub const SC_CARDCTL_ACOS5_GET_COS_VERSION         : c_ulong =  0x0000_0016; // data: *mut CardCtlArray8,  get_cos_version
 /* available only since ACOS5-64 V3: */
-pub const SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE: c_ulong =  0x0000_0017; // data: *mut c_uint,  get_manufacture_date
+pub const SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE: c_ulong =  0x0000_0017; // data: *mut u32,  get_manufacture_date
 pub const SC_CARDCTL_ACOS5_GET_ROM_SHA1            : c_ulong =  0x0000_0018; // data: *mut CardCtlArray20,  get_rom_sha1
-pub const SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE        : c_ulong =  0x0000_0019; // data: *mut c_uchar,  get_op_mode_byte
+pub const SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE        : c_ulong =  0x0000_0019; // data: *mut u8,  get_op_mode_byte
 pub const SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE     : c_ulong =  0x0000_001A; // data: *mut bool,  get_fips_compliance
 pub const SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE      : c_ulong =  0x0000_001B; // data: *mut CardCtlAuthState,  get_pin_auth_state
 pub const SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE      : c_ulong =  0x0000_001C; // data: *mut CardCtlAuthState,  get_key_auth_state
@@ -270,7 +279,7 @@ pub const SC_CARDCTL_ACOS5_DECRYPT_SYM             : c_ulong =  0x0000_0029; // 
 pub struct acos5_ec_curve {
     pub curve_name : *const c_char,
     pub curve_oid  : sc_object_id,
-    pub size       : c_uint,
+    pub size       : u32,
 }
 
 /* more related to acos5_pkcs15 */
@@ -282,22 +291,22 @@ pub struct acos5_ec_curve {
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct CardCtlArray8 {
-    pub reference  : c_uchar,      // IN  indexing begins with 0, used for SC_CARDCTL_GET_FILE_INFO
-    pub value      : [c_uchar; 8], // OUT
+    pub reference  : u8,      // IN  indexing begins with 0, used for SC_CARDCTL_GET_FILE_INFO
+    pub value      : [u8; 8], // OUT
 }
 
 // struct for SC_CARDCTL_GET_ROM_SHA1
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct CardCtlArray20 {
-    pub value      : [c_uchar; 20], // OUT
+    pub value      : [u8; 20], // OUT
 }
 
 // struct for SC_CARDCTL_GET_PIN_AUTH_STATE and SC_CARDCTL_GET_KEY_AUTH_STATE
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct CardCtlAuthState {
-    pub reference  : c_uchar, // IN  pin/key reference, | 0x80 for local
+    pub reference  : u8, // IN  pin/key reference, | 0x80 for local
     pub value      : bool,    // OUT
 }
 
@@ -306,7 +315,7 @@ pub struct CardCtlAuthState {
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct CardCtlArray32 {
     pub key    : u16,           // IN   file_id
-    pub value  : [c_uchar; 32], // OUT  in the order as acos5_gui defines // alias  TreeTypeFS = Tree_k_ary!ub32;
+    pub value  : [u8; 32], // OUT  in the order as acos5_gui defines // alias  TreeTypeFS = Tree_k_ary!ub32;
 }
 
 // struct for SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST and SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE, SC_CARDCTL_ACOS5_ENCRYPT_ASYM// data: *mut CardCtl_generate_crypt_asym, do_generate_asym, do_crypt_asym
@@ -314,13 +323,13 @@ pub struct CardCtlArray32 {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct CardCtl_generate_crypt_asym {
-    pub rsa_pub_exponent : [c_uchar; 16], // public exponent
-    pub data : [c_uchar; RSA_MAX_LEN_MODULUS],   // INOUT for crypt_asym (performs cos5  'RSA Public Key Encrypt')
+    pub rsa_pub_exponent : [u8; 16], // public exponent
+    pub data : [u8; RSA_MAX_LEN_MODULUS],   // INOUT for crypt_asym (performs cos5  'RSA Public Key Encrypt')
     pub data_len : usize,        // len bytes used within in_data
     pub file_id_priv : u16,       // IN  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5_external.profile,
     pub file_id_pub  : u16,       // IN  if both are !=0, then the given values are preferred
-    pub key_len_code : c_uchar,   // cos5 specific encoding for modulus length: key_len_code*128==modulus length canonical in bits (canonical means neglecting that possibly some MSB are not set to 1)
-    pub key_priv_type_code : c_uchar,  // as required by cos5 Generate RSA Key Pair: allowed key-usage and standard/CRT format qualification
+    pub key_len_code : u8,   // cos5 specific encoding for modulus length: key_len_code*128==modulus length canonical in bits (canonical means neglecting that possibly some MSB are not set to 1)
+    pub key_priv_type_code : u8,  // as required by cos5 Generate RSA Key Pair: allowed key-usage and standard/CRT format qualification
 
     pub do_generate_rsa_crt : bool,         // whether RSA private key file shall be generated in ChineseRemainderTheorem-style
     pub do_generate_rsa_add_decrypt_for_sign : bool, // whether RSA private key file shall be generated adding decrypt capability iff sign is requested
@@ -359,7 +368,7 @@ impl Default for CardCtl_generate_crypt_asym {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct CardCtl_generate_inject_asym {
-    pub rsa_pub_exponent : [c_uchar; 16], // IN public exponent
+    pub rsa_pub_exponent : [u8; 16], // IN public exponent
     pub file_id_priv : u16,       // OUT  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5_external.profile,
     pub file_id_pub  : u16,       // OUT  if both are !=0, then the given values are preferred
     pub do_generate_rsa_crt : bool,         // IN whether RSA private key file shall be generated in ChineseRemainderTheorem-style
@@ -387,21 +396,21 @@ impl Default for CardCtl_generate_inject_asym {
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct CardCtl_crypt_sym {
     /* input is from : infile xor indata, i.e. assert!(logical_xor(indata_len > 0, !infile.is_null() )); */
-    pub infile       : *const c_char, //  path/to/file where the indata may be read from, interpreted as an [c_uchar]; if!= null has preference over indata
-    pub indata       : [c_uchar; RSA_MAX_LEN_MODULUS+16],
+    pub infile       : *const c_char, //  path/to/file where the indata may be read from, interpreted as an [u8]; if!= null has preference over indata
+    pub indata       : [u8; RSA_MAX_LEN_MODULUS+16],
     pub indata_len   : usize,
-    pub outfile      : *const c_char, //  path/to/file where the outdata may be written to, interpreted as an [c_uchar]; if!= null has preference over outdata
-    pub outdata      : [c_uchar; RSA_MAX_LEN_MODULUS+32],
+    pub outfile      : *const c_char, //  path/to/file where the outdata may be written to, interpreted as an [u8]; if!= null has preference over outdata
+    pub outdata      : [u8; RSA_MAX_LEN_MODULUS+32],
     pub outdata_len  : usize,
     /* until OpenSC v0.20.0  iv is [0u8; 16], then use sc_sec_env_param and SC_SEC_ENV_PARAM_IV */
-    pub iv           : [c_uchar; 16],
+    pub iv           : [u8; 16],
     pub iv_len       : usize, // 0==unused or equal to block_size, i.e. 16 for AES, else 8
 
-//  pub key_id       : c_uchar, // how the key is known by OpenSC in SKDF: id
-    pub key_ref      : c_uchar, // how the key is known by cos5: e.g. internal local key with id 3 has key_ref: 0x83
-    pub block_size   : c_uchar, // 16: AES; 8: 3DES or DES
-    pub key_len      : c_uchar, // in bytes
-    pub pad_type     : c_uchar, // BLOCKCIPHER_PAD_TYPE_*
+//  pub key_id       : u8, // how the key is known by OpenSC in SKDF: id
+    pub key_ref      : u8, // how the key is known by cos5: e.g. internal local key with id 3 has key_ref: 0x83
+    pub block_size   : u8, // 16: AES; 8: 3DES or DES
+    pub key_len      : u8, // in bytes
+    pub pad_type     : u8, // BLOCKCIPHER_PAD_TYPE_*
 //    pub use_sess_key : bool, // if true, the session key will be used and key_ref ignored
     pub local        : bool, // whether local or global key to use; used to select MF or appDF where the key file resides
     pub cbc          : bool, // true: CBC Mode, false: ECB
@@ -434,11 +443,11 @@ impl Default for CardCtl_crypt_sym {
 }
 
 /////////////////////////////////////////////////////////////////////////////////
-/* Stores 1 record of SecurityEnvironment File, intended to be placed in a Vec */
+/* Stores 1 record of Security Environment File, intended to be placed in a Vec, stored with the DF */
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct SACinfo /*SeInfo*/ {
-    pub reference  : c_uint, // the SE file's record no == stored id in record
+    pub reference  : u32, // the SE file's record no == stored id/ SE id in record
     pub crts_len   : usize,                       /* what is used actually in crts */
     pub crts       : [sc_crt; SC_MAX_CRTS_IN_SE], // align(8) // SC_MAX_CRTS_IN_SE==12
 }
@@ -462,25 +471,28 @@ enum SCDO_TAG : ubyte { // Security Condition Data Object (SCDO) tags
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct SCDO { // for SCDO_TAGs Always_Deny ..AuthT every scdo content is in scdo[0] and tag==tag_sub ; for SCDO_TAG.All and SCDO_TAG.Any, tag!=tag_sub
-    pub tag_sub : c_uchar, // tells, which of the following fields is relevant
-    pub scb     : c_int,   // reference_and_SM indication;
+    pub tag_sub : u8, // tells, which of the following fields is relevant
+    pub scb     : i32,   // reference_and_SM indication;
     pub crt     : sc_crt,  // for SCDO_TAG.AuthT
 }
 */
+
+/* Stores SAE information for an instruction from <AMDO><SCDO> simple-TLV, intended to be placed in a Vec, stored with the DF
+   TODO SCDO Tags 0xA0 and 0xAF are not yet covered */
 #[allow(non_snake_case)]
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct SAEinfo {
-    pub tag_AMDO : c_uchar,    // AMDO TAG: 0x80 < tag_AMDO < 0x90
-    pub cla : c_uchar,
-    pub ins : c_uchar,
-    pub p1  : c_uchar,
-    pub p2  : c_uchar,
+    pub tag_AMDO : u8,    // AMDO TAG: 0x80 < tag_AMDO < 0x90
+    pub cla      : u8,
+    pub ins      : u8,
+    pub p1       : u8,
+    pub p2       : u8,
 
-    pub tag_SCDO : c_uchar,    // SCDO TAG: 0x90 <= tag_SCDO <= 0xAF  ; the 'leading' tag of a <AMDO><SCDO_oneAtLeast><SCDO_opt><SCDO_opt> group, that of <SCDO_oneAtLeast>
-    pub scb : c_uchar,
+    pub tag_SCDO : u8,    // SCDO TAG: 0x90 <= tag_SCDO <= 0xAF  ; the 'leading' tag of a <AMDO><SCDO_oneAtLeast><SCDO_opt><SCDO_opt> group, that of <SCDO_oneAtLeast>
+    pub scb      : u8,
 //    pub scdo : [SCDO; 3], // CONVENTION : max 3 conditions for SCDO_TAG.Any or SCDO_TAG.All
-//    pub scdo_len : c_int,
+//    pub scdo_len : i32,
 }
 
 pub type KeyTypeFiles   = u16;
@@ -498,11 +510,12 @@ pub struct DataPrivate { // see settings in acos5_init
     pub sec_env : sc_security_env, // remember the input of last call to acos5_64_set_security_env; especially algorithm_flags will be required in compute_signature
     pub agc : CardCtl_generate_crypt_asym,  // asym_generate_crypt_data
     pub agi : CardCtl_generate_inject_asym, // asym_generate_inject_data
-//  pub sec_env_algo_flags : c_uint, // remember the padding scheme etc. selected for RSA; required in acos5_64_set_security_env
+//  pub sec_env_algo_flags : u32, // remember the padding scheme etc. selected for RSA; required in acos5_64_set_security_env
     pub time_stamp : std::time::Instant,
-    pub sec_env_mod_len : c_ushort, //c_uint,
-    pub rfu_align_pad1  : c_ushort,
-    pub rsa_caps : c_uint, // remember how the rsa_algo_flags where set for _sc_card_add_rsa_alg
+    pub sm_cmd : u32,
+    pub sec_env_mod_len : u16, //u32,
+    pub rfu_align_pad1  : u16,
+    pub rsa_caps : u32, // remember how the rsa_algo_flags where set for _sc_card_add_rsa_alg
     pub does_mf_exist : bool,
     pub is_fips_mode : bool, // the Operation Mode Byte (for V3 or V4) is set to FIPS, opposed to 64K or any other mode: Special restrictions may apply
     pub is_fips_compliant : bool, // if is_fips_mode==true and also get_fips_compliance reports true, then this is true, else false (e.g. always for V2)
@@ -527,7 +540,7 @@ pub struct DataPrivate { // see settings in acos5_init
 /*  returns true, if given a fdb parameter that represents type MF or DF, which are directories,
     returns false for any other fdb, which are 'real' files */
 #[allow(non_snake_case)]
-pub fn is_DFMF(fdb: c_uchar) -> bool
+pub fn is_DFMF(fdb: u8) -> bool
 {
     (fdb & FDB_DF) == FDB_DF
 }
@@ -538,8 +551,6 @@ pub fn is_DFMF(fdb: c_uchar) -> bool
 
 #[cfg(enable_acos5_ui)]
 use libc::{free};
-#[cfg(enable_acos5_ui)]
-use std::os::raw::{c_void};
 #[cfg(enable_acos5_ui)]
 use std::ffi::{CStr};
 #[cfg(enable_acos5_ui)]
@@ -555,7 +566,7 @@ use opensc_sys::scconf::{scconf_find_blocks, scconf_get_bool/*, scconf_get_str*/
 #[derive(Debug, Copy, Clone)]
 pub struct ui_context {
     //    pub user_consent_app : *const c_char,
-    pub user_consent_enabled : c_int,
+    pub user_consent_enabled : i32,
 }
 
 
@@ -575,7 +586,7 @@ pub fn get_ui_ctx(card: &mut sc_card) -> ui_context
 {
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let ui_ctx = dp.ui_ctx;
-    card.drv_data = Box::into_raw(dp) as *mut c_void;
+    card.drv_data = Box::into_raw(dp) as p_void;
     ui_ctx
 }
 
@@ -585,11 +596,11 @@ pub fn get_ui_ctx(card: &mut sc_card) -> ui_context
 pub enum Ihandle {}
 #[cfg(enable_acos5_ui)]
 extern {
-    pub fn IupOpen(argc: *const c_int, argv: *const *const *const c_char) -> c_int;
+    pub fn IupOpen(argc: *const i32, argv: *const *const *const c_char) -> i32;
     pub fn IupClose();
     pub fn IupMessageDlg() -> *mut Ihandle; // https://webserver2.tecgraf.puc-rio.br/iup/en/dlg/iupmessagedlg.html
     pub fn IupDestroy(ih: *mut Ihandle);
-    pub fn IupPopup(ih: *mut Ihandle, x: c_int, y: c_int) -> c_int;
+    pub fn IupPopup(ih: *mut Ihandle, x: i32, y: i32) -> i32;
     //    pub fn IupSetAttributes(ih: *mut Ihandle, str: *const c_char) -> *mut Ihandle;
     pub fn IupSetAttribute(ih: *mut Ihandle, name: *const c_char, value: *const c_char);
     pub fn IupGetAttribute(ih: *mut Ihandle, name: *const c_char) -> *mut c_char;
@@ -597,13 +608,13 @@ extern {
 
 /* called once only from acos5_init */
 #[cfg(enable_acos5_ui)]
-pub fn set_ui_ctx(card: &mut sc_card, ui_ctx: &mut ui_context) -> c_int
+pub fn set_ui_ctx(card: &mut sc_card, ui_ctx: &mut ui_context) -> i32
 {
     if card.ctx.is_null() {
         return SC_ERROR_KEYPAD_MSG_TOO_LONG;
     }
     /* set default values */
-//    ui_ctx.user_consent_app = CStr::from_bytes_with_nul(USER_CONSENT_CMD_NIX).unwrap().as_ptr();
+//    ui_ctx.user_consent_app = cstru!(USER_CONSENT_CMD_NIX).as_ptr();
     ui_ctx.user_consent_enabled = 1;
 
     /* look for sc block in opensc.conf */
@@ -612,18 +623,18 @@ pub fn set_ui_ctx(card: &mut sc_card, ui_ctx: &mut ui_context) -> c_int
         if elem.is_null() { break; }
 
         let blocks_ptr = unsafe { scconf_find_blocks(ctx.conf, *elem,
-                                                     CStr::from_bytes_with_nul(b"card_driver\0").unwrap().as_ptr(),
-                                                     CStr::from_bytes_with_nul(CARD_DRV_SHORT_NAME).unwrap().as_ptr()) };
+                                                     cstru!(b"card_driver\0").as_ptr(),
+                                                     cstru!(CARD_DRV_SHORT_NAME).as_ptr()) };
         if blocks_ptr.is_null() { continue; }
         let blk_ptr = unsafe { *blocks_ptr };
 
-        unsafe { free(blocks_ptr as *mut c_void) };
+        unsafe { free(blocks_ptr as p_void) };
         if blk_ptr.is_null() { continue; }
         /* fill private data with configuration parameters */
 //        ui_ctx.user_consent_app =    /* def user consent app is "pinentry" */
-//            /*(char *)*/ unsafe { scconf_get_str(blk_ptr, CStr::from_bytes_with_nul(b"user_consent_app\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(USER_CONSENT_CMD_NIX).unwrap().as_ptr()) };
+//            /*(char *)*/ unsafe { scconf_get_str(blk_ptr, cstru!(b"user_consent_app\0").as_ptr(), cstru!(USER_CONSENT_CMD_NIX).as_ptr()) };
         ui_ctx.user_consent_enabled =    /* user consent is enabled by default */
-            unsafe { scconf_get_bool(blk_ptr, CStr::from_bytes_with_nul(b"user_consent_enabled\0").unwrap().as_ptr(), 1) };
+            unsafe { scconf_get_bool(blk_ptr, cstru!(b"user_consent_enabled\0").as_ptr(), 1) };
     }
     /* possibly read disable_popups; this then may disable as well */
     if ui_ctx.user_consent_enabled == 1 { unsafe { IupOpen(std::ptr::null(), std::ptr::null()) }; }
@@ -642,17 +653,17 @@ pub fn set_ui_ctx(card: &mut sc_card, ui_ctx: &mut ui_context) -> c_int
  * @return SC_SUCCESS on user consent OK , else error code
  */
 #[cfg(enable_acos5_ui)]
-pub fn acos5_ask_user_consent() -> c_int
+pub fn acos5_ask_user_consent() -> i32
 {
     unsafe {
         let dlg_ptr = IupMessageDlg();
         assert!(!dlg_ptr.is_null());
-        IupSetAttribute(dlg_ptr, CStr::from_bytes_with_nul(b"DIALOGTYPE\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"QUESTION\0").unwrap().as_ptr());
-        IupSetAttribute(dlg_ptr, CStr::from_bytes_with_nul(b"TITLE\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"RSA private key usage\0").unwrap().as_ptr());
-        IupSetAttribute(dlg_ptr, CStr::from_bytes_with_nul(b"BUTTONS\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"YESNO\0").unwrap().as_ptr());
-        IupSetAttribute(dlg_ptr, CStr::from_bytes_with_nul(b"VALUE\0").unwrap().as_ptr(), CStr::from_bytes_with_nul(b"Got a request to use an RSA private key (e.g. for a sign operation).\nDo You accept ?\n(Use 'Yes' only if this makes sense at this point)\0").unwrap().as_ptr());
+        IupSetAttribute(dlg_ptr, cstru!(b"DIALOGTYPE\0").as_ptr(), cstru!(b"QUESTION\0").as_ptr());
+        IupSetAttribute(dlg_ptr, cstru!(b"TITLE\0").as_ptr(), cstru!(b"RSA private key usage\0").as_ptr());
+        IupSetAttribute(dlg_ptr, cstru!(b"BUTTONS\0").as_ptr(), cstru!(b"YESNO\0").as_ptr());
+        IupSetAttribute(dlg_ptr, cstru!(b"VALUE\0").as_ptr(), cstru!(b"Got a request to use an RSA private key (e.g. for a sign operation).\nDo You accept ?\n(Use 'Yes' only if this makes sense at this point)\0").as_ptr());
         IupPopup(dlg_ptr, 0xFFFF, 0xFFFF);
-        let b_response_ptr = IupGetAttribute(dlg_ptr, CStr::from_bytes_with_nul(b"BUTTONRESPONSE\0").unwrap().as_ptr()); // BUTTONRESPONSE: Number of the pressed button. Can be "1", "2" or "3". Default: "1".
+        let b_response_ptr = IupGetAttribute(dlg_ptr, cstru!(b"BUTTONRESPONSE\0").as_ptr()); // BUTTONRESPONSE: Number of the pressed button. Can be "1", "2" or "3". Default: "1".
         assert!(!b_response_ptr.is_null());
         let result_ok = *b_response_ptr == 49;
         IupDestroy(dlg_ptr);

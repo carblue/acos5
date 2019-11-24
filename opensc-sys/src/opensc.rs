@@ -40,43 +40,41 @@
 #endif
 */
 
-use std::ffi::{CString};
-use std::os::raw::{c_char, c_uchar, c_int, c_uint, c_ulong, c_void};
+use libc::FILE;
+
+use std::os::raw::{c_char, c_ulong, c_void};
 #[cfg(impl_default)]
 use std::ptr::{null, null_mut};
-
-use libc::FILE;
 
 use crate::types::{sc_apdu, sc_path, sc_file, sc_acl_entry, sc_object_id, sc_lv_data, sc_aid, sc_ddo, sc_atr,
                    sc_serial_number, sc_version, sc_remote_data, sc_uid,
                    SC_MAX_SUPPORTED_ALGORITHMS, SC_MAX_SDO_ACLS, SC_MAX_CARD_APPS, SC_MAX_CARD_DRIVERS};
-
 use crate::scconf::{scconf_context, scconf_block};
-use crate::internal::{sc_atr_table};
-use crate::sm::{sm_context};
-use crate::simclist::{list_t};
+use crate::internal::sc_atr_table;
+use crate::sm::sm_context;
+use crate::simclist::list_t;
 #[cfg(impl_default)]
-use crate::simclist::{list_attributes_s};
+use crate::simclist::list_attributes_s;
 
 /*
    WARNING
    The OpenSC API exhibits a lot of inconsistencies refering to types
-   E.g. SC_SEC_OPERATION_* all have positive values, but the main usage field sc_security_env.operation is typed c_int,
-   that's why that group of constants (all originating from #define) is typed here c_int as well
+   E.g. SC_SEC_OPERATION_* all have positive values, but the main usage field sc_security_env.operation is typed i32,
+   that's why that group of constants (all originating from #define) is typed here i32 as well
 
-   All other pub const (except SC_PIN_STATE_*) are typed either c_uint or usize
+   All other pub const (except SC_PIN_STATE_*) are typed either u32 or usize
    (usize only, if they appear preferrably as array size or preferrably are used as usize)
 
-   flags are often but not always used as c_ulong in functions, but never the value exceeds c_uint.max
+   flags are often but not always used as c_ulong in functions, but never the value exceeds u32.max
 */
-pub const SC_SEC_OPERATION_DECIPHER     : c_int = 0x0001;
-pub const SC_SEC_OPERATION_SIGN         : c_int = 0x0002;
-pub const SC_SEC_OPERATION_AUTHENTICATE : c_int = 0x0003;
-pub const SC_SEC_OPERATION_DERIVE       : c_int = 0x0004;
+pub const SC_SEC_OPERATION_DECIPHER     : i32 = 0x0001;
+pub const SC_SEC_OPERATION_SIGN         : i32 = 0x0002;
+pub const SC_SEC_OPERATION_AUTHENTICATE : i32 = 0x0003;
+pub const SC_SEC_OPERATION_DERIVE       : i32 = 0x0004;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_SEC_OPERATION_WRAP         : c_int = 0x0005;
+pub const SC_SEC_OPERATION_WRAP         : i32 = 0x0005;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_SEC_OPERATION_UNWRAP       : c_int = 0x0006;
+pub const SC_SEC_OPERATION_UNWRAP       : i32 = 0x0006;
 
 /* sc_security_env flags */
 pub const SC_SEC_ENV_ALG_REF_PRESENT         : c_ulong = 0x0001;
@@ -95,45 +93,45 @@ pub const SC_SEC_ENV_TARGET_FILE_REF_PRESENT : c_ulong = 0x0020;  /* unused */
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub const SC_SEC_ENV_MAX_PARAMS              : usize = 10;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_SEC_ENV_PARAM_IV                : c_uint = 1;
+pub const SC_SEC_ENV_PARAM_IV                : u32 = 1;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_SEC_ENV_PARAM_TARGET_FILE       : c_uint = 2;       /* unused */
-//pub const SC_SEC_ENV_PARAM_DES_ECB           : c_uint = 3;
-//pub const SC_SEC_ENV_PARAM_DES_CBC           : c_uint = 4;
+pub const SC_SEC_ENV_PARAM_TARGET_FILE       : u32 = 2;       /* unused */
+//pub const SC_SEC_ENV_PARAM_DES_ECB           : u32 = 3;
+//pub const SC_SEC_ENV_PARAM_DES_CBC           : u32 = 4;
 
 /* PK algorithms */
-pub const SC_ALGORITHM_RSA       : c_uint = 0;
-pub const SC_ALGORITHM_DSA       : c_uint = 1;
-pub const SC_ALGORITHM_EC        : c_uint = 2;
-pub const SC_ALGORITHM_GOSTR3410 : c_uint = 3;
+pub const SC_ALGORITHM_RSA       : u32 = 0;
+pub const SC_ALGORITHM_DSA       : u32 = 1;
+pub const SC_ALGORITHM_EC        : u32 = 2;
+pub const SC_ALGORITHM_GOSTR3410 : u32 = 3;
 
 /* Symmetric algorithms */
-pub const SC_ALGORITHM_DES       : c_uint = 64;
-pub const SC_ALGORITHM_3DES      : c_uint = 65;
-pub const SC_ALGORITHM_GOST      : c_uint = 66;
-pub const SC_ALGORITHM_AES       : c_uint = 67;
+pub const SC_ALGORITHM_DES       : u32 = 64;
+pub const SC_ALGORITHM_3DES      : u32 = 65;
+pub const SC_ALGORITHM_GOST      : u32 = 66;
+pub const SC_ALGORITHM_AES       : u32 = 67;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_ALGORITHM_UNDEFINED : c_uint = 68;    /* used with CKK_GENERIC_SECRET type keys */
+pub const SC_ALGORITHM_UNDEFINED : u32 = 68;    /* used with CKK_GENERIC_SECRET type keys */
 
 /* Hash algorithms */
-pub const SC_ALGORITHM_MD5       : c_uint = 128;
-pub const SC_ALGORITHM_SHA1      : c_uint = 129;
-pub const SC_ALGORITHM_GOSTR3411 : c_uint = 130;
+pub const SC_ALGORITHM_MD5       : u32 = 128;
+pub const SC_ALGORITHM_SHA1      : u32 = 129;
+pub const SC_ALGORITHM_GOSTR3411 : u32 = 130;
 
 /* Key derivation algorithms */
-pub const SC_ALGORITHM_PBKDF2    : c_uint = 192;
+pub const SC_ALGORITHM_PBKDF2    : u32 = 192;
 
 /* Key encryption algorithms */
-pub const SC_ALGORITHM_PBES2     : c_uint = 256;
+pub const SC_ALGORITHM_PBES2     : u32 = 256;
 
 /* Question: Does this refer to RSA only or to any key type ? */
-pub const SC_ALGORITHM_ONBOARD_KEY_GEN : c_uint = 0x8000_0000;
+pub const SC_ALGORITHM_ONBOARD_KEY_GEN : u32 = 0x8000_0000;
 /* need usage = either sign or decrypt. keys with both? decrypt, emulate sign */
-pub const SC_ALGORITHM_NEED_USAGE      : c_uint = 0x4000_0000;
+pub const SC_ALGORITHM_NEED_USAGE      : u32 = 0x4000_0000;
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_SPECIFIC_FLAGS  : c_uint = 0x0001_FFFF;
+pub const SC_ALGORITHM_SPECIFIC_FLAGS  : u32 = 0x0001_FFFF;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_SPECIFIC_FLAGS  : c_uint = 0x001F_FFFF;
+pub const SC_ALGORITHM_SPECIFIC_FLAGS  : u32 = 0x001F_FFFF;
 
 /*look at libopensc/padding.c: sc_get_encoding_flags/sc_pkcs1_encode, how these flags are processed */
 
@@ -146,31 +144,31 @@ pub const SC_ALGORITHM_SPECIFIC_FLAGS  : c_uint = 0x001F_FFFF;
     key_len to compute_signature; out_len often BUT NOT ALWAYS is == RSA_modulus_length bytes as well)\
     TODO find the code locations where in_len!=outlen\
     for versions since 0.20.0, switch to using SC_ALGORITHM_RSA_PAD_NONE for that purpose */
-pub const SC_ALGORITHM_RSA_RAW         : c_uint = 0x0000_0001;
+pub const SC_ALGORITHM_RSA_RAW         : u32 = 0x0000_0001;
 
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_PADS        : c_uint = 0x0000_000E; // it's indistinguishable whether SC_ALGORITHM_RSA_PAD_NONE is included
+pub const SC_ALGORITHM_RSA_PADS        : u32 = 0x0000_000E; // it's indistinguishable whether SC_ALGORITHM_RSA_PAD_NONE is included
 #[cfg(                          v0_19_0)]
-pub const SC_ALGORITHM_RSA_PADS        : c_uint = 0x0000_001E; // it's indistinguishable whether SC_ALGORITHM_RSA_PAD_NONE is included
+pub const SC_ALGORITHM_RSA_PADS        : u32 = 0x0000_001E; // it's indistinguishable whether SC_ALGORITHM_RSA_PAD_NONE is included
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_ALGORITHM_RSA_PADS        : c_uint = 0x0000_001F; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
+pub const SC_ALGORITHM_RSA_PADS        : u32 = 0x0000_001F; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
 
 /** Use SC_ALGORITHM_RSA_PAD_NONE, if card/driver expects an in_len to card.ops.compute_signature of RSA_modulus_length bytes,
     i.e. card/driver won't pad before signing */
 #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-pub const SC_ALGORITHM_RSA_PAD_NONE    : c_uint = 0x0000_0000;
+pub const SC_ALGORITHM_RSA_PAD_NONE    : u32 = 0x0000_0000;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_ALGORITHM_RSA_PAD_NONE    : c_uint = 0x0000_0001; // SC_ALGORITHM_RSA_RAW
+pub const SC_ALGORITHM_RSA_PAD_NONE    : u32 = 0x0000_0001; // SC_ALGORITHM_RSA_RAW
 
 /** Use SC_ALGORITHM_RSA_PAD_PKCS1, if card/driver expects as input to card.ops.compute_signature: EMSA-PKCS1-v1_5 DigestInfo\
     https://tools.ietf.org/html/rfc8017#page-62\
     Not OpenSC, but the card/driver will pad according to EMSA-PKCS1-v1_5; EMSA = Encoding Method for Signature with Appendix
     before signing */
-pub const SC_ALGORITHM_RSA_PAD_PKCS1   : c_uint = 0x0000_0002;
-pub const SC_ALGORITHM_RSA_PAD_ANSI    : c_uint = 0x0000_0004;
-pub const SC_ALGORITHM_RSA_PAD_ISO9796 : c_uint = 0x0000_0008;
+pub const SC_ALGORITHM_RSA_PAD_PKCS1   : u32 = 0x0000_0002;
+pub const SC_ALGORITHM_RSA_PAD_ANSI    : u32 = 0x0000_0004;
+pub const SC_ALGORITHM_RSA_PAD_ISO9796 : u32 = 0x0000_0008;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_PAD_PSS     : c_uint = 0x0000_0010; // since opensc source release v0.19.0
+pub const SC_ALGORITHM_RSA_PAD_PSS     : u32 = 0x0000_0010; // since opensc source release v0.19.0
 
 /* If the card is willing to produce a cryptogram with the following
  * hash values, set these flags accordingly.  The interpretation of the hash
@@ -193,92 +191,92 @@ pub const SC_ALGORITHM_RSA_PAD_PSS     : c_uint = 0x0000_0010; // since opensc s
  * signatures; in this case the card driver has to pick the lowest-denominator
  * when it sets these flags to indicate its capabilities. */
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_NONE   : c_uint = 0x0000_0010;
+pub const SC_ALGORITHM_RSA_HASH_NONE   : u32 = 0x0000_0010;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_NONE   : c_uint = 0x0000_0100; /* only applies to PKCS1 padding */
+pub const SC_ALGORITHM_RSA_HASH_NONE   : u32 = 0x0000_0100; /* only applies to PKCS1 padding */
 
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_SHA1   : c_uint = 0x0000_0020;
+pub const SC_ALGORITHM_RSA_HASH_SHA1   : u32 = 0x0000_0020;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_SHA1   : c_uint = 0x0000_0200;
+pub const SC_ALGORITHM_RSA_HASH_SHA1   : u32 = 0x0000_0200;
 
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_MD5    : c_uint = 0x0000_0040;
+pub const SC_ALGORITHM_RSA_HASH_MD5    : u32 = 0x0000_0040;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_MD5    : c_uint = 0x0000_0400;
+pub const SC_ALGORITHM_RSA_HASH_MD5    : u32 = 0x0000_0400;
 
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_MD5_SHA1 : c_uint = 0x0000_0080;
+pub const SC_ALGORITHM_RSA_HASH_MD5_SHA1 : u32 = 0x0000_0080;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_MD5_SHA1 : c_uint = 0x0000_0800;
+pub const SC_ALGORITHM_RSA_HASH_MD5_SHA1 : u32 = 0x0000_0800;
 
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_RIPEMD160 : c_uint = 0x0000_0100;
+pub const SC_ALGORITHM_RSA_HASH_RIPEMD160 : u32 = 0x0000_0100;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_RIPEMD160 : c_uint = 0x0000_1000;
+pub const SC_ALGORITHM_RSA_HASH_RIPEMD160 : u32 = 0x0000_1000;
 
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_SHA256 : c_uint = 0x0000_0200;
+pub const SC_ALGORITHM_RSA_HASH_SHA256 : u32 = 0x0000_0200;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_SHA256 : c_uint = 0x0000_2000;
+pub const SC_ALGORITHM_RSA_HASH_SHA256 : u32 = 0x0000_2000;
 
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_SHA384 : c_uint = 0x0000_0400;
+pub const SC_ALGORITHM_RSA_HASH_SHA384 : u32 = 0x0000_0400;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_SHA384 : c_uint = 0x0000_4000;
+pub const SC_ALGORITHM_RSA_HASH_SHA384 : u32 = 0x0000_4000;
 
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_SHA512 : c_uint = 0x0000_0800;
+pub const SC_ALGORITHM_RSA_HASH_SHA512 : u32 = 0x0000_0800;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_SHA512 : c_uint = 0x0000_8000;
+pub const SC_ALGORITHM_RSA_HASH_SHA512 : u32 = 0x0000_8000;
 
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_SHA224 : c_uint = 0x0000_1000;
+pub const SC_ALGORITHM_RSA_HASH_SHA224 : u32 = 0x0000_1000;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_SHA224 : c_uint = 0x0001_0000;
+pub const SC_ALGORITHM_RSA_HASH_SHA224 : u32 = 0x0001_0000;
 
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASHES      : c_uint = 0x0000_1FE0; // this is without SC_ALGORITHM_RSA_HASH_NONE
+pub const SC_ALGORITHM_RSA_HASHES      : u32 = 0x0000_1FE0; // this is without SC_ALGORITHM_RSA_HASH_NONE
 #[cfg(                          v0_19_0)]
-pub const SC_ALGORITHM_RSA_HASHES      : c_uint = 0x0001_FE00; // this is without SC_ALGORITHM_RSA_HASH_NONE
+pub const SC_ALGORITHM_RSA_HASHES      : u32 = 0x0001_FE00; // this is without SC_ALGORITHM_RSA_HASH_NONE
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_ALGORITHM_RSA_HASHES      : c_uint = 0x0001_FF00; // this is WITH SC_ALGORITHM_RSA_HASH_NONE
+pub const SC_ALGORITHM_RSA_HASHES      : u32 = 0x0001_FF00; // this is WITH SC_ALGORITHM_RSA_HASH_NONE
 
 /* This defines the hashes to be used with MGF1 in PSS padding */
-pub const SC_ALGORITHM_MGF1_SHA1       : c_uint = 0x0010_0000;
-pub const SC_ALGORITHM_MGF1_SHA256     : c_uint = 0x0020_0000;
-pub const SC_ALGORITHM_MGF1_SHA384     : c_uint = 0x0040_0000;
-pub const SC_ALGORITHM_MGF1_SHA512     : c_uint = 0x0080_0000;
-pub const SC_ALGORITHM_MGF1_SHA224     : c_uint = 0x0100_0000;
-pub const SC_ALGORITHM_MGF1_HASHES     : c_uint = 0x01F0_0000;
+pub const SC_ALGORITHM_MGF1_SHA1       : u32 = 0x0010_0000;
+pub const SC_ALGORITHM_MGF1_SHA256     : u32 = 0x0020_0000;
+pub const SC_ALGORITHM_MGF1_SHA384     : u32 = 0x0040_0000;
+pub const SC_ALGORITHM_MGF1_SHA512     : u32 = 0x0080_0000;
+pub const SC_ALGORITHM_MGF1_SHA224     : u32 = 0x0100_0000;
+pub const SC_ALGORITHM_MGF1_HASHES     : u32 = 0x01F0_0000;
 
 /* These flags are exclusive: a GOST R34.10 card must support at least one or the
  * other of the methods, and exactly one of them applies to any given operation.
  * Note that the GOST R34.11 hash is actually applied to the data (ie if this
  * algorithm is chosen the entire unhashed document is passed in). */
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_GOSTR3410_RAW   : c_uint = 0x0000_2000;
+pub const SC_ALGORITHM_GOSTR3410_RAW   : u32 = 0x0000_2000;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_GOSTR3410_RAW   : c_uint = 0x0002_0000;
+pub const SC_ALGORITHM_GOSTR3410_RAW   : u32 = 0x0002_0000;
 
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_GOSTR3410_HASH_NONE : c_uint = 0x0000_4000;
+pub const SC_ALGORITHM_GOSTR3410_HASH_NONE : u32 = 0x0000_4000;
 #[cfg(                          v0_19_0)]
-pub const SC_ALGORITHM_GOSTR3410_HASH_NONE : c_uint = 0x0004_0000;
+pub const SC_ALGORITHM_GOSTR3410_HASH_NONE : u32 = 0x0004_0000;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_ALGORITHM_GOSTR3410_HASH_NONE : c_uint = SC_ALGORITHM_GOSTR3410_RAW; /*XXX*/
+pub const SC_ALGORITHM_GOSTR3410_HASH_NONE : u32 = SC_ALGORITHM_GOSTR3410_RAW; /*XXX*/
 
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_GOSTR3410_HASH_GOSTR3411 : c_uint = 0x0000_8000;
+pub const SC_ALGORITHM_GOSTR3410_HASH_GOSTR3411 : u32 = 0x0000_8000;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_GOSTR3410_HASH_GOSTR3411 : c_uint = 0x0008_0000;
+pub const SC_ALGORITHM_GOSTR3410_HASH_GOSTR3411 : u32 = 0x0008_0000;
 
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_GOSTR3410_HASHES    : c_uint = 0x0000_8000;
+pub const SC_ALGORITHM_GOSTR3410_HASHES    : u32 = 0x0000_8000;
 #[cfg(                          v0_19_0)]
-pub const SC_ALGORITHM_GOSTR3410_HASHES    : c_uint = 0x0008_0000;
+pub const SC_ALGORITHM_GOSTR3410_HASHES    : u32 = 0x0008_0000;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_ALGORITHM_GOSTR3410_HASHES    : c_uint = 0x000A_0000;
+pub const SC_ALGORITHM_GOSTR3410_HASHES    : u32 = 0x000A_0000;
 /*TODO: -DEE Should the above be 0x000E0000 */
 /* Or should the HASH_NONE be 0x00000100  and HASHES be 0x00080010 */
 
@@ -293,69 +291,69 @@ pub const SC_ALGORITHM_GOSTR3410_HASHES    : c_uint = 0x000A_0000;
 /* Not clear if these need their own bits or not */
 /* The PIV card does not support and hashes */
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_ECDH_CDH_RAW        : c_uint = 0x0002_0000;
+pub const SC_ALGORITHM_ECDH_CDH_RAW        : u32 = 0x0002_0000;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_ECDH_CDH_RAW        : c_uint = 0x0020_0000;
+pub const SC_ALGORITHM_ECDH_CDH_RAW        : u32 = 0x0020_0000;
 
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_ECDSA_RAW           : c_uint = 0x0001_0000;
+pub const SC_ALGORITHM_ECDSA_RAW           : u32 = 0x0001_0000;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_ECDSA_RAW           : c_uint = 0x0010_0000;
+pub const SC_ALGORITHM_ECDSA_RAW           : u32 = 0x0010_0000;
 
-pub const SC_ALGORITHM_ECDSA_HASH_NONE     : c_uint = SC_ALGORITHM_RSA_HASH_NONE;
-pub const SC_ALGORITHM_ECDSA_HASH_SHA1     : c_uint = SC_ALGORITHM_RSA_HASH_SHA1;
-pub const SC_ALGORITHM_ECDSA_HASH_SHA224   : c_uint = SC_ALGORITHM_RSA_HASH_SHA224;
-pub const SC_ALGORITHM_ECDSA_HASH_SHA256   : c_uint = SC_ALGORITHM_RSA_HASH_SHA256;
-pub const SC_ALGORITHM_ECDSA_HASH_SHA384   : c_uint = SC_ALGORITHM_RSA_HASH_SHA384;
-pub const SC_ALGORITHM_ECDSA_HASH_SHA512   : c_uint = SC_ALGORITHM_RSA_HASH_SHA512;
-pub const SC_ALGORITHM_ECDSA_HASHES        : c_uint = (SC_ALGORITHM_ECDSA_HASH_SHA1 |
+pub const SC_ALGORITHM_ECDSA_HASH_NONE     : u32 = SC_ALGORITHM_RSA_HASH_NONE;
+pub const SC_ALGORITHM_ECDSA_HASH_SHA1     : u32 = SC_ALGORITHM_RSA_HASH_SHA1;
+pub const SC_ALGORITHM_ECDSA_HASH_SHA224   : u32 = SC_ALGORITHM_RSA_HASH_SHA224;
+pub const SC_ALGORITHM_ECDSA_HASH_SHA256   : u32 = SC_ALGORITHM_RSA_HASH_SHA256;
+pub const SC_ALGORITHM_ECDSA_HASH_SHA384   : u32 = SC_ALGORITHM_RSA_HASH_SHA384;
+pub const SC_ALGORITHM_ECDSA_HASH_SHA512   : u32 = SC_ALGORITHM_RSA_HASH_SHA512;
+pub const SC_ALGORITHM_ECDSA_HASHES        : u32 = (SC_ALGORITHM_ECDSA_HASH_SHA1 |
        SC_ALGORITHM_ECDSA_HASH_SHA224 |
        SC_ALGORITHM_ECDSA_HASH_SHA256 |
        SC_ALGORITHM_ECDSA_HASH_SHA384 |
        SC_ALGORITHM_ECDSA_HASH_SHA512);
 
 /* define mask of all algorithms that can do raw */
-pub const SC_ALGORITHM_RAW_MASK            : c_uint = (SC_ALGORITHM_RSA_RAW | SC_ALGORITHM_GOSTR3410_RAW | SC_ALGORITHM_ECDSA_RAW);
+pub const SC_ALGORITHM_RAW_MASK            : u32 = (SC_ALGORITHM_RSA_RAW | SC_ALGORITHM_GOSTR3410_RAW | SC_ALGORITHM_ECDSA_RAW);
 
 /* extended algorithm bits for selected mechs */
-pub const SC_ALGORITHM_EXT_EC_F_P          : c_uint = 0x0000_0001;
-pub const SC_ALGORITHM_EXT_EC_F_2M         : c_uint = 0x0000_0002;
-pub const SC_ALGORITHM_EXT_EC_ECPARAMETERS : c_uint = 0x0000_0004;
-pub const SC_ALGORITHM_EXT_EC_NAMEDCURVE   : c_uint = 0x0000_0008;
-pub const SC_ALGORITHM_EXT_EC_UNCOMPRESES  : c_uint = 0x0000_0010;
-pub const SC_ALGORITHM_EXT_EC_COMPRESS     : c_uint = 0x0000_0020;
+pub const SC_ALGORITHM_EXT_EC_F_P          : u32 = 0x0000_0001;
+pub const SC_ALGORITHM_EXT_EC_F_2M         : u32 = 0x0000_0002;
+pub const SC_ALGORITHM_EXT_EC_ECPARAMETERS : u32 = 0x0000_0004;
+pub const SC_ALGORITHM_EXT_EC_NAMEDCURVE   : u32 = 0x0000_0008;
+pub const SC_ALGORITHM_EXT_EC_UNCOMPRESES  : u32 = 0x0000_0010;
+pub const SC_ALGORITHM_EXT_EC_COMPRESS     : u32 = 0x0000_0020;
 
 /* symmetric algorithm flags. More algorithms to be added when implemented. */
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_ALGORITHM_AES_ECB             : c_uint = 0x0100_0000;
+pub const SC_ALGORITHM_AES_ECB             : u32 = 0x0100_0000;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_ALGORITHM_AES_CBC             : c_uint = 0x0200_0000;
+pub const SC_ALGORITHM_AES_CBC             : u32 = 0x0200_0000;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_ALGORITHM_AES_CBC_PAD         : c_uint = 0x0400_0000;
+pub const SC_ALGORITHM_AES_CBC_PAD         : u32 = 0x0400_0000;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_ALGORITHM_AES_FLAGS           : c_uint = 0x0F00_0000;
+pub const SC_ALGORITHM_AES_FLAGS           : u32 = 0x0F00_0000;
 
 
 /* Event masks for sc_wait_for_event() */
-pub const SC_EVENT_CARD_INSERTED   : c_uint = 0x0001;
-pub const SC_EVENT_CARD_REMOVED    : c_uint = 0x0002;
-pub const SC_EVENT_CARD_EVENTS     : c_uint = SC_EVENT_CARD_INSERTED | SC_EVENT_CARD_REMOVED;
-pub const SC_EVENT_READER_ATTACHED : c_uint = 0x0004;
-pub const SC_EVENT_READER_DETACHED : c_uint = 0x0008;
-pub const SC_EVENT_READER_EVENTS   : c_uint = SC_EVENT_READER_ATTACHED | SC_EVENT_READER_DETACHED;
+pub const SC_EVENT_CARD_INSERTED   : u32 = 0x0001;
+pub const SC_EVENT_CARD_REMOVED    : u32 = 0x0002;
+pub const SC_EVENT_CARD_EVENTS     : u32 = SC_EVENT_CARD_INSERTED | SC_EVENT_CARD_REMOVED;
+pub const SC_EVENT_READER_ATTACHED : u32 = 0x0004;
+pub const SC_EVENT_READER_DETACHED : u32 = 0x0008;
+pub const SC_EVENT_READER_EVENTS   : u32 = SC_EVENT_READER_ATTACHED | SC_EVENT_READER_DETACHED;
 
 pub const MAX_FILE_SIZE : usize = 65535;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_supported_algo_info {
-    pub reference : c_uint,
-    pub mechanism : c_uint,
+    pub reference : u32,
+    pub mechanism : u32,
     #[cfg(not(v0_17_0))]
     pub parameters : *mut sc_object_id, /* OID for ECC, NULL for RSA */  // since opensc source release v0.18.0
-    pub operations : c_uint,
+    pub operations : u32,
     pub algo_id : sc_object_id,
-    pub algo_ref : c_uint,
+    pub algo_ref : u32,
 }
 
 #[cfg(impl_default)]
@@ -378,9 +376,9 @@ impl Default for sc_supported_algo_info {
 #[derive(Debug, Copy, Clone)]
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub struct sc_sec_env_param {
-    pub param_type : c_uint,   /* e.g. SC_SEC_ENV_PARAM_IV */
+    pub param_type : u32,   /* e.g. SC_SEC_ENV_PARAM_IV */
     pub value : *mut c_void,
-    pub value_len  : c_uint,
+    pub value_len  : u32,
 }
 /*
 #[doc(hidden)]
@@ -405,13 +403,13 @@ impl Default for sc_sec_env_param {
 #[derive(Debug, Copy, Clone)]
 pub struct sc_security_env {
     pub flags           : c_ulong,    /* e.g. SC_SEC_ENV_KEY_REF_SYMMETRIC, ... */
-    pub operation       : c_int,      /* SC_SEC_OPERATION */
-    pub algorithm       : c_uint,     /* if used, set flag SC_SEC_ENV_ALG_PRESENT */
-    pub algorithm_flags : c_uint,     /* e.g. SC_ALGORITHM_RSA_RAW  or SC_ALGORITHM_AES_CBC_PAD */
+    pub operation       : i32,      /* SC_SEC_OPERATION */
+    pub algorithm       : u32,     /* if used, set flag SC_SEC_ENV_ALG_PRESENT */
+    pub algorithm_flags : u32,     /* e.g. SC_ALGORITHM_RSA_RAW  or SC_ALGORITHM_AES_CBC_PAD */
 
-    pub algorithm_ref   : c_uint,     /* if used, set flag SC_SEC_ENV_ALG_REF_PRESENT */
+    pub algorithm_ref   : u32,     /* if used, set flag SC_SEC_ENV_ALG_REF_PRESENT */
     pub file_ref        : sc_path,    /* if used, set flag SC_SEC_ENV_FILE_REF_PRESENT */
-    pub key_ref : [c_uchar; 8],  /* if used, set flag SC_SEC_ENV_KEY_REF_PRESENT */
+    pub key_ref : [u8; 8],  /* if used, set flag SC_SEC_ENV_KEY_REF_PRESENT */
     pub key_ref_len : usize,
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     pub target_file_ref : sc_path,    /* unused;  target key file in unwrap operation; if used, set flag SC_SEC_ENV_TARGET_FILE_REF_PRESENT */
@@ -451,7 +449,7 @@ impl Default for sc_security_env {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_algorithm_id {
-    pub algorithm : c_uint,
+    pub algorithm : u32,
     pub oid : sc_object_id,
     pub params : *mut c_void,
 }
@@ -470,9 +468,9 @@ impl Default for sc_algorithm_id {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pbkdf2_params {
-    pub salt : [c_uchar; 16],
+    pub salt : [u8; 16],
     pub salt_len : usize,
-    pub iterations : c_int,
+    pub iterations : i32,
     pub key_length : usize,
     pub hash_alg : sc_algorithm_id,
 }
@@ -501,7 +499,7 @@ pub struct sc_ec_parameters {
     pub id : sc_object_id,
     pub der : sc_lv_data,
 
-    pub type_ : c_int,
+    pub type_ : i32,
     pub field_length : usize,
 }
 
@@ -514,7 +512,7 @@ pub struct sc_algorithm_info__union_sc_rsa_info {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_algorithm_info__union_sc_ec_info {
-    pub ext_flags : c_uint,
+    pub ext_flags : u32,
     pub params : sc_ec_parameters,
 }
 
@@ -538,9 +536,9 @@ impl Default for sc_algorithm_info__union {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_algorithm_info {
-    pub algorithm  : c_uint,
-    pub key_length : c_uint,
-    pub flags      : c_uint,
+    pub algorithm  : u32,
+    pub key_length : u32,
+    pub flags      : u32,
 
     pub u : sc_algorithm_info__union,
 }
@@ -573,7 +571,7 @@ pub struct sc_app_info {
 
     pub path : sc_path,
 
-    pub rec_nr : c_int,  /* -1, if EF(DIR) is transparent */
+    pub rec_nr : i32,  /* -1, if EF(DIR) is transparent */
 }
 /*
 #[doc(hidden)]
@@ -584,24 +582,24 @@ pub type sc_app_info_t = sc_app_info;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_ef_atr {
-    pub card_service : c_uchar,
-    pub df_selection : c_uchar,
+    pub card_service : u8,
+    pub df_selection : u8,
     pub unit_size : usize,
-    pub card_capabilities : c_uchar,
+    pub card_capabilities : u8,
     pub max_command_apdu : usize,
     pub max_response_apdu : usize,
 
     pub aid : sc_aid,
 
-    pub pre_issuing : [c_uchar ; 6],
+    pub pre_issuing : [u8 ; 6],
     pub pre_issuing_len : usize,
 
-    pub issuer_data : [c_uchar ; 16],
+    pub issuer_data : [u8 ; 16],
     pub issuer_data_len : usize,
 
     pub allocation_oid : sc_object_id,
 
-    pub status : c_uint,
+    pub status : u32,
 }
 
 #[repr(C)]
@@ -611,13 +609,13 @@ pub struct sc_card_cache {
     pub current_ef : *mut sc_file,
     pub current_df : *mut sc_file,
 
-    pub valid : c_int,
+    pub valid : i32,
 }
 
-pub const SC_PROTO_T0   : c_uint = 0x0000_0001;
-pub const SC_PROTO_T1   : c_uint = 0x0000_0002;
-pub const SC_PROTO_RAW  : c_uint = 0x0000_1000;
-pub const SC_PROTO_ANY  : c_uint = 0xFFFF_FFFF;
+pub const SC_PROTO_T0   : u32 = 0x0000_0001;
+pub const SC_PROTO_T1   : u32 = 0x0000_0002;
+pub const SC_PROTO_RAW  : u32 = 0x0000_1000;
+pub const SC_PROTO_ANY  : u32 = 0xFFFF_FFFF;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -630,21 +628,21 @@ pub struct sc_reader_driver {
 }
 
 /* reader flags */
-pub const SC_READER_CARD_PRESENT     : c_uint = 0x0000_0001;
-pub const SC_READER_CARD_CHANGED     : c_uint = 0x0000_0002;
-pub const SC_READER_CARD_INUSE       : c_uint = 0x0000_0004;
-pub const SC_READER_CARD_EXCLUSIVE   : c_uint = 0x0000_0008;
-pub const SC_READER_HAS_WAITING_AREA : c_uint = 0x0000_0010;
-pub const SC_READER_REMOVED          : c_uint = 0x0000_0020;
-pub const SC_READER_ENABLE_ESCAPE    : c_uint = 0x0000_0040;
+pub const SC_READER_CARD_PRESENT     : u32 = 0x0000_0001;
+pub const SC_READER_CARD_CHANGED     : u32 = 0x0000_0002;
+pub const SC_READER_CARD_INUSE       : u32 = 0x0000_0004;
+pub const SC_READER_CARD_EXCLUSIVE   : u32 = 0x0000_0008;
+pub const SC_READER_HAS_WAITING_AREA : u32 = 0x0000_0010;
+pub const SC_READER_REMOVED          : u32 = 0x0000_0020;
+pub const SC_READER_ENABLE_ESCAPE    : u32 = 0x0000_0040;
 
 /* reader capabilities */
-pub const SC_READER_CAP_DISPLAY              : c_uint = 0x0000_0001;
-pub const SC_READER_CAP_PIN_PAD              : c_uint = 0x0000_0002;
-pub const SC_READER_CAP_PACE_EID             : c_uint = 0x0000_0004;
-pub const SC_READER_CAP_PACE_ESIGN           : c_uint = 0x0000_0008;
-pub const SC_READER_CAP_PACE_DESTROY_CHANNEL : c_uint = 0x0000_0010;
-pub const SC_READER_CAP_PACE_GENERIC         : c_uint = 0x0000_0020;
+pub const SC_READER_CAP_DISPLAY              : u32 = 0x0000_0001;
+pub const SC_READER_CAP_PIN_PAD              : u32 = 0x0000_0002;
+pub const SC_READER_CAP_PACE_EID             : u32 = 0x0000_0004;
+pub const SC_READER_CAP_PACE_ESIGN           : u32 = 0x0000_0008;
+pub const SC_READER_CAP_PACE_DESTROY_CHANNEL : u32 = 0x0000_0010;
+pub const SC_READER_CAP_PACE_GENERIC         : u32 = 0x0000_0020;
 
 /* reader send/receive length of short APDU */
 pub const SC_READER_SHORT_APDU_MAX_SEND_SIZE : usize = 255;
@@ -654,14 +652,14 @@ pub const SC_READER_SHORT_APDU_MAX_RECV_SIZE : usize = 256;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_reader__atr_info {
-    pub hist_bytes : *mut c_uchar,
+    pub hist_bytes : *mut u8,
     pub hist_bytes_len : usize,
-    pub Fi : c_int,
-    pub f : c_int,
-    pub Di : c_int,
-    pub N : c_int,
-    pub FI : c_uchar,
-    pub DI : c_uchar,
+    pub Fi : i32,
+    pub f : i32,
+    pub Di : i32,
+    pub N : i32,
+    pub FI : u8,
+    pub DI : u8,
 }
 
 #[repr(C)]
@@ -673,13 +671,13 @@ pub struct sc_reader {
     pub drv_data : *mut c_void,
     pub name : *mut c_char,
     pub vendor : *mut c_char,     // since opensc source release v0.16.0
-    pub version_major : c_uchar,  // since opensc source release v0.16.0
-    pub version_minor : c_uchar,  // since opensc source release v0.16.0
+    pub version_major : u8,  // since opensc source release v0.16.0
+    pub version_minor : u8,  // since opensc source release v0.16.0
 
     pub flags               : c_ulong,
     pub capabilities        : c_ulong,
-    pub supported_protocols : c_uint,
-    pub active_protocol     : c_uint,
+    pub supported_protocols : u32,
+    pub active_protocol     : u32,
     pub max_send_size : usize, /* Max Lc supported by the reader layer */
     pub max_recv_size : usize, /* Mac Le supported by the reader layer */
 
@@ -697,49 +695,49 @@ pub type sc_reader_t = sc_reader;
  * It is supposed to support pin pads (with or without display)
  * attached to the reader.
  */
-pub const SC_PIN_CMD_VERIFY          : c_uint = 0; // ins = 0x20;
-pub const SC_PIN_CMD_CHANGE          : c_uint = 1; // ins = 0x24;
-pub const SC_PIN_CMD_UNBLOCK         : c_uint = 2; // ins = 0x2C;
-pub const SC_PIN_CMD_GET_INFO        : c_uint = 3; // ins = 0x20;
-pub const SC_PIN_CMD_GET_SESSION_PIN : c_uint = 4;  // since opensc source release v0.17.0
+pub const SC_PIN_CMD_VERIFY          : u32 = 0; // ins = 0x20;
+pub const SC_PIN_CMD_CHANGE          : u32 = 1; // ins = 0x24;
+pub const SC_PIN_CMD_UNBLOCK         : u32 = 2; // ins = 0x2C;
+pub const SC_PIN_CMD_GET_INFO        : u32 = 3; // ins = 0x20;
+pub const SC_PIN_CMD_GET_SESSION_PIN : u32 = 4;  // since opensc source release v0.17.0
 
 /* flags */
-pub const SC_PIN_CMD_USE_PINPAD      : c_uint = 0x0001;
-pub const SC_PIN_CMD_NEED_PADDING    : c_uint = 0x0002;
-pub const SC_PIN_CMD_IMPLICIT_CHANGE : c_uint = 0x0004;
+pub const SC_PIN_CMD_USE_PINPAD      : u32 = 0x0001;
+pub const SC_PIN_CMD_NEED_PADDING    : u32 = 0x0002;
+pub const SC_PIN_CMD_IMPLICIT_CHANGE : u32 = 0x0004;
 
-pub const SC_PIN_ENCODING_ASCII      : c_uint = 0;
-pub const SC_PIN_ENCODING_BCD        : c_uint = 1;
-pub const SC_PIN_ENCODING_GLP        : c_uint = 2; /* Global Platform - Card Specification v2.0.1 */
+pub const SC_PIN_ENCODING_ASCII      : u32 = 0;
+pub const SC_PIN_ENCODING_BCD        : u32 = 1;
+pub const SC_PIN_ENCODING_GLP        : u32 = 2; /* Global Platform - Card Specification v2.0.1 */
 
 /** Values for sc_pin_cmd_pin.logged_in */
-pub const SC_PIN_STATE_UNKNOWN       : c_int = -1;    // since opensc source release v0.17.0
-pub const SC_PIN_STATE_LOGGED_OUT    : c_int = 0;     // since opensc source release v0.17.0
-pub const SC_PIN_STATE_LOGGED_IN     : c_int = 1;     // since opensc source release v0.17.0
+pub const SC_PIN_STATE_UNKNOWN       : i32 = -1;    // since opensc source release v0.17.0
+pub const SC_PIN_STATE_LOGGED_OUT    : i32 = 0;     // since opensc source release v0.17.0
+pub const SC_PIN_STATE_LOGGED_IN     : i32 = 1;     // since opensc source release v0.17.0
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pin_cmd_pin {
     pub prompt : *const c_char, /* Prompt to display */
 
-    pub data : *const c_uchar, /* PIN, if given by the appliction */
-    pub len : c_int, /* set to -1 to get pin from pin pad */
+    pub data : *const u8, /* PIN, if given by the appliction */
+    pub len : i32, /* set to -1 to get pin from pin pad */
 
     pub min_length    : usize, /* min length of PIN */
     pub max_length    : usize, /* max length of PIN */
     pub stored_length : usize, /* stored length of PIN */
 
-    pub encoding : c_uint, /* ASCII-numeric, BCD, etc */
+    pub encoding : u32, /* ASCII-numeric, BCD, etc */
 
     pub pad_length : usize, /* filled in by the card driver */
-    pub pad_char : c_uchar,
+    pub pad_char : u8,
 
     pub offset        : usize, /* PIN offset in the APDU */
     pub length_offset : usize, /* Effective PIN length offset in the APDU */
 
-    pub max_tries  : c_int, /* Used for signaling back from SC_PIN_CMD_GET_INFO */
-    pub tries_left : c_int, /* Used for signaling back from SC_PIN_CMD_GET_INFO  or if the command failed */
-    pub logged_in : c_int,  /* Used for signaling back from SC_PIN_CMD_GET_INFO, see SC_PIN_STATE_* */  // since opensc source release v0.17.0
+    pub max_tries  : i32, /* Used for signaling back from SC_PIN_CMD_GET_INFO */
+    pub tries_left : i32, /* Used for signaling back from SC_PIN_CMD_GET_INFO  or if the command failed */
+    pub logged_in : i32,  /* Used for signaling back from SC_PIN_CMD_GET_INFO, see SC_PIN_STATE_* */  // since opensc source release v0.17.0
 
     pub acls : [sc_acl_entry; SC_MAX_SDO_ACLS],
 }
@@ -771,11 +769,11 @@ impl Default for sc_pin_cmd_pin {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pin_cmd_data {
-    pub cmd   : c_uint,       /* e.g. SC_PIN_CMD_GET_INFO */
-    pub flags : c_uint,       /* e.g. SC_PIN_CMD_NEED_PADDING */
+    pub cmd   : u32,       /* e.g. SC_PIN_CMD_GET_INFO */
+    pub flags : u32,       /* e.g. SC_PIN_CMD_NEED_PADDING */
 
-    pub pin_type : c_uint,    /* usually SC_AC_CHV */
-    pub pin_reference : c_int,
+    pub pin_type : u32,    /* usually SC_AC_CHV */
+    pub pin_reference : i32,
 
     pub pin1 : sc_pin_cmd_pin,
     pub pin2 : sc_pin_cmd_pin,
@@ -803,43 +801,43 @@ impl Default for sc_pin_cmd_data {
 pub struct sc_reader_operations {
     /* Called during sc_establish_context(), when the driver
      * is loaded */
-    pub init : Option< unsafe extern "C" fn (ctx: *mut sc_context) -> c_int >,
+    pub init : Option< unsafe extern "C" fn (ctx: *mut sc_context) -> i32 >,
     /* Called when the driver is being unloaded.  finish() has to
      * release any resources. */
-    pub finish : Option< unsafe extern "C" fn (ctx: *mut sc_context) -> c_int >,
+    pub finish : Option< unsafe extern "C" fn (ctx: *mut sc_context) -> i32 >,
     /* Called when library wish to detect new readers
      * should add only new readers. */
-    pub detect_readers : Option< unsafe extern "C" fn (ctx: *mut sc_context) -> c_int >,
+    pub detect_readers : Option< unsafe extern "C" fn (ctx: *mut sc_context) -> i32 >,
 
-    pub cancel : Option< unsafe extern "C" fn (ctx: *mut sc_context) -> c_int >,
+    pub cancel : Option< unsafe extern "C" fn (ctx: *mut sc_context) -> i32 >,
     /* Called when releasing a reader.  release() has to
      * deallocate the private data.  Other fields will be
      * freed by OpenSC. */
-    pub release : Option< unsafe extern "C" fn (reader: *mut sc_reader) -> c_int >,
+    pub release : Option< unsafe extern "C" fn (reader: *mut sc_reader) -> i32 >,
 
-    pub detect_card_presence : Option< unsafe extern "C" fn (reader: *mut sc_reader) -> c_int >,
-    pub connect : Option< unsafe extern "C" fn (reader: *mut sc_reader) -> c_int >,
-    pub disconnect : Option< unsafe extern "C" fn (reader: *mut sc_reader) -> c_int >,
-    pub transmit : Option< unsafe extern "C" fn (reader: *mut sc_reader, apdu: *mut sc_apdu) -> c_int >,
-    pub lock : Option< unsafe extern "C" fn (reader: *mut sc_reader) -> c_int >,
-    pub unlock : Option< unsafe extern "C" fn (reader: *mut sc_reader) -> c_int >,
-    pub set_protocol : Option< unsafe extern "C" fn (reader: *mut sc_reader, proto: c_uint) -> c_int >,
+    pub detect_card_presence : Option< unsafe extern "C" fn (reader: *mut sc_reader) -> i32 >,
+    pub connect : Option< unsafe extern "C" fn (reader: *mut sc_reader) -> i32 >,
+    pub disconnect : Option< unsafe extern "C" fn (reader: *mut sc_reader) -> i32 >,
+    pub transmit : Option< unsafe extern "C" fn (reader: *mut sc_reader, apdu: *mut sc_apdu) -> i32 >,
+    pub lock : Option< unsafe extern "C" fn (reader: *mut sc_reader) -> i32 >,
+    pub unlock : Option< unsafe extern "C" fn (reader: *mut sc_reader) -> i32 >,
+    pub set_protocol : Option< unsafe extern "C" fn (reader: *mut sc_reader, proto: u32) -> i32 >,
     /* Pin pad functions */
-    pub display_message : Option< unsafe extern "C" fn (arg1: *mut sc_reader, arg2: *const c_char) -> c_int >,
-    pub perform_verify : Option< unsafe extern "C" fn (arg1: *mut sc_reader, arg2: *mut sc_pin_cmd_data) -> c_int >,
+    pub display_message : Option< unsafe extern "C" fn (arg1: *mut sc_reader, arg2: *const c_char) -> i32 >,
+    pub perform_verify : Option< unsafe extern "C" fn (arg1: *mut sc_reader, arg2: *mut sc_pin_cmd_data) -> i32 >,
     pub perform_pace : Option< unsafe extern "C" fn (reader: *mut sc_reader,
         establish_pace_channel_input: *mut c_void,
-        establish_pace_channel_output: *mut c_void) -> c_int >,
+        establish_pace_channel_output: *mut c_void) -> i32 >,
 
     /* Wait for an event */
-    pub wait_for_event : Option< unsafe extern "C" fn (ctx: *mut sc_context, event_mask: c_uint,
-        event_reader: *mut *mut sc_reader, event: *mut c_uint,
-        timeout: c_int, reader_states: *mut *mut c_void) -> c_int >,
+    pub wait_for_event : Option< unsafe extern "C" fn (ctx: *mut sc_context, event_mask: u32,
+        event_reader: *mut *mut sc_reader, event: *mut u32,
+        timeout: i32, reader_states: *mut *mut c_void) -> i32 >,
     /* Reset a reader */
-    pub reset : Option< unsafe extern "C" fn (arg1: *mut sc_reader, arg2: c_int) -> c_int >,
+    pub reset : Option< unsafe extern "C" fn (arg1: *mut sc_reader, arg2: i32) -> i32 >,
     /* Used to pass in PC/SC handles to minidriver */
     pub use_reader : Option< unsafe extern "C" fn (ctx: *mut sc_context, pcsc_context_handle: *mut c_void,
-        pcsc_card_handle: *mut c_void) -> c_int >,
+        pcsc_card_handle: *mut c_void) -> i32 >,
 }
 
 /*
@@ -915,30 +913,30 @@ pub struct sc_card {
     pub atr : sc_atr,
     pub uid : sc_uid, // since opensc source release v0.17.0
 
-    pub type_ : c_int,   /* Card type, for card driver internal use */
+    pub type_ : i32,   /* Card type, for card driver internal use */
     pub caps : c_ulong,
     pub flags : c_ulong,
-    pub cla : c_int,
+    pub cla : i32,
     pub max_send_size : usize, /* Max Lc supported by the card */
     pub max_recv_size : usize, /* Max Le supported by the card */
 
     pub app : [*mut sc_app_info; SC_MAX_CARD_APPS],
-    pub app_count : c_int,
+    pub app_count : i32,
     #[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
     pub ef_dir : *mut sc_file,
 
     pub ef_atr : *mut sc_ef_atr,
 
     pub algorithms : *mut sc_algorithm_info,
-    pub algorithm_count : c_int,
+    pub algorithm_count : i32,
 
-    pub lock_count : c_int,
+    pub lock_count : i32,
 
     pub driver : *mut sc_card_driver,
     pub ops : *mut sc_card_operations,
     pub name : *const c_char,
     pub drv_data : *mut c_void,
-    pub max_pin_len : c_int,
+    pub max_pin_len : i32,
 
     pub cache : sc_card_cache,
 
@@ -950,7 +948,7 @@ pub struct sc_card {
     pub sm_ctx : sm_context,
 //#endif
 
-    pub magic : c_uint,
+    pub magic : u32,
 }
 /*
 #[doc(hidden)]
@@ -965,42 +963,42 @@ pub struct sc_card_operations {
      * card can be handled with this driver, or 0 otherwise.  ATR
      * field of the sc_card struct is filled in before calling
      * this function. */
-    pub match_card : Option< unsafe extern "C" fn (card : *mut sc_card) -> c_int >,
+    pub match_card : Option< unsafe extern "C" fn (card : *mut sc_card) -> i32 >,
 
     /* Called when ATR of the inserted card matches an entry in ATR
      * table.  May return SC_ERROR_INVALID_CARD to indicate that
      * the card cannot be handled with this driver. */
-    pub init : Option< unsafe extern "C" fn (card: *mut sc_card) -> c_int >,
+    pub init : Option< unsafe extern "C" fn (card: *mut sc_card) -> i32 >,
     /* Called when the card object is being freed.  finish() has to
      * deallocate all possible private data. */
-    pub finish : Option< unsafe extern "C" fn (card: *mut sc_card) -> c_int >,
+    pub finish : Option< unsafe extern "C" fn (card: *mut sc_card) -> i32 >,
 
     /* ISO 7816-4 functions */
 
-    pub read_binary   : Option< unsafe extern "C" fn (card: *mut sc_card, idx: c_uint,
-                                                      buf:   *mut c_uchar, count: usize, flags: c_ulong) -> c_int >,
-    pub write_binary  : Option< unsafe extern "C" fn (card: *mut sc_card, idx: c_uint,
-                                                      buf: *const c_uchar, count: usize, flags: c_ulong) -> c_int >,
-    pub update_binary : Option< unsafe extern "C" fn (card: *mut sc_card, idx: c_uint,
-                                                      buf: *const c_uchar, count: usize, flags: c_ulong) -> c_int >,
-    pub erase_binary  : Option< unsafe extern "C" fn (card: *mut sc_card, idx: c_uint,
-                                                      count: usize, flags: c_ulong) -> c_int >,
+    pub read_binary   : Option< unsafe extern "C" fn (card: *mut sc_card, idx: u32,
+                                                      buf:   *mut u8, count: usize, flags: c_ulong) -> i32 >,
+    pub write_binary  : Option< unsafe extern "C" fn (card: *mut sc_card, idx: u32,
+                                                      buf: *const u8, count: usize, flags: c_ulong) -> i32 >,
+    pub update_binary : Option< unsafe extern "C" fn (card: *mut sc_card, idx: u32,
+                                                      buf: *const u8, count: usize, flags: c_ulong) -> i32 >,
+    pub erase_binary  : Option< unsafe extern "C" fn (card: *mut sc_card, idx: u32,
+                                                      count: usize, flags: c_ulong) -> i32 >,
 
     /* rec_nr: assuming OpenSC has the convention to start rec_nr from 1 to NOR */
-    pub read_record   : Option< unsafe extern "C" fn (card: *mut sc_card, rec_nr: c_uint,
-                                                      buf:   *mut c_uchar, count: usize, flags: c_ulong) -> c_int >,
-    pub write_record  : Option< unsafe extern "C" fn (card: *mut sc_card, rec_nr: c_uint,
-                                                      buf: *const c_uchar, count: usize, flags: c_ulong) -> c_int >,
+    pub read_record   : Option< unsafe extern "C" fn (card: *mut sc_card, rec_nr: u32,
+                                                      buf:   *mut u8, count: usize, flags: c_ulong) -> i32 >,
+    pub write_record  : Option< unsafe extern "C" fn (card: *mut sc_card, rec_nr: u32,
+                                                      buf: *const u8, count: usize, flags: c_ulong) -> i32 >,
     pub append_record : Option< unsafe extern "C" fn (card: *mut sc_card,
-                                                      buf: *const c_uchar, count: usize, flags: c_ulong) -> c_int >,
-    pub update_record : Option< unsafe extern "C" fn (card: *mut sc_card, rec_nr: c_uint,
-                                                      buf: *const c_uchar, count: usize, flags: c_ulong) -> c_int >,
+                                                      buf: *const u8, count: usize, flags: c_ulong) -> i32 >,
+    pub update_record : Option< unsafe extern "C" fn (card: *mut sc_card, rec_nr: u32,
+                                                      buf: *const u8, count: usize, flags: c_ulong) -> i32 >,
 
     /* select_file: Does the equivalent of SELECT FILE command specified
      *   in ISO7816-4. Stores information about the selected file to
      *   <file>, if not NULL. */
     pub select_file : Option< unsafe extern "C" fn (card: *mut sc_card, path: *const sc_path,
-                                                    file_out: *mut *mut sc_file) -> c_int >,
+                                                    file_out: *mut *mut sc_file) -> i32 >,
     /**
      * The iso7816_get_response function is limited to return by @param count / @return: max. sc_get_max_recv_size() bytes
      * @param  count  INOUT  IN the requested amount of bytes, OUT: apdu.resplen<=sc_get_max_recv_size(card)
@@ -1008,9 +1006,9 @@ pub struct sc_card_operations {
                                 r = apdu.sw2 == 0 ? 256 : apdu.sw2;    (more data to read)
      */
     pub get_response : Option< unsafe extern "C" fn (card: *mut sc_card, count: *mut usize,
-                                                     buf: *mut c_uchar) -> c_int >,
+                                                     buf: *mut u8) -> i32 >,
     pub get_challenge : Option< unsafe extern "C" fn (card: *mut sc_card,
-                                                      buf: *mut c_uchar, count: usize) -> c_int >,
+                                                      buf: *mut u8, count: usize) -> i32 >,
 
     /*
      * ISO 7816-8 functions
@@ -1021,90 +1019,90 @@ pub struct sc_card_operations {
      *   <ref_qualifier>. If <tries_left> is not NULL, number of verifying
      *   tries left is saved in case of verification failure, if the
      *   information is available. */
-    pub verify : Option< unsafe extern "C" fn (card: *mut sc_card, type_: c_uint, ref_qualifier: c_int,
-                                               data: *const c_uchar, data_len: usize, tries_left: *mut c_int) -> c_int >, // old interface for pin: don't implement this, but use pin_cmd instead (see: sec.c:sc_pin_cmd)
+    pub verify : Option< unsafe extern "C" fn (card: *mut sc_card, type_: u32, ref_qualifier: i32,
+                                               data: *const u8, data_len: usize, tries_left: *mut i32) -> i32 >, // old interface for pin: don't implement this, but use pin_cmd instead (see: sec.c:sc_pin_cmd)
 
     /* logout: Resets all access rights that were gained. */
-    pub logout : Option< unsafe extern "C" fn (card: *mut sc_card) -> c_int >,
+    pub logout : Option< unsafe extern "C" fn (card: *mut sc_card) -> i32 >,
 
     /* restore_security_env:  Restores a previously saved security
      *   environment, and stores information about the environment to
      *   <env_out>, if not NULL. */
-    pub restore_security_env : Option< unsafe extern "C" fn (card: *mut sc_card, se_num: c_int) -> c_int >,
+    pub restore_security_env : Option< unsafe extern "C" fn (card: *mut sc_card, se_num: i32) -> i32 >,
 
     /* set_security_env:  Initializes the security environment on card
      *   according to <env>, and stores the environment as <se_num> on the
      *   card. If se_num <= 0, the environment will not be stored. */
     pub set_security_env : Option< unsafe extern "C" fn (card: *mut sc_card,
-                                                         env: *const sc_security_env, se_num: c_int) -> c_int >,
+                                                         env: *const sc_security_env, se_num: i32) -> i32 >,
     /* decipher:  Engages the deciphering operation.  Card will use the
      *   security environment set in a call to set_security_env or
      *   restore_security_env. */
-    pub decipher : Option< unsafe extern "C" fn (card: *mut sc_card, crgram: *const c_uchar, crgram_len: usize,
-                                                 out: *mut c_uchar, outlen: usize) -> c_int >,
+    pub decipher : Option< unsafe extern "C" fn (card: *mut sc_card, crgram: *const u8, crgram_len: usize,
+                                                 out: *mut u8, outlen: usize) -> i32 >,
 
 
     /* compute_signature:  Generates a digital signature on the card.  Similar
      *   to the function decipher. */
-    pub compute_signature : Option< unsafe extern "C" fn (card: *mut sc_card, data: *const c_uchar, data_len: usize,
-                                                          out: *mut c_uchar, outlen: usize) -> c_int >,
+    pub compute_signature : Option< unsafe extern "C" fn (card: *mut sc_card, data: *const u8, data_len: usize,
+                                                          out: *mut u8, outlen: usize) -> i32 >,
 
     #[deprecated(since="0.0.0", note="please use `pin_cmd` instead")]
-    pub change_reference_data : Option< unsafe extern "C" fn (card: *mut sc_card, type_: c_uint, ref_qualifier: c_int,
-                                                              old: *const c_uchar, oldlen: usize, newref: *const c_uchar,
-                                                              newlen: usize, tries_left: *mut c_int) -> c_int >,  // old interface for pin: don't implement this, but use pin_cmd instead (see: sec.c:sc_pin_cmd)
+    pub change_reference_data : Option< unsafe extern "C" fn (card: *mut sc_card, type_: u32, ref_qualifier: i32,
+                                                              old: *const u8, oldlen: usize, newref: *const u8,
+                                                              newlen: usize, tries_left: *mut i32) -> i32 >,  // old interface for pin: don't implement this, but use pin_cmd instead (see: sec.c:sc_pin_cmd)
     #[deprecated(since="0.0.0", note="please use `pin_cmd` instead")]
-    pub reset_retry_counter : Option< unsafe extern "C" fn (card: *mut sc_card, type_: c_uint, ref_qualifier: c_int,
-                                                            puk: *const c_uchar, puklen: usize, newref: *const c_uchar,
-                                                            newlen: usize) -> c_int >, // old interface for pin: don't implement this, but use pin_cmd instead (see: sec.c:sc_pin_cmd)
+    pub reset_retry_counter : Option< unsafe extern "C" fn (card: *mut sc_card, type_: u32, ref_qualifier: i32,
+                                                            puk: *const u8, puklen: usize, newref: *const u8,
+                                                            newlen: usize) -> i32 >, // old interface for pin: don't implement this, but use pin_cmd instead (see: sec.c:sc_pin_cmd)
 
     /*
      * ISO 7816-9 functions
      */
-    pub create_file : Option< unsafe extern "C" fn (card: *mut sc_card, file: *mut sc_file) -> c_int >,
+    pub create_file : Option< unsafe extern "C" fn (card: *mut sc_card, file: *mut sc_file) -> i32 >,
 
-    pub delete_file : Option< unsafe extern "C" fn (card: *mut sc_card, path: *const sc_path) -> c_int >,
+    pub delete_file : Option< unsafe extern "C" fn (card: *mut sc_card, path: *const sc_path) -> i32 >,
 
     /* list_files:  Enumerates all the files in the current DF, and
      *   writes the corresponding file identifiers to <buf>.  Returns
      *   the number of bytes stored. */
-    pub list_files : Option< unsafe extern "C" fn (card: *mut sc_card, buf: *mut c_uchar, buflen: usize) -> c_int >,
+    pub list_files : Option< unsafe extern "C" fn (card: *mut sc_card, buf: *mut u8, buflen: usize) -> i32 >,
 
-    pub check_sw : Option< unsafe extern "C" fn (card: *mut sc_card, sw1: c_uint, sw2: c_uint) -> c_int >,
+    pub check_sw : Option< unsafe extern "C" fn (card: *mut sc_card, sw1: u32, sw2: u32) -> i32 >,
 
-    pub card_ctl : Option< unsafe extern "C" fn (card: *mut sc_card, command: c_ulong, data: *mut c_void) -> c_int >,
+    pub card_ctl : Option< unsafe extern "C" fn (card: *mut sc_card, command: c_ulong, data: *mut c_void) -> i32 >,
 
     pub process_fci : Option< unsafe extern "C" fn (card: *mut sc_card, file: *mut sc_file,
-                                                    buf: *const c_uchar, buflen: usize) -> c_int >,
+                                                    buf: *const u8, buflen: usize) -> i32 >,
 
     pub construct_fci : Option< unsafe extern "C" fn (card: *mut sc_card, file: *const sc_file,
-                                                      out: *mut c_uchar, outlen: *mut usize) -> c_int >,
+                                                      out: *mut u8, outlen: *mut usize) -> i32 >,
 
     /* pin_cmd: verify/change/unblock command; optionally using the
      * card's pin pad if supported.
      */
     pub pin_cmd : Option< unsafe extern "C" fn (card: *mut sc_card, data: *mut sc_pin_cmd_data,
-                                                tries_left: *mut c_int) -> c_int >,
+                                                tries_left: *mut i32) -> i32 >,
 
-    pub get_data : Option< unsafe extern "C" fn (card: *mut sc_card, offset: c_uint, buf: *mut c_uchar,
-                                                 buflen: usize) -> c_int >,
+    pub get_data : Option< unsafe extern "C" fn (card: *mut sc_card, offset: u32, buf: *mut u8,
+                                                 buflen: usize) -> i32 >,
 
-    pub put_data : Option< unsafe extern "C" fn (arg1: *mut sc_card, arg2: c_uint, arg3: *const c_uchar,
-                                                 arg4: usize) -> c_int >,
+    pub put_data : Option< unsafe extern "C" fn (arg1: *mut sc_card, arg2: u32, arg3: *const u8,
+                                                 arg4: usize) -> i32 >,
 
-    pub delete_record : Option< unsafe extern "C" fn (card: *mut sc_card, rec_nr: c_uint) -> c_int >,
+    pub delete_record : Option< unsafe extern "C" fn (card: *mut sc_card, rec_nr: u32) -> i32 >,
 
-    pub read_public_key : Option< unsafe extern "C" fn (card: *mut sc_card, algorithm: c_uint, key_path: *mut sc_path,
-                                                        key_reference: c_uint, modulus_length: c_uint,
-                                                        out: *mut *mut c_uchar, out_len: *mut usize) -> c_int >,
+    pub read_public_key : Option< unsafe extern "C" fn (card: *mut sc_card, algorithm: u32, key_path: *mut sc_path,
+                                                        key_reference: u32, modulus_length: u32,
+                                                        out: *mut *mut u8, out_len: *mut usize) -> i32 >,
 
-    pub card_reader_lock_obtained: Option< unsafe extern "C" fn (arg1: *mut sc_card, was_reset: c_int) -> c_int >,  // since opensc source release v0.17.0
-
-    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-    pub wrap: Option< unsafe extern "C" fn (card: *mut sc_card, out: *mut c_uchar, outlen: usize) -> c_int >,
+    pub card_reader_lock_obtained: Option< unsafe extern "C" fn (arg1: *mut sc_card, was_reset: i32) -> i32 >,  // since opensc source release v0.17.0
 
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-    pub unwrap: Option< unsafe extern "C" fn (card: *mut sc_card, crgram: *const c_uchar, crgram_len: usize) -> c_int >,
+    pub wrap: Option< unsafe extern "C" fn (card: *mut sc_card, out: *mut u8, outlen: usize) -> i32 >,
+
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+    pub unwrap: Option< unsafe extern "C" fn (card: *mut sc_card, crgram: *const u8, crgram_len: usize) -> i32 >,
 }
 
 #[repr(C)]
@@ -1114,7 +1112,7 @@ pub struct sc_card_driver {
     pub short_name : *const c_char,
     pub ops        : *mut sc_card_operations,
     pub atr_map    : *mut sc_atr_table, /* ATTENTION: ultimately ctx.c:sc_release_context calls card.c:_sc_free_atr, free's all pointers !!! */
-    pub natrs      : c_uint,
+    pub natrs      : u32,
     pub dll        : *mut c_void,
 }
 /*
@@ -1146,15 +1144,15 @@ impl Default for sc_card_driver {
 #[derive(Debug, Copy, Clone)]
 pub struct sc_thread_context {
     /** the version number of this structure (0 for this version) */
-    pub ver : c_uint,
+    pub ver : u32,
     /** creates a mutex object */
-    pub create_mutex : Option< unsafe extern "C" fn (arg1: *mut *mut c_void) -> c_int >,
+    pub create_mutex : Option< unsafe extern "C" fn (arg1: *mut *mut c_void) -> i32 >,
     /** locks a mutex object (blocks until the lock has been acquired) */
-    pub lock_mutex : Option< unsafe extern "C" fn (arg1: *mut c_void) -> c_int >,
+    pub lock_mutex : Option< unsafe extern "C" fn (arg1: *mut c_void) -> i32 >,
     /** unlocks a mutex object  */
-    pub unlock_mutex : Option< unsafe extern "C" fn (arg1: *mut c_void) -> c_int >,
+    pub unlock_mutex : Option< unsafe extern "C" fn (arg1: *mut c_void) -> i32 >,
    /** destroys a mutex object */
-    pub destroy_mutex : Option< unsafe extern "C" fn (arg1: *mut c_void) -> c_int >,
+    pub destroy_mutex : Option< unsafe extern "C" fn (arg1: *mut c_void) -> i32 >,
     /** returns unique identifier for the thread (can be NULL) */
     pub thread_id : Option< unsafe extern "C" fn () -> c_ulong >,
 }
@@ -1187,9 +1185,9 @@ pub struct sc_context {
     pub conf : *mut scconf_context,
     pub conf_blocks : [*mut scconf_block; 3],
     pub app_name : *mut c_char,
-    pub debug : c_int,
+    pub debug : i32,
     #[cfg(any(v0_17_0, v0_18_0))]
-    pub reopen_log_file : c_int,        // only in opensc source release v0.17.0 and v0.18.0
+    pub reopen_log_file : i32,        // only in opensc source release v0.17.0 and v0.18.0
     pub flags : c_ulong,                // since opensc source release v0.16.0
 
     pub debug_file : *mut FILE,
@@ -1207,7 +1205,7 @@ pub struct sc_context {
     pub thread_ctx : *mut sc_thread_context,
     pub mutex : *mut c_void,
 
-    pub magic : c_uint,
+    pub magic : u32,
 }
 /*
 #[doc(hidden)]
@@ -1284,9 +1282,9 @@ extern "C" {
  *  @param  apdu  sc_apdu object of the APDU to be send
  *  @return SC_SUCCESS on success and an error code otherwise
  */
-pub fn sc_transmit_apdu(card: *mut sc_card, apdu: *mut sc_apdu) -> c_int;
+pub fn sc_transmit_apdu(card: *mut sc_card, apdu: *mut sc_apdu) -> i32;
 
-pub fn sc_format_apdu(card: *mut sc_card, apdu: *mut sc_apdu, cse: c_int, ins: c_int, p1: c_int, p2: c_int);
+pub fn sc_format_apdu(card: *mut sc_card, apdu: *mut sc_apdu, cse: i32, ins: i32, p1: i32, p2: i32);
 
 /** Format an APDU based on the data to be sent and received.
  *
@@ -1296,11 +1294,11 @@ pub fn sc_format_apdu(card: *mut sc_card, apdu: *mut sc_apdu, cse: c_int, ins: c
  */
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub fn sc_format_apdu_ex(apdu: *mut sc_apdu,
-		cla: c_uchar, ins: c_uchar, p1: c_uchar, p2: c_uchar,
-		data: *const c_uchar, datalen: usize,
-		resp: *mut c_uchar, resplen: usize);
+		cla: u8, ins: u8, p1: u8, p2: u8,
+		data: *const u8, datalen: usize,
+		resp: *mut u8, resplen: usize);
 
-pub fn sc_check_apdu(card: *mut sc_card, apdu: *const sc_apdu) -> c_int;
+pub fn sc_check_apdu(card: *mut sc_card, apdu: *const sc_apdu) -> i32;
 
 /** Transforms an APDU from binary to its @c sc_apdu representation
  *  @param  ctx     sc_context object (used for logging)
@@ -1314,7 +1312,7 @@ pub fn sc_check_apdu(card: *mut sc_card, apdu: *const sc_apdu) -> c_int;
  *  @note On successful initialization @a apdu->resp and apdu->resplen will be
  *  0. You should modify both if you are expecting data in the response APDU.
  */
-pub fn sc_bytes2apdu(ctx: *mut sc_context, buf: *const c_uchar, len: usize, apdu: *mut sc_apdu) -> c_int;
+pub fn sc_bytes2apdu(ctx: *mut sc_context, buf: *const u8, len: usize, apdu: *mut sc_apdu) -> i32;
 
 /** Encodes a APDU as an octet string
  *  @param  ctx     sc_context object (used for logging)
@@ -1326,7 +1324,7 @@ pub fn sc_bytes2apdu(ctx: *mut sc_context, buf: *const c_uchar, len: usize, apdu
  */
 #[cfg(not(v0_17_0))]
 fn sc_apdu2bytes(ctx: *mut sc_context, apdu: *const sc_apdu,
-    proto: c_uint, out: *mut c_uchar, outlen: usize) -> c_int; // since opensc source release v0.18.0; not declared pub because not exported from libopensc.so
+    proto: u32, out: *mut u8, outlen: usize) -> i32; // since opensc source release v0.18.0; not declared pub because not exported from libopensc.so
 
 /** Calculates the length of the encoded APDU in octets.
  *  @param  apdu   the APDU
@@ -1334,9 +1332,9 @@ fn sc_apdu2bytes(ctx: *mut sc_context, apdu: *const sc_apdu,
  *  @return length of the encoded APDU
  */
 #[cfg(not(v0_17_0))]
-fn sc_apdu_get_length(apdu: *const sc_apdu, proto: c_uint) -> usize; // since opensc source release v0.18.0; not declared pub because not exported from libopensc.so
+fn sc_apdu_get_length(apdu: *const sc_apdu, proto: u32) -> usize; // since opensc source release v0.18.0; not declared pub because not exported from libopensc.so
 
-pub fn sc_check_sw (card: *mut sc_card, sw1: c_uint, sw2: c_uint) -> c_int;
+pub fn sc_check_sw (card: *mut sc_card, sw1: u32, sw2: u32) -> i32;
 
 /********************************************************************/
 /*                  opensc context functions                        */
@@ -1350,7 +1348,7 @@ pub fn sc_check_sw (card: *mut sc_card, sw1: c_uint, sw2: c_uint) -> c_int;
  * @param app_name A string that identifies the application, used primarily
  * in finding application-specific configuration data. Can be NULL.
  */
-pub fn sc_establish_context(ctx: *mut *mut sc_context, app_name: *const c_char) -> c_int;
+pub fn sc_establish_context(ctx: *mut *mut sc_context, app_name: *const c_char) -> i32;
 
 }
 
@@ -1363,7 +1361,7 @@ pub fn sc_establish_context(ctx: *mut *mut sc_context, app_name: *const c_char) 
 #[derive(Debug, Copy, Clone)]
 pub struct sc_context_param {
     /** version number of this structure (0 for this version) */
-    pub ver : c_uint,
+    pub ver : u32,
     /** name of the application (used for finding application
       *  dependent configuration data). If NULL the name "default"
       *  will be used. */
@@ -1400,7 +1398,7 @@ extern "C" {
  *               context.
  * @return SC_SUCCESS or an error value if an error occurred.
  */
-fn sc_context_repair(ctx: *mut *mut sc_context) -> c_int; // not declared pub because not exported from libopensc.so
+fn sc_context_repair(ctx: *mut *mut sc_context) -> i32; // not declared pub because not exported from libopensc.so
 
 /**
  * Creates a new sc_context object.
@@ -1411,19 +1409,19 @@ fn sc_context_repair(ctx: *mut *mut sc_context) -> c_int; // not declared pub be
  *               options)..
  * @return SC_SUCCESS on success and an error code otherwise.
  */
-pub fn sc_context_create(ctx: *mut *mut sc_context, parm: *const sc_context_param) -> c_int;
+pub fn sc_context_create(ctx: *mut *mut sc_context, parm: *const sc_context_param) -> i32;
 /**
  * Releases an established OpenSC context
  * @param ctx A pointer to the context structure to be released
  */
-pub fn sc_release_context(ctx: *mut sc_context) -> c_int;
+pub fn sc_release_context(ctx: *mut sc_context) -> i32;
 
 /**
  * Detect new readers available on system.
  * @param  ctx  OpenSC context
  * @return SC_SUCCESS on success and an error code otherwise.
  */
-pub fn sc_ctx_detect_readers(ctx: *mut sc_context) -> c_int;
+pub fn sc_ctx_detect_readers(ctx: *mut sc_context) -> i32;
 
 /**
  * In windows: get configuration option from environment or from registers.
@@ -1434,10 +1432,10 @@ pub fn sc_ctx_detect_readers(ctx: *mut sc_context) -> c_int;
  */
 #[cfg(    any(v0_17_0, v0_18_0))]
 pub fn sc_ctx_win32_get_config_value(env: *mut c_char, reg: *mut c_char, key: *mut c_char,
-    out: *mut c_char, out_size: *mut usize) -> c_int;       // since opensc source release v0.16.0
+    out: *mut c_char, out_size: *mut usize) -> i32;       // since opensc source release v0.16.0
 #[cfg(not(any(v0_17_0, v0_18_0)))]
 pub fn sc_ctx_win32_get_config_value(env: *const c_char, reg: *const c_char, key: *const c_char,
-    out: *mut c_void, out_size: *mut usize) -> c_int;       // since opensc source release v0.19.0
+    out: *mut c_void, out_size: *mut usize) -> i32;       // since opensc source release v0.19.0
 
 /**
  * Returns a pointer to the specified sc_reader object
@@ -1446,7 +1444,7 @@ pub fn sc_ctx_win32_get_config_value(env: *const c_char, reg: *const c_char, key
  * @return the requested sc_reader object or NULL if the index is
  *         not available
  */
-pub fn sc_ctx_get_reader(ctx: *mut sc_context, i: c_uint) -> *mut sc_reader;
+pub fn sc_ctx_get_reader(ctx: *mut sc_context, i: u32) -> *mut sc_reader;
 
 /**
  * Pass in pointers to handles to be used for the pcsc reader.
@@ -1457,7 +1455,7 @@ pub fn sc_ctx_get_reader(ctx: *mut sc_context, i: c_uint) -> *mut sc_reader;
  * @param  pcsc_card_handle pointer to the new card_handle to use
  * @return SC_SUCCESS on success and an error code otherwise.
  */
-pub fn sc_ctx_use_reader(ctx: *mut sc_context, pcsc_context_handle: *mut c_void, pcsc_card_handle: *mut c_void) -> c_int;
+pub fn sc_ctx_use_reader(ctx: *mut sc_context, pcsc_context_handle: *mut c_void, pcsc_card_handle: *mut c_void) -> i32;
 
 /**
  * Returns a pointer to the specified sc_reader object
@@ -1475,16 +1473,16 @@ pub fn sc_ctx_get_reader_by_name(ctx: *mut sc_context, name: *const c_char) -> *
  * @return the requested sc_reader object or NULL if the reader is
  *         not available
  */
-pub fn sc_ctx_get_reader_by_id(ctx: *mut sc_context, id: c_uint) -> *mut sc_reader;
+pub fn sc_ctx_get_reader_by_id(ctx: *mut sc_context, id: u32) -> *mut sc_reader;
 
 /**
  * Returns the number a available sc_reader objects
  * @param  ctx  OpenSC context
  * @return the number of available reader objects
  */
-pub fn sc_ctx_get_reader_count(ctx: *mut sc_context) -> c_uint;
+pub fn sc_ctx_get_reader_count(ctx: *mut sc_context) -> u32;
 
-pub fn _sc_delete_reader(ctx: *mut sc_context, reader: *mut sc_reader) -> c_int;
+pub fn _sc_delete_reader(ctx: *mut sc_context, reader: *mut sc_reader) -> i32;
 
 /**
  * Redirects OpenSC debug log to the specified file
@@ -1492,14 +1490,14 @@ pub fn _sc_delete_reader(ctx: *mut sc_context, reader: *mut sc_reader) -> c_int;
  * @param  filename path to the file or "stderr" or "stdout"
  * @return SC_SUCCESS on success and an error code otherwise
  */
-pub fn sc_ctx_log_to_file(ctx: *mut sc_context, filename: *const c_char) -> c_int;
+pub fn sc_ctx_log_to_file(ctx: *mut sc_context, filename: *const c_char) -> i32;
 
 /**
  * Forces the use of a specified card driver
  * @param ctx OpenSC context
  * @param short_name The short name of the driver to use (e.g. 'cardos')
  */
-pub fn sc_set_card_driver(ctx: *mut sc_context, short_name: *const c_char) -> c_int;
+pub fn sc_set_card_driver(ctx: *mut sc_context, short_name: *const c_char) -> i32;
 
 /**
  * Connects to a card in a reader and auto-detects the card driver.
@@ -1507,7 +1505,7 @@ pub fn sc_set_card_driver(ctx: *mut sc_context, short_name: *const c_char) -> c_
  * @param reader Reader structure
  * @param card The allocated card object will go here
  */
-pub fn sc_connect_card(reader: *mut sc_reader, card: *mut *mut sc_card) -> c_int;
+pub fn sc_connect_card(reader: *mut sc_reader, card: *mut *mut sc_card) -> i32;
 /**
  * Disconnects from a card, and frees the card structure. Any locks
  * made by the application must be released before calling this function.
@@ -1515,7 +1513,7 @@ pub fn sc_connect_card(reader: *mut sc_reader, card: *mut *mut sc_card) -> c_int
  * @param  card  The card to disconnect
  * @return SC_SUCCESS on success and an error code otherwise
  */
-pub fn sc_disconnect_card(card: *mut sc_card) -> c_int;
+pub fn sc_disconnect_card(card: *mut sc_card) -> i32;
 
 /**
  * Checks if a card is present in a reader
@@ -1527,7 +1525,7 @@ pub fn sc_disconnect_card(card: *mut sc_card) -> c_int;
  * always set. In addition, if the card was exchanged,
  * the SC_READER_CARD_CHANGED flag is set.
  */
-pub fn sc_detect_card_presence(reader: *mut sc_reader) -> c_int;
+pub fn sc_detect_card_presence(reader: *mut sc_reader) -> i32;
 
 /**
  * Waits for an event on readers. Note: only the event is detected,
@@ -1547,9 +1545,9 @@ pub fn sc_detect_card_presence(reader: *mut sc_reader) -> c_int;
  * @retval = 0 if a an event happened
  * @retval = 1 if the timeout occurred
  */
-pub fn sc_wait_for_event (ctx: *mut sc_context, event_mask: c_uint,
-    event_reader: *mut *mut sc_reader, event: *mut c_uint,
-    timeout: c_int, reader_states: *mut *mut c_void) -> c_int;
+pub fn sc_wait_for_event (ctx: *mut sc_context, event_mask: u32,
+    event_reader: *mut *mut sc_reader, event: *mut u32,
+    timeout: i32, reader_states: *mut *mut c_void) -> i32;
 
 /**
  * Resets the card.
@@ -1558,7 +1556,7 @@ pub fn sc_wait_for_event (ctx: *mut sc_context, event_mask: c_uint,
  * @param do_cold_reset 0 for a warm reset, 1 for a cold reset (unpower)
  * @retval SC_SUCCESS on success
  */
-pub fn sc_reset(card: *mut sc_card, do_cold_reset: c_int) -> c_int;
+pub fn sc_reset(card: *mut sc_card, do_cold_reset: i32) -> i32;
 
 /**
  * Cancel all pending PC/SC calls
@@ -1566,21 +1564,21 @@ pub fn sc_reset(card: *mut sc_card, do_cold_reset: c_int) -> c_int;
  * @param ctx pointer to application context
  * @retval SC_SUCCESS on success
  */
-pub fn sc_cancel(ctx: *mut sc_context) -> c_int;
+pub fn sc_cancel(ctx: *mut sc_context) -> i32;
 
 /**
  * Tries acquire the reader lock.
  * @param  card  The card to lock
  * @retval SC_SUCCESS on success
  */
-pub fn sc_lock(card: *mut sc_card) -> c_int;
+pub fn sc_lock(card: *mut sc_card) -> i32;
 
 /**
  * Unlocks a previously acquired reader lock.
  * @param  card  The card to unlock
  * @retval SC_SUCCESS on success
  */
-pub fn sc_unlock(card: *mut sc_card) -> c_int;
+pub fn sc_unlock(card: *mut sc_card) -> i32;
 
 /**
  * @brief Calculate the maximum size of R-APDU payload (Ne).
@@ -1618,7 +1616,7 @@ fn sc_get_max_send_size(card: *const sc_card) -> usize; // not declared pub beca
  * @param  file  If not NULL, will receive a pointer to a new structure
  * @return SC_SUCCESS on success and an error code otherwise
  */
-pub fn sc_select_file(card: *mut sc_card, path: *const sc_path, file: *mut *mut sc_file) -> c_int;
+pub fn sc_select_file(card: *mut sc_card, path: *const sc_path, file: *mut *mut sc_file) -> i32;
 /**
  * List file ids within a DF
  * @param  card    struct sc_card object on which to issue the command
@@ -1627,7 +1625,7 @@ pub fn sc_select_file(card: *mut sc_card, path: *const sc_path, file: *mut *mut 
  * @param  buflen  length of the supplied buffer
  * @return number of files ids read or an error code
  */
-pub fn sc_list_files(card: *mut sc_card, buf: *mut c_uchar, buflen: usize) -> c_int;
+pub fn sc_list_files(card: *mut sc_card, buf: *mut u8, buflen: usize) -> i32;
 /**
  * Read data from a binary EF
  * @param  card   struct sc_card object on which to issue the command
@@ -1637,8 +1635,8 @@ pub fn sc_list_files(card: *mut sc_card, buf: *mut c_uchar, buflen: usize) -> c_
  * @param  flags  flags for the READ BINARY command (currently not used)
  * @return number of bytes read or an error code
  */
-pub fn sc_read_binary(card: *mut sc_card, idx: c_uint, buf: *mut c_uchar,
-    count: usize, flags: c_ulong) -> c_int;
+pub fn sc_read_binary(card: *mut sc_card, idx: u32, buf: *mut u8,
+    count: usize, flags: c_ulong) -> i32;
 /**
  * Write data to a binary EF
  * @param  card   struct sc_card object on which to issue the command
@@ -1648,8 +1646,8 @@ pub fn sc_read_binary(card: *mut sc_card, idx: c_uint, buf: *mut c_uchar,
  * @param  flags  flags for the WRITE BINARY command (currently not used)
  * @return number of bytes written or an error code
  */
-pub fn sc_write_binary(card: *mut sc_card, idx: c_uint, buf: *const c_uchar,
-    count: usize, flags: c_ulong) -> c_int;
+pub fn sc_write_binary(card: *mut sc_card, idx: u32, buf: *const u8,
+    count: usize, flags: c_ulong) -> i32;
 /**
  * Updates the content of a binary EF
  * @param  card   struct sc_card object on which to issue the command
@@ -1659,8 +1657,8 @@ pub fn sc_write_binary(card: *mut sc_card, idx: c_uint, buf: *const c_uchar,
  * @param  flags  flags for the UPDATE BINARY command (currently not used)
  * @return number of bytes written or an error code
  */
-pub fn sc_update_binary(card: *mut sc_card, idx: c_uint, buf: *const c_uchar,
-    count: usize, flags: c_ulong) -> c_int;
+pub fn sc_update_binary(card: *mut sc_card, idx: u32, buf: *const u8,
+    count: usize, flags: c_ulong) -> i32;
 
 /**
  * Sets (part of) the content fo an EF to its logical erased state
@@ -1670,8 +1668,8 @@ pub fn sc_update_binary(card: *mut sc_card, idx: c_uint, buf: *const c_uchar,
  * @param  flags  flags for the ERASE BINARY command (currently not used)
  * @return number of bytes written or an error code
  */
-pub fn sc_erase_binary(card: *mut sc_card, idx: c_uint,
-    count: usize, flags: c_ulong) -> c_int;
+pub fn sc_erase_binary(card: *mut sc_card, idx: u32,
+    count: usize, flags: c_ulong) -> i32;
 } // extern "C"
 pub const SC_RECORD_EF_ID_MASK : c_ulong = 0x0_001F;
 /** flags for record operations */
@@ -1693,8 +1691,8 @@ extern "C" {
  * @param  flags   flags (may contain a short file id of a file to select)
  * @retval number of bytes read or an error value
  */
-pub fn sc_read_record(card: *mut sc_card, rec_nr: c_uint, buf: *mut c_uchar,
-    count: usize, flags: c_ulong) -> c_int;
+pub fn sc_read_record(card: *mut sc_card, rec_nr: u32, buf: *mut u8,
+    count: usize, flags: c_ulong) -> i32;
 
 /**
  * Writes data to a record from the current (i.e. selected) file.
@@ -1705,8 +1703,8 @@ pub fn sc_read_record(card: *mut sc_card, rec_nr: c_uint, buf: *mut c_uchar,
  * @param  flags   flags (may contain a short file id of a file to select)
  * @retval number of bytes written or an error value
  */
-pub fn sc_write_record(card: *mut sc_card, rec_nr: c_uint, buf: *const c_uchar,
-    count: usize, flags: c_ulong) -> c_int;
+pub fn sc_write_record(card: *mut sc_card, rec_nr: u32, buf: *const u8,
+    count: usize, flags: c_ulong) -> i32;
 /**
  * Appends a record to the current (i.e. selected) file.
  * @param  card    struct sc_card object on which to issue the command
@@ -1715,8 +1713,8 @@ pub fn sc_write_record(card: *mut sc_card, rec_nr: c_uint, buf: *const c_uchar,
  * @param  flags   flags (may contain a short file id of a file to select)
  * @retval number of bytes written or an error value
  */
-pub fn sc_append_record(card: *mut sc_card, buf: *const c_uchar, count: usize,
-    flags: c_ulong) -> c_int;
+pub fn sc_append_record(card: *mut sc_card, buf: *const u8, count: usize,
+    flags: c_ulong) -> i32;
 /**
  * Updates the data of a record from the current (i.e. selected) file.
  * @param  card    struct sc_card object on which to issue the command
@@ -1726,16 +1724,16 @@ pub fn sc_append_record(card: *mut sc_card, buf: *const c_uchar, count: usize,
  * @param  flags   flags (may contain a short file id of a file to select)
  * @retval number of bytes written or an error value
  */
-pub fn sc_update_record(card: *mut sc_card, rec_nr: c_uint, buf: *const c_uchar,
-    count: usize, flags: c_ulong) -> c_int;
-pub fn sc_delete_record(card: *mut sc_card, rec_nr: c_uint) -> c_int;
+pub fn sc_update_record(card: *mut sc_card, rec_nr: u32, buf: *const u8,
+    count: usize, flags: c_ulong) -> i32;
+pub fn sc_delete_record(card: *mut sc_card, rec_nr: u32) -> i32;
 /* get/put data functions */
 
 /// Caller of sc_card.sc_card_operations.get_data
 /// seems to refer to Data Object file, not to confuse with cos5 "Get Key"
 /// OpenSC (exempt from card specific code) currently uses that from opensc-explorer only
-pub fn sc_get_data(card: *mut sc_card, arg2: c_uint, arg3: *mut c_uchar, arg4: usize) -> c_int;
-pub fn sc_put_data(card: *mut sc_card, arg2: c_uint, arg3: *const c_uchar, arg4: usize) -> c_int;
+pub fn sc_get_data(card: *mut sc_card, arg2: u32, arg3: *mut u8, arg4: usize) -> i32;
+pub fn sc_put_data(card: *mut sc_card, arg2: u32, arg3: *const u8, arg4: usize) -> i32;
 /**
  * Gets challenge from the card (normally random data).
  * @param  card    struct sc_card object on which to issue the command
@@ -1743,13 +1741,13 @@ pub fn sc_put_data(card: *mut sc_card, arg2: c_uint, arg3: *const c_uchar, arg4:
  * @param  len     length of the challenge
  * @return SC_SUCCESS on success and an error code otherwise
  */
-pub fn sc_get_challenge(card: *mut sc_card, rndout: *mut c_uchar, len: usize) -> c_int;
+pub fn sc_get_challenge(card: *mut sc_card, rndout: *mut u8, len: usize) -> i32;
 
 /********************************************************************/
 /*              ISO 7816-8 related functions                        */
 /********************************************************************/
 
-pub fn sc_restore_security_env(card: *mut sc_card, se_num: c_int) -> c_int;
+pub fn sc_restore_security_env(card: *mut sc_card, se_num: i32) -> i32;
 
 
 /// Caller of sc_card.sc_card_operations.set_security_env
@@ -1760,7 +1758,7 @@ pub fn sc_restore_security_env(card: *mut sc_card, se_num: c_int) -> c_int;
 /// @param  env     IN\
 /// @param  se_num  IN\
 pub fn sc_set_security_env(card: *mut sc_card,
-    env: *const sc_security_env, se_num: c_int) -> c_int;
+    env: *const sc_security_env, se_num: i32) -> i32;
 
 /// Caller of sc_card.sc_card_operations.decipher
 ///
@@ -1772,10 +1770,10 @@ pub fn sc_set_security_env(card: *mut sc_card,
 /// @param  out         OUTIF plain text after decryption\
 /// @param  outlen      IN    \
 /// @return SC_SUCCESS on success, SC_ERROR
-pub fn sc_decipher(card: *mut sc_card, crgram: *const c_uchar, crgram_len: usize,
-    out: *mut c_uchar, outlen: usize) -> c_int;
-//(card: *mut sc_card, crgram: *const c_uchar, crgram_len: usize,
-//out: *mut c_uchar, outlen: usize) -> c_int >,
+pub fn sc_decipher(card: *mut sc_card, crgram: *const u8, crgram_len: usize,
+    out: *mut u8, outlen: usize) -> i32;
+//(card: *mut sc_card, crgram: *const u8, crgram_len: usize,
+//out: *mut u8, outlen: usize) -> i32 >,
 
 
 /// Caller of sc_card.sc_card_operations.compute_signature
@@ -1790,8 +1788,8 @@ pub fn sc_decipher(card: *mut sc_card, crgram: *const c_uchar, crgram_len: usize
 /// @param  outlen    IN    Number of bytes available in out for signature, MUST at least be keyModLen reserved for
 ///                         signature (RSA,)\
 /// @return SC_SUCCESS on success, SC_ERROR
-pub fn sc_compute_signature(card: *mut sc_card, data: *const c_uchar, data_len: usize,
-                            out: *mut c_uchar, outlen: usize) -> c_int;
+pub fn sc_compute_signature(card: *mut sc_card, data: *const u8, data_len: usize,
+                            out: *mut u8, outlen: usize) -> i32;
 
 /// A wrapper function for sc_pin_cmd, specifically/only for pin verification
 ///
@@ -1805,8 +1803,8 @@ pub fn sc_compute_signature(card: *mut sc_card, data: *const c_uchar, data_len: 
 /// @param  buflen  IN    pin data's length\
 /// @param  tries_left  OUTIF\
 /// @return SC_SUCCESS on success, SC_ERROR
-pub fn sc_verify(card: *mut sc_card, type_: c_uint, ref_: c_int, buf: *const c_uchar, buflen: usize,
-                 tries_left: *mut c_int) -> c_int;
+pub fn sc_verify(card: *mut sc_card, type_: u32, ref_: i32, buf: *const u8, buflen: usize,
+                 tries_left: *mut i32) -> i32;
 
 /**
  * Resets the security status of the card (i.e. withdraw all granted
@@ -1816,22 +1814,22 @@ pub fn sc_verify(card: *mut sc_card, type_: c_uint, ref_: c_int, buf: *const c_u
  * @return SC_SUCCESS on success, SC_ERROR_NOT_SUPPORTED if the card
  *         doesn't support a logout command and an error code otherwise
  */
-pub fn sc_logout(card: *mut sc_card) -> c_int;
-pub fn sc_pin_cmd(card: *mut sc_card, arg1: *mut sc_pin_cmd_data, tries_left: *mut c_int) -> c_int;
-pub fn sc_change_reference_data(card: *mut sc_card, type_: c_uint, ref_: c_int, old: *const c_uchar, oldlen: usize,
-    newref: *const c_uchar, newlen: usize,
-    tries_left: *mut c_int) -> c_int;
-pub fn sc_reset_retry_counter(card: *mut sc_card, type_: c_uint,
-    ref_: c_int, puk: *const c_uchar, puklen: usize,
-    newref: *const c_uchar, newlen: usize) -> c_int;
-pub fn sc_build_pin(buf: *mut c_uchar, buflen: usize, pin: *mut sc_pin_cmd_pin, pad: c_int) -> c_int;
+pub fn sc_logout(card: *mut sc_card) -> i32;
+pub fn sc_pin_cmd(card: *mut sc_card, arg1: *mut sc_pin_cmd_data, tries_left: *mut i32) -> i32;
+pub fn sc_change_reference_data(card: *mut sc_card, type_: u32, ref_: i32, old: *const u8, oldlen: usize,
+    newref: *const u8, newlen: usize,
+    tries_left: *mut i32) -> i32;
+pub fn sc_reset_retry_counter(card: *mut sc_card, type_: u32,
+    ref_: i32, puk: *const u8, puklen: usize,
+    newref: *const u8, newlen: usize) -> i32;
+pub fn sc_build_pin(buf: *mut u8, buflen: usize, pin: *mut sc_pin_cmd_pin, pad: i32) -> i32;
 
 /********************************************************************/
 /*               ISO 7816-9 related functions                       */
 /********************************************************************/
 
-pub fn sc_create_file(card: *mut sc_card, file: *mut sc_file) -> c_int;
-pub fn sc_delete_file(card: *mut sc_card, path: *const sc_path) -> c_int;
+pub fn sc_create_file(card: *mut sc_card, file: *mut sc_file) -> i32;
+pub fn sc_delete_file(card: *mut sc_card, path: *const sc_path) -> i32;
 
 /* Card controls */
 
@@ -1842,11 +1840,11 @@ pub fn sc_delete_file(card: *mut sc_card, path: *const sc_path) -> c_int;
 /// @param  command  IN     the command requested, SC_CARDCTL_* (cardctl.rs)\
 /// @param  data     INOUT? the type depends on @param  command, typically some specialized struct\
 /// @return SC_SUCCESS on success, SC_ERROR
-pub fn sc_card_ctl(card: *mut sc_card, command: c_ulong, data: *mut c_void) -> c_int;
+pub fn sc_card_ctl(card: *mut sc_card, command: c_ulong, data: *mut c_void) -> i32;
 
 /// the file is valid, if 1 is returned, otherwise its *NOT* valid and 0 get'd returned
 /// @binding: No memory problem
-pub fn sc_file_valid(file: *const sc_file) -> c_int;
+pub fn sc_file_valid(file: *const sc_file) -> i32;
 /// @binding: returns C heap allocated memory
 pub fn sc_file_new() -> *mut sc_file;
 /// @binding: deallocates C heap allocated memory; WARNING: Don't use file after calling sc_file_free,
@@ -1863,23 +1861,23 @@ pub fn sc_file_dup(dest: *mut *mut sc_file, src: *const sc_file);
 /// @param  key_ref    IN  key or pin reference as used within card, or SC_AC_KEY_REF_NONE\
 /// @return SC_SUCCESS or error code
 /// @apiNote  The function (for some methods) will add symbolic addresses (i.e. that can't be dereferenced)
-pub fn sc_file_add_acl_entry(file: *mut sc_file, operation: c_uint, method: c_uint, key_ref: c_ulong) -> c_int;
-pub fn sc_file_get_acl_entry(file: *const sc_file, operation: c_uint) -> *const sc_acl_entry;
-pub fn sc_file_clear_acl_entries(file: *mut sc_file, operation: c_uint);
-pub fn sc_file_set_sec_attr(file: *mut sc_file, sec_attr: *const c_uchar, sec_attr_len: usize) -> c_int;
-pub fn sc_file_set_prop_attr(file: *mut sc_file, prop_attr: *const c_uchar, prop_attr_len: usize) -> c_int;
-pub fn sc_file_set_type_attr(file: *mut sc_file, type_attr: *const c_uchar, type_attr_len: usize) -> c_int;
-pub fn sc_file_set_content(file: *mut sc_file, content: *const c_uchar, content_len: usize) -> c_int;
+pub fn sc_file_add_acl_entry(file: *mut sc_file, operation: u32, method: u32, key_ref: c_ulong) -> i32;
+pub fn sc_file_get_acl_entry(file: *const sc_file, operation: u32) -> *const sc_acl_entry;
+pub fn sc_file_clear_acl_entries(file: *mut sc_file, operation: u32);
+pub fn sc_file_set_sec_attr(file: *mut sc_file, sec_attr: *const u8, sec_attr_len: usize) -> i32;
+pub fn sc_file_set_prop_attr(file: *mut sc_file, prop_attr: *const u8, prop_attr_len: usize) -> i32;
+pub fn sc_file_set_type_attr(file: *mut sc_file, type_attr: *const u8, type_attr_len: usize) -> i32;
+pub fn sc_file_set_content(file: *mut sc_file, content: *const u8, content_len: usize) -> i32;
 
 /********************************************************************/
 /*               Key wrapping and unwrapping                        */
 /********************************************************************/
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-fn sc_unwrap(card: *mut sc_card, data: *const c_uchar,
-             data_len: usize, out: *mut c_uchar, outlen: usize);
+fn sc_unwrap(card: *mut sc_card, data: *const u8,
+             data_len: usize, out: *mut u8, outlen: usize);
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-fn sc_wrap(card: *mut sc_card, data: *const c_uchar,
-           data_len: usize, out: *mut c_uchar, outlen: usize);
+fn sc_wrap(card: *mut sc_card, data: *const u8,
+           data_len: usize, out: *mut u8, outlen: usize);
 
 /********************************************************************/
 /*             sc_path handling functions                           */
@@ -1895,8 +1893,8 @@ fn sc_wrap(card: *mut sc_card, data: *const c_uchar,
  * @param  count   number of bytes
  * @return SC_SUCCESS on success and an error code otherwise
  */
-pub fn sc_path_set(path: *mut sc_path, type_: c_int, id: *const c_uchar,
-    id_len: usize, index: c_int, count: c_int) -> c_int;
+pub fn sc_path_set(path: *mut sc_path, type_: i32, id: *const u8,
+    id_len: usize, index: i32, count: i32) -> i32;
 
 /// @param path_in: e.g. "i3F00" or ""I3f00"" or "3F004100" C strings (null terminated)
 ///
@@ -1920,7 +1918,7 @@ pub fn sc_print_path(path: *const sc_path) -> *const c_char;
  * @param  path    sc_path object to be printed
  * @return SC_SUCCESS on success and an error code otherwise
  */
-pub fn sc_path_print(buf: *mut c_char, buflen: usize, path : *const sc_path) -> c_int;
+pub fn sc_path_print(buf: *mut c_char, buflen: usize, path : *const sc_path) -> i32;
 
 /**
  * Compares two sc_path objects
@@ -1928,7 +1926,7 @@ pub fn sc_path_print(buf: *mut c_char, buflen: usize, path : *const sc_path) -> 
  * @param  pathb  sc_path object of the second path
  * @return 1 if both paths are equal and 0 otherwise
  */
-pub fn sc_compare_path(patha: *const sc_path, pathb: *const sc_path) -> c_int;
+pub fn sc_compare_path(patha: *const sc_path, pathb: *const sc_path) -> i32;
 
 /**
  * Concatenate two sc_path values and store the result in
@@ -1938,7 +1936,7 @@ pub fn sc_compare_path(patha: *const sc_path, pathb: *const sc_path) -> c_int;
  * @param  p2  second sc_path object
  * @return SC_SUCCESS on success and an error code otherwise
  */
-pub fn sc_concatenate_path(d: *mut sc_path, p1: *const sc_path, p2: *const sc_path) -> c_int;
+pub fn sc_concatenate_path(d: *mut sc_path, p1: *const sc_path, p2: *const sc_path) -> i32;
 /**
  * Appends a sc_path object to another sc_path object (note:
  * this function is a wrapper for sc_concatenate_path)
@@ -1946,7 +1944,7 @@ pub fn sc_concatenate_path(d: *mut sc_path, p1: *const sc_path, p2: *const sc_pa
  * @param  src   sc_path object to append
  * @return SC_SUCCESS on success and an error code otherwise
  */
-pub fn sc_append_path(dest: *mut sc_path, src: *const sc_path) -> c_int;
+pub fn sc_append_path(dest: *mut sc_path, src: *const sc_path) -> i32;
 /**
  * Checks whether one path is a prefix of another path
  * @param  prefix  sc_path object with the prefix
@@ -1954,9 +1952,9 @@ pub fn sc_append_path(dest: *mut sc_path, src: *const sc_path) -> c_int;
  *                 with the given prefix
  * @return 1 if the parameter prefix is a prefix of path and 0 otherwise
  */
-pub fn sc_compare_path_prefix(prefix: *const sc_path, path: *const sc_path) -> c_int;
-pub fn sc_append_path_id (dest: *mut sc_path, id: *const c_uchar, idlen: usize) -> c_int;
-pub fn sc_append_file_id(dest: *mut sc_path, fid: c_uint) -> c_int;
+pub fn sc_compare_path_prefix(prefix: *const sc_path, path: *const sc_path) -> i32;
+pub fn sc_append_path_id (dest: *mut sc_path, id: *const u8, idlen: usize) -> i32;
+pub fn sc_append_file_id(dest: *mut sc_path, fid: u32) -> i32;
 
 /**
  * Returns a const sc_path object for the MF
@@ -1975,13 +1973,13 @@ pub fn sc_get_mf_path() -> *const sc_path;
 /********************************************************************/
 
 /// The function converts a C string containing characters (hexadecimal 'digit' only) to an u8 representation,
-/// i.e. each 2 c_char from input form  1 c_uchar of output
+/// i.e. each 2 c_char from input form  1 u8 of output
 /// @param in_: input to be interpreted, length must be a multiple of 2; c_char allowed are '0'-'9', 'a'-'f' and 'A'-'F'
 /// @param out: output buffer offered
 /// @binding: No memory problem only if outlen is set correctly for out: outlen must be <= out.len()!
 /// The function reads within the limits of zero terminated in_ and writes to out
 /// Example: A call with in_: b"3F004100\0" and outlen>=4  will result in out: 0x [63, 0, 65, 0 ...], outlen: 4
-pub fn sc_hex_to_bin(in_: *const c_char, out: *mut c_uchar, outlen: *mut usize) -> c_int;
+pub fn sc_hex_to_bin(in_: *const c_char, out: *mut u8, outlen: *mut usize) -> i32;
 
 /// The function converts an u8 array to a string representing the input as hexadecimal, human-readable/printable form.
 /// It's the inverse function of sc_hex_to_bin.
@@ -2002,7 +2000,7 @@ pub fn sc_hex_to_bin(in_: *const c_char, out: *mut c_uchar, outlen: *mut usize) 
 ///   [0x33, 0x66, 0x3A, 0x30, 0x31, 0x00] which reads as "3f:01"
 /// @binding: No memory problem only if the requirements above are met!
 
-/// containing characters (hexadecimal 'digit' only), i.e. each 1 c_uchar from input form 2 c_char  of output.
+/// containing characters (hexadecimal 'digit' only), i.e. each 1 u8 from input form 2 c_char  of output.
 /// possibly separated by a delimiter character
 /// The function reads within the limits of zero terminated in_ and writes to out
 
@@ -2025,10 +2023,10 @@ pub fn sc_hex_to_bin(in_: *const c_char, out: *mut c_uchar, outlen: *mut usize) 
  * Example: input [0x3f, 0x01], in_len=2, separator=':', req. an out_len>=6,
  * writes to out: [0x33, 0x66, 0x3A, 0x30, 0x31, 0x00] which reads as "3f:01"
  */
-pub fn sc_bin_to_hex(in_: *const c_uchar, in_len: usize, out: *mut c_char, out_len: usize, separator: c_int) -> c_int;
-    fn sc_right_trim(buf: *mut c_uchar, len: usize) -> usize; // not declared pub because not exported from libopensc.so
+pub fn sc_bin_to_hex(in_: *const u8, in_len: usize, out: *mut c_char, out_len: usize, separator: i32) -> i32;
+    fn sc_right_trim(buf: *mut u8, len: usize) -> usize; // not declared pub because not exported from libopensc.so
 
-pub fn sc_get_conf_block(ctx: *mut sc_context, name1: *const c_char, name2: *const c_char, priority: c_int)
+pub fn sc_get_conf_block(ctx: *mut sc_context, name1: *const c_char, name2: *const c_char, priority: i32)
                          -> *mut scconf_block;
 /**
  * Initializes a given OID
@@ -2041,24 +2039,24 @@ pub fn sc_init_oid(oid: *mut sc_object_id);
  * @param  in   ascii string with the oid ("1.2.3.4.5...")
  * @return SC_SUCCESS or an error value if an error occurred.
  */
-pub fn sc_format_oid(oid: *mut sc_object_id, in_: *const c_char) -> c_int;
+pub fn sc_format_oid(oid: *mut sc_object_id, in_: *const c_char) -> i32;
 /**
  * Compares two sc_object_id objects
  * @param  oid1  the first sc_object_id object
  * @param  oid2  the second sc_object_id object
  * @return 1 if the oids are equal and a zero value otherwise
  */
-pub fn sc_compare_oid(oid1: *const sc_object_id, oid2: *const sc_object_id) -> c_int;
+pub fn sc_compare_oid(oid1: *const sc_object_id, oid2: *const sc_object_id) -> i32;
 /**
  * Validates a given OID
  * @param  oid  sc_object_id object to be validated
  */
-pub fn sc_valid_oid(oid: *const sc_object_id) -> c_int;
+pub fn sc_valid_oid(oid: *const sc_object_id) -> i32;
 
 /* Base64 encoding/decoding functions */
-pub fn sc_base64_encode(in_: *const c_uchar, inlen: usize, out: *mut c_uchar, outlen: usize,
-    linelength: usize) -> c_int;
-pub fn sc_base64_decode(in_: *const c_char, out: *mut c_uchar, outlen: usize) -> c_int;
+pub fn sc_base64_encode(in_: *const u8, inlen: usize, out: *mut u8, outlen: usize,
+    linelength: usize) -> i32;
+pub fn sc_base64_decode(in_: *const c_char, out: *mut u8, outlen: usize) -> i32;
 
 /**
  * Clears a memory buffer (note: when OpenSSL is used this is
@@ -2073,36 +2071,36 @@ fn sc_mem_alloc_secure(ctx: *mut sc_context, len: usize) -> *mut c_void;  // rem
 pub fn sc_mem_secure_alloc(len: usize) -> *mut c_void;  // added since opensc source release v0.20.0
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub fn sc_mem_secure_free(ptr: *mut c_void, len: usize);  // added since opensc source release v0.20.0
-pub fn sc_mem_reverse(buf: *mut c_uchar, len: usize) -> c_int;
+pub fn sc_mem_reverse(buf: *mut u8, len: usize) -> i32;
 
-pub fn sc_get_cache_dir(ctx: *mut sc_context, buf: *mut c_char, bufsize: usize) -> c_int;
-pub fn sc_make_cache_dir(ctx: *mut sc_context) -> c_int;
+pub fn sc_get_cache_dir(ctx: *mut sc_context, buf: *mut c_char, bufsize: usize) -> i32;
+pub fn sc_make_cache_dir(ctx: *mut sc_context) -> i32;
 
 /**/
-pub fn sc_enum_apps(card: *mut sc_card) -> c_int;
+pub fn sc_enum_apps(card: *mut sc_card) -> i32;
 pub fn sc_find_app(card: *mut sc_card, aid: *mut sc_aid) -> *mut sc_app_info;
 pub fn sc_free_apps(card: *mut sc_card);
-pub fn sc_parse_ef_atr(card: *mut sc_card) -> c_int;
+pub fn sc_parse_ef_atr(card: *mut sc_card) -> i32;
 pub fn sc_free_ef_atr(card: *mut sc_card);
 #[cfg(not(v0_17_0))]
 fn sc_parse_ef_gdo(card: *mut sc_card,
-        iccsn: *mut c_uchar, iccsn_len: *mut usize,
-        chn: *mut c_uchar, chn_len: *mut usize) -> c_int;  // added since opensc source release v0.18.0
-pub fn sc_update_dir(card: *mut sc_card, app: *mut sc_app_info) -> c_int;
+        iccsn: *mut u8, iccsn_len: *mut usize,
+        chn: *mut u8, chn_len: *mut usize) -> i32;  // added since opensc source release v0.18.0
+pub fn sc_update_dir(card: *mut sc_card, app: *mut sc_app_info) -> i32;
 
 #[cfg(not(v0_17_0))]
 fn sc_invalidate_cache(card: *mut sc_card);  // added since opensc source release v0.18.0
 pub fn sc_print_cache(card: *mut sc_card);
 
 pub fn sc_card_find_rsa_alg(card: *mut sc_card,
-    key_length: c_uint) -> *mut sc_algorithm_info;
+    key_length: u32) -> *mut sc_algorithm_info;
 pub fn sc_card_find_ec_alg(card: *mut sc_card,
-    field_length: c_uint, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
+    field_length: u32, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
 fn sc_card_find_gostr3410_alg(card: *mut sc_card,
-    key_length: c_uint) -> *mut sc_algorithm_info;
+    key_length: u32) -> *mut sc_algorithm_info;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 fn sc_card_find_alg(card: *mut sc_card,
-    algorithm: c_uint, key_length: c_uint, param: *mut c_void) -> *mut sc_algorithm_info;
+    algorithm: u32, key_length: u32, param: *mut c_void) -> *mut sc_algorithm_info;
 
 pub fn sc_match_atr_block(ctx: *mut sc_context, driver: *mut sc_card_driver, atr: *mut sc_atr) -> *mut scconf_block;
 /**
@@ -2111,9 +2109,9 @@ pub fn sc_match_atr_block(ctx: *mut sc_context, driver: *mut sc_card_driver, atr
  * @param len length of data used for CRC calculation
  */
 #[cfg(    v0_17_0)]
-pub fn sc_crc32(value: *mut   c_uchar, len: usize) -> c_uint;
+pub fn sc_crc32(value: *mut   u8, len: usize) -> u32;
 #[cfg(not(v0_17_0))]
-pub fn sc_crc32(value: *const c_uchar, len: usize) -> c_uint; // changed since opensc source release v0.18.0
+pub fn sc_crc32(value: *const u8, len: usize) -> u32; // changed since opensc source release v0.18.0
 
 /**
  * Find a given tag in a compact TLV structure
@@ -2126,7 +2124,7 @@ pub fn sc_crc32(value: *const c_uchar, len: usize) -> c_uint; // changed since o
  * @return pointer to the tag value found within @buf, or NULL if not found/on error
  */
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-fn sc_compacttlv_find_tag(buf: *const c_uchar, len: usize, tag: c_uchar, outlen: *mut usize) -> *const c_uchar;  // added since opensc source release v0.19.0
+fn sc_compacttlv_find_tag(buf: *const u8, len: usize, tag: u8, outlen: *mut usize) -> *const u8;  // added since opensc source release v0.19.0
 
 /**
  * Used to initialize the @c sc_remote_data structure --
@@ -2141,7 +2139,7 @@ pub fn sc_remote_data_init(rdata: *mut sc_remote_data);
  * @dst destination
  * @src source
  */
-fn sc_copy_ec_params(arg1: *mut sc_ec_parameters, arg2: *mut sc_ec_parameters) -> c_int;
+fn sc_copy_ec_params(arg1: *mut sc_ec_parameters, arg2: *mut sc_ec_parameters) -> i32;
 
 } // extern "C"
 
@@ -2150,8 +2148,8 @@ fn sc_copy_ec_params(arg1: *mut sc_ec_parameters, arg2: *mut sc_ec_parameters) -
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_card_error {
-    pub SWs: c_uint,
-    pub errorno: c_int,
+    pub SWs: u32,
+    pub errorno: i32,
     pub errorstr: *const c_char,
 }
 
@@ -2193,8 +2191,8 @@ pub fn sc_get_iso7816_driver() -> *mut sc_card_driver;
  *
  * @note The appropriate directory must be selected before calling this function.
  * */
-pub fn iso7816_read_binary_sfid(card: *mut sc_card, sfid: c_uchar,
-    ef: *mut *mut c_uchar, ef_len: *mut usize) -> c_int;       // since opensc source release v0.17.0
+pub fn iso7816_read_binary_sfid(card: *mut sc_card, sfid: u8,
+    ef: *mut *mut u8, ef_len: *mut usize) -> i32;       // since opensc source release v0.17.0
 
 /**
  * @brief Write a complete EF by short file identifier.
@@ -2206,8 +2204,8 @@ pub fn iso7816_read_binary_sfid(card: *mut sc_card, sfid: c_uchar,
  *
  * @note The appropriate directory must be selected before calling this function.
  * */
-pub fn iso7816_write_binary_sfid (card: *mut sc_card, sfid: c_uchar,
-    ef: *mut c_uchar, ef_len: usize) -> c_int;                // since opensc source release v0.17.0
+pub fn iso7816_write_binary_sfid (card: *mut sc_card, sfid: u8,
+    ef: *mut u8, ef_len: usize) -> i32;                // since opensc source release v0.17.0
 
 /**
 * @brief Update a EF by short file identifier.
@@ -2220,8 +2218,8 @@ pub fn iso7816_write_binary_sfid (card: *mut sc_card, sfid: c_uchar,
 * @note The appropriate directory must be selected before calling this function.
 * */
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub fn iso7816_update_binary_sfid(card: *mut sc_card, sfid: c_uchar,
-                                  ef: *mut c_uchar, ef_len: usize) -> c_int;
+pub fn iso7816_update_binary_sfid(card: *mut sc_card, sfid: u8,
+                                  ef: *mut u8, ef_len: usize) -> i32;
 
 /**
  * @brief Set verification status of a specific PIN to “not verified”
@@ -2232,21 +2230,21 @@ pub fn iso7816_update_binary_sfid(card: *mut sc_card, sfid: c_uchar,
  * @note The appropriate directory must be selected before calling this function.
  * */
 #[cfg(not(v0_17_0))]
-fn iso7816_logout(card: *mut sc_card, pin_reference: c_uchar) -> c_int;
+fn iso7816_logout(card: *mut sc_card, pin_reference: u8) -> i32;
 
 } // extern "C"
 
 
 // wrappers
 
-
-pub fn sc_hex_to_bin_wrapper(in_: String /*&str*/) -> Result<Vec<c_uchar>, c_int>
+/*
+pub fn sc_hex_to_bin_wrapper(in_: String /*&str*/) -> Result<Vec<u8>, i32>
 {
-    let mut vec: Vec<c_uchar> = Vec::with_capacity((in_.len()+1)/2);
+    let mut vec: Vec<u8> = Vec::with_capacity((in_.len()+1)/2);
     let mut vec_length: usize = vec.capacity();
 /*
-    // copy in_ into new allocated Vec<c_uchar>
-    let mut vec_str: Vec<c_uchar> = Vec::with_capacity(in_.len()+1);
+    // copy in_ into new allocated Vec<u8>
+    let mut vec_str: Vec<u8> = Vec::with_capacity(in_.len()+1);
     for element in in_.bytes() {
         vec_str.push(element);
     }
@@ -2283,12 +2281,12 @@ pub fn sc_hex_to_bin_wrapper(in_: String /*&str*/) -> Result<Vec<c_uchar>, c_int
 
 /// @binding: No memory problem only if the requirements above are met!
 /// The function reads within the limits of zero terminated in_ and writes to out
-//b fn sc_bin_to_hex(in_: *const c_uchar, in_len: usize, out: *mut c_char, out_len: usize, separator: c_int) -> c_int;
-pub fn sc_bin_to_hex_wrapper(in_: &[c_uchar], separator: c_int) -> Result<String, c_int>
+//b fn sc_bin_to_hex(in_: *const u8, in_len: usize, out: *mut c_char, out_len: usize, separator: i32) -> i32;
+pub fn sc_bin_to_hex_wrapper(in_: &[u8], separator: i32) -> Result<String, i32>
 {
 //println!("Length in_ : {}", in_.len());
     let cap = 1+ in_.len()*2 + if separator>0 && !in_.is_empty() { in_.len()-1 } else { 0 };
-    let mut vec: Vec<c_uchar> = Vec::with_capacity(cap);
+    let mut vec: Vec<u8> = Vec::with_capacity(cap);
     vec.resize(cap-1, b'<'); // hold the characters excluding \0
 assert_eq!(vec.len(), cap-1);
 
@@ -2303,7 +2301,7 @@ assert_eq!(c_string.as_bytes_with_nul().len(), cap);
      which should be correctly:       if (pos + 3 + in_len==0?0:sep_len >  end)
      the BUFFER_TOO_SMALL checking in C requires 1-2 exessive bytes to be pretended to be offered (i.e. 1-2 more than actually required)
      thus currently cheat sc_bin_to_hex to be offered 2 more bytes than actually allocated
-     let in_ : *const c_uchar = null();
+     let in_ : *const u8 = null();
 
      frankmorgner:bin_hex
 */
@@ -2319,8 +2317,9 @@ assert_eq!(c_string.as_bytes_with_nul().len(), cap);
         Err(rv)
     }
 }
+*/
 
-pub fn sc_bytes2apdu_wrapper(ctx: &mut sc_context, in_: &[c_uchar], apdu: &mut sc_apdu) -> c_int {
+pub fn sc_bytes2apdu_wrapper(ctx: &mut sc_context, in_: &[u8], apdu: &mut sc_apdu) -> i32 {
     unsafe { sc_bytes2apdu(ctx, in_.as_ptr(), in_.len(), apdu) }
 }
 

@@ -129,5 +129,10 @@ app default {
 	}
 }
 ```
+File access rigths of opensc.conf: Linux distros typically install it with: rw-r--r--, i.e. 'other' will have read access.<br>
+The driver requires read-access for opensc.conf if it got compiled with "cargo:rustc-cfg=enable_acos5_ui" or if it executes commands in Secure Messaging mode, thus with those typical file access rigths, the driver binaries don't need to run as root.<br>
+File access rigths of acos5_external.profile: Linux distros typically install .profile files with: rw-r--r--, i.e. 'other' will have read access.<br>
+The driver component libacos5_pkcs15 (if that is executing) requires read-access for acos5_external.profile, thus with those typical file access rigths for acos5_external.profile, libacos5_pkcs15 doesn't need to run as root.<br>
+
 
 There is a tool in progress: [acos5_gui](https://github.com/carblue/acos5_gui "https://github.com/carblue/acos5_gui")

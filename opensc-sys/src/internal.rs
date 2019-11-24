@@ -20,7 +20,7 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-use std::os::raw::{c_uchar, c_char, c_int, c_ulong, c_uint};
+use std::os::raw::{c_char, c_ulong};
 
 use crate::opensc::{sc_context, sc_card, sc_algorithm_info};
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
@@ -35,7 +35,7 @@ use crate::scconf::{scconf_block};
 #include "libopensc/sc-ossl-compat.h"
 #endif
 */
-pub const SC_FILE_MAGIC : c_uint =  0x1442_6950;
+pub const SC_FILE_MAGIC : u32 =  0x1442_6950;
 /*
 #ifndef _WIN32
 #define msleep(t) usleep((t) * 1000)
@@ -64,7 +64,7 @@ pub struct sc_atr_table {
      * atr reference value above. */
     pub atrmask : *const c_char,
     pub name : *const c_char,
-    pub type_ : c_int,
+    pub type_ : i32,
     pub flags : c_ulong,
     /* Reference to card_atr configuration block,
      * available to user configured card entries. */
@@ -86,7 +86,7 @@ impl Default for sc_atr_table {
 }
 
 #[allow(non_snake_case)]
-pub fn BYTES4BITS(num: c_uint) -> c_uint { (num + 7) / 8 }    /* number of bytes necessary to hold 'num' bits */
+pub fn BYTES4BITS(num: u32) -> u32 { (num + 7) / 8 }    /* number of bytes necessary to hold 'num' bits */
 
 extern "C" {
 
@@ -147,23 +147,23 @@ pub fn _sc_match_atr_block(ctx: *mut sc_context, driver: *mut sc_card_driver, at
  * be null terminated. */
 // @param table  wont be changed though
 #[cfg(    any(v0_17_0, v0_18_0))]
-pub fn _sc_match_atr(card: *mut sc_card, table: *mut   sc_atr_table, type_out: *mut c_int) -> c_int; // exported since opensc source release v0.17.0
+pub fn _sc_match_atr(card: *mut sc_card, table: *mut   sc_atr_table, type_out: *mut i32) -> i32; // exported since opensc source release v0.17.0
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub fn _sc_match_atr(card: *mut sc_card, table: *const sc_atr_table, type_out: *mut c_int) -> c_int; // API change since opensc source release v0.19.0
+pub fn _sc_match_atr(card: *mut sc_card, table: *const sc_atr_table, type_out: *mut i32) -> i32; // API change since opensc source release v0.19.0
 
-fn _sc_card_add_algorithm(card: *mut sc_card, info: *const sc_algorithm_info) -> c_int;
-fn _sc_card_add_symmetric_alg(card: *mut sc_card, algorithm: c_uint, key_length: c_uint, flags: c_ulong) -> c_int; // added since opensc source release v0.17.0, but still not exported
+fn _sc_card_add_algorithm(card: *mut sc_card, info: *const sc_algorithm_info) -> i32;
+fn _sc_card_add_symmetric_alg(card: *mut sc_card, algorithm: u32, key_length: u32, flags: c_ulong) -> i32; // added since opensc source release v0.17.0, but still not exported
 
-pub fn _sc_card_add_rsa_alg(card: *mut sc_card, key_length: c_uint, flags: c_ulong, exponent: c_ulong) -> c_int;
-pub fn _sc_card_add_ec_alg(card: *mut sc_card, key_length: c_uint, flags: c_ulong, ext_flags: c_ulong,
-                           curve_oid: *mut sc_object_id) -> c_int;
+pub fn _sc_card_add_rsa_alg(card: *mut sc_card, key_length: u32, flags: c_ulong, exponent: c_ulong) -> i32;
+pub fn _sc_card_add_ec_alg(card: *mut sc_card, key_length: u32, flags: c_ulong, ext_flags: c_ulong,
+                           curve_oid: *mut sc_object_id) -> i32;
 
 /********************************************************************/
 /*                 pkcs1 padding/encoding functions                 */
 /********************************************************************/
 
-fn sc_pkcs1_strip_01_padding(ctx: *mut sc_context, in_dat: *const c_uchar, in_len: usize,
-                             out_dat: *mut c_uchar, out_len: *mut usize) -> c_int;
+fn sc_pkcs1_strip_01_padding(ctx: *mut sc_context, in_dat: *const u8, in_len: usize,
+                             out_dat: *mut u8, out_len: *mut usize) -> i32;
 
 /*
 int sc_pkcs1_strip_02_padding(struct sc_context *ctx, const u8 *data, size_t len,
@@ -187,8 +187,8 @@ int sc_pkcs1_strip_digest_info_prefix(unsigned int *algorithm,
 /// @return         SC_SUCCESS or error code
 /// @test available
 #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-pub fn sc_pkcs1_encode(ctx: *mut sc_context, flags: c_ulong, in_: *const c_uchar, inlen: usize,
-                       out: *mut c_uchar, outlen: *mut usize, modlen: usize) -> c_int;
+pub fn sc_pkcs1_encode(ctx: *mut sc_context, flags: c_ulong, in_: *const u8, inlen: usize,
+                       out: *mut u8, outlen: *mut usize, modlen: usize) -> i32;
 
 /// PKCS1 encodes the given data.
 /// @param  ctx       IN    sc_context object
@@ -201,8 +201,8 @@ pub fn sc_pkcs1_encode(ctx: *mut sc_context, flags: c_ulong, in_: *const c_uchar
 /// @return           SC_SUCCESS or error code
 /// @test available
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub fn sc_pkcs1_encode(ctx: *mut sc_context, flags: c_ulong, in_: *const c_uchar, inlen: usize,
-                       out: *mut c_uchar, outlen: *mut usize, mod_bits: usize) -> c_int;
+pub fn sc_pkcs1_encode(ctx: *mut sc_context, flags: c_ulong, in_: *const u8, inlen: usize,
+                       out: *mut u8, outlen: *mut usize, mod_bits: usize) -> i32;
 
 
 /**
@@ -218,7 +218,7 @@ pub fn sc_pkcs1_encode(ctx: *mut sc_context, flags: c_ulong, in_: *const c_uchar
  * @return SC_SUCCESS on success and an error code otherwise
  */
 fn sc_get_encoding_flags(ctx: *mut sc_context, iflags: c_ulong, caps: c_ulong,
-                         pflags: *mut c_ulong, sflags: *mut c_ulong) -> c_int;
+                         pflags: *mut c_ulong, sflags: *mut c_ulong) -> i32;
 /*
 /********************************************************************/
 /*             mutex functions                                      */
@@ -323,11 +323,7 @@ mod tests {
         let hash = [1u8, 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
         let mut out = [0u8; 96];
         let mut outlen = out.len();
-
-//        #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-        let rv = unsafe { sc_pkcs1_encode(&mut ctx, flags as c_ulong, hash.as_ptr(), hash.len(), out.as_mut_ptr(), &mut outlen, out.len()) };
-//        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-//        let rv = unsafe { sc_pkcs1_encode(&mut ctx, flags as c_ulong, hash.as_ptr(), hash.len(), out.as_mut_ptr(), &mut outlen, out.len()*8) };
+        let rv = unsafe { sc_pkcs1_encode(&mut ctx, c_ulong::from(flags).unwrap, hash.as_ptr(), hash.len(), out.as_mut_ptr(), &mut outlen, out.len()) };
         assert_eq!(rv, SC_SUCCESS);
         assert_eq!(outlen, out.len());
         assert_eq!(out[ 0..32], [0u8, 1, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]);
@@ -353,11 +349,7 @@ mod tests {
         let hash = [1u8, 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
         let mut out = [0u8; 96];
         let mut outlen = out.len();
-
-//        #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-//        let rv = unsafe { sc_pkcs1_encode(&mut ctx, flags as c_ulong, hash.as_ptr(), hash.len(), out.as_mut_ptr(), &mut outlen, out.len()) };
-//        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-        let rv = unsafe { sc_pkcs1_encode(&mut ctx, flags as c_ulong, hash.as_ptr(), hash.len(), out.as_mut_ptr(), &mut outlen, out.len()*8) };
+        let rv = unsafe { sc_pkcs1_encode(&mut ctx, c_ulong::from(flags), hash.as_ptr(), hash.len(), out.as_mut_ptr(), &mut outlen, out.len()*8) };
         assert_eq!(rv, SC_SUCCESS);
         assert_eq!(outlen, out.len());
         assert_eq!(out[ 0..32], [0u8, 1, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]);

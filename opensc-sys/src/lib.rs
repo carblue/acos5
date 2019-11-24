@@ -100,8 +100,8 @@
 //! OpenSC release versions 0.18.0), that changed parsing of
 //! EF.Tokeninfo supportedAlgorithms/parameters/PKCS15ECParameters.
 //!
-//! Remark about functions returning c_int:
-//! Many functions return c_int, and mostly that refers to the success or some error code:
+//! Remark about functions returning i32:
+//! Many functions return i32, and mostly that refers to the success or some error code:
 //! Carefully read abot the exact meaning of value returned, as there are inconsistencies:
 //! E.g. for match_card, success is returned with value 1, while all other return success by SC_SUCCESS (value==0).
 //! Functions that get/put data, return the number of bytes received/written
@@ -387,11 +387,11 @@ mod tests {
                 #[cfg(any(target_pointer_width = "32", windows))]
                     { assert_eq!(sc,  1384); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
-                    { assert_eq!(sc,  1400); }
+                { assert_eq!(sc,  1400); }
                 #[cfg(any(target_pointer_width = "32", windows))]
                     { assert_eq!(sr,   200); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
-                    { assert_eq!(sr,   208); }
+                { assert_eq!(sr,   208); }
                 assert_eq!(sse,  744);
                 assert_eq!(sef,  176);
                 assert_eq!(srd,   32);
@@ -400,7 +400,7 @@ mod tests {
                 #[cfg(any(target_pointer_width = "32", windows))]
                     { assert_eq!(scc,  632); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
-                    { assert_eq!(scc,  632); }
+                { assert_eq!(scc,  632); }
 
                 assert_eq!(spo, 2768);
                 assert_eq!(sca,  152);
@@ -418,11 +418,11 @@ mod tests {
                 #[cfg(any(target_pointer_width = "32", windows))]
                     { assert_eq!(sc,  1384); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
-                    { assert_eq!(sc,  1400); }
+                { assert_eq!(sc,  1400); }
                 #[cfg(any(target_pointer_width = "32", windows))]
                     { assert_eq!(sr,   200); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
-                    { assert_eq!(sr,   208); }
+                { assert_eq!(sr,   208); }
 
                 assert_eq!(sse,  808);
                 assert_eq!(sef,  176);
@@ -432,7 +432,7 @@ mod tests {
                 #[cfg(any(target_pointer_width = "32", windows))]
                     { assert_eq!(scc,  632); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
-                    { assert_eq!(scc,  632); }
+                { assert_eq!(scc,  632); }
 
                 assert_eq!(spo, 2768);
                 assert_eq!(sca,  152);
@@ -501,7 +501,7 @@ mod tests {
                 #[cfg(any(target_pointer_width = "32", windows))]
                     { assert_eq!(scc,  624); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
-                    { assert_eq!(scc,  632); }
+                { assert_eq!(scc,  632); }
 
                 assert_eq!(spo, 2776);
                 assert_eq!(sca,  160);
@@ -521,13 +521,13 @@ mod tests {
                     size_of::<sc_file>: {}, size_of::<scconf_context>: {}, size_of::<sc_pkcs15init_prkeyargs>: {}, size_of::<sc_pkcs15init_skeyargs>: {}",
                          sl, sc, sr, sse, sef, srd, spc, sco, scc, spo, sca, sf, sccc, ip, is);
                 #[cfg(any(target_pointer_width = "32", windows))]
-                    { assert_eq!(sc,  1384); }
+                { assert_eq!(sc,  1384); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
-                    { assert_eq!(sc,  1400); }
+                { assert_eq!(sc,  1400); }
                 #[cfg(any(target_pointer_width = "32", windows))]
-                    { assert_eq!(sr,   200); }
+                { assert_eq!(sr,   200); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
-                    { assert_eq!(sr,   208); }
+                { assert_eq!(sr,   208); }
 
                 assert_eq!(sse, 1112);
                 assert_eq!(sef,  176);
@@ -535,9 +535,9 @@ mod tests {
                 assert_eq!(spc, 4456);
                 assert_eq!(sco,  296);
                 #[cfg(any(target_pointer_width = "32", windows))]
-                    { assert_eq!(scc,  624); }
+                { assert_eq!(scc,  624); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
-                    { assert_eq!(scc,  632); }
+                { assert_eq!(scc,  632); }
 
                 assert_eq!(spo, 2776);
                 assert_eq!(sca,  160);

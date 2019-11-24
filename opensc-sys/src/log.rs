@@ -24,34 +24,35 @@
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 use libc::FILE;
 
-use std::os::raw::{c_char, c_uchar, c_int};
-use crate::opensc::{sc_context};
-use crate::types::{sc_object_id};
-                                          /* 0            will suppress any debug log */
-pub const SC_LOG_DEBUG_VERBOSE_TOOL: c_int = 1;        /* tools only: verbose */
-pub const SC_LOG_DEBUG_VERBOSE     : c_int = 2;        /* helps users */
-pub const SC_LOG_DEBUG_NORMAL      : c_int = 3;        /* helps developers */
-pub const SC_LOG_DEBUG_RFU1        : c_int = 4;        /* RFU */
-#[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-pub const SC_LOG_DEBUG_RFU2        : c_int = 5;        /* RFU */
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_LOG_DEBUG_SM          : c_int = 5;        /* secure messaging */
-pub const SC_LOG_DEBUG_ASN1        : c_int = 6;        /* asn1.c */
-pub const SC_LOG_DEBUG_MATCH       : c_int = 7;        /* card matching */
+use std::os::raw::c_char;
 
-pub const SC_COLOR_FG_RED          : c_int = 0x0001;  // since master
-pub const SC_COLOR_FG_GREEN        : c_int = 0x0002;
-pub const SC_COLOR_FG_YELLOW       : c_int = 0x0004;
-pub const SC_COLOR_FG_BLUE         : c_int = 0x0008;
-pub const SC_COLOR_FG_MAGENTA      : c_int = 0x0010;
-pub const SC_COLOR_FG_CYAN         : c_int = 0x0020;
-pub const SC_COLOR_BG_RED          : c_int = 0x0100;
-pub const SC_COLOR_BG_GREEN        : c_int = 0x0200;
-pub const SC_COLOR_BG_YELLOW       : c_int = 0x0400;
-pub const SC_COLOR_BG_BLUE         : c_int = 0x0800;
-pub const SC_COLOR_BG_MAGENTA      : c_int = 0x1000;
-pub const SC_COLOR_BG_CYAN         : c_int = 0x2000;
-pub const SC_COLOR_BOLD            : c_int = 0x8080;
+use crate::opensc::sc_context;
+use crate::types::sc_object_id;
+                                        /* 0            will suppress any debug log */
+pub const SC_LOG_DEBUG_VERBOSE_TOOL: i32 = 1;        /* tools only: verbose */
+pub const SC_LOG_DEBUG_VERBOSE     : i32 = 2;        /* helps users */
+pub const SC_LOG_DEBUG_NORMAL      : i32 = 3;        /* helps developers */
+pub const SC_LOG_DEBUG_RFU1        : i32 = 4;        /* RFU */
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
+pub const SC_LOG_DEBUG_RFU2        : i32 = 5;        /* RFU */
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+pub const SC_LOG_DEBUG_SM          : i32 = 5;        /* secure messaging */
+pub const SC_LOG_DEBUG_ASN1        : i32 = 6;        /* asn1.c */
+pub const SC_LOG_DEBUG_MATCH       : i32 = 7;        /* card matching */
+
+pub const SC_COLOR_FG_RED          : i32 = 0x0001;  // since master
+pub const SC_COLOR_FG_GREEN        : i32 = 0x0002;
+pub const SC_COLOR_FG_YELLOW       : i32 = 0x0004;
+pub const SC_COLOR_FG_BLUE         : i32 = 0x0008;
+pub const SC_COLOR_FG_MAGENTA      : i32 = 0x0010;
+pub const SC_COLOR_FG_CYAN         : i32 = 0x0020;
+pub const SC_COLOR_BG_RED          : i32 = 0x0100;
+pub const SC_COLOR_BG_GREEN        : i32 = 0x0200;
+pub const SC_COLOR_BG_YELLOW       : i32 = 0x0400;
+pub const SC_COLOR_BG_BLUE         : i32 = 0x0800;
+pub const SC_COLOR_BG_MAGENTA      : i32 = 0x1000;
+pub const SC_COLOR_BG_CYAN         : i32 = 0x2000;
+pub const SC_COLOR_BOLD            : i32 = 0x8080;
 
 extern "C" {
 /*
@@ -92,17 +93,17 @@ int sc_color_fprintf(int colors, struct sc_context *ctx, FILE * stream, const ch
     __attribute__ ((format (SC_PRINTF_FORMAT, 4, 5)));
 #else
 */
-pub fn sc_do_log(ctx: *mut sc_context, level: c_int, file: *const c_char, line: c_int, func: *const c_char,
+pub fn sc_do_log(ctx: *mut sc_context, level: i32, file: *const c_char, line: i32, func: *const c_char,
                  format: *const c_char, ...);
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub fn sc_do_log_color(ctx: *mut sc_context, level: c_int, file: *const c_char, line: c_int, func: *const c_char,
-                       color: c_int, format: *const c_char, ...);
+pub fn sc_do_log_color(ctx: *mut sc_context, level: i32, file: *const c_char, line: i32, func: *const c_char,
+                       color: i32, format: *const c_char, ...);
 //void sc_do_log_noframe(sc_context_t *ctx, int level, const char *format, va_list args);
-//pub fn sc_do_log_noframe(ctx: *mut sc_context_t, level: c_int, format: *const c_char, args: *mut __va_list_tag);
-pub fn _sc_debug(ctx: *mut sc_context, level: c_int, format: *const c_char, ...);
+//pub fn sc_do_log_noframe(ctx: *mut sc_context_t, level: i32, format: *const c_char, args: *mut __va_list_tag);
+pub fn _sc_debug(ctx: *mut sc_context, level: i32, format: *const c_char, ...);
 pub fn _sc_log(ctx: *mut sc_context, format: *const c_char, ... );
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub fn sc_color_fprintf(colors: c_int, ctx: *mut sc_context, stream: *mut FILE, format: *const c_char, ...) -> c_int;
+pub fn sc_color_fprintf(colors: i32, ctx: *mut sc_context, stream: *mut FILE, format: *const c_char, ...) -> i32;
 }
 /*
 #endif  // #if defined(__GNUC__)
@@ -133,22 +134,22 @@ extern "C" {
 /// @param[in] label  label to prepend to the buffer
 /// @param[in] data   binary data
 /// @param[in] len    length of \a data
-pub fn _sc_debug_hex(ctx: *mut sc_context, level: c_int, file: *const c_char, line: c_int,
-                     func: *const c_char, label: *const c_char, data: *const c_uchar, len: usize);
+pub fn _sc_debug_hex(ctx: *mut sc_context, level: i32, file: *const c_char, line: i32,
+                     func: *const c_char, label: *const c_char, data: *const u8, len: usize);
 
 #[cfg(    v0_17_0)]
-pub fn sc_hex_dump(ctx: *mut sc_context, level: c_int, buf: *const c_uchar, len: usize, out: *mut c_char, outlen: usize);
+pub fn sc_hex_dump(ctx: *mut sc_context, level: i32, buf: *const u8, len: usize, out: *mut c_char, outlen: usize);
 #[cfg(not(v0_17_0))]
-pub fn sc_hex_dump(                                    buf: *const c_uchar, len: usize, out: *mut c_char, outlen: usize);
+pub fn sc_hex_dump(                                  buf: *const u8, len: usize, out: *mut c_char, outlen: usize);
 
 /*
 @return A pointer to statically 'allocated' array. sizeof(array)==4096,
         truncation occurs ! Special formating (blocks of 16 bytes, space delimited etc.) get's applied
 */
 #[cfg(    v0_17_0)]
-pub fn sc_dump_hex(in_: *const c_uchar, count: usize) -> *mut c_char;
+pub fn sc_dump_hex(in_: *const u8, count: usize) -> *mut c_char;
 #[cfg(not(v0_17_0))]
-pub fn sc_dump_hex(in_: *const c_uchar, count: usize) -> *const c_char;
+pub fn sc_dump_hex(in_: *const u8, count: usize) -> *const c_char;
 
 #[cfg(    v0_17_0)]
 fn sc_dump_oid(oid: *const sc_object_id) -> *mut c_char;

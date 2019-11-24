@@ -21,7 +21,7 @@
  */
 
 
-use std::os::raw::{c_int, c_uchar, c_char, c_uint, c_ulong, c_void};
+use std::os::raw::{c_char, c_ulong, c_void};
 
 use crate::types::{sc_apdu, sc_remote_data, sc_path, sc_aid, sc_serial_number, SC_MAX_APDU_BUFFER_SIZE,
     sc_tlv_data, sc_crt, sc_cplc};
@@ -29,9 +29,9 @@ use crate::opensc::{sc_card, sc_context};
 
 
 #[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
-pub const SHA_DIGEST_LENGTH : u32 = 20;
+pub const SHA_DIGEST_LENGTH    : u32 = 20;
 #[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
-pub const SHA1_DIGEST_LENGTH : u32 = 20;
+pub const SHA1_DIGEST_LENGTH   : u32 = 20;
 #[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
 pub const SHA256_DIGEST_LENGTH : u32 = 32;
 
@@ -47,45 +47,45 @@ pub const SM_MODE_ACL      : u32 = 0x100;
 /** use SM for all commands */
 pub const SM_MODE_TRANSMIT : u32 = 0x200;
 
-pub const SM_CMD_INITIALIZE  : u32 = 0x10;
-pub const SM_CMD_MUTUAL_AUTHENTICATION : u32 = 0x20;
-pub const SM_CMD_RSA   : u32 = 0x100;
-pub const SM_CMD_RSA_GENERATE  : u32 = 0x101;
-pub const SM_CMD_RSA_UPDATE  : u32 = 0x102;
-pub const SM_CMD_RSA_READ_PUBLIC  : u32 = 0x103;
-pub const SM_CMD_FILE   : u32 = 0x200;
-pub const SM_CMD_FILE_READ  : u32 = 0x201;
-pub const SM_CMD_FILE_UPDATE  : u32 = 0x202;
-pub const SM_CMD_FILE_CREATE  : u32 = 0x203;
-pub const SM_CMD_FILE_DELETE  : u32 = 0x204;
-pub const SM_CMD_PIN   : u32 = 0x300;
-pub const SM_CMD_PIN_VERIFY  : u32 = 0x301;
-pub const SM_CMD_PIN_RESET  : u32 = 0x302;
-pub const SM_CMD_PIN_SET_PIN  : u32 = 0x303;
-pub const SM_CMD_PSO   : u32 = 0x400;
-pub const SM_CMD_PSO_DST   : u32 = 0x401;
-pub const SM_CMD_APDU   : u32 = 0x500;
-pub const SM_CMD_APDU_TRANSMIT  : u32 = 0x501;
-pub const SM_CMD_APDU_RAW   : u32 = 0x502;
-pub const SM_CMD_APPLET   : u32 = 0x600;
-pub const SM_CMD_APPLET_DELETE  : u32 = 0x601;
-pub const SM_CMD_APPLET_LOAD  : u32 = 0x602;
-pub const SM_CMD_APPLET_INSTALL  : u32 = 0x603;
-pub const SM_CMD_EXTERNAL_AUTH  : u32 = 0x700;
-pub const SM_CMD_EXTERNAL_AUTH_INIT : u32 = 0x701;
+pub const SM_CMD_INITIALIZE              : u32 = 0x10;
+pub const SM_CMD_MUTUAL_AUTHENTICATION   : u32 = 0x20;
+pub const SM_CMD_RSA                     : u32 = 0x100;
+pub const SM_CMD_RSA_GENERATE            : u32 = 0x101;
+pub const SM_CMD_RSA_UPDATE              : u32 = 0x102;
+pub const SM_CMD_RSA_READ_PUBLIC         : u32 = 0x103;
+pub const SM_CMD_FILE                    : u32 = 0x200;
+pub const SM_CMD_FILE_READ               : u32 = 0x201;
+pub const SM_CMD_FILE_UPDATE             : u32 = 0x202;
+pub const SM_CMD_FILE_CREATE             : u32 = 0x203;
+pub const SM_CMD_FILE_DELETE             : u32 = 0x204;
+pub const SM_CMD_PIN                     : u32 = 0x300;
+pub const SM_CMD_PIN_VERIFY              : u32 = 0x301;
+pub const SM_CMD_PIN_RESET               : u32 = 0x302;
+pub const SM_CMD_PIN_SET_PIN             : u32 = 0x303;
+pub const SM_CMD_PSO                     : u32 = 0x400;
+pub const SM_CMD_PSO_DST                 : u32 = 0x401;
+pub const SM_CMD_APDU                    : u32 = 0x500;
+pub const SM_CMD_APDU_TRANSMIT           : u32 = 0x501;
+pub const SM_CMD_APDU_RAW                : u32 = 0x502;
+pub const SM_CMD_APPLET                  : u32 = 0x600;
+pub const SM_CMD_APPLET_DELETE           : u32 = 0x601;
+pub const SM_CMD_APPLET_LOAD             : u32 = 0x602;
+pub const SM_CMD_APPLET_INSTALL          : u32 = 0x603;
+pub const SM_CMD_EXTERNAL_AUTH           : u32 = 0x700;
+pub const SM_CMD_EXTERNAL_AUTH_INIT      : u32 = 0x701;
 pub const SM_CMD_EXTERNAL_AUTH_CHALLENGE : u32 = 0x702;
-pub const SM_CMD_EXTERNAL_AUTH_DOIT : u32 = 0x703;
-pub const SM_CMD_SDO_UPDATE  : u32 = 0x800;
-pub const SM_CMD_FINALIZE   : u32 = 0x900;
+pub const SM_CMD_EXTERNAL_AUTH_DOIT      : u32 = 0x703;
+pub const SM_CMD_SDO_UPDATE              : u32 = 0x800;
+pub const SM_CMD_FINALIZE                : u32 = 0x900;
 
-pub const SM_RESPONSE_CONTEXT_TAG  : u32 = 0xA1;
+pub const SM_RESPONSE_CONTEXT_TAG      : u32 = 0xA1;
 pub const SM_RESPONSE_CONTEXT_DATA_TAG : u32 = 0xA2;
 
-pub const SM_MAX_DATA_SIZE    : u32 = 0xE0;
+pub const SM_MAX_DATA_SIZE             : u32 = 0xE0;
 
 pub const SM_SMALL_CHALLENGE_LEN : usize = 8;
 
-pub const SM_GP_SECURITY_NO  : u32 = 0x00;
+pub const SM_GP_SECURITY_NO   : u32 = 0x00;
 pub const SM_GP_SECURITY_MAC  : u32 = 0x01;
 pub const SM_GP_SECURITY_ENC  : u32 = 0x03;
 
@@ -97,9 +97,9 @@ pub const SM_GP_SECURITY_ENC  : u32 = 0x03;
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sm_type_params_gp {
-    pub level : c_uint,
-    pub index : c_uint,
-    pub version : c_uint,
+    pub level   : u32,
+    pub index   : u32,
+    pub version : u32,
 
     pub cplc : sc_cplc,
 }
@@ -114,14 +114,14 @@ pub struct sm_type_params_gp {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sm_gp_keyset {
-    pub version : c_int,
-    pub index : c_int,
-    pub enc : [c_uchar; 16],
-    pub mac : [c_uchar; 16],
-    pub kek : [c_uchar; 16],
+    pub version : i32,
+    pub index   : i32,
+    pub enc : [u8; 16],
+    pub mac : [u8; 16],
+    pub kek : [u8; 16],
 
-    pub kmc : [c_uchar; 48],
-    pub kmc_len : c_uint,
+    pub kmc : [u8; 48],
+    pub kmc_len : u32,
 }
 
 /*
@@ -135,13 +135,13 @@ pub struct sm_gp_session {
 
     pub params : sm_type_params_gp,
 
-    pub host_challenge : [c_uchar; SM_SMALL_CHALLENGE_LEN],
-    pub card_challenge : [c_uchar; SM_SMALL_CHALLENGE_LEN],
+    pub host_challenge : [u8; SM_SMALL_CHALLENGE_LEN],
+    pub card_challenge : [u8; SM_SMALL_CHALLENGE_LEN],
 
-    pub session_enc : *mut c_uchar,
-    pub session_mac : *mut c_uchar,
-    pub session_kek : *mut c_uchar,
-    pub mac_icv : [c_uchar; 8],
+    pub session_enc : *mut u8,
+    pub session_mac : *mut u8,
+    pub session_kek : *mut u8,
+    pub mac_icv : [u8; 8],
 }
 
 /* CWA, IAS/ECC data types */
@@ -164,9 +164,9 @@ pub struct sm_type_params_cwa {
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone)]
 pub struct sm_cwa_keyset {
-    pub sdo_reference : c_uint,
-    pub enc : [c_uchar; 16],
-    pub mac : [c_uchar; 16],
+    pub sdo_reference : u32,
+    pub enc : [u8; 16],
+    pub mac : [u8; 16],
 }
 
 /*
@@ -179,9 +179,9 @@ pub struct sm_cwa_keyset {
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone)]
 pub struct sm_cwa_token_data {
-    pub sn :  [c_uchar; 8],
-    pub rnd : [c_uchar; 8],
-    pub k :   [c_uchar; 32],
+    pub sn :  [u8; 8],
+    pub rnd : [u8; 8],
+    pub k :   [u8; 32],
 }
 
 /*
@@ -202,15 +202,15 @@ pub struct sm_cwa_session {
     pub icc : sm_cwa_token_data,
     pub ifd : sm_cwa_token_data,
 
-    pub session_enc : [c_uchar; 16],
-    pub session_mac : [c_uchar; 16],
+    pub session_enc : [u8; 16],
+    pub session_mac : [u8; 16],
 
-    pub ssc : [c_uchar; 8],
+    pub ssc : [u8; 8],
 
-    pub host_challenge : [c_uchar; SM_SMALL_CHALLENGE_LEN],
-    pub card_challenge : [c_uchar; SM_SMALL_CHALLENGE_LEN],
+    pub host_challenge : [u8; SM_SMALL_CHALLENGE_LEN],
+    pub card_challenge : [u8; SM_SMALL_CHALLENGE_LEN],
 
-    pub mdata : [c_uchar; 0x48],
+    pub mdata : [u8; 0x48],
     pub mdata_len : usize,
 }
 
@@ -248,12 +248,12 @@ pub struct sm_dh_session {
     pub icc_p : sc_tlv_data,
     pub shared_secret : sc_tlv_data,
 
-    pub session_enc : [c_uchar; 16],
-    pub session_mac : [c_uchar; 16],
+    pub session_enc : [u8; 16],
+    pub session_mac : [u8; 16],
 
-    pub card_challenge : [c_uchar; 32],
+    pub card_challenge : [u8; 32],
 
-    pub ssc : [c_uchar; 8],
+    pub ssc : [u8; 8],
 }
 
 /*
@@ -277,23 +277,23 @@ pub union sm_info__union {
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sm_info {
     pub config_section : [c_char; 64],
-    pub card_type : c_uint,
+    pub card_type : u32,
 
-    pub cmd : c_uint,      /* e.g. SM_CMD_EXTERNAL_AUTH */
+    pub cmd : u32,      /* e.g. SM_CMD_EXTERNAL_AUTH */
     pub cmd_data : *mut c_void,
 
-    pub sm_type : c_uint,  /* e.g. SM_TYPE_CWA14890 */
+    pub sm_type : u32,  /* e.g. SM_TYPE_CWA14890 */
     pub session : sm_info__union,
 
     pub serialnr : sc_serial_number,
 
-    pub security_condition : c_uint, /* unused */
+    pub security_condition : u32, /* unused */
 
     pub current_path_df : sc_path,
     pub current_path_ef : sc_path,
     pub current_aid : sc_aid,
 
-    pub rdata : *mut c_uchar,
+    pub rdata : *mut u8,
     pub rdata_len : usize,
 }
 
@@ -304,16 +304,16 @@ pub struct sm_info {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sm_card_response {
-    pub num : c_int,
+    pub num : i32,
 
-    pub data : [c_uchar; SC_MAX_APDU_BUFFER_SIZE],
+    pub data : [u8; SC_MAX_APDU_BUFFER_SIZE],
     pub data_len : usize,
 
-    pub mac : [c_uchar; 8],
+    pub mac : [u8; 8],
     pub mac_len : usize,
 
-    pub sw1 : c_uchar,
-    pub sw2 : c_uchar,
+    pub sw1 : u8,
+    pub sw2 : u8,
 
     pub next : *mut sm_card_response,
     pub prev : *mut sm_card_response,
@@ -338,17 +338,17 @@ pub type sm_card_response_t = sm_card_response;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sm_card_operations {
-    pub open : Option < unsafe extern "C" fn (card: *mut sc_card) -> c_int >,
+    pub open : Option < unsafe extern "C" fn (card: *mut sc_card) -> i32 >,
     pub get_sm_apdu : Option < unsafe extern "C" fn (card: *mut sc_card, apdu: *mut sc_apdu,
-                                                     sm_apdu: *mut *mut sc_apdu) -> c_int >,
+                                                     sm_apdu: *mut *mut sc_apdu) -> i32 >,
     pub free_sm_apdu : Option < unsafe extern "C" fn (card: *mut sc_card, apdu: *mut sc_apdu,
-                                                      sm_apdu: *mut *mut sc_apdu) -> c_int >,
-    pub close : Option < unsafe extern "C" fn (card: *mut sc_card) -> c_int >,
+                                                      sm_apdu: *mut *mut sc_apdu) -> i32 >,
+    pub close : Option < unsafe extern "C" fn (card: *mut sc_card) -> i32 >,
 
-    pub read_binary : Option < unsafe extern "C" fn (card: *mut sc_card, idx: c_uint, buf: *mut c_uchar, count: usize)
-        -> c_int >,
-    pub update_binary : Option < unsafe extern "C" fn (card: *mut sc_card, idx: c_uint, buf: *const c_uchar, count: usize)
-        -> c_int >,
+    pub read_binary : Option < unsafe extern "C" fn (card: *mut sc_card, idx: u32, buf: *mut u8, count: usize)
+        -> i32 >,
+    pub update_binary : Option < unsafe extern "C" fn (card: *mut sc_card, idx: u32, buf: *const u8, count: usize)
+        -> i32 >,
 }
 
 /*
@@ -364,15 +364,15 @@ pub struct sm_card_operations {
 #[derive(Debug, Copy, Clone)]
 pub struct sm_module_operations {
     pub initialize : Option < unsafe extern "C" fn (ctx: *mut sc_context, info: *mut sm_info, out: *mut sc_remote_data)
-        -> c_int >,
-    pub get_apdus : Option < unsafe extern "C" fn (ctx: *mut sc_context, sm_info: *mut sm_info, init_data: *mut c_uchar,
-                                                   init_len: usize, out: *mut sc_remote_data) -> c_int >,
+        -> i32 >,
+    pub get_apdus : Option < unsafe extern "C" fn (ctx: *mut sc_context, sm_info: *mut sm_info, init_data: *mut u8,
+                                                   init_len: usize, out: *mut sc_remote_data) -> i32 >,
     pub finalize : Option < unsafe extern "C" fn (ctx: *mut sc_context, info: *mut sm_info, rdata: *mut sc_remote_data,
-                                                  out: *mut c_uchar, out_len: usize) -> c_int >,
-    pub module_init : Option < unsafe extern "C" fn (ctx: *mut sc_context, data: *const c_char) -> c_int >,
-    pub module_cleanup : Option < unsafe extern "C" fn (ctx: *mut sc_context) -> c_int >,
+                                                  out: *mut u8, out_len: usize) -> i32 >,
+    pub module_init : Option < unsafe extern "C" fn (ctx: *mut sc_context, data: *const c_char) -> i32 >,
+    pub module_cleanup : Option < unsafe extern "C" fn (ctx: *mut sc_context) -> i32 >,
 
-    pub test : Option < unsafe extern "C" fn (ctx: *mut sc_context, info: *mut sm_info, out: *mut c_char) -> c_int >,
+    pub test : Option < unsafe extern "C" fn (ctx: *mut sc_context, info: *mut sm_info, out: *mut c_char) -> i32 >,
 }
 
 #[repr(C)]
@@ -401,8 +401,8 @@ pub type sm_module_t = sm_module;
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sm_context {
     pub config_section : [c_char; 64],
-    pub sm_mode  : c_uint,  /* e.g. SM_MODE_NONE */
-    pub sm_flags : c_uint,  /* unused */
+    pub sm_mode  : u32,  /* e.g. SM_MODE_NONE */
+    pub sm_flags : u32,  /* unused */
 
     pub info : sm_info,
 
@@ -420,15 +420,15 @@ pub type sm_context_t = sm_context;
 */
 
 extern "C" {
-pub fn sc_sm_parse_answer(arg1: *mut sc_card, arg2: *mut c_uchar, arg3: usize, arg4: *mut sm_card_response) -> c_int;
+pub fn sc_sm_parse_answer(arg1: *mut sc_card, arg2: *mut u8, arg3: usize, arg4: *mut sm_card_response) -> i32;
 
 /*
 
 */
-pub fn sc_sm_update_apdu_response(arg1: *mut sc_card, arg2: *mut c_uchar, arg3: usize, arg4: c_int, arg5: *mut sc_apdu)
-    -> c_int;
+pub fn sc_sm_update_apdu_response(arg1: *mut sc_card, arg2: *mut u8, arg3: usize, arg4: i32, arg5: *mut sc_apdu)
+    -> i32;
 
-pub fn sc_sm_single_transmit(arg1: *mut sc_card, arg2: *mut sc_apdu) -> c_int;
+pub fn sc_sm_single_transmit(arg1: *mut sc_card, arg2: *mut sc_apdu) -> i32;
 
 /**
  * @brief Stops SM and frees allocated resources.
@@ -440,5 +440,5 @@ pub fn sc_sm_single_transmit(arg1: *mut sc_card, arg2: *mut sc_apdu) -> c_int;
  *
  * @return \c SC_SUCCESS or error code if an error occurred
  */
-pub fn sc_sm_stop(card: *mut sc_card) -> c_int;
+pub fn sc_sm_stop(card: *mut sc_card) -> i32;
 }

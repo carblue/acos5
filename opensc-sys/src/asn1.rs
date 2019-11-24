@@ -69,23 +69,26 @@
 //!    - sc_asn1_encode,        calls with depth=0,  **
 
 
-use std::os::raw::{c_char, c_uint, c_int, c_void, c_uchar};
+use std::os::raw::{c_char, c_void};
 #[cfg(impl_default)]
 use std::ptr::{null, null_mut};
 
 use crate::opensc::{sc_context, sc_algorithm_id};
 use crate::types::{sc_object_id};
 
+#[allow(non_camel_case_types)]
+type p_void = *mut c_void;
+
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone,  PartialEq)]
 pub struct sc_asn1_entry {
     pub name  : *const c_char,
-    pub type_ : c_uint,
-    pub tag   : c_uint,
-    pub flags : c_uint,
-    pub parm  : *mut c_void,
-    pub arg   : *mut c_void,
+    pub type_ : u32,
+    pub tag   : u32,
+    pub flags : u32,
+    pub parm  : p_void,
+    pub arg   : p_void,
 }
 
 #[cfg(impl_default)]
@@ -117,13 +120,13 @@ pub struct sc_asn1_pkcs15_object {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_asn1_pkcs15_algorithm_info {
-    pub id : c_int,
+    pub id : i32,
     pub oid : sc_object_id,
-    pub decode : Option< unsafe extern "C" fn (arg1: *mut sc_context, arg2: *mut *mut c_void, arg3: *const c_uchar,
-                                               arg4: usize, arg5: c_int) -> c_int >,
-    pub encode : Option< unsafe extern "C" fn (arg1: *mut sc_context, arg2: *mut c_void, arg3: *mut *mut c_uchar,
-                                               arg4: *mut usize, arg5: c_int) -> c_int >,
-    pub free   : Option< unsafe extern "C" fn (arg1: *mut c_void) >,
+    pub decode : Option< unsafe extern "C" fn (arg1: *mut sc_context, arg2: *mut *mut c_void, arg3: *const u8,
+                                               arg4: usize, arg5: i32) -> i32 >,
+    pub encode : Option< unsafe extern "C" fn (arg1: *mut sc_context, arg2: p_void, arg3: *mut *mut u8,
+                                               arg4: *mut usize, arg5: i32) -> i32 >,
+    pub free   : Option< unsafe extern "C" fn (arg1: p_void) >,
 }
 */
 
@@ -142,8 +145,8 @@ extern "C" {
 /// RUST TODO check any C code usage of  *mut sc_asn1_entry, which may have received any kind of memory for fields parm
 ///   and arg, even NULL pointers; There now may be multiple aliases for the same mutable memory, thus make sure, that no double free occurs\
 /// @test available
-pub fn sc_format_asn1_entry/*<'a>*/(entry: /*'a*/ *mut sc_asn1_entry, parm: /*'a*/ *mut c_void, arg: /*'a*/ *mut c_void,
-                                    set_present: c_int);
+pub fn sc_format_asn1_entry/*<'a>*/(entry: /*'a*/ *mut sc_asn1_entry, parm: /*'a*/ p_void, arg: /*'a*/ p_void,
+                                    set_present: i32);
 
 /// Copies all content of an array of sc_asn1_entry objects (shallow struct copy; mostly used by functions, that parse PKCS#15 content, with static lifetime @param src)
 ///
@@ -160,7 +163,7 @@ pub fn sc_copy_asn1_entry/*<'a>*/(src: /*'a*/ *const sc_asn1_entry, dest: /*'a*/
 
 /* DER tag and length parsing */
 
-///XXX Decodes DER content from a c_uchar array and writes to an array of sc_asn1_entry objects
+///XXX Decodes DER content from an u8 array and writes to an array of sc_asn1_entry objects
 ///
 /// @param  ctx   INOUT  for logging only (On Linux it may be regarded as IN! + modifying internals of debug_file: *mut FILE)\
 /// @param  asn1  INOUT  pointer to an existing array of sc_asn1_entry objects to set.
@@ -170,7 +173,7 @@ pub fn sc_copy_asn1_entry/*<'a>*/(src: /*'a*/ *const sc_asn1_entry, dest: /*'a*/
 ///                      lot of pkcs#15 structures, to look-up as a guide, see file PKCS#15_subset_supported_by_OpenSC.txt.\
 ///                      Only parm and arg fields will be set by this function, pointing to existing memory.
 ///                      On return, asn1 may be changed to point to another element of the sc_asn1_entry array !\
-/// @param  in_   IN     c_uchar array to read DER encoded content from, must be positioned at T of TLV\
+/// @param  in_   IN     u8 array to read DER encoded content from, must be positioned at T of TLV\
 /// @param  len   IN     sizeof(in_) readable from in_ onwards\
 /// @param  newp  OUTIF  Receiving address for: Position within in_ pointing right after the DER bytes decoded by the call\
 /// @param  left  OUTIF  Receiving address for: Remainder of len readable from in_ beginning from *newp\
@@ -179,9 +182,9 @@ pub fn sc_copy_asn1_entry/*<'a>*/(src: /*'a*/ *const sc_asn1_entry, dest: /*'a*/
 /// @test available, included ih other test
 /// For SC_ASN1_SE_INFO/TokenInfo's "seInfo  SEQUENCE OF SecurityEnvironmentInfo OPTIONAL,"  heap memory is involved
 pub fn sc_asn1_decode       (ctx: *mut sc_context, asn1: *mut sc_asn1_entry,
-                             in_: *const c_uchar, len: usize, newp: *mut *const c_uchar, left: *mut usize) -> c_int;
+                             in_: *const u8, len: usize, newp: *mut *const u8, left: *mut usize) -> i32;
 
-///XXX Decodes choice DER content from a c_uchar array and writes to an array of sc_asn1_entry objects
+///XXX Decodes choice DER content from an u8 array and writes to an array of sc_asn1_entry objects
 ///
 /// @param  ctx   INOUT  for logging only (On Linux it may be regarded as IN! + modifying internals of debug_file: *mut FILE)\
 /// @param  asn1  INOUT  pointer to an existing array of sc_asn1_entry objects to set.
@@ -191,21 +194,21 @@ pub fn sc_asn1_decode       (ctx: *mut sc_context, asn1: *mut sc_asn1_entry,
 ///                      lot of pkcs#15 structures, to look-up as a guide, see file PKCS#15_subset_supported_by_OpenSC.txt.\
 ///                      Only parm and arg fields will be set by this function, pointing to existing memory.
 ///                      On return, asn1 may be changed to point to another element of the sc_asn1_entry array !\
-/// @param  in_   IN     c_uchar array to read DER encoded content from, must be positioned at T of TLV\
+/// @param  in_   IN     u8 array to read DER encoded content from, must be positioned at T of TLV\
 /// @param  len   IN     sizeof(in_) readable from in_ onwards\
 /// @param  newp  OUTIF  Receiving address for: Position within in_ pointing right after the DER bytes decoded by the call\
 /// @param  left  OUTIF  Receiving address for: Remainder of len readable from in_ beginning from *newp\
 /// @return       SC_SUCCESS or error code\
 /// RUST TODO heap memory allocated for parm and arg: take care, how they are used lateron, who/where to free them lateron, lifetime !
 pub fn sc_asn1_decode_choice(ctx: *mut sc_context, asn1: *mut sc_asn1_entry,
-                             in_: *const c_uchar, len: usize, newp: *mut *const c_uchar, left: *mut usize) -> c_int;
+                             in_: *const u8, len: usize, newp: *mut *const u8, left: *mut usize) -> i32;
 
 ///XXX Undocumented, untested
 /// uses heap allocation
 pub fn sc_asn1_encode       (ctx: *mut sc_context, asn1: *const sc_asn1_entry,
-                             buf: *mut *mut c_uchar, bufsize: *mut usize) -> c_int;
+                             buf: *mut *mut u8, bufsize: *mut usize) -> i32;
 
-///XXX Decodes DER content from a c_uchar array and writes to an array of sc_asn1_entry objects, same as sc_asn1_decode,
+///XXX Decodes DER content from an u8 array and writes to an array of sc_asn1_entry objects, same as sc_asn1_decode,
 /// but with 2 additional IN params choice, depth
 ///
 /// @param  ctx     INOUT  for logging only (On Linux it may be regarded as IN! + modifying internals of debug_file: *mut FILE)\
@@ -216,7 +219,7 @@ pub fn sc_asn1_encode       (ctx: *mut sc_context, asn1: *const sc_asn1_entry,
 ///                        lot of pkcs#15 structures, to look-up as a guide, see file PKCS#15_subset_supported_by_OpenSC.txt.\
 ///                        Only parm and arg fields will be set by this function, pointing to existing memory.
 ///                        On return, asn1 may be changed to point to another element of the sc_asn1_entry array !\
-/// @param  in_     IN     c_uchar array to read DER encoded content from, must be positioned at T of TLV\
+/// @param  in_     IN     u8 array to read DER encoded content from, must be positioned at T of TLV\
 /// @param  len     IN     sizeof(in_) readable from in_ onwards\
 /// @param  newp    OUTIF  Receiving address for: Position within in_ pointing right after the DER bytes decoded by the call\
 /// @param  left    OUTIF  Receiving address for: Remainder of len readable from in_ beginning from *newp\
@@ -226,14 +229,14 @@ pub fn sc_asn1_encode       (ctx: *mut sc_context, asn1: *const sc_asn1_entry,
 /// RUST TODO heap memory allocated for parm and arg: take care, how they are used lateron, who/where to free them lateron, lifetime !\
 /// @test available
 pub fn _sc_asn1_decode(ctx: *mut sc_context, asn1: *mut sc_asn1_entry,
-           in_: *const c_uchar, len: usize, newp: *mut *const c_uchar, left: *mut usize,
-           choice: c_int, depth: c_int) -> c_int;
+           in_: *const u8, len: usize, newp: *mut *const u8, left: *mut usize,
+           choice: i32, depth: i32) -> i32;
 
 ///XXX Undocumented, untested
 /// uses heap allocation
 /// @test FAILURE
 pub fn _sc_asn1_encode(ctx: *mut sc_context, asn1: *const sc_asn1_entry,
-           ptr: *mut *mut c_uchar, size: *mut usize, depth: c_int) -> c_int;
+           ptr: *mut *mut u8, size: *mut usize, depth: i32) -> i32;
 
 /// Evaluates a TLV byte sequence, THE basic building block function
 ///
@@ -247,8 +250,8 @@ pub fn _sc_asn1_encode(ctx: *mut sc_context, asn1: *const sc_asn1_entry,
 /// On error, buf may have been set to NULL, and (except on SC_ERROR_ASN1_END_OF_CONTENTS) no OUT param get's set\
 /// OUT tag_out and taglen are guaranteed to have values set on SC_SUCCESS (cla_out only, if also (buf[0] != 0xff && buf[0] != 0))\
 /// @test available
-pub fn sc_asn1_read_tag(buf: *mut *const c_uchar, buflen: usize, cla_out: *mut c_uint,
-                        tag_out: *mut c_uint, taglen: *mut usize) -> c_int;
+pub fn sc_asn1_read_tag(buf: *mut *const u8, buflen: usize, cla_out: *mut u32,
+                        tag_out: *mut u32, taglen: *mut usize) -> i32;
 
 /// Evaluates TLV byte sequences in order to find first occurence of tag
 ///
@@ -259,8 +262,8 @@ pub fn sc_asn1_read_tag(buf: *mut *const c_uchar, buflen: usize, cla_out: *mut c
 /// @param  taglen  OUT    Receiving address for: Number of bytes available in V for tag found\
 /// @return         on success: a pointer to V[0] of TLV for tag found, on error: returns NULL and taglen is 0\
 /// @test available
-pub fn sc_asn1_find_tag(ctx: *mut sc_context, buf: *const c_uchar,
-                        buflen: usize, tag: c_uint, taglen: *mut usize) -> *const c_uchar;
+pub fn sc_asn1_find_tag(ctx: *mut sc_context, buf: *const u8,
+                        buflen: usize, tag: u32, taglen: *mut usize) -> *const u8;
 
 /// A wrapper for sc_asn1_skip_tag
 ///
@@ -271,8 +274,8 @@ pub fn sc_asn1_find_tag(ctx: *mut sc_context, buf: *const c_uchar,
 /// @param  taglen  OUT    Receiving address for: Number of bytes available in V of skipped tag; recommended to be initialized
 ///                        by the caller with 0, as the function omits initialization on error, or to be used only after error check\
 /// @return         on success: a pointer to V[0] of TLV of skipped tag, on non-match: returns NULL\
-pub fn sc_asn1_verify_tag (ctx: *mut sc_context, buf: *const c_uchar,
-                           buflen: usize, tag: c_uint, taglen: *mut usize) -> *const c_uchar;
+pub fn sc_asn1_verify_tag (ctx: *mut sc_context, buf: *const u8,
+                           buflen: usize, tag: u32, taglen: *mut usize) -> *const u8;
 
 /// Evaluates a TLV byte sequence and if tag matches, positions buf to the next TLV
 ///
@@ -284,8 +287,8 @@ pub fn sc_asn1_verify_tag (ctx: *mut sc_context, buf: *const c_uchar,
 ///                        by the caller with 0, as the function omits initialization on error, or to be used only after error check\
 /// @return         on success: a pointer to V[0] of TLV of skipped tag, on non-match: returns NULL\
 /// @test available
-pub fn sc_asn1_skip_tag(ctx: *mut sc_context, buf : *mut *const c_uchar,
-                        buflen: *mut usize, tag: c_uint, taglen: *mut usize) -> *const c_uchar;
+pub fn sc_asn1_skip_tag(ctx: *mut sc_context, buf : *mut *const u8,
+                        buflen: *mut usize, tag: u32, taglen: *mut usize) -> *const u8;
 
 /* DER encoding */
 
@@ -302,8 +305,8 @@ pub fn sc_asn1_skip_tag(ctx: *mut sc_context, buf : *mut *const c_uchar,
 ///                         possible ASN.1 object\
 /// @return          0 or (condition see @param out) the number of bytes that would be written\
 /// @test available
-pub fn sc_asn1_put_tag(tag: c_uint, data: *const c_uchar, datalen: usize, out: *mut c_uchar, outlen: usize,
-                       ptr: *mut *mut c_uchar) -> c_int;
+pub fn sc_asn1_put_tag(tag: u32, data: *const u8, datalen: usize, out: *mut u8, outlen: usize,
+                       ptr: *mut *mut u8) -> i32;
 
 /* ASN.1 printing functions */
 
@@ -312,11 +315,11 @@ pub fn sc_asn1_put_tag(tag: c_uint, data: *const c_uchar, datalen: usize, out: *
 /// @param  buf     IN  DER data array\
 /// @param  buflen  IN  Length of DER data array\
 /// @test available
-pub fn sc_asn1_print_tags(buf: *const c_uchar, buflen: usize);
+pub fn sc_asn1_print_tags(buf: *const u8, buflen: usize);
 
 /* ASN.1 object decoding functions */
 
-fn sc_asn1_utf8string_to_ascii(buf: *const c_uchar, buflen: usize, outbuf: *mut c_uchar, outlen: usize) -> c_int;
+fn sc_asn1_utf8string_to_ascii(buf: *const u8, buflen: usize, outbuf: *mut u8, outlen: usize) -> i32;
 
 /// Decodes DER bit_string bytes to byte buffer
 ///
@@ -326,7 +329,7 @@ fn sc_asn1_utf8string_to_ascii(buf: *const c_uchar, buflen: usize, outbuf: *mut 
 /// @param outlen  IN  Length of receiving buffer array\
 /// @return        Number of bits decoded (<=8*outlen)\
 /// @test available
-pub fn sc_asn1_decode_bit_string(inbuf: *const c_uchar, inlen: usize, outbuf: *mut c_void, outlen: usize) -> c_int;
+pub fn sc_asn1_decode_bit_string(inbuf: *const u8, inlen: usize, outbuf: p_void, outlen: usize) -> i32;
 
 /* non-inverting version */
 
@@ -338,16 +341,16 @@ pub fn sc_asn1_decode_bit_string(inbuf: *const c_uchar, inlen: usize, outbuf: *m
 /// @param outlen  IN  Length of receiving buffer array\
 /// @return        Number of bits decoded (<=8*outlen)\
 /// @test available
-pub fn sc_asn1_decode_bit_string_ni(inbuf: *const c_uchar, inlen: usize, outbuf: *mut c_void, outlen: usize) -> c_int;
+pub fn sc_asn1_decode_bit_string_ni(inbuf: *const u8, inlen: usize, outbuf: p_void, outlen: usize) -> i32;
 
-/// Decodes DER integer bytes (max 4) to c_int
+/// Decodes DER integer bytes (max 4) to i32
 ///
 /// @param inbuf   IN  points to V of TLV\
 /// @param inlen   IN  L of TLV\
-/// @param outbuf  OUT Receiving address for: Decoded c_int\
+/// @param outbuf  OUT Receiving address for: Decoded i32\
 /// @return        SC_SUCCESS or error code\
 /// @test available
-pub fn sc_asn1_decode_integer(inbuf: *const c_uchar, inlen: usize, out: *mut c_int) -> c_int;
+pub fn sc_asn1_decode_integer(inbuf: *const u8, inlen: usize, out: *mut i32) -> i32;
 
 /// Decodes DER object_id bytes to sc_object_id
 ///
@@ -356,7 +359,7 @@ pub fn sc_asn1_decode_integer(inbuf: *const c_uchar, inlen: usize, out: *mut c_i
 /// @param id      OUT Receiving sc_object_id\
 /// @return        SC_SUCCESS or error code\
 /// @test available
-pub fn sc_asn1_decode_object_id(inbuf: *const c_uchar, inlen: usize, id: *mut sc_object_id) -> c_int;
+pub fn sc_asn1_decode_object_id(inbuf: *const u8, inlen: usize, id: *mut sc_object_id) -> i32;
 
 /// Produces malloc'ed DER bytes from sc_object_id data
 ///
@@ -365,7 +368,7 @@ pub fn sc_asn1_decode_object_id(inbuf: *const c_uchar, inlen: usize, id: *mut sc
 /// @param id     IN\
 /// @return\
 /// @test available
-pub fn sc_asn1_encode_object_id(buf: *mut *mut c_uchar, buflen: *mut usize, id: *const sc_object_id) -> c_int;
+pub fn sc_asn1_encode_object_id(buf: *mut *mut u8, buflen: *mut usize, id: *const sc_object_id) -> i32;
 
 /* algorithm encoding/decoding  (implemented in pkcs15-algo.c) */
 
@@ -378,8 +381,8 @@ pub fn sc_asn1_encode_object_id(buf: *mut *mut c_uchar, buflen: *mut usize, id: 
 /// @param  depth  IN\
 /// @return        SC_SUCCESS or error code\
 /// @test available
-pub fn sc_asn1_decode_algorithm_id(ctx: *mut sc_context, inbuf: *const c_uchar, inlen: usize,
-                                   id: *mut sc_algorithm_id, depth: c_int) -> c_int;
+pub fn sc_asn1_decode_algorithm_id(ctx: *mut sc_context, inbuf: *const u8, inlen: usize,
+                                   id: *mut sc_algorithm_id, depth: i32) -> i32;
 
 /// Produces malloc'ed DER bytes from sc_algorithm_id data
 ///
@@ -390,8 +393,8 @@ pub fn sc_asn1_decode_algorithm_id(ctx: *mut sc_context, inbuf: *const c_uchar, 
 /// @param  depth    IN\
 /// @return          SC_SUCCESS or error code\
 /// @test available
-pub fn sc_asn1_encode_algorithm_id(ctx: *mut sc_context, buf: *mut *mut c_uchar, buf_len: *mut usize,
-                                   id: *const sc_algorithm_id, depth: c_int) -> c_int;
+pub fn sc_asn1_encode_algorithm_id(ctx: *mut sc_context, buf: *mut *mut u8, buf_len: *mut usize,
+                                   id: *const sc_algorithm_id, depth: i32) -> i32;
 
 /// Clear sc_algorithm_id
 ///
@@ -410,116 +413,117 @@ pub fn sc_asn1_clear_algorithm_id(id: *mut sc_algorithm_id);
 /// @param  outlen   OUTIF\
 /// @return          SC_SUCCESS or error code\
 /// @test available
-pub fn sc_asn1_write_element(ctx: *mut sc_context, tag: c_uint, data : *const c_uchar, datalen: usize,
-                             out: *mut *mut c_uchar, outlen: *mut usize) -> c_int;
+pub fn sc_asn1_write_element(ctx: *mut sc_context, tag: u32, data : *const u8, datalen: usize,
+                             out: *mut *mut u8, outlen: *mut usize) -> i32;
 
 /// Undocumented, untested
-pub fn sc_asn1_sig_value_rs_to_sequence(ctx: *mut sc_context, in_: *mut c_uchar, inlen: usize,
-                                        buf: *mut *mut c_uchar, buflen: *mut usize) -> c_int;
+pub fn sc_asn1_sig_value_rs_to_sequence(ctx: *mut sc_context, in_: *mut u8, inlen: usize,
+                                        buf: *mut *mut u8, buflen: *mut usize) -> i32;
 
 /// Undocumented, untested
 #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-pub fn sc_asn1_sig_value_sequence_to_rs(ctx: *mut sc_context, in_: *mut c_uchar, inlen: usize,
-                                        buf: *mut c_uchar, buflen: usize) -> c_int;
+pub fn sc_asn1_sig_value_sequence_to_rs(ctx: *mut sc_context, in_: *mut u8, inlen: usize,
+                                        buf: *mut u8, buflen: usize) -> i32;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub fn sc_asn1_sig_value_sequence_to_rs(ctx: *mut sc_context, in_: *const c_uchar, inlen: usize,
-                                        buf: *mut c_uchar, buflen: usize) -> c_int;
+pub fn sc_asn1_sig_value_sequence_to_rs(ctx: *mut sc_context, in_: *const u8, inlen: usize,
+                                        buf: *mut u8, buflen: usize) -> i32;
 } // extern "C"
 
-pub const SC_ASN1_CLASS_MASK            : c_uint = 0x3000_0000;
-pub const SC_ASN1_UNI                   : c_uint = 0x0000_0000; /* Universal */
-pub const SC_ASN1_APP                   : c_uint = 0x1000_0000; /* Application */
-pub const SC_ASN1_CTX                   : c_uint = 0x2000_0000; /* Context */
-pub const SC_ASN1_PRV                   : c_uint = 0x3000_0000; /* Private */
-pub const SC_ASN1_CONS                  : c_uint = 0x0100_0000;
+pub const SC_ASN1_CLASS_MASK            : u32 = 0x3000_0000;
+pub const SC_ASN1_UNI                   : u32 = 0x0000_0000; /* Universal */
+pub const SC_ASN1_APP                   : u32 = 0x1000_0000; /* Application */
+pub const SC_ASN1_CTX                   : u32 = 0x2000_0000; /* Context */
+pub const SC_ASN1_PRV                   : u32 = 0x3000_0000; /* Private */
+pub const SC_ASN1_CONS                  : u32 = 0x0100_0000;
 
-pub const SC_ASN1_TAG_MASK              : c_uint = 0x00FF_FFFF;
+pub const SC_ASN1_TAG_MASK              : u32 = 0x00FF_FFFF;
 pub const SC_ASN1_TAGNUM_SIZE           : usize = 3;
 
 /* sc_asn1_entry.flags   SC_ASN1_PRESENT <-> SC_ASN1_EMPTY_ALLOWED */
-pub const SC_ASN1_PRESENT               : c_uint = 0x0000_0001;
-pub const SC_ASN1_OPTIONAL              : c_uint = 0x0000_0002;
-pub const SC_ASN1_ALLOC                 : c_uint = 0x0000_0004;
-pub const SC_ASN1_UNSIGNED              : c_uint = 0x0000_0008;
-pub const SC_ASN1_EMPTY_ALLOWED         : c_uint = 0x0000_0010;
+pub const SC_ASN1_PRESENT               : u32 = 0x0000_0001;
+pub const SC_ASN1_OPTIONAL              : u32 = 0x0000_0002;
+pub const SC_ASN1_ALLOC                 : u32 = 0x0000_0004;
+pub const SC_ASN1_UNSIGNED              : u32 = 0x0000_0008;
+pub const SC_ASN1_EMPTY_ALLOWED         : u32 = 0x0000_0010;
 
 /* sc_asn1_entry.type_   SC_ASN1_BOOLEAN <-> SC_ASN1_CALLBACK */
-pub const SC_ASN1_BOOLEAN               : c_uint = 1;
-pub const SC_ASN1_INTEGER               : c_uint = 2;
-pub const SC_ASN1_BIT_STRING            : c_uint = 3;
-pub const SC_ASN1_BIT_STRING_NI         : c_uint = 128;
-pub const SC_ASN1_OCTET_STRING          : c_uint = 4;
-pub const SC_ASN1_NULL                  : c_uint = 5;
-pub const SC_ASN1_OBJECT                : c_uint = 6;
-pub const SC_ASN1_ENUMERATED            : c_uint = 10;
-pub const SC_ASN1_UTF8STRING            : c_uint = 12;
-pub const SC_ASN1_SEQUENCE              : c_uint = 16;
-pub const SC_ASN1_SET                   : c_uint = 17;
-pub const SC_ASN1_PRINTABLESTRING       : c_uint = 19;
-pub const SC_ASN1_UTCTIME               : c_uint = 23;
-pub const SC_ASN1_GENERALIZEDTIME       : c_uint = 24;
+pub const SC_ASN1_BOOLEAN               : u32 = 1;
+pub const SC_ASN1_INTEGER               : u32 = 2;
+pub const SC_ASN1_BIT_STRING            : u32 = 3;
+pub const SC_ASN1_BIT_STRING_NI         : u32 = 128;
+pub const SC_ASN1_OCTET_STRING          : u32 = 4;
+pub const SC_ASN1_NULL                  : u32 = 5;
+pub const SC_ASN1_OBJECT                : u32 = 6;
+pub const SC_ASN1_ENUMERATED            : u32 = 10;
+pub const SC_ASN1_UTF8STRING            : u32 = 12;
+pub const SC_ASN1_SEQUENCE              : u32 = 16;
+pub const SC_ASN1_SET                   : u32 = 17;
+pub const SC_ASN1_PRINTABLESTRING       : u32 = 19;
+pub const SC_ASN1_UTCTIME               : u32 = 23;
+pub const SC_ASN1_GENERALIZEDTIME       : u32 = 24;
 
 /* internal structures */
-pub const SC_ASN1_STRUCT                : c_uint = 129;
-pub const SC_ASN1_CHOICE                : c_uint = 130;
-pub const SC_ASN1_BIT_FIELD             : c_uint = 131;    /* bit string as integer */
+pub const SC_ASN1_STRUCT                : u32 = 129;
+pub const SC_ASN1_CHOICE                : u32 = 130;
+pub const SC_ASN1_BIT_FIELD             : u32 = 131;    /* bit string as integer */
 
 /* 'complex' structures */
-pub const SC_ASN1_PATH                  : c_uint = 256;
-pub const SC_ASN1_PKCS15_ID             : c_uint = 257;
-pub const SC_ASN1_PKCS15_OBJECT         : c_uint = 258;
-pub const SC_ASN1_ALGORITHM_ID          : c_uint = 259;
-pub const SC_ASN1_SE_INFO               : c_uint = 260;
+pub const SC_ASN1_PATH                  : u32 = 256;
+pub const SC_ASN1_PKCS15_ID             : u32 = 257;
+pub const SC_ASN1_PKCS15_OBJECT         : u32 = 258;
+pub const SC_ASN1_ALGORITHM_ID          : u32 = 259;
+pub const SC_ASN1_SE_INFO               : u32 = 260;
 
 /* use callback function */
-pub const SC_ASN1_CALLBACK              : c_uint = 384;
+pub const SC_ASN1_CALLBACK              : u32 = 384;
 
-pub const SC_ASN1_TAG_CLASS             : c_uint = 0xC0;
-pub const SC_ASN1_TAG_UNIVERSAL         : c_uint = 0x00;
-pub const SC_ASN1_TAG_APPLICATION       : c_uint = 0x40;
-pub const SC_ASN1_TAG_CONTEXT           : c_uint = 0x80;
-pub const SC_ASN1_TAG_PRIVATE           : c_uint = 0xC0;
+pub const SC_ASN1_TAG_CLASS             : u32 = 0xC0;
+pub const SC_ASN1_TAG_UNIVERSAL         : u32 = 0x00;
+pub const SC_ASN1_TAG_APPLICATION       : u32 = 0x40;
+pub const SC_ASN1_TAG_CONTEXT           : u32 = 0x80;
+pub const SC_ASN1_TAG_PRIVATE           : u32 = 0xC0;
 
-pub const SC_ASN1_TAG_CONSTRUCTED       : c_uint = 0x20;
-pub const SC_ASN1_TAG_PRIMITIVE         : c_uint = 0x1F;
+pub const SC_ASN1_TAG_CONSTRUCTED       : u32 = 0x20;
+pub const SC_ASN1_TAG_PRIMITIVE         : u32 = 0x1F;
 
 /* sc_asn1_entry.tag   SC_ASN1_TAG_EOC <-> SC_ASN1_TAG_ESCAPE_MARKER,   maybe bitOR'ed e.g. with */
-pub const SC_ASN1_TAG_EOC               : c_uint = 0;
-pub const SC_ASN1_TAG_BOOLEAN           : c_uint = 1;
-pub const SC_ASN1_TAG_INTEGER           : c_uint = 2;
-pub const SC_ASN1_TAG_BIT_STRING        : c_uint = 3;
-pub const SC_ASN1_TAG_OCTET_STRING      : c_uint = 4;
-pub const SC_ASN1_TAG_NULL              : c_uint = 5;
-pub const SC_ASN1_TAG_OBJECT            : c_uint = 6;
-pub const SC_ASN1_TAG_OBJECT_DESCRIPTOR : c_uint = 7;
-pub const SC_ASN1_TAG_EXTERNAL          : c_uint = 8;
-pub const SC_ASN1_TAG_REAL              : c_uint = 9;
-pub const SC_ASN1_TAG_ENUMERATED        : c_uint = 10;
-pub const SC_ASN1_TAG_UTF8STRING        : c_uint = 12;
-pub const SC_ASN1_TAG_SEQUENCE          : c_uint = 16;
-pub const SC_ASN1_TAG_SET               : c_uint = 17;
-pub const SC_ASN1_TAG_NUMERICSTRING     : c_uint = 18;
-pub const SC_ASN1_TAG_PRINTABLESTRING   : c_uint = 19;
-pub const SC_ASN1_TAG_T61STRING         : c_uint = 20;
-pub const SC_ASN1_TAG_TELETEXSTRING     : c_uint = 20;
-pub const SC_ASN1_TAG_VIDEOTEXSTRING    : c_uint = 21;
-pub const SC_ASN1_TAG_IA5STRING         : c_uint = 22;
-pub const SC_ASN1_TAG_UTCTIME           : c_uint = 23;
-pub const SC_ASN1_TAG_GENERALIZEDTIME   : c_uint = 24;
-pub const SC_ASN1_TAG_GRAPHICSTRING     : c_uint = 25;
-pub const SC_ASN1_TAG_ISO64STRING       : c_uint = 26;
-pub const SC_ASN1_TAG_VISIBLESTRING     : c_uint = 26;
-pub const SC_ASN1_TAG_GENERALSTRING     : c_uint = 27;
-pub const SC_ASN1_TAG_UNIVERSALSTRING   : c_uint = 28;
-pub const SC_ASN1_TAG_BMPSTRING         : c_uint = 30;
-pub const SC_ASN1_TAG_ESCAPE_MARKER     : c_uint = 31;
+pub const SC_ASN1_TAG_EOC               : u32 = 0;
+pub const SC_ASN1_TAG_BOOLEAN           : u32 = 1;
+pub const SC_ASN1_TAG_INTEGER           : u32 = 2;
+pub const SC_ASN1_TAG_BIT_STRING        : u32 = 3;
+pub const SC_ASN1_TAG_OCTET_STRING      : u32 = 4;
+pub const SC_ASN1_TAG_NULL              : u32 = 5;
+pub const SC_ASN1_TAG_OBJECT            : u32 = 6;
+pub const SC_ASN1_TAG_OBJECT_DESCRIPTOR : u32 = 7;
+pub const SC_ASN1_TAG_EXTERNAL          : u32 = 8;
+pub const SC_ASN1_TAG_REAL              : u32 = 9;
+pub const SC_ASN1_TAG_ENUMERATED        : u32 = 10;
+pub const SC_ASN1_TAG_UTF8STRING        : u32 = 12;
+pub const SC_ASN1_TAG_SEQUENCE          : u32 = 16;
+pub const SC_ASN1_TAG_SET               : u32 = 17;
+pub const SC_ASN1_TAG_NUMERICSTRING     : u32 = 18;
+pub const SC_ASN1_TAG_PRINTABLESTRING   : u32 = 19;
+pub const SC_ASN1_TAG_T61STRING         : u32 = 20;
+pub const SC_ASN1_TAG_TELETEXSTRING     : u32 = 20;
+pub const SC_ASN1_TAG_VIDEOTEXSTRING    : u32 = 21;
+pub const SC_ASN1_TAG_IA5STRING         : u32 = 22;
+pub const SC_ASN1_TAG_UTCTIME           : u32 = 23;
+pub const SC_ASN1_TAG_GENERALIZEDTIME   : u32 = 24;
+pub const SC_ASN1_TAG_GRAPHICSTRING     : u32 = 25;
+pub const SC_ASN1_TAG_ISO64STRING       : u32 = 26;
+pub const SC_ASN1_TAG_VISIBLESTRING     : u32 = 26;
+pub const SC_ASN1_TAG_GENERALSTRING     : u32 = 27;
+pub const SC_ASN1_TAG_UNIVERSALSTRING   : u32 = 28;
+pub const SC_ASN1_TAG_BMPSTRING         : u32 = 30;
+pub const SC_ASN1_TAG_ESCAPE_MARKER     : u32 = 31;
 
 
 #[cfg(test)]
 mod tests {
+    use libc::free;
     use std::ffi::CStr;
     use std::ptr::{null, null_mut};
-    use libc::free;
+    use std::convert::TryFrom;
     use crate::errors::SC_SUCCESS;
     use crate::pkcs15::{sc_pkcs15_id, sc_pkcs15_pubkey_rsa/*, SC_PKCS15_MAX_ID_SIZE*/};
     use crate::opensc::SC_ALGORITHM_SHA1;
@@ -528,16 +532,16 @@ mod tests {
     #[repr(C)]
     #[derive(/*Debug,*/ Copy, Clone)]
     struct State {
-        state: c_int
+        state: i32
     }
 
     #[test]
     fn test_sc_format_asn1_entry() {
         let mut entry = sc_asn1_entry { flags: 0x50, ..sc_asn1_entry::default() };
         let mut state = State { state: 20 };
-        let state_ptr= &mut state as *mut _ as *mut c_void;
+        let state_ptr= &mut state as *mut _ as p_void;
         let mut arg = 127i8;
-        let arg_ptr  = &mut arg   as *mut _ as *mut c_void;
+        let arg_ptr  = &mut arg   as *mut _ as p_void;
 
         unsafe { sc_format_asn1_entry(&mut entry, state_ptr, arg_ptr, 1); }
         assert_eq!(entry.flags, 0x51);
@@ -554,23 +558,19 @@ mod tests {
     #[test]
     fn test_sc_copy_asn1_entry() {
         let mut state = State { state: 20 };
-        let state_ptr = &mut state as *mut _ as *mut c_void;
+        let state_ptr = &mut state as *mut _ as p_void;
         let mut arg = 127i8;
-        let arg_ptr = &mut arg   as *mut _ as *mut c_void;
+        let arg_ptr = &mut arg   as *mut _ as p_void;
 
-        let name1 = CStr::from_bytes_with_nul(b"name1\0").unwrap(); //.as_ptr();
-        let name2 = CStr::from_bytes_with_nul(b"name2\0").unwrap(); //.as_ptr();
+        let name1 = CStr::from_bytes_with_nul(b"name1\0").unwrap();
+        let name2 = CStr::from_bytes_with_nul(b"name2\0").unwrap();
 
         let src = [
             sc_asn1_entry { name: name1.as_ptr(), flags: 0x50, parm: state_ptr, arg: arg_ptr, ..sc_asn1_entry::default() },
             sc_asn1_entry { name: name2.as_ptr(), flags: 0x60, parm: state_ptr, arg: arg_ptr, ..sc_asn1_entry::default() },
             sc_asn1_entry::default()
         ];
-        let mut dest = [
-            sc_asn1_entry::default(),
-            sc_asn1_entry::default(),
-            sc_asn1_entry::default()
-        ];
+        let mut dest = [sc_asn1_entry::default(); 3];
 
         unsafe { sc_copy_asn1_entry(src.first().unwrap(), dest.first_mut().unwrap()); }
         assert_eq!( unsafe { CStr::from_ptr(dest[0].name) }, name1);
@@ -607,7 +607,7 @@ mod tests {
         let mut ctx = sc_context::default();
         let mut newp= null();
         let mut left = 0;
-        let buf : [c_uchar; 105] = [
+        let buf : [u8; 105] = [
             0x30, 0x67,
             0x02, 0x60,
             0x68
@@ -648,14 +648,14 @@ mod tests {
             , 0x8D, 0x13, 0x91, 0x25, 0x3E, 0x97, 0x3E, 0xEA, 0x34, 0x1E, 0xCB, 0x83, 0xDC, 0x1C, 0xB5, 0x02
             , 0x03, 0x01, 0x00, 0x01
         ];
-        unsafe { sc_format_asn1_entry(asn1_public_key.as_mut_ptr(), asn1_rsa_pub_coeff.as_mut_ptr() as *mut c_void,
-                                      null_mut() as *mut c_void, 0) };
+        unsafe { sc_format_asn1_entry(asn1_public_key.as_mut_ptr(), asn1_rsa_pub_coeff.as_mut_ptr() as p_void,
+                                      null_mut::<c_void>(), 0) };
 
         let mut key = sc_pkcs15_pubkey_rsa::default();
-        let key_modulus_parm_ptr : *mut c_void = &mut key.modulus.data  as *mut _ as *mut c_void;
-        let key_modulus_arg_ptr  : *mut c_void = &mut key.modulus.len   as *mut _ as *mut c_void;
-        let key_exponent_parm_ptr: *mut c_void = &mut key.exponent.data as *mut _ as *mut c_void;
-        let key_exponent_arg_ptr : *mut c_void = &mut key.exponent.len  as *mut _ as *mut c_void;
+        let key_modulus_parm_ptr  = &mut key.modulus.data  as *mut _ as p_void;
+        let key_modulus_arg_ptr   = &mut key.modulus.len   as *mut _ as p_void;
+        let key_exponent_parm_ptr = &mut key.exponent.data as *mut _ as p_void;
+        let key_exponent_arg_ptr  = &mut key.exponent.len  as *mut _ as p_void;
 
         unsafe { sc_format_asn1_entry(asn1_rsa_pub_coeff.as_mut_ptr(),
                                       key_modulus_parm_ptr, key_modulus_arg_ptr, 0); }
@@ -671,15 +671,15 @@ mod tests {
 
     #[test]
     fn test_sc_asn1_read_tag() {
-        let file5031 : [c_uchar; 60] = [
+        let file5031 : [u8; 60] = [
             0xA8, 0x0A, 0x30, 0x08, 0x04, 0x06, 0x3F, 0x00, 0x41, 0x00, 0x41, 0x11, 0xA0, 0x0A, 0x30, 0x08,
             0x04, 0x06, 0x3F, 0x00, 0x41, 0x00, 0x41, 0x12, 0xA1, 0x0A, 0x30, 0x08, 0x04, 0x06, 0x3F, 0x00,
             0x41, 0x00, 0x41, 0x13, 0xA3, 0x0A, 0x30, 0x08, 0x04, 0x06, 0x3F, 0x00, 0x41, 0x00, 0x41, 0x14,
             0xA4, 0x0A, 0x30, 0x08, 0x04, 0x06, 0x3F, 0x00, 0x41, 0x00, 0x41, 0x15
         ];
-        let mut buf : *const c_uchar = file5031.first().unwrap();
-        let mut cla_out : c_uint = 0;
-        let mut tag_out : c_uint = 0;
+        let mut buf : *const u8 = file5031.first().unwrap();
+        let mut cla_out : u32 = 0;
+        let mut tag_out : u32 = 0;
         let mut taglen  : usize  = 0;
 
         let rv = unsafe { sc_asn1_read_tag(&mut buf, file5031.len(), &mut cla_out, &mut tag_out, &mut taglen) };
@@ -689,9 +689,9 @@ mod tests {
         assert_eq!(tag_out, 8);
         assert_eq!(taglen,  0x0A);
         assert!(!buf.is_null());
-        let mut vec : Vec<c_uchar> = Vec::with_capacity(14);
+        let mut vec : Vec<u8> = Vec::with_capacity(14);
         unsafe {
-            let p : *const c_uchar = buf;
+            let p : *const u8 = buf;
             for i in 0..14 {
                 vec.push(*p.offset(i));
             }
@@ -703,21 +703,21 @@ mod tests {
     #[test]
     fn test_sc_asn1_find_tag() {
         let mut ctx = sc_context::default();
-        let file5031 : [c_uchar; 60] = [
+        let file5031 : [u8; 60] = [
             0xA8, 0x0A, 0x30, 0x08, 0x04, 0x06, 0x3F, 0x00, 0x41, 0x00, 0x41, 0x11, 0xA0, 0x0A, 0x30, 0x08,
             0x04, 0x06, 0x3F, 0x00, 0x41, 0x00, 0x41, 0x12, 0xA1, 0x0A, 0x30, 0x08, 0x04, 0x06, 0x3F, 0x00,
             0x41, 0x00, 0x41, 0x13, 0xA3, 0x0A, 0x30, 0x08, 0x04, 0x06, 0x3F, 0x00, 0x41, 0x00, 0x41, 0x14,
             0xA4, 0x0A, 0x30, 0x08, 0x04, 0x06, 0x3F, 0x00, 0x41, 0x00, 0x41, 0x15
         ];
-        let buf : *const c_uchar = file5031.first().unwrap();
+        let buf : *const u8 = file5031.first().unwrap();
         let mut taglen  : usize  = 0;
 
-        let rv : *const c_uchar = unsafe { sc_asn1_find_tag(&mut ctx, buf, file5031.len(), 0xA0, &mut taglen) };
+        let rv : *const u8 = unsafe { sc_asn1_find_tag(&mut ctx, buf, file5031.len(), 0xA0, &mut taglen) };
         assert_eq!(taglen,  0x0A);
         assert!(!rv.is_null());
-        let mut vec : Vec<c_uchar> = Vec::with_capacity(14);
+        let mut vec : Vec<u8> = Vec::with_capacity(14);
         unsafe {
-            let p : *const c_uchar = rv;
+            let p : *const u8 = rv;
             for i in 0..14 {
                 vec.push(*p.offset(i));
             }
@@ -725,12 +725,12 @@ mod tests {
         assert_eq!(vec, [/*0xA0, 0x0A,*/ 0x30,0x08,0x04,0x06,0x3F,0x00,0x41,0x00,0x41,0x12,0xA1,0x0A,0x30,0x08]);
 
         taglen = 0;
-        let rv : *const c_uchar = unsafe { sc_asn1_find_tag(&mut ctx, buf, file5031.len(), 0xA4, &mut taglen) };
+        let rv : *const u8 = unsafe { sc_asn1_find_tag(&mut ctx, buf, file5031.len(), 0xA4, &mut taglen) };
         assert_eq!(taglen,  0x0A);
         assert!(!rv.is_null());
-        let mut vec : Vec<c_uchar> = Vec::with_capacity(0x0A);
+        let mut vec : Vec<u8> = Vec::with_capacity(0x0A);
         unsafe {
-            let p : *const c_uchar = rv;
+            let p : *const u8 = rv;
             for i in 0..0x0A {
                 vec.push(*p.offset(i));
             }
@@ -741,55 +741,55 @@ mod tests {
     #[test]
     fn test_sc_asn1_skip_tag() {
         let mut ctx = sc_context::default();
-        let file_prkdf : [c_uchar; 53] = [
+        let file_prkdf : [u8; 53] = [
             0x30, 0x31, 0x30, 0x0F, 0x0C, 0x06, 0x43, 0x41, 0x72, 0x6F, 0x6F, 0x74, 0x03, 0x02, 0x06, 0xC0,
             0x04, 0x01, 0x01, 0x30, 0x0C, 0x04, 0x01, 0x03, 0x03, 0x03, 0x06, 0x20, 0x40, 0x03, 0x02, 0x03,
             0xB8, 0xA1, 0x10, 0x30, 0x0E, 0x30, 0x08, 0x04, 0x06, 0x3F, 0x00, 0x41, 0x00, 0x41, 0xF1, 0x02,
             0x02, 0x10, 0x00, 0xFF, 0xFF
         ];
-        let mut buf : *const c_uchar = file_prkdf.first().unwrap();
+        let mut buf : *const u8 = file_prkdf.first().unwrap();
         buf = unsafe { buf.offset(4) };
         let mut buflen : usize = file_prkdf.len() - 4;
-        let mut taglen  : usize  = 0;
-        let rv : *const c_uchar = unsafe { sc_asn1_skip_tag(&mut ctx, &mut buf, &mut buflen, 0x0C, &mut taglen) };
+        let mut taglen = 0_usize;
+        let rv = unsafe { sc_asn1_skip_tag(&mut ctx, &mut buf, &mut buflen, 0x0C, &mut taglen) };
         assert!(!rv.is_null());
         assert_eq!(buflen, file_prkdf.len() - 4 - 8); // remaining len of buf for reading, skipping
-        let mut vec : Vec<c_uchar> = Vec::with_capacity(7);
+        let mut vec : Vec<u8> = Vec::with_capacity(7);
         unsafe {
-            let p : *const c_uchar = buf;
+            let p : *const u8 = buf;
             for i in 0..7 {
                 vec.push(*p.offset(i));
             }
         }
         assert_eq!(vec,  [0x03, 0x02, 0x06, 0xC0, 0x04, 0x01, 0x01,]);
         assert_eq!(taglen, 6);
-        let mut vec : Vec<c_uchar> = Vec::with_capacity(6);
+        let mut vec : Vec<u8> = Vec::with_capacity(6);
         unsafe {
-            let p : *const c_uchar = rv;
+            let p : *const u8 = rv;
             for i in 0..6 {vec.push(*p.offset(i));
             }
         }
         assert_eq!(vec,  [0x43, 0x41, 0x72, 0x6F, 0x6F, 0x74]);
         ////
-        let mut buf : *const c_uchar = file_prkdf.first().unwrap();
+        let mut buf : *const u8 = file_prkdf.first().unwrap();
         let mut buflen : usize = file_prkdf.len();
         let mut taglen  : usize  = 0;
-        let rv : *const c_uchar = unsafe { sc_asn1_skip_tag(&mut ctx, &mut buf, &mut buflen,
+        let rv : *const u8 = unsafe { sc_asn1_skip_tag(&mut ctx, &mut buf, &mut buflen,
                                                             SC_ASN1_CONS | SC_ASN1_SEQUENCE, &mut taglen) };
         assert!(!rv.is_null());
         assert_eq!(buflen, 2); // remaining len of buf for reading, skipping
-        let mut vec : Vec<c_uchar> = Vec::with_capacity(2);
+        let mut vec : Vec<u8> = Vec::with_capacity(2);
         unsafe {
-            let p : *const c_uchar = buf;
+            let p : *const u8 = buf;
             for i in 0..2 {
                 vec.push(*p.offset(i));
             }
         }
         assert_eq!(vec,  [0xFF, 0xFF]);
         assert_eq!(taglen, 0x31);
-        let mut vec : Vec<c_uchar> = Vec::with_capacity(14);
+        let mut vec : Vec<u8> = Vec::with_capacity(14);
         unsafe {
-            let p : *const c_uchar = rv;
+            let p : *const u8 = rv;
             for i in 0..14 {
                 vec.push(*p.offset(i));
             }
@@ -799,8 +799,8 @@ mod tests {
 
     #[test]
     fn test_sc_asn1_decode_integer() {
-        let integer_in : [c_uchar; 2] = [0x10, 0x00];
-        let mut integer_out: c_int   = 0;
+        let integer_in = [0x10_u8, 0x00];
+        let mut integer_out = 0_i32;
         let rv = unsafe { sc_asn1_decode_integer(integer_in.as_ptr(), integer_in.len(), &mut integer_out) };
         assert_eq!(rv, SC_SUCCESS);
         assert_eq!(integer_out, 4096);
@@ -808,40 +808,40 @@ mod tests {
 
     #[test]
     fn test_sc_asn1_decode_bit_string2() {
-        let array_in      : [c_uchar; 3] = [0x06, 0x20, 0x40];
-        let mut array_out : [c_uchar; 2] = [0, 0];
+        let array_in      = [0x06_u8, 0x20, 0x40];
+        let mut array_out = [0_u8, 0];
         let rv = unsafe { sc_asn1_decode_bit_string(array_in.as_ptr(), array_in.len(),
-                                                    array_out.as_mut_ptr() as *mut c_void, array_out.len()) };
+                                                    array_out.as_mut_ptr() as p_void, array_out.len()) };
         assert_eq!(rv, 10);
-        assert!(rv as usize<=(array_in.len()-1)*8-array_in[0] as usize);
+        assert!(usize::try_from(rv).unwrap()<=(array_in.len()-1)*8-usize::from(array_in[0]));
         assert_eq!(array_out, [4, 2]);
     }
 
     #[test]
     fn test_sc_asn1_decode_bit_string1() {
-        let array_in      : [c_uchar; 2] = [0x06, 0xC0];
-        let mut array_out : [c_uchar; 2] = [0, 0];
+        let array_in      = [0x06_u8, 0xC0];
+        let mut array_out = [0_u8, 0];
         let rv = unsafe { sc_asn1_decode_bit_string(array_in.as_ptr(), array_in.len(),
-            array_out.as_mut_ptr() as *mut c_void, array_out.len()) };
+            array_out.as_mut_ptr() as p_void, array_out.len()) };
         assert_eq!(rv, 2);
-        assert!(rv as usize<=(array_in.len()-1)*8-array_in[0] as usize);
+        assert!(usize::try_from(rv).unwrap()<=(array_in.len()-1)*8-usize::from(array_in[0]));
         assert_eq!(array_out, [3, 0]);
     }
 
     #[test]
     fn test_sc_asn1_decode_bit_string_ni() {
-        let array_in      = [0x06, 0xC0];
-        let mut array_out : [c_uchar; 2] = [0, 0];
+        let array_in      = [0x06_u8, 0xC0];
+        let mut array_out = [0_u8, 0];
         let rv = unsafe { sc_asn1_decode_bit_string_ni(array_in.as_ptr(), array_in.len(),
-            array_out.as_mut_ptr() as *mut c_void, array_out.len()) };
+            array_out.as_mut_ptr() as p_void, array_out.len()) };
         assert_eq!(rv, 2);
-        assert!(rv as usize<=(array_in.len()-1)*8-array_in[0] as usize);
+        assert!(usize::try_from(rv).unwrap()<=(array_in.len()-1)*8-usize::from(array_in[0]));
         assert_eq!(array_out, [0xC0, 0]);
     }
 
     #[test]
     fn test_sc_asn1_decode_object_id() {
-        let array_in : [c_uchar; 9] = [0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B];
+        let array_in = [0x2A_u8, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B];
         let mut oid_out = sc_object_id::default();
         let     oid_exp = sc_object_id { value: [1, 2, 840, 113549, 1, 1, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1] };
         let rv = unsafe { sc_asn1_decode_object_id(array_in.as_ptr(), array_in.len(), &mut oid_out) };
@@ -854,7 +854,7 @@ mod tests {
         let der_exp = [0x2Au8, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B];
         let id = sc_object_id { value: [1, 2, 840, 113549, 1, 1, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1] };
         let mut buf_ptr = null_mut();
-        let mut buf_len = 0usize;
+        let mut buf_len = 0_usize;
 
         let rv = unsafe { sc_asn1_encode_object_id(&mut buf_ptr, &mut buf_len, &id) };
         assert_eq!(rv, SC_SUCCESS);
@@ -864,7 +864,7 @@ mod tests {
             vec.push( unsafe { *buf_ptr.add(i) } );
         }
         assert_eq!(vec.as_slice(), der_exp);
-        unsafe { free(buf_ptr as *mut c_void) };
+        unsafe { free(buf_ptr as p_void) };
     }
 
     #[test]
@@ -875,7 +875,7 @@ mod tests {
           OBJECT IDENTIFIER 1.2.840.113549.1.1.11 sha256WithRSAEncryption (PKCS #1)
             NULL
         */
-        let in_ : [c_uchar; 13] = [/*30 0D*/ 0x06,0x09,0x2A,0x86,0x48,0x86,0xF7,0x0D,0x01,0x01,0x0B,  0x05,0x00];
+        let in_ : [u8; 13] = [/*30 0D*/ 0x06,0x09,0x2A,0x86,0x48,0x86,0xF7,0x0D,0x01,0x01,0x0B,  0x05,0x00];
         let mut id = sc_algorithm_id::default();
         let rv = unsafe { sc_asn1_decode_algorithm_id(&mut ctx, in_.as_ptr(), in_.len(), &mut id, 0) };
         assert_eq!(rv, SC_SUCCESS);
@@ -892,7 +892,7 @@ mod tests {
         let der_exp = [/*30 0C*/ 0x06u8, 0x08, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x02, 0x07, 0x05, 0x00];
         let mut ctx = sc_context::default();
         let id = sc_algorithm_id { algorithm: SC_ALGORITHM_SHA1, ..sc_algorithm_id::default() };
-        let mut buf_ptr : *mut c_uchar = null_mut();
+        let mut buf_ptr = null_mut::<u8>();
         let mut buf_len = 0usize;
 
         let rv = unsafe { sc_asn1_encode_algorithm_id(&mut ctx, &mut buf_ptr, &mut buf_len, &id, 0) };
@@ -903,12 +903,12 @@ mod tests {
             vec.push( unsafe { *buf_ptr.add(i) } );
         }
         assert_eq!(vec.as_slice(), der_exp);
-        unsafe { free(buf_ptr as *mut c_void) };
+        unsafe { free(buf_ptr as p_void) };
     }
 
     #[test]
     fn test_sc_asn1_print_tags() {
-        let file_prkdf : [c_uchar; 51] = [
+        let file_prkdf : [u8; 51] = [
             0x30, 0x31, 0x30, 0x0F, 0x0C, 0x06, 0x43, 0x41, 0x72, 0x6F, 0x6F, 0x74, 0x03, 0x02, 0x06, 0xC0,
             0x04, 0x01, 0x01, 0x30, 0x0C, 0x04, 0x01, 0x03, 0x03, 0x03, 0x06, 0x20, 0x40, 0x03, 0x02, 0x03,
             0xB8, 0xA1, 0x10, 0x30, 0x0E, 0x30, 0x08, 0x04, 0x06, 0x3F, 0x00, 0x41, 0x00, 0x41, 0xF1, 0x02,
@@ -931,8 +931,8 @@ mod tests {
     #[test]
     fn test_sc_asn1_write_element() {
         let mut ctx = sc_context::default();
-        let mut p : *mut c_uchar = null_mut();//= buf.as_mut_ptr();
-        let mut outlen = 0usize;
+        let mut p = null_mut::<u8>();
+        let mut outlen = 0_usize;
         let data = [0x01, 0x02, 0x03, 0x04];
         let rv = unsafe { sc_asn1_write_element(&mut ctx, 0x04, data.as_ptr(), data.len(), &mut p, &mut outlen) };
         let mut vec : Vec<u8> = Vec::with_capacity(10);
@@ -942,7 +942,7 @@ mod tests {
         }
         assert_eq!(vec.as_slice(), [4u8, 4, 1, 2, 3, 4]);
         assert_eq!(outlen, 6);
-        unsafe { free(p as *mut c_void) };
+        unsafe { free(p as p_void) };
     }
 
     #[test]
@@ -954,7 +954,7 @@ mod tests {
         #[allow(non_snake_case)]
         let authId : &CStr = CStr::from_bytes_with_nul(b"authId\0").unwrap(); // auth_id
 
-        let mut label_parm : Vec<c_uchar> = Vec::with_capacity(7);
+        let mut label_parm : Vec<u8> = Vec::with_capacity(7);
         for _i in 0..label_parm.capacity() {
             label_parm.push(0);
         }
@@ -975,24 +975,24 @@ mod tests {
         let asn1_array = &mut [
             sc_asn1_entry { name: label.as_ptr(),  type_: SC_ASN1_UTF8STRING, tag: SC_ASN1_TAG_UTF8STRING,
                 flags: SC_ASN1_OPTIONAL,
-                parm: label_parm_ptr as *mut c_void, arg: label_arg_ptr as *mut c_void, ..sc_asn1_entry::default() },
+                parm: label_parm_ptr as p_void, arg: label_arg_ptr as p_void, ..sc_asn1_entry::default() },
             sc_asn1_entry { name: flags.as_ptr(),  type_: SC_ASN1_BIT_FIELD,  tag: SC_ASN1_TAG_BIT_STRING,
-                flags: SC_ASN1_OPTIONAL, parm: flags_parm_ptr   as *mut c_void, arg: flags_arg_ptr as *mut c_void },
+                flags: SC_ASN1_OPTIONAL, parm: flags_parm_ptr   as p_void, arg: flags_arg_ptr as p_void },
             sc_asn1_entry { name: authId.as_ptr(), type_: SC_ASN1_PKCS15_ID,  tag: SC_ASN1_TAG_OCTET_STRING,
-                flags: SC_ASN1_OPTIONAL, parm: auth_id_parm_ptr as *mut c_void, ..sc_asn1_entry::default() },
+                flags: SC_ASN1_OPTIONAL, parm: auth_id_parm_ptr as p_void, ..sc_asn1_entry::default() },
             sc_asn1_entry::default()
         ];
         let asn1 : *mut sc_asn1_entry = asn1_array.as_mut_ptr();
-        let file_prkdf : [c_uchar; 51] = [
+        let file_prkdf : [u8; 51] = [
             0x30, 0x31, 0x30, 0x0F, 0x0C, 0x06, 0x43, 0x41, 0x72, 0x6F, 0x6F, 0x74, 0x03, 0x02, 0x06, 0xC0,
             0x04, 0x01, 0x01, 0x30, 0x0C, 0x04, 0x01, 0x03, 0x03, 0x03, 0x06, 0x20, 0x40, 0x03, 0x02, 0x03,
             0xB8, 0xA1, 0x10, 0x30, 0x0E, 0x30, 0x08, 0x04, 0x06, 0x3F, 0x00, 0x41, 0x00, 0x41, 0xF1, 0x02,
             0x02, 0x10, 0x00
         ];
 
-        let mut in_  : *const c_uchar = file_prkdf.as_ptr();
+        let mut in_  : *const u8 = file_prkdf.as_ptr();
         in_ = unsafe { in_.offset(4) };
-        let mut newp : *const c_uchar = null();
+        let mut newp= null::<u8>();
         let mut left : usize = 0;
 
         /* WARNING: asn1 may be changed to point to another element of asn1_array */
@@ -1000,9 +1000,9 @@ mod tests {
 
         assert_eq!(rv,   SC_SUCCESS);
         assert_eq!(left, file_prkdf.len()-4 -15);
-        let mut vec : Vec<c_uchar> = Vec::with_capacity(13);
+        let mut vec : Vec<u8> = Vec::with_capacity(13);
         unsafe {
-            let p : *const c_uchar = newp;
+            let p : *const u8 = newp;
             for i in 0..13 {
                 vec.push(*p.offset(i));
             }
@@ -1037,7 +1037,7 @@ mod tests {
     /// @param  size
     /// @param  depth
 //    pub fn _sc_asn1_encode(ctx: *mut sc_context, asn1: *const sc_asn1_entry,
-//                           ptr: *mut *mut c_uchar, size: *mut usize, depth: c_int) -> c_int;
+//                           ptr: *mut *mut u8, size: *mut usize, depth: i32) -> i32;
     #[test]
     #[allow(non_snake_case)]
     fn test__sc_asn1_encode() {
@@ -1047,7 +1047,7 @@ mod tests {
         #[allow(non_snake_case)]
         let authId : &CStr = CStr::from_bytes_with_nul(b"authId\0").unwrap(); // auth_id
 
-        let mut label_parm : Vec<c_uchar> = Vec::with_capacity(7);
+        let mut label_parm : Vec<u8> = Vec::with_capacity(7);
         for _i in 0..label_parm.capacity() {
             label_parm.push(0);
         }
@@ -1067,23 +1067,23 @@ mod tests {
         let asn1_array = &mut [
             sc_asn1_entry { name: label.as_ptr(),  type_: SC_ASN1_UTF8STRING, tag: SC_ASN1_TAG_UTF8STRING,
                 flags: SC_ASN1_OPTIONAL,
-                parm: label_parm_ptr as *mut c_void, arg: label_arg_ptr as *mut c_void, ..sc_asn1_entry::default() },
+                parm: label_parm_ptr as p_void, arg: label_arg_ptr as p_void, ..sc_asn1_entry::default() },
             sc_asn1_entry { name: flags.as_ptr(),  type_: SC_ASN1_BIT_FIELD,  tag: SC_ASN1_TAG_BIT_STRING,
-                flags: SC_ASN1_OPTIONAL, parm: flags_parm_ptr   as *mut c_void, arg: flags_arg_ptr as *mut c_void },
+                flags: SC_ASN1_OPTIONAL, parm: flags_parm_ptr   as p_void, arg: flags_arg_ptr as p_void },
             sc_asn1_entry { name: authId.as_ptr(), type_: SC_ASN1_PKCS15_ID,  tag: SC_ASN1_TAG_OCTET_STRING,
-                flags: SC_ASN1_OPTIONAL, parm: auth_id_parm_ptr as *mut c_void, ..sc_asn1_entry::default() },
+                flags: SC_ASN1_OPTIONAL, parm: auth_id_parm_ptr as p_void, ..sc_asn1_entry::default() },
             sc_asn1_entry::default()
         ];
 
-        let mut ptr : *mut c_uchar = null_mut();
+        let mut ptr : *mut u8 = null_mut();
         let mut size = 0usize;
         let rv = unsafe { _sc_asn1_encode(&mut ctx, asn1_array.as_ptr(), &mut ptr, &mut size, 0) };
         assert_eq!(rv,   SC_SUCCESS);
 //        assert!(!ptr.is_null());
         if !ptr.is_null() {
-            let mut vec : Vec<c_uchar> = Vec::with_capacity(size);
+            let mut vec : Vec<u8> = Vec::with_capacity(size);
             unsafe {
-                let p : *const c_uchar = ptr;
+                let p : *const u8 = ptr;
                 for i in 0..size {
                     vec.push(*p.add(i));
                 }
@@ -1109,6 +1109,6 @@ mod tests {
         assert_eq!(0x30u8, unsafe { *pkcs15_der_copied.value });
         assert_eq!(0x10u8, unsafe { *pkcs15_der_copied.value.offset(49) });
         // malloc involved
-        unsafe { free(pkcs15_der_copied.value as *mut c_void) };
+        unsafe { free(pkcs15_der_copied.value as p_void) };
     }
 }

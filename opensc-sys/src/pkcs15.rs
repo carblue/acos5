@@ -19,9 +19,9 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
+use std::os::raw::{c_char, c_ulong, c_void};
 #[cfg(v0_17_0)]
 use std::os::raw::c_ulonglong;
-use std::os::raw::{c_ulong, c_uchar, c_char, c_int, c_uint, c_void};
 use std::ptr::null_mut;
 
 use crate::opensc::{sc_card, sc_app_info, sc_context, sc_ec_parameters, sc_algorithm_id, sc_supported_algo_info};
@@ -42,12 +42,12 @@ pub const SC_PKCS15_MAX_ID_SIZE     : usize = 255;
  * static ASN1 variables, that use this macro,
  * like for example, 'c_asn1_access_control_rules'
  * in src/libopensc/asn1.c */
-pub const SC_PKCS15_MAX_ACCESS_RULES      : usize = 8;
+pub const SC_PKCS15_MAX_ACCESS_RULES  : usize = 8;
 
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone /*,  PartialEq*/)]
 pub struct sc_pkcs15_id {
-    pub value : [c_uchar; SC_PKCS15_MAX_ID_SIZE],
+    pub value : [u8; SC_PKCS15_MAX_ID_SIZE],
     pub len : usize,
 }
 /*
@@ -107,20 +107,20 @@ pub const SC_PKCS15_PIN_AUTH_TYPE_SM_KEY    : u32 =   3; // unused
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_pin_attributes {
-    pub flags : c_uint,
-    pub type_ : c_uint,
+    pub flags : u32,
+    pub type_ : u32,
     pub min_length : usize,
     pub stored_length : usize,
     pub max_length : usize,
-    pub reference : c_int,
-    pub pad_char : c_uchar,
+    pub reference : i32,
+    pub pad_char : u8,
 }
 
 /* AuthKeyAttributes of the authKey authentication object */
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_pkcs15_authkey_attributes {
-    pub derived : c_int,
+    pub derived : i32,
     pub skey_id : sc_pkcs15_id,
 }
 
@@ -128,7 +128,7 @@ pub struct sc_pkcs15_authkey_attributes {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_biometric_attributes {
-    pub flags : c_uint,
+    pub flags : u32,
     pub template_id : sc_object_id,
     /* ... */
 }
@@ -150,16 +150,16 @@ pub struct sc_pkcs15_auth_info {
 
     /* AuthObjectAttributes */
     pub path : sc_path,
-    pub auth_type : c_uint,
+    pub auth_type : u32,
     pub attrs : sc_pkcs15_auth_info__bindgen_ty_1,
 
     /* authentication method: CHV, SEN, SYMBOLIC, ... */
-    pub auth_method : c_uint,
+    pub auth_method : u32,
 
-    pub tries_left : c_int,
-    pub max_tries : c_int,
-    pub logged_in : c_int,
-    pub max_unlocks : c_int,
+    pub tries_left : i32,
+    pub max_tries : i32,
+    pub logged_in : i32,
+    pub max_unlocks : i32,
 }
 /*
 #[doc(hidden)]
@@ -181,7 +181,7 @@ pub const SC_PKCS15_ALGO_OP_GENERATE_KEY      : u32 =  0x80;
 #[repr(C)]
 #[derive(Debug, Copy, Clone,  PartialEq)]
 pub struct sc_pkcs15_bignum {
-    pub data: *mut c_uchar,
+    pub data: *mut u8,
     pub len:  usize,
 }
 /*
@@ -202,7 +202,7 @@ impl Default for sc_pkcs15_bignum {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_der {
-    pub value : *mut c_uchar,
+    pub value : *mut u8,
     pub len : usize,
 }
 /*
@@ -223,7 +223,7 @@ impl Default for sc_pkcs15_der {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_u8 {
-    pub value : *mut c_uchar,
+    pub value : *mut u8,
     pub len : usize,
 }
 /*
@@ -235,7 +235,7 @@ pub type sc_pkcs15_u8_t = sc_pkcs15_u8;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_data {
-    pub data : *mut c_uchar, /* DER encoded raw data object */
+    pub data : *mut u8, /* DER encoded raw data object */
     pub data_len : usize,
 }
 /*
@@ -355,7 +355,7 @@ pub union sc_pkcs15_pubkey__bindgen_ty_1 {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_pkcs15_pubkey {
-    pub algorithm : c_int,
+    pub algorithm : i32,
     pub alg_id : *mut sc_algorithm_id,
 
     /* Decoded key */
@@ -381,7 +381,7 @@ pub union sc_pkcs15_prkey__bindgen_ty_1 {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_pkcs15_prkey {
-    pub algorithm : c_uint,
+    pub algorithm : u32,
 /* TODO do we need:    struct sc_algorithm_id * alg_id; */
 
     pub u : sc_pkcs15_prkey__bindgen_ty_1,
@@ -400,24 +400,24 @@ pub struct sc_pkcs15_enveloped_data {
     /* recipient info */
     pub id : sc_pkcs15_id, /* key ID */
     pub ke_alg : sc_algorithm_id, /* key-encryption algo */
-    pub key : *mut c_uchar,  /* encrypted key */
+    pub key : *mut u8,  /* encrypted key */
     pub key_len : usize,
     pub ce_alg : sc_algorithm_id, /* content-encryption algo */
-    pub content : *mut c_uchar, /* encrypted content */
+    pub content : *mut u8, /* encrypted content */
     pub content_len : usize,
 }
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_cert {
-    pub version : c_int,
-    pub serial : *mut c_uchar,
+    pub version : i32,
+    pub serial : *mut u8,
     pub serial_len : usize,
-    pub issuer : *mut c_uchar,
+    pub issuer : *mut u8,
     pub issuer_len : usize,
-    pub subject : *mut c_uchar,
+    pub subject : *mut u8,
     pub subject_len : usize,
-    pub extensions : *mut c_uchar, // the field name is crl     in opensc version 0.15.0 and 0.16.0
+    pub extensions : *mut u8, // the field name is crl     in opensc version 0.15.0 and 0.16.0
     pub extensions_len : usize,    // the field name is crl_len in opensc version 0.15.0 and 0.16.0
 
     pub key : *mut sc_pkcs15_pubkey,
@@ -434,7 +434,7 @@ pub type sc_pkcs15_cert_t = sc_pkcs15_cert;
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_pkcs15_cert_info {
     pub id : sc_pkcs15_id, /* correlates to private key id */
-    pub authority : c_int, /* boolean */
+    pub authority : i32, /* boolean */
     /* identifiers [2] SEQUENCE OF CredentialIdentifier{{KeyIdentifiers}} */
     pub path : sc_path,
 
@@ -494,9 +494,9 @@ pub const SC_PKCS15_GOSTR3410_KEYSIZE : u32 =             256;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_keyinfo_gostparams {
-    pub gostr3410 : c_uint,
-    pub gostr3411 : c_uint,
-    pub gost28147 : c_uint,
+    pub gostr3410 : u32,
+    pub gostr3411 : u32,
+    pub gost28147 : u32,
 }
 /* AccessMode bit definitions specified in PKCS#15 v1.1
  * and extended by IAS/ECC v1.0.1 specification. */
@@ -515,7 +515,7 @@ pub const SC_PKCS15_ACCESS_RULE_MODE_EXT_AUTH    : u32 =  0x400;
 #[repr(C)]
 #[derive(Default, /*Debug,*/ Copy, Clone)]
 pub struct sc_pkcs15_accessrule {
-    pub access_mode : c_uint,
+    pub access_mode : u32,
     pub auth_id : sc_pkcs15_id,
 }
 /*
@@ -569,7 +569,7 @@ pub struct sc_pkcs15_key_params {
 impl Default for sc_pkcs15_key_params {
     fn default() -> Self {
         Self {
-            data: null_mut() as *mut c_void,
+            data: null_mut::<c_void>(),
             len: 0,
             free_params: None
         }
@@ -580,15 +580,15 @@ impl Default for sc_pkcs15_key_params {
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_pkcs15_prkey_info {
     pub id : sc_pkcs15_id, /* correlates to public certificate id */
-    pub usage : c_uint,
-    pub access_flags : c_uint,
-    pub native : c_int,
-    pub key_reference : c_int,
+    pub usage : u32,
+    pub access_flags : u32,
+    pub native : i32,
+    pub key_reference : i32,
     /* convert to union if other types are supported */
     pub modulus_length : usize, /* RSA in bits; Attention: This seems to get set according to MSB set */
     pub field_length : usize,   /* EC in bits */
 
-    pub algo_refs : [c_uint; SC_MAX_SUPPORTED_ALGORITHMS] ,
+    pub algo_refs : [u32; SC_MAX_SUPPORTED_ALGORITHMS] ,
 
     pub subject : sc_pkcs15_der,
 
@@ -616,15 +616,15 @@ pub struct sc_pkcs15_pubkey_info__bindgen_ty_1 {
 #[derive(Default, /*Debug,*/ Copy, Clone)]
 pub struct sc_pkcs15_pubkey_info {
     pub id : sc_pkcs15_id,  /* correlates to private key id */
-    pub usage : c_uint,
-    pub access_flags : c_uint,
-    pub native : c_int,
-    pub key_reference : c_int,
+    pub usage : u32,
+    pub access_flags : u32,
+    pub native : i32,
+    pub key_reference : i32,
     /* convert to union if other types are supported */
     pub modulus_length : usize, /* RSA in bits; Attention: This seems to get set according to MSB set */
     pub field_length : usize,   /* EC in bits */
 
-    pub algo_refs : [c_uint ; SC_MAX_SUPPORTED_ALGORITHMS],
+    pub algo_refs : [u32 ; SC_MAX_SUPPORTED_ALGORITHMS],
 
     pub subject : sc_pkcs15_der,
 
@@ -644,13 +644,13 @@ pub type sc_pkcs15_pubkey_info_t = sc_pkcs15_pubkey_info;
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_pkcs15_skey_info {
     pub id : sc_pkcs15_id,
-    pub usage : c_uint,
-    pub access_flags : c_uint,
-    pub native : c_int,
-    pub key_reference : c_int,
+    pub usage : u32,
+    pub access_flags : u32,
+    pub native : i32,
+    pub key_reference : i32,
     pub value_len : usize,
     pub key_type : c_ulong,  /* e.g. CKK_AES */
-    pub algo_refs : [c_uint; SC_MAX_SUPPORTED_ALGORITHMS],
+    pub algo_refs : [u32; SC_MAX_SUPPORTED_ALGORITHMS],
     pub path : sc_path, /* if on card */
     pub data : sc_pkcs15_der,
 }
@@ -703,14 +703,14 @@ pub const SC_PKCS15_SEARCH_CLASS_AUTH     : u32 =  0x0040;
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_pkcs15_object {
-    pub type_ : c_uint, /* e.g. SC_PKCS15_TYPE_PRKEY_RSA */
+    pub type_ : u32, /* e.g. SC_PKCS15_TYPE_PRKEY_RSA */
     /* CommonObjectAttributes */
     pub label : [c_char; SC_PKCS15_MAX_LABEL_SIZE],    /* zero terminated */
-    pub flags : c_uint,
+    pub flags : u32,
     pub auth_id : sc_pkcs15_id,
 
-    pub usage_counter : c_int,
-    pub user_consent : c_int,
+    pub usage_counter : i32,
+    pub user_consent : i32,
 
     pub access_rules : [sc_pkcs15_accessrule; SC_PKCS15_MAX_ACCESS_RULES],
 
@@ -726,7 +726,7 @@ pub struct sc_pkcs15_object {
     pub content : sc_pkcs15_der,
 
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-    pub session_object : c_int,       /* used internally. if nonzero, object is a session object. */
+    pub session_object : i32,       /* used internally. if nonzero, object is a session object. */
 }
 /*
 #[doc(hidden)]
@@ -781,15 +781,15 @@ impl Default for sc_pkcs15_object {
 }
 
 /* PKCS #15 DF types */
-pub const SC_PKCS15_PRKDF         : c_uchar =  0;
-pub const SC_PKCS15_PUKDF         : c_uchar =  1;
-pub const SC_PKCS15_PUKDF_TRUSTED : c_uchar =  2;
-pub const SC_PKCS15_SKDF          : c_uchar =  3;
-pub const SC_PKCS15_CDF           : c_uchar =  4;
-pub const SC_PKCS15_CDF_TRUSTED   : c_uchar =  5;
-pub const SC_PKCS15_CDF_USEFUL    : c_uchar =  6;
-pub const SC_PKCS15_DODF          : c_uchar =  7;
-pub const SC_PKCS15_AODF          : c_uchar =  8;
+pub const SC_PKCS15_PRKDF         : u8 =  0;
+pub const SC_PKCS15_PUKDF         : u8 =  1;
+pub const SC_PKCS15_PUKDF_TRUSTED : u8 =  2;
+pub const SC_PKCS15_SKDF          : u8 =  3;
+pub const SC_PKCS15_CDF           : u8 =  4;
+pub const SC_PKCS15_CDF_TRUSTED   : u8 =  5;
+pub const SC_PKCS15_CDF_USEFUL    : u8 =  6;
+pub const SC_PKCS15_DODF          : u8 =  7;
+pub const SC_PKCS15_AODF          : u8 =  8;
 pub const SC_PKCS15_DF_TYPE_COUNT : usize =  9;
 
 //struct sc_pkcs15_card;
@@ -798,9 +798,9 @@ pub const SC_PKCS15_DF_TYPE_COUNT : usize =  9;
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_df {
     pub path : sc_path,
-    pub record_length : c_int,
-    pub type_ : c_uint,  /* e.g. SC_PKCS15_PRKDF */
-    pub enumerated : c_int,
+    pub record_length : i32,
+    pub type_ : u32,  /* e.g. SC_PKCS15_PRKDF */
+    pub enumerated : i32,
 
     pub next : *mut sc_pkcs15_df,
     pub prev : *mut sc_pkcs15_df,
@@ -831,7 +831,7 @@ pub const SC_PKCS15_CARD_MAGIC      : u32 =  0x1020_3040;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_sec_env_info {
-    pub se : c_int,
+    pub se : i32,
     pub owner : sc_object_id,
     pub aid : sc_aid,
 }
@@ -869,8 +869,8 @@ pub type sc_pkcs15_profile_indication_t = sc_pkcs15_profile_indication;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_tokeninfo {
-    pub version : c_uint,
-    pub flags : c_uint,
+    pub version : u32,
+    pub flags : u32,
     pub label : *mut c_char,
     pub serial_number : *mut c_char,
     pub manufacturer_id : *mut c_char,
@@ -893,10 +893,10 @@ pub type sc_pkcs15_tokeninfo_t = sc_pkcs15_tokeninfo;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_operations {
-    pub parse_df : Option< unsafe extern "C" fn(arg1: *mut sc_pkcs15_card, arg2: *mut sc_pkcs15_df) -> c_int >,
+    pub parse_df : Option< unsafe extern "C" fn(arg1: *mut sc_pkcs15_card, arg2: *mut sc_pkcs15_df) -> i32 >,
     pub clear : Option< unsafe extern "C" fn(arg1: *mut sc_pkcs15_card) >,
     pub get_guid : Option< unsafe extern "C" fn(arg1: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object,
-                                                arg3: *mut c_uchar, arg4 : *mut usize) -> c_int > ,
+                                                arg3: *mut u8, arg4 : *mut usize) -> i32 > ,
 }
 
 #[repr(C)]
@@ -908,19 +908,19 @@ pub struct sc_md_data {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_card__sc_pkcs15_card_opts {
-    pub use_file_cache : c_int,
-    pub use_pin_cache : c_int,
-    pub pin_cache_counter : c_int,
-    pub pin_cache_ignore_user_consent : c_int,
+    pub use_file_cache : i32,
+    pub use_pin_cache : i32,
+    pub pin_cache_counter : i32,
+    pub pin_cache_ignore_user_consent : i32,
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-    pub private_certificate : c_int,
+    pub private_certificate : i32,
 }
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_card {
     pub card : *mut sc_card,
-    pub flags : c_uint,
+    pub flags : u32,
 
     pub app : *mut sc_app_info,
 
@@ -933,11 +933,11 @@ pub struct sc_pkcs15_card {
     pub obj_list : *mut sc_pkcs15_object,
     pub tokeninfo : *mut sc_pkcs15_tokeninfo,
     pub unusedspace_list : *mut sc_pkcs15_unusedspace,
-    pub unusedspace_read : c_int,
+    pub unusedspace_read : i32,
 
     pub opts : sc_pkcs15_card__sc_pkcs15_card_opts,
 
-    pub magic : c_uint,
+    pub magic : u32,
 
     pub dll_handle : *mut c_void,   /* shared lib for emulated cards */
     pub md_data : *mut sc_md_data,  /* minidriver specific data */
@@ -951,10 +951,10 @@ pub type sc_pkcs15_card_t = sc_pkcs15_card;
 */
 
 /* flags suitable for sc_pkcs15_tokeninfo */
-pub const SC_PKCS15_TOKEN_READONLY        : c_uint =  0x01;
-pub const SC_PKCS15_TOKEN_LOGIN_REQUIRED  : c_uint =  0x02; /* Don't use */
-pub const SC_PKCS15_TOKEN_PRN_GENERATION  : c_uint =  0x04;
-pub const SC_PKCS15_TOKEN_EID_COMPLIANT   : c_uint =  0x08;
+pub const SC_PKCS15_TOKEN_READONLY        : u32 =  0x01;
+pub const SC_PKCS15_TOKEN_LOGIN_REQUIRED  : u32 =  0x02; /* Don't use */
+pub const SC_PKCS15_TOKEN_PRN_GENERATION  : u32 =  0x04;
+pub const SC_PKCS15_TOKEN_EID_COMPLIANT   : u32 =  0x08;
 
 /* flags suitable for struct sc_pkcs15_card */
 pub const SC_PKCS15_CARD_FLAG_EMULATED : u32 = 0x0200_0000;
@@ -984,23 +984,23 @@ extern "C" {
  * and initializes a new PKCS #15 card object.  Will return
  * SC_ERROR_PKCS15_APP_NOT_FOUND, if the card hasn't got a
  * valid PKCS #15 file structure. */
-pub fn sc_pkcs15_bind(card: *mut sc_card, aid: *mut sc_aid, pkcs15_card: *mut *mut sc_pkcs15_card) -> c_int;
+pub fn sc_pkcs15_bind(card: *mut sc_card, aid: *mut sc_aid, pkcs15_card: *mut *mut sc_pkcs15_card) -> i32;
 
 /* sc_pkcs15_unbind:  Releases a PKCS #15 card object, and frees any
  * memory allocations done on the card object. */
-pub fn sc_pkcs15_unbind(card: *mut sc_pkcs15_card) -> c_int;
+pub fn sc_pkcs15_unbind(card: *mut sc_pkcs15_card) -> i32;
 
-pub fn sc_pkcs15_bind_internal(p15card: *mut sc_pkcs15_card, aid: *mut sc_aid) -> c_int;
+pub fn sc_pkcs15_bind_internal(p15card: *mut sc_pkcs15_card, aid: *mut sc_aid) -> i32;
 
-pub fn sc_pkcs15_get_objects(p15card: *mut sc_pkcs15_card, type_: c_uint, ret: *mut *mut sc_pkcs15_object,
-                             ret_count: usize) -> c_int;
+pub fn sc_pkcs15_get_objects(p15card: *mut sc_pkcs15_card, type_: u32, ret: *mut *mut sc_pkcs15_object,
+                             ret_count: usize) -> i32;
 
-pub fn sc_pkcs15_get_objects_cond(p15card: *mut sc_pkcs15_card, type_: c_uint,
-            func: Option< unsafe extern "C" fn (arg1: *mut sc_pkcs15_object, arg2: *mut c_void) -> c_int >,
-            func_arg: *mut c_void, ret: *mut *mut sc_pkcs15_object, ret_count: usize) -> c_int;
+pub fn sc_pkcs15_get_objects_cond(p15card: *mut sc_pkcs15_card, type_: u32,
+            func: Option< unsafe extern "C" fn (arg1: *mut sc_pkcs15_object, arg2: *mut c_void) -> i32 >,
+            func_arg: *mut c_void, ret: *mut *mut sc_pkcs15_object, ret_count: usize) -> i32;
 
-pub fn sc_pkcs15_find_object_by_id(p15card: *mut sc_pkcs15_card, arg2: c_uint, arg3: *const sc_pkcs15_id,
-    arg4: *mut *mut sc_pkcs15_object) -> c_int;
+pub fn sc_pkcs15_find_object_by_id(p15card: *mut sc_pkcs15_card, arg2: u32, arg3: *const sc_pkcs15_id,
+    arg4: *mut *mut sc_pkcs15_object) -> i32;
 
 pub fn sc_pkcs15_card_new() -> *mut sc_pkcs15_card;
 
@@ -1019,264 +1019,264 @@ pub fn sc_pkcs15_tokeninfo_new() -> *mut sc_pkcs15_tokeninfo;
 pub fn sc_pkcs15_free_tokeninfo(tokeninfo: *mut sc_pkcs15_tokeninfo);
 
 pub fn sc_pkcs15_decipher(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, flags: c_ulong,
-                          in_: *const c_uchar , inlen: usize, out: *mut c_uchar, outlen: usize) -> c_int;
+                          in_: *const u8 , inlen: usize, out: *mut u8, outlen: usize) -> i32;
 
 pub fn sc_pkcs15_derive(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, flags: c_ulong,
-                        in_: *const c_uchar, inlen: usize, out: *mut c_uchar, poutlen: *mut usize) -> c_int;
+                        in_: *const u8, inlen: usize, out: *mut u8, poutlen: *mut usize) -> i32;
 
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub fn sc_pkcs15_unwrap(p15card: *mut sc_pkcs15_card,
                         key: *const sc_pkcs15_object,
                         target_key: *mut sc_pkcs15_object,
                         flags: c_ulong,
-                        in_: *const c_uchar, inlen: usize,
-                        param: *const c_uchar, paramlen: usize) -> c_int;
+                        in_: *const u8, inlen: usize,
+                        param: *const u8, paramlen: usize) -> i32;
 
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub fn sc_pkcs15_wrap(p15card: *mut sc_pkcs15_card,
                       key: *const sc_pkcs15_object,
                       target_key: *mut sc_pkcs15_object,
                       flags: c_ulong,
-                      cryptogram: *mut c_uchar, crgram_len: *mut usize,
-                      param: *const c_uchar, paramlen: usize) -> c_int;
+                      cryptogram: *mut u8, crgram_len: *mut usize,
+                      param: *const u8, paramlen: usize) -> i32;
 
 pub fn sc_pkcs15_compute_signature(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, alg_flags: c_ulong,
-                                   in_: *const c_uchar, inlen: usize, out: *mut c_uchar, outlen: usize) -> c_int;
+                                   in_: *const u8, inlen: usize, out: *mut u8, outlen: usize) -> i32;
 
 pub fn sc_pkcs15_read_pubkey(p15card: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object,
-                             arg3: *mut *mut sc_pkcs15_pubkey) -> c_int;
+                             arg3: *mut *mut sc_pkcs15_pubkey) -> i32;
 
-pub fn sc_pkcs15_decode_pubkey_rsa(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_rsa, arg3: *const c_uchar,
-                                   arg4: usize) -> c_int;
+pub fn sc_pkcs15_decode_pubkey_rsa(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_rsa, arg3: *const u8,
+                                   arg4: usize) -> i32;
 
-pub fn sc_pkcs15_encode_pubkey_rsa(ctx: *mut sc_context, rsa_key: *const sc_pkcs15_pubkey_rsa, out: *mut *mut c_uchar,
-                                   out_len: *mut usize) -> c_int; // API_CHANGED
+pub fn sc_pkcs15_encode_pubkey_rsa(ctx: *mut sc_context, rsa_key: *const sc_pkcs15_pubkey_rsa, out: *mut *mut u8,
+                                   out_len: *mut usize) -> i32; // API_CHANGED
 
-pub fn sc_pkcs15_decode_pubkey_dsa(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_dsa, arg3: *const c_uchar,
-                                   arg4: usize) -> c_int;
+pub fn sc_pkcs15_decode_pubkey_dsa(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_dsa, arg3: *const u8,
+                                   arg4: usize) -> i32;
 
-pub fn sc_pkcs15_encode_pubkey_dsa(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_dsa, arg3: *mut *mut c_uchar,
-                                   arg4: *mut usize) -> c_int;
+pub fn sc_pkcs15_encode_pubkey_dsa(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_dsa, arg3: *mut *mut u8,
+                                   arg4: *mut usize) -> i32;
 
 pub fn sc_pkcs15_decode_pubkey_gostr3410(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_gostr3410,
-                                         arg3: *const c_uchar, arg4: usize) -> c_int;
+                                         arg3: *const u8, arg4: usize) -> i32;
 
 pub fn sc_pkcs15_encode_pubkey_gostr3410(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_gostr3410,
-                                         arg3: *mut *mut c_uchar, arg4: *mut usize) -> c_int;
+                                         arg3: *mut *mut u8, arg4: *mut usize) -> i32;
 
-pub fn sc_pkcs15_decode_pubkey_ec(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_ec, arg3: *const c_uchar,
-                                  arg4: usize) -> c_int;
+pub fn sc_pkcs15_decode_pubkey_ec(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_ec, arg3: *const u8,
+                                  arg4: usize) -> i32;
 
-pub fn sc_pkcs15_encode_pubkey_ec(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_ec, arg3: *mut *mut c_uchar,
-                                  arg4: *mut usize) -> c_int;
+pub fn sc_pkcs15_encode_pubkey_ec(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_ec, arg3: *mut *mut u8,
+                                  arg4: *mut usize) -> i32;
 
 
-pub fn sc_pkcs15_decode_pubkey(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey, arg3: *const c_uchar,
-                               arg4: usize) -> c_int;
+pub fn sc_pkcs15_decode_pubkey(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey, arg3: *const u8,
+                               arg4: usize) -> i32;
 
-pub fn sc_pkcs15_encode_pubkey(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey, arg3: *mut *mut c_uchar,
-                               arg4: *mut usize) -> c_int ;
+pub fn sc_pkcs15_encode_pubkey(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey, arg3: *mut *mut u8,
+                               arg4: *mut usize) -> i32 ;
 
-pub fn sc_pkcs15_encode_pubkey_as_spki(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey, arg3: *mut *mut c_uchar,
-                                       arg4: *mut usize) -> c_int;
+pub fn sc_pkcs15_encode_pubkey_as_spki(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey, arg3: *mut *mut u8,
+                                       arg4: *mut usize) -> i32;
 
 pub fn sc_pkcs15_erase_pubkey(arg1: *mut sc_pkcs15_pubkey);
 
 pub fn sc_pkcs15_free_pubkey(arg1: *mut sc_pkcs15_pubkey);
 
 pub fn sc_pkcs15_pubkey_from_prvkey(arg1: *mut sc_context, arg2: *mut sc_pkcs15_prkey, arg3: *mut *mut sc_pkcs15_pubkey)
-    -> c_int;
+    -> i32;
 
 pub fn sc_pkcs15_dup_pubkey(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey, arg3: *mut *mut sc_pkcs15_pubkey)
-    -> c_int;
+    -> i32;
 
 pub fn sc_pkcs15_pubkey_from_cert(arg1: *mut sc_context, arg2: *mut sc_pkcs15_der, arg3: *mut *mut sc_pkcs15_pubkey)
-    -> c_int;
+    -> i32;
 
-fn sc_pkcs15_pubkey_from_spki_file(arg1: *mut sc_context, arg2: *mut c_char, arg3: *mut *mut sc_pkcs15_pubkey) -> c_int;
+fn sc_pkcs15_pubkey_from_spki_file(arg1: *mut sc_context, arg2: *mut c_char, arg3: *mut *mut sc_pkcs15_pubkey) -> i32;
 
-fn sc_pkcs15_pubkey_from_spki_fields(arg1: *mut sc_context, arg2: *mut *mut sc_pkcs15_pubkey, arg3: *mut c_uchar,
-                                     arg4: usize, arg5: c_int) -> c_int;
+fn sc_pkcs15_pubkey_from_spki_fields(arg1: *mut sc_context, arg2: *mut *mut sc_pkcs15_pubkey, arg3: *mut u8,
+                                     arg4: usize, arg5: i32) -> i32;
 
-fn sc_pkcs15_encode_prkey(arg1: *mut sc_context, arg2: *mut sc_pkcs15_prkey, arg3: *mut *mut c_uchar, arg4: *mut usize)
-    -> c_int;
+fn sc_pkcs15_encode_prkey(arg1: *mut sc_context, arg2: *mut sc_pkcs15_prkey, arg3: *mut *mut u8, arg4: *mut usize)
+    -> i32;
 
 pub fn sc_pkcs15_free_prkey(prkey: *mut sc_pkcs15_prkey);
 
 pub fn sc_pkcs15_free_key_params(params: *mut sc_pkcs15_key_params);
 
 pub fn sc_pkcs15_read_data_object(p15card: *mut sc_pkcs15_card, info: *const sc_pkcs15_data_info,
-                                  data_object_out:  *mut *mut sc_pkcs15_data) -> c_int;
+                                  data_object_out:  *mut *mut sc_pkcs15_data) -> i32;
 
 pub fn sc_pkcs15_find_data_object_by_id(p15card: *mut sc_pkcs15_card, id: *const sc_pkcs15_id,
-                                        out: *mut *mut sc_pkcs15_object) -> c_int;
+                                        out: *mut *mut sc_pkcs15_object) -> i32;
 
 pub fn sc_pkcs15_find_data_object_by_app_oid(p15card: *mut sc_pkcs15_card, app_oid: *const sc_object_id,
-                                             out: *mut *mut sc_pkcs15_object) -> c_int;
+                                             out: *mut *mut sc_pkcs15_object) -> i32;
 
 pub fn sc_pkcs15_find_data_object_by_name(p15card: *mut sc_pkcs15_card, app_label: *const c_char, label: *const c_char,
-                                          out: *mut *mut sc_pkcs15_object) -> c_int;
+                                          out: *mut *mut sc_pkcs15_object) -> i32;
 
 pub fn sc_pkcs15_free_data_object(data_object: *mut sc_pkcs15_data);
 
 pub fn sc_pkcs15_read_certificate(card: *mut sc_pkcs15_card, info: *const sc_pkcs15_cert_info,
-                                  cert: *mut *mut sc_pkcs15_cert) -> c_int;
+                                  cert: *mut *mut sc_pkcs15_cert) -> i32;
 
 pub fn sc_pkcs15_free_certificate(cert: *mut sc_pkcs15_cert);
 
 pub fn sc_pkcs15_find_cert_by_id(card: *mut sc_pkcs15_card, id: *const sc_pkcs15_id,
-                                 out: *mut *mut sc_pkcs15_object) -> c_int;
+                                 out: *mut *mut sc_pkcs15_object) -> i32;
 
-pub fn sc_pkcs15_get_name_from_dn(ctx: *mut sc_context, dn: *const c_uchar, dn_len: usize, type_: *const sc_object_id,
-                                  name: *mut *mut c_uchar, name_len: *mut usize) -> c_int;
+pub fn sc_pkcs15_get_name_from_dn(ctx: *mut sc_context, dn: *const u8, dn_len: usize, type_: *const sc_object_id,
+                                  name: *mut *mut u8, name_len: *mut usize) -> i32;
 
 fn sc_pkcs15_get_extension(ctx: *mut sc_context, cert: *mut sc_pkcs15_cert, type_: *const sc_object_id,
-                           ext_val: *mut *mut c_uchar, ext_val_len: *mut usize, is_critical: *mut c_int) -> c_int;
+                           ext_val: *mut *mut u8, ext_val_len: *mut usize, is_critical: *mut i32) -> i32;
 
 #[cfg(    v0_17_0)]
 fn sc_pkcs15_get_bitstring_extension(ctx: *mut sc_context, cert: *mut sc_pkcs15_cert, type_: *const sc_object_id,
-                                     value: *mut c_ulonglong, is_critical: *mut c_int) -> c_int;
+                                     value: *mut c_ulonglong, is_critical: *mut i32) -> i32;
 #[cfg(not(v0_17_0))]
 fn sc_pkcs15_get_bitstring_extension(ctx: *mut sc_context, cert: *mut sc_pkcs15_cert, type_: *const sc_object_id,
-                                     value: *mut c_uint, is_critical: *mut c_int) -> c_int;
+                                     value: *mut u32, is_critical: *mut i32) -> i32;
 
 /* sc_pkcs15_create_cdf:  Creates a new certificate DF on a card pointed
  * by <card>.  Information about the file, such as the file ID, is read
  * from <file>.  <certs> has to be NULL-terminated. */
-fn sc_pkcs15_create_cdf(card: *mut sc_pkcs15_card, file: *mut sc_file, certs: *mut *const sc_pkcs15_cert_info) -> c_int;
+fn sc_pkcs15_create_cdf(card: *mut sc_pkcs15_card, file: *mut sc_file, certs: *mut *const sc_pkcs15_cert_info) -> i32;
 
-//fn sc_pkcs15_create(p15card: *mut sc_pkcs15_card, card: *mut sc_card) -> c_int;
+//fn sc_pkcs15_create(p15card: *mut sc_pkcs15_card, card: *mut sc_card) -> i32;
 
 pub fn sc_pkcs15_find_prkey_by_id(p15card: *mut sc_pkcs15_card, id: *const sc_pkcs15_id,
-                                  out: *mut *mut sc_pkcs15_object) -> c_int;
+                                  out: *mut *mut sc_pkcs15_object) -> i32;
 
-pub fn sc_pkcs15_find_prkey_by_id_usage(p15card: *mut sc_pkcs15_card, id: *const sc_pkcs15_id, usage: c_uint,
-                                        out: *mut *mut sc_pkcs15_object) -> c_int;
+pub fn sc_pkcs15_find_prkey_by_id_usage(p15card: *mut sc_pkcs15_card, id: *const sc_pkcs15_id, usage: u32,
+                                        out: *mut *mut sc_pkcs15_object) -> i32;
 
-pub fn sc_pkcs15_find_prkey_by_reference(p15card: *mut sc_pkcs15_card, arg2: *const sc_path, arg3: c_int,
-                                         arg4: *mut *mut sc_pkcs15_object) -> c_int;
+pub fn sc_pkcs15_find_prkey_by_reference(p15card: *mut sc_pkcs15_card, arg2: *const sc_path, arg3: i32,
+                                         arg4: *mut *mut sc_pkcs15_object) -> i32;
 
 pub fn sc_pkcs15_find_pubkey_by_id(p15card: *mut sc_pkcs15_card, id: *const sc_pkcs15_id,
-                                   out: *mut *mut sc_pkcs15_object) -> c_int;
+                                   out: *mut *mut sc_pkcs15_object) -> i32;
 
 pub fn sc_pkcs15_find_skey_by_id(p15card: *mut sc_pkcs15_card, id: *const sc_pkcs15_id,
-                                 out: *mut *mut sc_pkcs15_object) -> c_int;
+                                 out: *mut *mut sc_pkcs15_object) -> i32;
 
-pub fn sc_pkcs15_verify_pin(p15card: *mut sc_pkcs15_card, pin_obj: *mut sc_pkcs15_object, pincode : *const c_uchar,
-                            pinlen: usize) -> c_int;
+pub fn sc_pkcs15_verify_pin(p15card: *mut sc_pkcs15_card, pin_obj: *mut sc_pkcs15_object, pincode : *const u8,
+                            pinlen: usize) -> i32;
 
 pub fn sc_pkcs15_verify_pin_with_session_pin(p15card: *mut sc_pkcs15_card, pin_obj: *mut sc_pkcs15_object,
-                                             pincode: *const c_uchar, pinlen: usize, sessionpin: *const c_uchar,
-                                             sessionpinlen: *mut usize) -> c_int;
+                                             pincode: *const u8, pinlen: usize, sessionpin: *const u8,
+                                             sessionpinlen: *mut usize) -> i32;
 
-pub fn sc_pkcs15_change_pin(p15card: *mut sc_pkcs15_card, pin_obj: *mut sc_pkcs15_object, oldpincode: *const c_uchar,
-                            oldpinlen: usize, newpincode: *const c_uchar, newpinlen: usize) -> c_int;
+pub fn sc_pkcs15_change_pin(p15card: *mut sc_pkcs15_card, pin_obj: *mut sc_pkcs15_object, oldpincode: *const u8,
+                            oldpinlen: usize, newpincode: *const u8, newpinlen: usize) -> i32;
 
-pub fn sc_pkcs15_unblock_pin(p15card: *mut sc_pkcs15_card, pin_obj: *mut sc_pkcs15_object, puk: *const c_uchar,
-                             puklen: usize, newpin: *const c_uchar, newpinlen: usize) -> c_int;
+pub fn sc_pkcs15_unblock_pin(p15card: *mut sc_pkcs15_card, pin_obj: *mut sc_pkcs15_object, puk: *const u8,
+                             puklen: usize, newpin: *const u8, newpinlen: usize) -> i32;
 
-pub fn sc_pkcs15_get_pin_info(p15card: *mut sc_pkcs15_card, pin_obj: *mut sc_pkcs15_object) -> c_int;
+pub fn sc_pkcs15_get_pin_info(p15card: *mut sc_pkcs15_card, pin_obj: *mut sc_pkcs15_object) -> i32;
 
 pub fn sc_pkcs15_find_pin_by_auth_id(p15card: *mut sc_pkcs15_card, id: *const sc_pkcs15_id,
-                                     out: *mut *mut sc_pkcs15_object) -> c_int;
+                                     out: *mut *mut sc_pkcs15_object) -> i32;
 
-pub fn sc_pkcs15_find_pin_by_reference(p15card: *mut sc_pkcs15_card, path: *const sc_path, reference: c_int,
-                                       out: *mut *mut sc_pkcs15_object) -> c_int;
+pub fn sc_pkcs15_find_pin_by_reference(p15card: *mut sc_pkcs15_card, path: *const sc_path, reference: i32,
+                                       out: *mut *mut sc_pkcs15_object) -> i32;
 
-fn sc_pkcs15_find_pin_by_type_and_reference(p15card: *mut sc_pkcs15_card, path: *const sc_path, auth_method: c_uint,
-                                            reference: c_int, out: *mut *mut sc_pkcs15_object) -> c_int;
+fn sc_pkcs15_find_pin_by_type_and_reference(p15card: *mut sc_pkcs15_card, path: *const sc_path, auth_method: u32,
+                                            reference: i32, out: *mut *mut sc_pkcs15_object) -> i32;
 
-pub fn sc_pkcs15_find_so_pin(p15card: *mut sc_pkcs15_card, out: *mut *mut sc_pkcs15_object) -> c_int;
+pub fn sc_pkcs15_find_so_pin(p15card: *mut sc_pkcs15_card, out: *mut *mut sc_pkcs15_object) -> i32;
 
-pub fn sc_pkcs15_find_pin_by_flags(p15card: *mut sc_pkcs15_card, flags: c_uint, mask: c_uint, index: *mut c_int,
-                                   out: *mut *mut sc_pkcs15_object) -> c_int;
+pub fn sc_pkcs15_find_pin_by_flags(p15card: *mut sc_pkcs15_card, flags: u32, mask: u32, index: *mut i32,
+                                   out: *mut *mut sc_pkcs15_object) -> i32;
 
-fn sc_pkcs15_pincache_add(p15card: *mut sc_pkcs15_card, arg2: *mut sc_pkcs15_object, arg3: *const c_uchar, arg4: usize);
+fn sc_pkcs15_pincache_add(p15card: *mut sc_pkcs15_card, arg2: *mut sc_pkcs15_object, arg3: *const u8, arg4: usize);
 
-fn sc_pkcs15_pincache_revalidate(p15card: *mut sc_pkcs15_card, obj: *const sc_pkcs15_object) -> c_int;
+fn sc_pkcs15_pincache_revalidate(p15card: *mut sc_pkcs15_card, obj: *const sc_pkcs15_object) -> i32;
 
 pub fn sc_pkcs15_pincache_clear(p15card: *mut sc_pkcs15_card);
 
-fn sc_pkcs15_encode_dir(ctx: *mut sc_context, p15card: *mut sc_pkcs15_card, buf: *mut *mut c_uchar, buflen: *mut usize)
-    -> c_int;
+fn sc_pkcs15_encode_dir(ctx: *mut sc_context, p15card: *mut sc_pkcs15_card, buf: *mut *mut u8, buflen: *mut usize)
+    -> i32;
 
-pub fn sc_pkcs15_parse_tokeninfo(ctx: *mut sc_context, ti: *mut sc_pkcs15_tokeninfo, buf: *const c_uchar, blen: usize)
-    -> c_int;
+pub fn sc_pkcs15_parse_tokeninfo(ctx: *mut sc_context, ti: *mut sc_pkcs15_tokeninfo, buf: *const u8, blen: usize)
+    -> i32;
 
-pub fn sc_pkcs15_encode_tokeninfo(ctx: *mut sc_context, ti: *mut sc_pkcs15_tokeninfo, buf: *mut *mut c_uchar,
-                                  buflen: *mut usize) -> c_int;
+pub fn sc_pkcs15_encode_tokeninfo(ctx: *mut sc_context, ti: *mut sc_pkcs15_tokeninfo, buf: *mut *mut u8,
+                                  buflen: *mut usize) -> i32;
 
-pub fn sc_pkcs15_encode_odf(ctx: *mut sc_context, p15card: *mut sc_pkcs15_card, buf: *mut *mut c_uchar,
-                            buflen: *mut usize) -> c_int;
+pub fn sc_pkcs15_encode_odf(ctx: *mut sc_context, p15card: *mut sc_pkcs15_card, buf: *mut *mut u8,
+                            buflen: *mut usize) -> i32;
 
 pub fn sc_pkcs15_encode_df(ctx: *mut sc_context, p15card: *mut sc_pkcs15_card, df: *mut sc_pkcs15_df,
-                           buf: *mut *mut c_uchar, bufsize: *mut usize) -> c_int;
+                           buf: *mut *mut u8, bufsize: *mut usize) -> i32;
 
-pub fn sc_pkcs15_encode_cdf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_object, buf: *mut *mut c_uchar,
-                                  bufsize: *mut usize) -> c_int;
+pub fn sc_pkcs15_encode_cdf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_object, buf: *mut *mut u8,
+                                  bufsize: *mut usize) -> i32;
 
-pub fn sc_pkcs15_encode_prkdf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_object, buf: *mut *mut c_uchar,
-                                    bufsize: *mut usize) -> c_int;
+pub fn sc_pkcs15_encode_prkdf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_object, buf: *mut *mut u8,
+                                    bufsize: *mut usize) -> i32;
 
-pub fn sc_pkcs15_encode_pukdf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_object, buf: *mut *mut c_uchar,
-                                    bufsize: *mut usize) -> c_int;
+pub fn sc_pkcs15_encode_pukdf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_object, buf: *mut *mut u8,
+                                    bufsize: *mut usize) -> i32;
 
-fn sc_pkcs15_encode_skdf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_object, buf: *mut *mut c_uchar,
-                               buflen: *mut usize) -> c_int;
+fn sc_pkcs15_encode_skdf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_object, buf: *mut *mut u8,
+                               buflen: *mut usize) -> i32;
 
-pub fn sc_pkcs15_encode_dodf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_object, buf: *mut *mut c_uchar,
-                                   bufsize: *mut usize) -> c_int;
+pub fn sc_pkcs15_encode_dodf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_object, buf: *mut *mut u8,
+                                   bufsize: *mut usize) -> i32;
 
-pub fn sc_pkcs15_encode_aodf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_object, buf: *mut *mut c_uchar,
-                                   bufsize: *mut usize) -> c_int;
+pub fn sc_pkcs15_encode_aodf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_object, buf: *mut *mut u8,
+                                   bufsize: *mut usize) -> i32;
 
-pub fn sc_pkcs15_parse_df(p15card: *mut sc_pkcs15_card, df: *mut sc_pkcs15_df) -> c_int;
+pub fn sc_pkcs15_parse_df(p15card: *mut sc_pkcs15_card, df: *mut sc_pkcs15_df) -> i32;
 
-fn sc_pkcs15_read_df(p15card: *mut sc_pkcs15_card, df: *mut sc_pkcs15_df) -> c_int;
+fn sc_pkcs15_read_df(p15card: *mut sc_pkcs15_card, df: *mut sc_pkcs15_df) -> i32;
 
-pub fn sc_pkcs15_decode_cdf_entry(p15card: *mut sc_pkcs15_card, obj: *mut sc_pkcs15_object, buf: *mut *const c_uchar,
-                                  bufsize: *mut usize) -> c_int;
+pub fn sc_pkcs15_decode_cdf_entry(p15card: *mut sc_pkcs15_card, obj: *mut sc_pkcs15_object, buf: *mut *const u8,
+                                  bufsize: *mut usize) -> i32;
 
-pub fn sc_pkcs15_decode_dodf_entry(p15card: *mut sc_pkcs15_card, obj: *mut sc_pkcs15_object, buf: *mut *const c_uchar,
-                                   bufsize: *mut usize) -> c_int;
+pub fn sc_pkcs15_decode_dodf_entry(p15card: *mut sc_pkcs15_card, obj: *mut sc_pkcs15_object, buf: *mut *const u8,
+                                   bufsize: *mut usize) -> i32;
 
-pub fn sc_pkcs15_decode_aodf_entry(p15card: *mut sc_pkcs15_card, obj: *mut sc_pkcs15_object, buf: *mut *const c_uchar,
-                                   bufsize: *mut usize) -> c_int;
+pub fn sc_pkcs15_decode_aodf_entry(p15card: *mut sc_pkcs15_card, obj: *mut sc_pkcs15_object, buf: *mut *const u8,
+                                   bufsize: *mut usize) -> i32;
 
-pub fn sc_pkcs15_decode_prkdf_entry(p15card: *mut sc_pkcs15_card, obj: *mut sc_pkcs15_object, buf: *mut *const c_uchar,
-                                    bufsize: *mut usize) -> c_int;
+pub fn sc_pkcs15_decode_prkdf_entry(p15card: *mut sc_pkcs15_card, obj: *mut sc_pkcs15_object, buf: *mut *const u8,
+                                    bufsize: *mut usize) -> i32;
 
-pub fn sc_pkcs15_decode_pukdf_entry(p15card: *mut sc_pkcs15_card, obj: *mut sc_pkcs15_object, buf: *mut *const c_uchar,
-                                    bufsize: *mut usize) -> c_int;
+pub fn sc_pkcs15_decode_pukdf_entry(p15card: *mut sc_pkcs15_card, obj: *mut sc_pkcs15_object, buf: *mut *const u8,
+                                    bufsize: *mut usize) -> i32;
 
-pub fn sc_pkcs15_decode_skdf_entry(p15card: *mut sc_pkcs15_card, obj: *mut sc_pkcs15_object, buf: *mut *const c_uchar,
-                                   bufsize: *mut usize) -> c_int;
+pub fn sc_pkcs15_decode_skdf_entry(p15card: *mut sc_pkcs15_card, obj: *mut sc_pkcs15_object, buf: *mut *const u8,
+                                   bufsize: *mut usize) -> i32;
 /*
-fn sc_pkcs15_decode_enveloped_data(ctx: *mut sc_context, result: *mut sc_pkcs15_enveloped_data, buf: *const c_uchar,
-                                   buflen: usize) -> c_int;
+fn sc_pkcs15_decode_enveloped_data(ctx: *mut sc_context, result: *mut sc_pkcs15_enveloped_data, buf: *const u8,
+                                   buflen: usize) -> i32;
 
-fn sc_pkcs15_encode_enveloped_data(ctx: *mut sc_context, data: *mut sc_pkcs15_enveloped_data, buf: *mut *mut c_uchar,
-                                   buflen: *mut usize) -> c_int;
+fn sc_pkcs15_encode_enveloped_data(ctx: *mut sc_context, data: *mut sc_pkcs15_enveloped_data, buf: *mut *mut u8,
+                                   buflen: *mut usize) -> i32;
 */
-pub fn sc_pkcs15_add_object(p15card: *mut sc_pkcs15_card, obj: *mut sc_pkcs15_object) -> c_int;
+pub fn sc_pkcs15_add_object(p15card: *mut sc_pkcs15_card, obj: *mut sc_pkcs15_object) -> i32;
 
 pub fn sc_pkcs15_remove_object(p15card: *mut sc_pkcs15_card, obj: *mut sc_pkcs15_object);
 
-pub fn sc_pkcs15_add_df(p15card: *mut sc_pkcs15_card, arg2: c_uint, arg3: *const sc_path) -> c_int;
+pub fn sc_pkcs15_add_df(p15card: *mut sc_pkcs15_card, arg2: u32, arg3: *const sc_path) -> i32;
 
 pub fn sc_pkcs15_add_unusedspace(p15card: *mut sc_pkcs15_card, path: *const sc_path, auth_id: *const sc_pkcs15_id)
-    -> c_int;
+    -> i32;
 
 pub fn sc_pkcs15_remove_unusedspace(p15card: *mut sc_pkcs15_card, unusedspace: *mut sc_pkcs15_unusedspace);
 
-pub fn sc_pkcs15_parse_unusedspace(buf: *const c_uchar, buflen: usize, p15card: *mut sc_pkcs15_card) -> c_int;
+pub fn sc_pkcs15_parse_unusedspace(buf: *const u8, buflen: usize, p15card: *mut sc_pkcs15_card) -> i32;
 
-pub fn sc_pkcs15_encode_unusedspace(ctx: *mut sc_context, p15card: *mut sc_pkcs15_card, buf: *mut *mut c_uchar,
-                                    buflen: *mut usize) -> c_int;
+pub fn sc_pkcs15_encode_unusedspace(ctx: *mut sc_context, p15card: *mut sc_pkcs15_card, buf: *mut *mut u8,
+                                    buflen: *mut usize) -> i32;
 
 /* Deduce private key attributes from corresponding certificate */
 pub fn sc_pkcs15_prkey_attrs_from_cert(p15card: *mut sc_pkcs15_card, arg2: *mut sc_pkcs15_object,
-                                       arg3: *mut *mut sc_pkcs15_object) -> c_int;
+                                       arg3: *mut *mut sc_pkcs15_object) -> i32;
 
 pub fn sc_pkcs15_free_prkey_info(key: *mut sc_pkcs15_prkey_info);
 
@@ -1291,75 +1291,75 @@ pub fn sc_pkcs15_free_auth_info(auth_info: *mut sc_pkcs15_auth_info);
 pub fn sc_pkcs15_free_object(obj: *mut sc_pkcs15_object);
 
 /* Generic file i/o */
-pub fn sc_pkcs15_read_file(p15card : *mut sc_pkcs15_card, path: *const sc_path, buf: *mut *mut c_uchar,
-                           buflen: *mut usize) -> c_int;
+pub fn sc_pkcs15_read_file(p15card : *mut sc_pkcs15_card, path: *const sc_path, buf: *mut *mut u8,
+                           buflen: *mut usize) -> i32;
 
 /* Caching functions */
-pub fn sc_pkcs15_read_cached_file(p15card: *mut sc_pkcs15_card, path: *const sc_path, buf: *mut *mut c_uchar,
-                                  bufsize: *mut usize) -> c_int;
+pub fn sc_pkcs15_read_cached_file(p15card: *mut sc_pkcs15_card, path: *const sc_path, buf: *mut *mut u8,
+                                  bufsize: *mut usize) -> i32;
 
-pub fn sc_pkcs15_cache_file(p15card: *mut sc_pkcs15_card, path: *const sc_path, buf: *const c_uchar,
-                            bufsize: usize) -> c_int;
+pub fn sc_pkcs15_cache_file(p15card: *mut sc_pkcs15_card, path: *const sc_path, buf: *const u8,
+                            bufsize: usize) -> i32;
 
 /* PKCS #15 ID handling functions */
-pub fn sc_pkcs15_compare_id(id1: *const sc_pkcs15_id, id2: *const sc_pkcs15_id) -> c_int;
+pub fn sc_pkcs15_compare_id(id1: *const sc_pkcs15_id, id2: *const sc_pkcs15_id) -> i32;
 
 pub fn sc_pkcs15_print_id(id: *const sc_pkcs15_id) -> *const c_char;
 
 pub fn sc_pkcs15_format_id(id_in: *const c_char, id_out: *mut sc_pkcs15_id);
 
-pub fn sc_pkcs15_hex_string_to_id(in_: *const c_char, out: *mut sc_pkcs15_id) -> c_int;
+pub fn sc_pkcs15_hex_string_to_id(in_: *const c_char, out: *mut sc_pkcs15_id) -> i32;
 
 /// malloc involved
-pub fn sc_der_copy(dst: *mut sc_pkcs15_der, src: *const sc_pkcs15_der) -> c_int;
+pub fn sc_der_copy(dst: *mut sc_pkcs15_der, src: *const sc_pkcs15_der) -> i32;
 
-pub fn sc_pkcs15_get_object_id(arg1: *const sc_pkcs15_object, arg2: *mut sc_pkcs15_id) -> c_int;
+pub fn sc_pkcs15_get_object_id(arg1: *const sc_pkcs15_object, arg2: *mut sc_pkcs15_id) -> i32;
 
-pub fn sc_pkcs15_get_object_guid(p15card: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object, arg3: c_uint,
-                                 arg4: *mut c_uchar, arg5: *mut usize) -> c_int;
+pub fn sc_pkcs15_get_object_guid(p15card: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object, arg3: u32,
+                                 arg4: *mut u8, arg5: *mut usize) -> i32;
 
-pub fn sc_pkcs15_serialize_guid(arg1: *mut c_uchar, arg2: usize, arg3: c_uint, arg4: *mut c_char, arg5: usize) -> c_int;
+pub fn sc_pkcs15_serialize_guid(arg1: *mut u8, arg2: usize, arg3: u32, arg4: *mut c_char, arg5: usize) -> i32;
 
-pub fn sc_encode_oid(arg1: *mut sc_context, arg2: *mut sc_object_id, arg3: *mut *mut c_uchar, arg4: *mut usize) -> c_int;
+pub fn sc_encode_oid(arg1: *mut sc_context, arg2: *mut sc_object_id, arg3: *mut *mut u8, arg4: *mut usize) -> i32;
 
 /* Get application by type: 'protected', 'generic' */
 pub fn sc_pkcs15_get_application_by_type(card: *mut sc_card, arg2: *mut c_char) -> *mut sc_app_info;
 
 /* Prepend 'parent' to 'child' in case 'child' is a relative path */
-pub fn sc_pkcs15_make_absolute_path(parent: *const sc_path, child: *mut sc_path) -> c_int;
+pub fn sc_pkcs15_make_absolute_path(parent: *const sc_path, child: *mut sc_path) -> i32;
 
 /* Clean and free object content */
 fn sc_pkcs15_free_object_content(arg1: *mut sc_pkcs15_object);
 
 /* Allocate and set object content */
-fn sc_pkcs15_allocate_object_content(arg1: *mut sc_context, arg2: *mut sc_pkcs15_object, arg3: *const c_uchar,
-                                         arg4: usize) -> c_int;
+fn sc_pkcs15_allocate_object_content(arg1: *mut sc_context, arg2: *mut sc_pkcs15_object, arg3: *const u8,
+                                         arg4: usize) -> i32;
 
 /* find algorithm from card's supported algorithms by operation and mechanism */
-fn sc_pkcs15_get_supported_algo(p15card: *mut sc_pkcs15_card, operation: c_uint, mechanism: c_uint)
+fn sc_pkcs15_get_supported_algo(p15card: *mut sc_pkcs15_card, operation: u32, mechanism: u32)
     -> *mut sc_supported_algo_info;
 
 /* find algorithm from card's supported algorithms by operation, mechanism and object_id */
 fn sc_pkcs15_get_specific_supported_algo(p15card: *mut sc_pkcs15_card,
-                                         operation: c_uint, mechanism: c_uint, algo_oid: *const sc_object_id)
+                                         operation: u32, mechanism: u32, algo_oid: *const sc_object_id)
     -> *mut sc_supported_algo_info;
 
-fn sc_pkcs15_add_supported_algo_ref(arg1: *mut sc_pkcs15_object, arg2: *mut sc_supported_algo_info) -> c_int;
+fn sc_pkcs15_add_supported_algo_ref(arg1: *mut sc_pkcs15_object, arg2: *mut sc_supported_algo_info) -> i32;
 
-pub fn sc_pkcs15_fix_ec_parameters(arg1: *mut sc_context, arg2: *mut sc_ec_parameters) -> c_int;
+pub fn sc_pkcs15_fix_ec_parameters(arg1: *mut sc_context, arg2: *mut sc_ec_parameters) -> i32;
 
 /* Convert the OpenSSL key data type into the OpenSC key */
-fn sc_pkcs15_convert_bignum(dst: *mut sc_pkcs15_bignum, bignum: *const c_void) -> c_int;
+fn sc_pkcs15_convert_bignum(dst: *mut sc_pkcs15_bignum, bignum: *const c_void) -> i32;
 
-pub fn sc_pkcs15_convert_prkey(key: *mut sc_pkcs15_prkey, evp_key: *mut c_void) -> c_int;
+pub fn sc_pkcs15_convert_prkey(key: *mut sc_pkcs15_prkey, evp_key: *mut c_void) -> i32;
 
-pub fn sc_pkcs15_convert_pubkey(key: *mut sc_pkcs15_pubkey, evp_key: *mut c_void) -> c_int;
+pub fn sc_pkcs15_convert_pubkey(key: *mut sc_pkcs15_pubkey, evp_key: *mut c_void) -> i32;
 
 /* Get 'LastUpdate' string */
 pub fn sc_pkcs15_get_lastupdate(p15card: *mut sc_pkcs15_card) -> *mut c_char;
 
 /* Allocate generalized time string */
-fn sc_pkcs15_get_generalized_time(ctx: *mut sc_context, out: *mut *mut c_char) -> c_int;
+fn sc_pkcs15_get_generalized_time(ctx: *mut sc_context, out: *mut *mut c_char) -> i32;
 }
 
 /* New object search API.
@@ -1368,18 +1368,18 @@ fn sc_pkcs15_get_generalized_time(ctx: *mut sc_context, out: *mut *mut c_char) -
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_search_key {
-    pub class_mask : c_uint,
-    pub type_ : c_uint,
+    pub class_mask : u32,
+    pub type_ : u32,
     pub id : *const sc_pkcs15_id,
     pub app_oid : *const sc_object_id,
     pub path : *const sc_path,
-    pub usage_mask : c_uint,
-    pub usage_value : c_uint,
-    pub flags_mask : c_uint,
-    pub flags_value : c_uint,
+    pub usage_mask : u32,
+    pub usage_value : u32,
+    pub flags_mask : u32,
+    pub flags_value : u32,
 
-    pub match_reference : c_uint, // unsigned int match_reference : 1;  bit field declaration; only values 0 and 1 allowed
-    pub reference : c_int,
+    pub match_reference : u32, // unsigned int match_reference : 1;  bit field declaration; only values 0 and 1 allowed
+    pub reference : i32,
     pub app_label : *const c_char,
     pub label : *const c_char,
 }
@@ -1390,7 +1390,7 @@ pub type sc_pkcs15_search_key_t = sc_pkcs15_search_key;
 */
 
 extern "C" { pub fn sc_pkcs15_search_objects(arg1: *mut sc_pkcs15_card, arg2: *mut sc_pkcs15_search_key,
-                                             arg3: *mut *mut sc_pkcs15_object, arg4: usize) -> c_int; }
+                                             arg3: *mut *mut sc_pkcs15_object, arg4: usize) -> i32; }
 
 /* This structure is passed to the new sc_pkcs15emu_*_init functions */
 #[repr(C)]
@@ -1398,7 +1398,7 @@ extern "C" { pub fn sc_pkcs15_search_objects(arg1: *mut sc_pkcs15_card, arg2: *m
 #[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
 pub struct sc_pkcs15emu_opt {
     pub blk : *mut scconf_block,
-    pub flags : c_uint,
+    pub flags : u32,
 }
 /*
 #[doc(hidden)]
@@ -1410,24 +1410,24 @@ pub type sc_pkcs15emu_opt_t = sc_pkcs15emu_opt;
 pub const SC_PKCS15EMU_FLAGS_NO_CHECK : u32 =   0x00000001;
 
 extern "C" {
-pub fn sc_pkcs15_bind_synthetic(p15card: *mut sc_pkcs15_card, aid: *mut sc_aid) -> c_int;
-pub fn sc_pkcs15_is_emulation_only(card: *mut sc_card) -> c_int;
-pub fn sc_pkcs15emu_object_add(p15card: *mut sc_pkcs15_card, arg2: c_uint, arg3: *const sc_pkcs15_object,
-                               arg4: *const c_void) -> c_int;
+pub fn sc_pkcs15_bind_synthetic(p15card: *mut sc_pkcs15_card, aid: *mut sc_aid) -> i32;
+pub fn sc_pkcs15_is_emulation_only(card: *mut sc_card) -> i32;
+pub fn sc_pkcs15emu_object_add(p15card: *mut sc_pkcs15_card, arg2: u32, arg3: *const sc_pkcs15_object,
+                               arg4: *const c_void) -> i32;
 
 /* some wrapper functions for sc_pkcs15emu_object_add */
 pub fn sc_pkcs15emu_add_pin_obj(p15card: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object,
-                                arg3: *const sc_pkcs15_auth_info) -> c_int;
+                                arg3: *const sc_pkcs15_auth_info) -> i32;
 pub fn sc_pkcs15emu_add_rsa_prkey(p15card: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object,
-                                  arg3: *const sc_pkcs15_prkey_info) -> c_int;
+                                  arg3: *const sc_pkcs15_prkey_info) -> i32;
 pub fn sc_pkcs15emu_add_rsa_pubkey(p15card: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object,
-                                   arg3: *const sc_pkcs15_pubkey_info) -> c_int;
+                                   arg3: *const sc_pkcs15_pubkey_info) -> i32;
 pub fn sc_pkcs15emu_add_ec_prkey(p15card: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object,
-                                 arg3: *const sc_pkcs15_prkey_info) -> c_int;
+                                 arg3: *const sc_pkcs15_prkey_info) -> i32;
 pub fn sc_pkcs15emu_add_ec_pubkey(p15card: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object,
-                                  arg3: *const sc_pkcs15_pubkey_info) -> c_int;
+                                  arg3: *const sc_pkcs15_pubkey_info) -> i32;
 pub fn sc_pkcs15emu_add_x509_cert(p15card: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object,
-                                  arg3: *const sc_pkcs15_cert_info) -> c_int;
+                                  arg3: *const sc_pkcs15_cert_info) -> i32;
 pub fn sc_pkcs15emu_add_data_object(p15card: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object,
-                                    arg3: *const sc_pkcs15_data_info) -> c_int;
+                                    arg3: *const sc_pkcs15_data_info) -> i32;
 }

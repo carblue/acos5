@@ -1,6 +1,6 @@
-use std::os::raw::{c_int /*, c_char, c_uint, c_void, c_uchar*/};
-use std::ffi::{CStr/*, OsStr*/};
-use std::collections::{HashSet};
+use std::ffi::CStr;
+use std::collections::HashSet;
+use std::convert::TryFrom;
 
 //use libc::strlen;
 
@@ -12,31 +12,27 @@ use opensc_sys::log::{sc_dump_hex};
 
 use crate::constants_types::*;
 use crate::wrappers::*;
-
 use crate::missing_exports::{find_df_by_type};
 
 
 pub fn rsa_modulus_bits_canonical(rsa_modulus_bits: usize) -> usize { ((rsa_modulus_bits + 8) /256) *256 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_sign_loss))]
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_possible_truncation))]
-pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mut u16) -> c_int
+pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mut u16) -> i32
 {
     if p15card.card.is_null() || unsafe { (*p15card.card).ctx.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
-//    let card = unsafe { &mut *p15card.card };
-    let card_ctx = unsafe { &mut *(*p15card.card).ctx };
-    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
-    let fun  = CStr::from_bytes_with_nul(b"first_of_free_indices\0").unwrap();
-    if cfg!(log) {
-        wr_do_log(card_ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
-    }
+    // let card = unsafe { &mut *p15card.card };
+    let ctx = unsafe { &mut *(*p15card.card).ctx };
+    let f = cstru!(b"first_of_free_indices\0");
+    log3ifc!(ctx,f,line!());
+
     let df_path = match find_df_by_type(p15card, SC_PKCS15_SKDF) {
         Ok(df) => if df.enumerated==1 {&df.path} else {return -1},
         Err(e) => return e,
     };
-    wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(df_path.value.as_ptr(), df_path.len) }, CStr::from_bytes_with_nul(b"df_list.path of SC_PKCS15_SKDF: %s\0").unwrap());
+    log3if!(ctx,f,line!(), cstru!(b"df_list.path of SC_PKCS15_SKDF: %s\0"),
+        unsafe { sc_dump_hex(df_path.value.as_ptr(), df_path.len) });
     let mut obj_list_ptr = p15card.obj_list;
     if obj_list_ptr.is_null() {
         return -1;
@@ -85,22 +81,22 @@ pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mu
         let obj_list = unsafe { &*obj_list_ptr };
         if (obj_list.type_ & SC_PKCS15_TYPE_SKEY) == SC_PKCS15_TYPE_SKEY {
             assert!(!obj_list.data.is_null());
-            wr_do_log_t(card_ctx, f_log, line!(), fun, obj_list.type_, CStr::from_bytes_with_nul(b"obj_list.type_: %X\0").unwrap());
-            wr_do_log_t(card_ctx, f_log, line!(), fun, obj_list.label.as_ptr(), CStr::from_bytes_with_nul(b"obj_list.label: %s\0").unwrap());
-            wr_do_log_t(card_ctx, f_log, line!(), fun, obj_list.flags, CStr::from_bytes_with_nul(b"obj_list.flags: %X\0").unwrap());
-            wr_do_log_t(card_ctx, f_log, line!(), fun, obj_list.content.len, CStr::from_bytes_with_nul(b"obj_list.content.len: %zu\0").unwrap());
+            log3if!(ctx,f,line!(), cstru!(b"obj_list.type_: %X\0"),        obj_list.type_);
+            log3if!(ctx,f,line!(), cstru!(b"obj_list.label: %s\0"),        obj_list.label.as_ptr());
+            log3if!(ctx,f,line!(), cstru!(b"obj_list.flags: %X\0"),        obj_list.flags);
+            log3if!(ctx,f,line!(), cstru!(b"obj_list.content.len: %zu\0"), obj_list.content.len);
             let skey_info = unsafe { &*(obj_list.data as *mut sc_pkcs15_skey_info) };
-            wr_do_log_t(card_ctx, f_log, line!(), fun, skey_info.id.len, CStr::from_bytes_with_nul(b"skey_info.id.len: %zu\0").unwrap());
-            wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(skey_info.id.value.as_ptr(), skey_info.id.len) }, CStr::from_bytes_with_nul(b"skey_info.id: %s\0").unwrap());
-            wr_do_log_t(card_ctx, f_log, line!(), fun, skey_info.key_reference, CStr::from_bytes_with_nul(b"skey_info.key_reference: %d\0").unwrap());
-            wr_do_log_t(card_ctx, f_log, line!(), fun, skey_info.key_type, CStr::from_bytes_with_nul(b"skey_info.key_type: %lu\0").unwrap());
-            wr_do_log_t(card_ctx, f_log, line!(), fun, unsafe { sc_dump_hex(skey_info.path.value.as_ptr(), skey_info.path.len) }, CStr::from_bytes_with_nul(b"skey_info.path: %s\0").unwrap());
-            wr_do_log_t(card_ctx, f_log, line!(), fun, skey_info.path.index, CStr::from_bytes_with_nul(b"skey_info.path.index: %d\0").unwrap());
-            wr_do_log_t(card_ctx, f_log, line!(), fun, skey_info.path.count, CStr::from_bytes_with_nul(b"skey_info.path.count: %d\0").unwrap());
+            log3if!(ctx,f,line!(), cstru!(b"skey_info.id.len: %zu\0"),       skey_info.id.len);
+            log3if!(ctx,f,line!(), cstru!(b"skey_info.id: %s\0"),
+                unsafe { sc_dump_hex(skey_info.id.value.as_ptr(), skey_info.id.len) });
+            log3if!(ctx,f,line!(), cstru!(b"skey_info.key_reference: %d\0"), skey_info.key_reference);
+            log3if!(ctx,f,line!(), cstru!(b"skey_info.key_type: %lu\0"),     skey_info.key_type);
+            log3if!(ctx,f,line!(), cstru!(b"skey_info.path: %s\0"),
+                unsafe { sc_dump_hex(skey_info.path.value.as_ptr(), skey_info.path.len) });
+            log3if!(ctx,f,line!(), cstru!(b"skey_info.path.index: %d\0"),    skey_info.path.index);
+            log3if!(ctx,f,line!(), cstru!(b"skey_info.path.count: %d\0"),    skey_info.path.count);
             assert!(skey_info.path.index >= 0 && skey_info.path.index <= 255);
-            //TODO temporarily allow cast_sign_loss
-            //TODO temporarily allow cast_possible_truncation
-            index_possible.remove(&(skey_info.path.index as u8));
+            index_possible.remove(& u8::try_from(skey_info.path.index).unwrap());
             if *file_id_sym_keys == 0 {
                 assert!(skey_info.path.len>=2);
                 *file_id_sym_keys = u16::from_be_bytes([skey_info.path.value[skey_info.path.len-2],
@@ -115,8 +111,7 @@ pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mu
             index_possible_min = u16::from(*elem);
         }
     }
-    //TODO temporarily allow cast_possible_truncation
-    i32::from(index_possible_min as u8)
+    i32::from(u8::try_from(index_possible_min).unwrap())
 }
 
 /*
@@ -132,7 +127,7 @@ fn me_find_library_driver/*<'a>*/(ctx: &/*'a*/ mut sc_context, name: &CStr) -> S
             break;
         }
         let blocks = unsafe { scconf_find_blocks(ctx.conf, *elem,
-            CStr::from_bytes_with_nul(CARD_DRIVER).unwrap().as_ptr(), name.as_ptr()) };
+            cstru!(CARD_DRIVER).as_ptr(), name.as_ptr()) };
         if blocks.is_null() {
             continue;
         }
@@ -141,8 +136,8 @@ fn me_find_library_driver/*<'a>*/(ctx: &/*'a*/ mut sc_context, name: &CStr) -> S
         if blk.is_null() {
             continue;
         }
-        module_path_name = unsafe { scconf_get_str(blk, CStr::from_bytes_with_nul(MODULE).unwrap().as_ptr(),
-        CStr::from_bytes_with_nul(LIB_DRIVER_NIX).unwrap().as_ptr()) }; // TODO is OS specific Linux/Unix/MAC?
+        module_path_name = unsafe { scconf_get_str(blk, cstru!(MODULE).as_ptr(),
+        cstru!(LIB_DRIVER_NIX).as_ptr()) }; // TODO is OS specific Linux/Unix/MAC?
     }
     let mut vec : Vec<u8> = Vec::with_capacity(64);
     for i in 0.. unsafe {  strlen(module_path_name) } {
@@ -151,8 +146,9 @@ fn me_find_library_driver/*<'a>*/(ctx: &/*'a*/ mut sc_context, name: &CStr) -> S
     String::from_utf8(vec).unwrap()
 }
 
-fn me_find_library_sm(ctx: &mut sc_context, name: &CStr) -> Result<String, c_int>
+fn me_find_library_sm(ctx: &mut sc_context, name: &CStr) -> Result<String, i32>
 {
+    let f = cstru!(b"me_find_library_sm\0");
     /* * /
     //    const char *sm = NULL, *module_name = NULL, *module_path = NULL, *module_data = NULL, *sm_mode = NULL;
     //    struct sc_context *ctx = card->ctx;
@@ -181,7 +177,7 @@ fn me_find_library_sm(ctx: &mut sc_context, name: &CStr) -> Result<String, c_int
         }
 //        blocks = scconf_find_blocks(ctx->conf, ctx->conf_blocks[ii], "secure_messaging", sm);
         let blocks = unsafe { scconf_find_blocks(ctx.conf, *elem,
-            CStr::from_bytes_with_nul(SECURE_MESSAGING).unwrap().as_ptr(), name.as_ptr()) };
+            cstru!(SECURE_MESSAGING).as_ptr(), name.as_ptr()) };
 
         if !blocks.is_null() {
             sm_conf_block = unsafe { *blocks }; //= blocks[0];
@@ -198,16 +194,11 @@ fn me_find_library_sm(ctx: &mut sc_context, name: &CStr) -> Result<String, c_int
     }
 
     /* check if an external SM module has to be used */
-    let module_path : *const c_char = unsafe { scconf_get_str(sm_conf_block, CStr::from_bytes_with_nul(MODULE_PATH).unwrap().as_ptr(),
+    let module_path : *const c_char = unsafe { scconf_get_str(sm_conf_block, cstru!(MODULE_PATH).as_ptr(),
                                                               std::ptr::null() as *const c_char) };
-    let module_name : *const c_char = unsafe { scconf_get_str(sm_conf_block, CStr::from_bytes_with_nul(MODULE_NAME).unwrap().as_ptr(),
+    let module_name : *const c_char = unsafe { scconf_get_str(sm_conf_block, cstru!(MODULE_NAME).as_ptr(),
                                                               std::ptr::null() as *const c_char) };
-    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
-    let fun   = CStr::from_bytes_with_nul(b"me_find_library_sm\0").unwrap();
-    let fmt   = CStr::from_bytes_with_nul(b"SM module '%s' in  '%s'\0").unwrap();
-    if cfg!(log) {
-        wr_do_log_tt(ctx, f_log, line!(), fun, module_name, module_path, fmt);
-    }
+    log3ift!(ctx,f,line!(), cstru!(b"SM module '%s' in  '%s'\0"), module_name, module_path);
 
     if module_name.is_null() {
 //        LOG_TEST_RET(ctx, SC_ERROR_INCONSISTENT_CONFIGURATION, "Invalid SM configuration: module not defined");
@@ -227,8 +218,8 @@ fn me_find_library_sm(ctx: &mut sc_context, name: &CStr) -> Result<String, c_int
 
 /* call into the driver library */
 pub fn call_dynamic_update_hashmap(card: &mut sc_card) -> lib::Result<()> {
-    let card_ctx : &mut sc_context = unsafe { &mut *card.ctx };
-    let drv_module_path_name = me_find_library_driver(card_ctx, CStr::from_bytes_with_nul(CARD_DRV_SHORT_NAME).unwrap());
+    let ctx : &mut sc_context = unsafe { &mut *card.ctx };
+    let drv_module_path_name = me_find_library_driver(ctx, cstru!(CARD_DRV_SHORT_NAME));
 //    println!("driver's module_path_name: {}", drv_module_path_name);
 //              driver's module_path_name: "$HOME/RustProjects/acos5/target/debug/libacos5.so"
     let lib = lib::Library::new(OsStr::new(&drv_module_path_name))?;
@@ -239,13 +230,13 @@ pub fn call_dynamic_update_hashmap(card: &mut sc_card) -> lib::Result<()> {
 }
 
 /* call into the SM library (whether it's existent/usable) */
-pub fn call_dynamic_sm_test(ctx: &mut sc_context, info: *mut sm_info, out: *mut c_char) -> lib::Result<c_int> {
-//    let card_ctx : &mut sc_context = unsafe { &mut *card.ctx };
-    let sm_module_path_name = me_find_library_sm(ctx, CStr::from_bytes_with_nul(CARD_SM_SHORT_NAME).unwrap()).unwrap();
+pub fn call_dynamic_sm_test(ctx: &mut sc_context, info: *mut sm_info, out: *mut c_char) -> lib::Result<i32> {
+//    let ctx : &mut sc_context = unsafe { &mut *card.ctx };
+    let sm_module_path_name = me_find_library_sm(ctx, cstru!(CARD_SM_SHORT_NAME));
 //    println!("sm module_path_name: {}", sm_module_path_name);
 //            sm module_path_name: $HOME/RustProjects/acos5_sm/target/debug/libacos5_sm.so
 //    me_find_library_sm: SM module 'libacos5_sm.so' in  '$HOME/RustProjects/acos5_sm/target/debug'
-//    println!("driver's module_path_name: {:?}", me_find_library_driver(card_ctx, CStr::from_bytes_with_nul(CARD_DRV_SHORT_NAME).unwrap() ) );
+//    println!("driver's module_path_name: {:?}", me_find_library_driver(ctx, cstru!(CARD_DRV_SHORT_NAME) ) );
 //    "$HOME/RustProjects/acos5_sm/target/debug/libacos5_sm.so"
     /*
     app default {
@@ -260,7 +251,7 @@ pub fn call_dynamic_sm_test(ctx: &mut sc_context, info: *mut sm_info, out: *mut 
     */
     let lib = lib::Library::new(OsStr::new(&sm_module_path_name))?;
     unsafe {
-        let func: lib::Symbol< unsafe extern fn(*mut sc_context, *mut sm_info, *mut c_char) -> c_int > = lib.get(b"test")?;
+        let func: lib::Symbol< unsafe extern fn(*mut sc_context, *mut sm_info, *mut c_char) -> i32 > = lib.get(b"test")?;
         Ok(func(ctx, info, out))
     }
 }
@@ -271,29 +262,23 @@ pub fn call_dynamic_sm_test(ctx: &mut sc_context, info: *mut sm_info, out: *mut 
  * Allocate a file
  */
 pub fn acos5_pkcs15_new_file(profile: &mut sc_profile, card: &mut sc_card,
-                                type_: c_uint, num: c_int, out: *mut *mut sc_file) -> c_int
+                             type_: u32, num: i32, out: *mut *mut sc_file) -> i32
 {
-    let f_log = CStr::from_bytes_with_nul(CRATE).unwrap();
-    let fun   = CStr::from_bytes_with_nul(b"acos5_pkcs15_new_file\0").unwrap();
-    let rv : c_int;
-    if cfg!(log) {
-        wr_do_log(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(CALLED).unwrap());
-        wr_do_log_tu(card.ctx, f_log, line!(), fun, type_, num,
-                     CStr::from_bytes_with_nul(b"type %X; num %i\0").unwrap());
-    }
+    assert!(!card.ctx.is_null());
+    let ctx = unsafe { &mut *card.ctx };
+    let f = cstru!(b"acos5_pkcs15_new_file\0");
+    log3ifc!(ctx,f,line!());
+    log3if!(ctx,f,line!(), cstru!(b"type %X; num %i\0"), type_, num);
 
+    let rv : i32;
     let t_name = match type_ {
-        SC_PKCS15_TYPE_PRKEY_RSA   => CStr::from_bytes_with_nul(b"template-private-key\0").unwrap(),
-        SC_PKCS15_TYPE_PUBKEY_RSA  => CStr::from_bytes_with_nul(b"template-public-key\0").unwrap(),
-        SC_PKCS15_TYPE_CERT        => CStr::from_bytes_with_nul(b"template-certificate\0").unwrap(),
-        SC_PKCS15_TYPE_DATA_OBJECT => CStr::from_bytes_with_nul(b"template-public-data\0").unwrap(),
+        SC_PKCS15_TYPE_PRKEY_RSA   => cstru!(b"template-private-key\0"),
+        SC_PKCS15_TYPE_PUBKEY_RSA  => cstru!(b"template-public-key\0"),
+        SC_PKCS15_TYPE_CERT        => cstru!(b"template-certificate\0"),
+        SC_PKCS15_TYPE_DATA_OBJECT => cstru!(b"template-public-data\0"),
         _  => {
             rv = SC_ERROR_NOT_SUPPORTED;
-            if cfg!(log) {
-                wr_do_log_sds(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"Profile template not supported\0").
-                    unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) },
-                    CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
-            }
+            log3ifr!(ctx,f,line!(), cstru!(b"Profile template not supported\0"), rv);
             return rv;
         },
     };
@@ -302,21 +287,15 @@ pub fn acos5_pkcs15_new_file(profile: &mut sc_profile, card: &mut sc_card,
     let mut file : *mut sc_file = std::ptr::null_mut();
     let rv = me_profile_get_file(profile, t_name.as_ptr(), &mut file);
     if rv < 0 {
-        if cfg!(log) {
-            wr_do_log_sds(card.ctx, f_log, line!(), fun, CStr::from_bytes_with_nul(b"Error when getting file from template\0").
-                unwrap().as_ptr(), rv, unsafe { sc_strerror(rv) },
-                CStr::from_bytes_with_nul(b"%s: %d (%s)\n\0").unwrap());
-        }
+        log3ifr!(ctx,f,line!(), cstru!(b"Error when getting file from template\0"), rv)};
 //        return rv;
         file = unsafe { sc_file_new() };
     }
     assert!(!file.is_null());
     let file_rm = unsafe { &mut *file };
 
-    if cfg!(log) {
-        wr_do_log_tuv(card.ctx, f_log, line!(), fun, file_rm.type_, file_rm.path.type_, unsafe { sc_print_path(&file_rm.path) },
-                      CStr::from_bytes_with_nul(b"file(type:%X), path(type:%X,path:%s)\0").unwrap());
-    }
+    log3if!(ctx,f,line!(), cstru!(b"file(type:%X), path(type:%X,path:%s)\0"), file_rm.type_, file_rm.path.type_,
+        unsafe { sc_print_path(&file_rm.path) } );
     file_rm.id = (file_rm.id & 0xFF00) | (num & 0xFF);
 
     if file_rm.type_ != SC_FILE_TYPE_BSO {

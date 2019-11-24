@@ -21,11 +21,12 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-use std::os::raw::{c_uchar,c_uint, c_int, c_char};
+use std::os::raw::c_char;
+
 use crate::opensc::sc_context;
 
-pub const SC_AUX_DATA_TYPE_NO_DATA        : c_uint = 0x00;
-pub const SC_AUX_DATA_TYPE_MD_CMAP_RECORD : c_uint = 0x01;
+pub const SC_AUX_DATA_TYPE_NO_DATA        : u32 = 0x00;
+pub const SC_AUX_DATA_TYPE_MD_CMAP_RECORD : u32 = 0x01;
 
 /* From Windows Smart Card Minidriver Specification
  * Version 7.06
@@ -43,17 +44,17 @@ pub const SC_AUX_DATA_TYPE_MD_CMAP_RECORD : c_uint = 0x01;
  * } CONTAINER_MAP_RECORD, *PCONTAINER_MAP_RECORD;
  */
 pub const SC_MD_MAX_CONTAINER_NAME_LEN          : usize   = 39;
-pub const SC_MD_CONTAINER_MAP_VALID_CONTAINER   : c_uchar = 0x01;
-pub const SC_MD_CONTAINER_MAP_DEFAULT_CONTAINER : c_uchar = 0x02;
+pub const SC_MD_CONTAINER_MAP_VALID_CONTAINER   : u8 = 0x01;
+pub const SC_MD_CONTAINER_MAP_DEFAULT_CONTAINER : u8 = 0x02;
 
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_md_cmap_record {
-    pub guid : [c_uchar; SC_MD_MAX_CONTAINER_NAME_LEN + 1],
+    pub guid : [u8; SC_MD_MAX_CONTAINER_NAME_LEN + 1],
     pub guid_len : usize,
-    pub flags : c_uint,
-    pub keysize_sign : c_uint,
-    pub keysize_keyexchange : c_uint,
+    pub flags : u32,
+    pub keysize_sign : u32,
+    pub keysize_keyexchange : u32,
 }
 
 #[repr(C)]
@@ -66,17 +67,17 @@ pub union sc_auxiliary_data__bindgen_ty_1 {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_auxiliary_data {
-    pub type_ : c_uint,
+    pub type_ : u32,
     pub data : sc_auxiliary_data__bindgen_ty_1,
 }
 
 extern "C" {
-pub fn sc_aux_data_set_md_flags(arg1: *mut sc_context, arg2: *mut sc_auxiliary_data, arg3: c_uchar) -> c_int;
+pub fn sc_aux_data_set_md_flags(arg1: *mut sc_context, arg2: *mut sc_auxiliary_data, arg3: u8) -> i32;
 pub fn sc_aux_data_allocate(arg1: *mut sc_context, arg2: *mut *mut sc_auxiliary_data,
-                            arg3: *mut sc_auxiliary_data) -> c_int;
-pub fn sc_aux_data_set_md_guid(arg1: *mut sc_context, arg2: *mut sc_auxiliary_data, arg3: *mut c_char) -> c_int;
+                            arg3: *mut sc_auxiliary_data) -> i32;
+pub fn sc_aux_data_set_md_guid(arg1: *mut sc_context, arg2: *mut sc_auxiliary_data, arg3: *mut c_char) -> i32;
 pub fn sc_aux_data_free(arg1: *mut *mut sc_auxiliary_data);
-pub fn sc_aux_data_get_md_guid(arg1: *mut sc_context, arg2: *mut sc_auxiliary_data, arg3: c_uint, arg4: *mut c_uchar,
-                               arg5: *mut usize) -> c_int;
-fn sc_aux_data_get_md_flags(arg1: *mut sc_context, arg2: *mut sc_auxiliary_data, arg3: *mut c_uchar) -> c_int;
+pub fn sc_aux_data_get_md_guid(arg1: *mut sc_context, arg2: *mut sc_auxiliary_data, arg3: u32, arg4: *mut u8,
+                               arg5: *mut usize) -> i32;
+fn sc_aux_data_get_md_flags(arg1: *mut sc_context, arg2: *mut sc_auxiliary_data, arg3: *mut u8) -> i32;
 }
