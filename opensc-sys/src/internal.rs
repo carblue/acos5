@@ -323,7 +323,7 @@ mod tests {
         let hash = [1u8, 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
         let mut out = [0u8; 96];
         let mut outlen = out.len();
-        let rv = unsafe { sc_pkcs1_encode(&mut ctx, c_ulong::from(flags).unwrap, hash.as_ptr(), hash.len(), out.as_mut_ptr(), &mut outlen, out.len()) };
+        let rv = unsafe { sc_pkcs1_encode(&mut ctx, c_ulong::from(flags), hash.as_ptr(), hash.len(), out.as_mut_ptr(), &mut outlen, out.len()) };
         assert_eq!(rv, SC_SUCCESS);
         assert_eq!(outlen, out.len());
         assert_eq!(out[ 0..32], [0u8, 1, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]);
