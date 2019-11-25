@@ -33,7 +33,12 @@ use opensc_sys::log::{sc_do_log, SC_LOG_DEBUG_NORMAL};
 use opensc_sys::log::{sc_do_log_color, SC_COLOR_FG_RED};
 use opensc_sys::errors::{sc_strerror};
 
-use crate::constants_types::{CRATE, RETURNING_INT, RETURNING_INT_CSTR, CSTR_INT_CSTR};
+
+const CRATE               : &[u8;   6] = b"acos5\0"; // search acos5 mention in debug log file; each function should at least log CALLED, except small helpers or code that is clearly covered by only one possible surrounding function's called
+//const RETURNING_INT       : &[u8;  20] = b"returning with: %d\n\0";
+const RETURNING_INT_CSTR  : &[u8;  25] = b"returning with: %d (%s)\n\0";
+const CSTR_INT_CSTR       : &[u8;  13] =             b"%s: %d (%s)\n\0";
+
 
 pub fn wr_do_log        (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr)
 {
@@ -141,7 +146,7 @@ pub fn wr_do_log_rv(ctx: &mut sc_context, f: &CStr, line: u32, rv: i32)
         }
         else {
             unsafe {            sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, cstru!(CRATE).as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(),
-                                         cstru!(RETURNING_INT).as_ptr(), rv) };
+                                         cstru!(b"returning with: %d\n\0").as_ptr(), rv) };
         }
     }
 }

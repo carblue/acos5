@@ -12,7 +12,7 @@ Purpose of both together:
  -
 */
 
-// log3if` : for 0-4 arguments, all possibly differing types
+// log3if` : with explicit format-string $d and for 0-4 arguments, all possibly differing types
 //    3 == SC_LOG_DEBUG_NORMAL
 //     if : because it depends on cargo:rustc-cfg=log: if set, the macro will log, otherwise logging will be suppressed
 macro_rules! log3if {
@@ -23,7 +23,7 @@ macro_rules! log3if {
     ($a:expr, $b:expr, $c:expr, $d:expr,  $e:expr, $f:expr, $g:expr, $h:expr) => (wr_do_log_tuvw($a, $b, $c, $d, $e, $f, $g, $h))
 }
 
-// log3ift` : for 2-4 arguments, all of the same type
+// log3ift` : with explicit format-string $d and for 2-4 arguments, all of the same type
 //    3 == SC_LOG_DEBUG_NORMAL
 //     if : because it depends on cargo:rustc-cfg=log: if set, the macro will log, otherwise logging will be suppressed
 //       t indicates common type T for all arguments
@@ -33,22 +33,22 @@ macro_rules! log3ift {
     ($a:expr, $b:expr, $c:expr, $d:expr,  $e:expr, $f:expr, $g:expr, $h:expr) => (wr_do_log_tttt($a, $b, $c, $d, $e, $f, $g, $h))
 }
 
-// log3ifr` : for 0-2 arguments, all possibly differing types; no individual format string, but prescribed
+// log3ifr` : with implicit format-string and for 0-2 arguments, all possibly differing types; no individual format string, but prescribed
 //    3 == SC_LOG_DEBUG_NORMAL
 //     if : because it depends on cargo:rustc-cfg=log: if set, the macro will log, otherwise logging will be suppressed
-//       r : specific for logging 'return' or 'report' situations
+//       r : specific for logging 'return' (or 'report') situations
 macro_rules! log3ifr {
-    ($a:expr, $b:expr, $c:expr)                                               => (wr_do_log     ($a, $b, $c,  cstru!(RETURNING)));
+    ($a:expr, $b:expr, $c:expr)                                               => (wr_do_log     ($a, $b, $c,  cstru!(b"returning\0")));
     ($a:expr, $b:expr, $c:expr,           $e:expr)                            => (wr_do_log_rv  ($a, $b, $c,  $e));
     ($a:expr, $b:expr, $c:expr,           $e:expr, $f:expr)                   => (wr_do_log_sds ($a, $b, $c,  $e, $f)); // not explicitly related to 'returning'
 }
 
-// log3ifc` : for 1-? arguments, all possibly differing types
+// log3ifc` : with implicit format-string and for 0 arguments
 //    3 == SC_LOG_DEBUG_NORMAL
 //     if : because it depends on cargo:rustc-cfg=log: if set, the macro will log, otherwise logging will be suppressed
 //       c : specific for logging 'called' situations
 macro_rules! log3ifc {
-    ($a:expr, $b:expr, $c:expr)                                               => (wr_do_log     ($a, $b, $c,  cstru!(CALLED)));
+    ($a:expr, $b:expr, $c:expr)                                               => (wr_do_log     ($a, $b, $c,  cstru!(b"called\0")));
 }
 
 /*

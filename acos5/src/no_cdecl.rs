@@ -1910,8 +1910,8 @@ A0 2C 30 0B 0C 05 45 43 6B 65 79 03 02 06 40 30 0F 04 01 09 03 03 06 02 00 03 02
 temporary only: acos5_gui expects the 32 bytes in another order, which is done here, i.e. provide in rbuf what acos5_gui expects
 
 alias  TreeTypeFS = tree_k_ary.Tree!ub32; // 8 bytes + length of pathlen_max considered (, here SC_MAX_PATH_SIZE = 16) + 8 bytes SAC (file access conditions)
-                            path                    File Info       scb8                SACinfo
-pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, Option<Vec<SACinfo>>);
+                            path                    File Info       scb8
+pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, ...
 File Info originally:  {FDB, DCB, FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI}
 File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,   LCSI}
 */
@@ -1976,212 +1976,6 @@ pub fn update_hashmap(card: &mut sc_card) {
 }
 
 
-//TODO while it's unused allow cognitive_complexity
-//TODO temporarily allow shadow_unrelated
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::shadow_unrelated))]
-#[allow(dead_code)]
-pub fn create_mf_file_system(card: &mut sc_card, sopin: &[u8], sopuk: &[u8]) {
-    assert!(!card.ctx.is_null());
-    let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"create_mf_file_system\0");
-    log3ifc!(ctx,f,line!());
-
-//    assert_eq!(0,1);
-    /* set operation mode byte to 64K mode */
-    if [SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3].contains(&card.type_) {
-        let cmd = [0_u8, 0xD6, 0xC1, 0x91, 1,  if card.type_==SC_CARD_TYPE_ACOS5_64_V3 {2} else {0}];
-        let mut apdu = sc_apdu::default();
-        assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu));
-        assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
-        assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
-    }
-    else {
-        assert_eq!(0,1);
-    }
-    assert_eq!(8, sopin.len());
-    assert_eq!(8, sopuk.len());
-println!("SOPIN: {}  {:X?}", sopin.len(), sopin);
-println!("SOPUK: {}  {:X?}", sopuk.len(), sopuk);
-    /*
-SOPIN: 8  [38, 37, 36, 35, 34, 33, 32, 31]
-SOPUK: 8  [31, 32, 33, 34, 35, 36, 37, 38]
-*/
-//0x3F00  MF, creation
-    let cmd = [0_u8,0xE0,0x00,0x00,0x1B,0x62,0x19, 0x83,0x02,  0x3F,0x00,  0x82, 0x02, 0x3F, 0x00,  0x8D, 0x02, 0x00, 0x03,                    0x8A, 0x01, 0x01,  0x8C, 0x08, 0x7F, 0xFF, 0xFF, 0x01, 0x01, 0x01, 0x01, 0x01];
-    let mut apdu = sc_apdu::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu));
-    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
-    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
-//0x0001  Pin file of MF, creation
-    let cmd = [0_u8,0xE0,0x00,0x00,0x1E,0x62,0x1C, 0x83,0x02,  0x00,0x01,  0x82, 0x06, 0x0A, 0x00, 0x00, 0x15, 0x00, 0x01,  0x88, 0x01, 0x00,  0x8A, 0x01, 0x01,  0x8C, 0x08, 0x7F, 0xFF, 0xFF, 0x01, 0x01, 0xFF, 0x01, 0xFF];
-    apdu = sc_apdu::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu));
-    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
-    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
-//0x0003  Security Environment File of MF, creation
-    let cmd = [0_u8,0xE0,0x00,0x00,0x1E,0x62,0x1C, 0x83,0x02,  0x00,0x03,  0x82, 0x06, 0x1C, 0x00, 0x00, 0x30, 0x00, 0x01,  0x88, 0x01, 0x00,  0x8A, 0x01, 0x01,  0x8C, 0x08, 0x7F, 0xFF, 0xFF, 0x01, 0x01, 0x01, 0x01, 0x00];
-    apdu = sc_apdu::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu));
-    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
-    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
-//0x2F00  EF.DIR, creation
-    let cmd = [0_u8,0xE0,0x00,0x00,0x1E,0x62,0x1C, 0x83,0x02,  0x2F,0x00,  0x82, 0x02, 0x01, 0x00, 0x80, 0x02, 0x00, 0x30,  0x88, 0x01, 0x00,  0x8A, 0x01, 0x01,  0x8C, 0x08, 0x7F, 0x01, 0xFF, 0x01, 0x01, 0xFF, 0x00, 0x00];
-    apdu = sc_apdu::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu));
-    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
-    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
-
-//0x3F00  MF, selection
-    let cmd = [0_u8, 0xA4, 0x00, 0x00, 0x02, 0x3F, 0x00]; // 61 22
-    apdu = sc_apdu::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu));
-    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
-    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
-
-//0x0001  Pin file of MF, selection, populate record #1, activation
-    let cmd = [0_u8, 0xA4, 0x00, 0x00, 0x02, 0x00, 0x01]; // 61 20
-    apdu = sc_apdu::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu));
-    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
-    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
-
-    let cmd = [0, 0xDC, 1, 4, 0x15, 0xC1, 0x88, 0x08, sopin[0],sopin[1],sopin[2],sopin[3],sopin[4],sopin[5],sopin[6],sopin[7],
-                                                   0x88, 0x08, sopuk[0],sopuk[1],sopuk[2],sopuk[3],sopuk[4],sopuk[5],sopuk[6],sopuk[7]];
-    apdu = sc_apdu::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu));
-    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
-    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
-
-    let cmd = [0_u8, 0x44, 0x00, 0x00, 0x02, 0x00, 0x01];
-    apdu = sc_apdu::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu));
-    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
-    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
-
-//0x0003  Security Environment File of MF, selection, populate record #1, activation
-    let cmd = [0_u8, 0xA4, 0x00, 0x00, 0x02, 0x00, 0x03]; // 61 20
-    apdu = sc_apdu::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu));
-    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
-    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
-
-    let cmd = [0_u8, 0xDC, 0x01, 0x04, 0x0B, 0x80, 0x01, 0x01, 0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x08];
-    apdu = sc_apdu::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu));
-    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
-    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
-
-    let cmd = [0_u8, 0x44, 0x00, 0x00, 0x02, 0x00, 0x03];
-    apdu = sc_apdu::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu));
-    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
-    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
-//0x2F00  EF.DIR, left empty, selection, no content, activation
-    let cmd = [0_u8, 0xA4, 0x00, 0x00, 0x02, 0x2F, 0x00]; // 61 20
-    apdu = sc_apdu::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu));
-    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
-    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
-
-    let cmd = [0_u8, 0x44, 0x00, 0x00, 0x02, 0x2F, 0x00];
-    apdu = sc_apdu::default();
-    assert_eq!(SC_SUCCESS, sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu));
-    assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
-    assert_eq!(SC_SUCCESS, unsafe { sc_transmit_apdu(card, &mut apdu) });
-
-    log3ifr!(ctx,f,line!());
-}
-
-/*
-/* manage: a single call to common_read will deliver max. 255 bytes or less if SM is applied. TODO ACOS5-EVO can deliver max. 4096 bytes with extended APDU
-   managing calls ref. read_binary is done already by sc_read_binary: There is a loop that calls card's read_binary as often as required with appropriate params,
-   but that is missing for records: Under 'Secure Messaging', a single call can deliver max. 239/240 bytes, thus a second invocation ref. read_record may be required (TODO even more for ACOS5-EVO).
-   This is  what is done here.
-   Also, opensc-explorer erroneously requests 256 bytes, but the max. for ACOS5 is 255
-*/
-pub fn manage_common_read(card: &mut sc_card, idx: u16, buf: &mut [u8], flags: c_ulong, bin: bool) -> i32
-{
-    let count = std::cmp::min(buf.len(), 255);
-//println!("count: {}", count);
-    if bin || count<=239 {
-        common_read(card, idx, &mut buf[..count], flags, bin)
-    }
-    else {
-        let file_id = file_id_from_cache_current_path(card);
-        let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-        let x = &dp.files[&file_id];
-        assert!(x.2.is_some());
-        let scb_read = x.2.unwrap()[0];
-        card.drv_data = Box::into_raw(dp) as p_void;
-        let res_se_sm = if (scb_read & 0x40) == 0x40 { se_get_is_scb_suitable_for_sm_has_ct
-            (card, file_id, scb_read & 0x0F) } else { (false, false) };
-
-//      if   (scb_read & 0x40) != 0x40 || !res_se_sm.0 || count<=239 || (!res_se_sm.1 && count<=240)
-        if !((scb_read & 0x40) == 0x40 &&  res_se_sm.0 && count>239  && (res_se_sm.1 || count>240) ) {
-            common_read(card, idx, &mut buf[..count], flags, bin)
-        }
-        else {
-            let countx: usize = std::cmp::min(count, if res_se_sm.1 {239} else {240} );
-            assert!(countx < count);
-            let rv1 = common_read(card, idx, &mut buf[..countx], flags, bin);
-            if rv1 <= SC_SUCCESS {
-                return rv1;
-            }
-            assert_eq!(countx, usize::try_from(rv1).unwrap());
-            let rv2 = common_read(card, idx, &mut buf[countx..count], flags, bin);
-            if rv2 <= SC_SUCCESS {
-                return rv2;
-            }
-            rv1 + rv2
-        }
-    }
-}
-
-/* manage: a single call to common_update will write max. 255 bytes or less if SM is applied. TODO ACOS5-EVO can write max. 4096 bytes with extended APDU
-   managing calls ref. update_binary is done already by sc_update_binary: There is a loop that calls card's update_binary as often as required with appropriate params,
-   but that is missing for records: Under 'Secure Messaging', a single call can write max. 239/240 bytes, thus a second invocation ref. update_record may be required.
-   This is  what is done here.
-   Also, opensc-explorer erroneously requests 256 bytes, but the max. for ACOS5 is 255
-*/
-pub fn manage_common_update(card: &mut sc_card, idx: u16, buf: &[u8], flags: c_ulong, bin: bool) -> i32
-{
-    let count = std::cmp::min(buf.len(), 255);
-//println!("count: {}", count);
-    if bin || count<=232 {
-        common_update(card, idx, buf, flags, bin)
-    }
-    else {
-        let file_id = file_id_from_cache_current_path(card);
-        let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-        let x = &dp.files[&file_id];
-        assert!(x.2.is_some());
-        let scb_update = x.2.unwrap()[1];
-        card.drv_data = Box::into_raw(dp) as p_void;
-        let res_se_sm = if (scb_update & 0x40) == 0x40 { se_get_is_scb_suitable_for_sm_has_ct
-            (card, file_id, scb_update & 0x0F) } else { (false, false) };
-
-//      if   (scb_update & 0x40) != 0x40  || !res_se_sm.0 || count<=232 || (!res_se_sm.1 && count<=240)
-        if !((scb_update & 0x40) == 0x40  &&  res_se_sm.0 && count>232  && (res_se_sm.1 || count>240) ) {
-            common_update(card, idx, buf, flags, bin)
-        }
-        else {
-            let countx: usize = std::cmp::min(count, if res_se_sm.1 {232} else {240} );
-            assert!(countx < count);
-            let rv1 = common_update(card, idx, &buf[..countx], flags, bin);
-            if rv1 <= SC_SUCCESS {
-                return rv1;
-            }
-            assert_eq!(countx, usize::try_from(rv1).unwrap());
-            let rv2 = common_update(card, idx, &buf[countx..count], flags, bin);
-            if rv2 <= SC_SUCCESS {
-                return rv2;
-            }
-            rv1 + rv2
-        }
-    }
-}
-*/
-
 pub fn common_read(card: &mut sc_card, idx: u16, buf: &mut [u8]/*, count: usize*/, flags: c_ulong, bin: bool) -> i32
 {
     if card.ctx.is_null() {
@@ -2236,15 +2030,19 @@ pub fn common_read(card: &mut sc_card, idx: u16, buf: &mut [u8]/*, count: usize*
     }
 }
 
+
 pub fn common_update(card: &mut sc_card,
-                     idx: u16, buf: &[u8]/* *const u8, count: usize*/,
-                     flags: c_ulong, bin: bool) -> i32
+                     idx: u16,
+                     buf: &[u8]/* *const u8, count: usize*/,
+                     flags: c_ulong,
+                     bin: bool) -> i32
 {
     if card.ctx.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!( if bin {b"acos5_update_binary\0"} else {b"acos5_update_record\0"});
+    let f = cstru!( if bin {b"acos5_update_binary\0"}
+                           else if idx>0 {b"acos5_update_record\0"} else {b"acos5_append_record\0"} );
     log3ifc!(ctx,f,line!());
 
     let file_id = file_id_from_cache_current_path(card);
@@ -2254,6 +2052,10 @@ pub fn common_update(card: &mut sc_card,
     assert!(x.2.is_some());
     let scb_update = x.2.unwrap()[1];
     card.drv_data = Box::into_raw(dp) as p_void;
+    // idx==0 means 'append_record' is requested
+    if !bin && idx==0 && ![FDB_LINEAR_VARIABLE_EF, FDB_CYCLIC_EF, FDB_SYMMETRIC_KEY_EF, FDB_SE_FILE].contains(&fdb) {
+        return SC_ERROR_NOT_ALLOWED;
+    }
 
     if scb_update == 0xFF {
         log3if!(ctx,f,line!(), cstru!(
@@ -2290,6 +2092,7 @@ pub fn common_update(card: &mut sc_card,
         }
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -2391,6 +2194,7 @@ mod tests {
         assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, 7).as_slice(), &[1_u8]);
         assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, 0).as_slice(), &[0_u8,0,0,0,0,0,0,8]);
     }
+
     #[test]
     fn test_trailing_blockcipher_padding_get_length() {
         assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ZEROES, &[0_u8,2,1,0,0,0,0,0]).unwrap(), 5);

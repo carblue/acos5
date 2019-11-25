@@ -135,19 +135,19 @@ pub fn des_ecb3_unpadded_8(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> { // -
     output
 }
 
-/* pi is acos5 padding indicator, relevant only for Decrypt:
-if pi==01, then it's known, that  a 0x80 byte was added
+/*
+acos5 applies padding only if !data.len().is_multiple_of(&DES_KEY_SZ)
+acos5 sets a padding indicator byte pi while encrypting:
+pi is relevant here only for Decrypt:
+if pi==01, then it's known, that  a 0x80 byte was added (padding was applied and must be stripped in mode == Decrypt)
 if pi==00, then it's known, that no 0x80 byte was added
-*/
-/* pi is relevant only for Decrypt:
-   The 0x80 padding is
 */
 pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode: i32, pi: u8) -> Vec<u8> {
     assert_eq!(3*DES_KEY_SZ, key.len());
     assert!(mode==Encrypt || data.len().is_multiple_of(&DES_KEY_SZ));
 
-    // pad data
     let mut data = data.to_vec();
+    // mode==Encrypt: pad data, if necessary
     if !data.len().is_multiple_of(&DES_KEY_SZ) {
         data.push(0x80);
         while !data.len().is_multiple_of(&DES_KEY_SZ) { data.push(0); }
@@ -159,22 +159,24 @@ pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode:
     for _ in 0..3 {
         ks.push(DES_key_schedule::default());
     }
-    let mut out_block = vec![0_u8; data.len()];
-//    let mut output = /*Box::new(*/Vec::with_capacity(data.len())/*)*/;
+    let mut output = vec![0_u8; data.len()];
     unsafe {
         for (i, item) in key.chunks(DES_KEY_SZ).enumerate() {
             DES_set_key_unchecked(item.as_ptr(), &mut ks[i]);
         }
 
-        DES_ede3_cbc_encrypt(data.as_ptr(), out_block.as_mut_ptr(), c_long::try_from(out_block.len()).unwrap(),
+        DES_ede3_cbc_encrypt(data.as_ptr(), output.as_mut_ptr(), c_long::try_from(output.len()).unwrap(),
                              &ks[0], &ks[1], &ks[2], ivec, mode);
     }
 
     if mode == Decrypt && pi==1 {
-        while out_block.last().is_some() && *out_block.last().unwrap()==0     { out_block.pop(); }
-        if    out_block.last().is_some() && *out_block.last().unwrap()==0x80  { out_block.pop(); }
+        while output.last().is_some() && *output.last().unwrap()==0  { output.pop(); }
+        if    output.last().is_some() {
+            if *output.last().unwrap()==0x80  { output.pop(); }
+            else { panic!("Incorrect padding detected!") }
+        }
     }
-    out_block
+    output
 }
 
 pub fn des_ede3_cbc_pad_80_mac(data: &[u8], key: &[u8], ivec: &mut DES_cblock) -> Vec<u8> {

@@ -95,7 +95,7 @@ use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_securit
                          SC_ALGORITHM_ECDSA_RAW, SC_ALGORITHM_EXT_EC_NAMEDCURVE //, sc_path_set, sc_verify
 //                         SC_ALGORITHM_ECDH_CDH_RAW, SC_ALGORITHM_ECDSA_HASH_NONE, SC_ALGORITHM_ECDSA_HASH_SHA1,
 //                         SC_ALGORITHM_EXT_EC_UNCOMPRESES,
-//                         sc_pin_cmd_pin, sc_pin_cmd, sc_update_binary
+//                         ,sc_pin_cmd_pin, sc_pin_cmd//, sc_update_binary
 };
 #[cfg(not(v0_17_0))]
 use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
@@ -132,7 +132,8 @@ use opensc_sys::iso7816::{ISO7816_TAG_FCP_TYPE, ISO7816_TAG_FCP_LCS,  ISO7816_TA
 use opensc_sys::pkcs15::{sc_pkcs15_pubkey_rsa, sc_pkcs15_bignum, sc_pkcs15_encode_pubkey_rsa, sc_pkcs15_bind,
                          sc_pkcs15_unbind, sc_pkcs15_auth_info, sc_pkcs15_get_objects, SC_PKCS15_TYPE_AUTH_PIN,
                          sc_pkcs15_object, sc_pkcs15_card}; // , SC_PKCS15_AODF
-use opensc_sys::sm::{SM_TYPE_CWA14890, SM_CMD_FILE_UPDATE, SM_CMD_PIN, SM_CMD_PIN_VERIFY, SM_CMD_FILE_DELETE};
+use opensc_sys::sm::{SM_TYPE_CWA14890, SM_CMD_PIN, SM_CMD_PIN_VERIFY, SM_CMD_PIN_SET_PIN, SM_CMD_FILE_UPDATE,
+                     SM_CMD_FILE_DELETE};
 
 
 #[macro_use]
@@ -174,7 +175,7 @@ use crate::se::{se_file_add_acl_entry, se_get_is_scb_suitable_for_sm_has_ct, se_
                 se_get_sae_scb};
 
 pub mod    sm;
-use crate::sm::{sm_erase_binary, sm_delete_file, sm_pin_cmd_verify, sm_pin_cmd_get_policy};
+use crate::sm::{sm_erase_binary, sm_delete_file, sm_pin_cmd, sm_pin_cmd_get_policy};
 
 pub mod    wrappers;
 use crate::wrappers::*;
@@ -784,25 +785,54 @@ extern "C" fn acos5_finish(card_ptr: *mut sc_card) -> i32
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
-    let card       = unsafe { &mut *card_ptr };
+    let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     log3ifc!(ctx,cstru!(b"acos5_finish\0"),line!());
 ////////////////////
-/* * /
+/*
     let mut path_x = sc_path::default();
-    unsafe { sc_format_path(cstru!(b"i3F00\0").as_ptr(), &mut path_x); }
+    unsafe { sc_format_path(cstru!(b"3F00C100C200C300C304\0").as_ptr(), &mut path_x); }
     let mut rv = unsafe { sc_select_file(card, &path_x, null_mut()) };
     assert_eq!(SC_SUCCESS, rv);
 
-    path_x = sc_path::default();
-//    let mut file_x = null_mut::<sc_file>();
-    let df_name = [b'd', b'i', b'r', b'e', b'c', b't', b'o', b'r', b'y', b'1'];
-    rv = unsafe { sc_path_set(&mut path_x, SC_PATH_TYPE_DF_NAME, df_name.as_ptr(), df_name.len(), 0, -1) };
-    assert_eq!(SC_SUCCESS, rv);
-    rv = unsafe { sc_select_file(card, &path_x, null_mut()) };
-    assert_eq!(SC_SUCCESS, rv);
-//    unsafe { sc_file_free(file_x) };
+    {
+        let mut tries_left = 0;
+        let pin1_user: [u8; 8] = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]; // User pin, local  12345678
+        let pin2_user: [u8; 8] = [0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39];
+        let mut pin_cmd_data = sc_pin_cmd_data {
+            cmd: SC_PIN_CMD_GET_INFO, // SC_PIN_CMD_GET_INFO  SC_PIN_CMD_VERIFY SC_PIN_CMD_CHANGE
+            pin_reference: 0x81,
+            pin1: sc_pin_cmd_pin {
+                data: pin1_user.as_ptr(),
+                len:  i32::try_from(pin1_user.len()).unwrap(),
+                ..sc_pin_cmd_pin::default()
+            },
+            pin2: sc_pin_cmd_pin {
+                data: pin2_user.as_ptr(),
+                len:  i32::try_from(pin2_user.len()).unwrap(),
+                ..sc_pin_cmd_pin::default()
+            },
+            ..sc_pin_cmd_data::default()
+        };
+        rv = unsafe { sc_pin_cmd(card, &mut pin_cmd_data, &mut tries_left) }; // done with SM Conf
+        assert_eq!(SC_SUCCESS, rv);
+    }
 */
+    /* * /
+        let mut path_x = sc_path::default();
+        unsafe { sc_format_path(cstru!(b"i3F00\0").as_ptr(), &mut path_x); }
+        let mut rv = unsafe { sc_select_file(card, &path_x, null_mut()) };
+        assert_eq!(SC_SUCCESS, rv);
+
+        path_x = sc_path::default();
+    //    let mut file_x = null_mut::<sc_file>();
+        let df_name = [b'd', b'i', b'r', b'e', b'c', b't', b'o', b'r', b'y', b'1'];
+        rv = unsafe { sc_path_set(&mut path_x, SC_PATH_TYPE_DF_NAME, df_name.as_ptr(), df_name.len(), 0, -1) };
+        assert_eq!(SC_SUCCESS, rv);
+        rv = unsafe { sc_select_file(card, &path_x, null_mut()) };
+        assert_eq!(SC_SUCCESS, rv);
+    //    unsafe { sc_file_free(file_x) };
+    */
 /* some testing * /
     if /*false &&*/ card.type_ > SC_CARD_TYPE_ACOS5_64_V2 {
         let mut path = sc_path::default();
@@ -1159,23 +1189,6 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
 
                 if sym_en_decrypt(card, crypt_sym_data) > 0 {SC_SUCCESS} else {SC_ERROR_KEYPAD_MSG_TOO_LONG}
             },
-/*
-        SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM =>
-            {
-                let pins_data = unsafe { (*(data_ptr as *mut CardCtlArray20)).value };
-                /*
-                Format of pins in pins_data:
-                pins_data[0] :        SOPIN length (max 8), stored in pins_data[1..9]
-                pins_data[1..1+len] : SOPIN
-                pins_data[10] :        PUK of SOPIN length (max 8), stored in pins_data[11..19]
-                pins_data[11..11+len] : PUK of SOPIN
-                */
-                let sopin = &pins_data[1..1+pins_data[0] as usize];
-                let sopuk = &pins_data[11..11+pins_data[10] as usize];
-                create_mf_file_system(card, sopin, sopuk);
-                SC_SUCCESS
-            },
-*/
         _   => SC_ERROR_NO_CARD_SUPPORT
     } // match command
 } // acos5_card_ctl
@@ -2271,6 +2284,7 @@ println!();
             }
         }
     }
+
     else if SC_PIN_CMD_VERIFY   == pin_cmd_data.cmd { // pin1 is used, pin2 unused
         if pin_cmd_data.pin1.len <= 0 || pin_cmd_data.pin1.data.is_null() {
             return -1;
@@ -2376,7 +2390,7 @@ println!();
                 }
                 else {
                     card.sm_ctx.info.cmd = SM_CMD_PIN_VERIFY;
-                    /*let rv =*/ sm_pin_cmd_verify(card, pin_cmd_data, if tries_left_ptr.is_null() { &mut dummy_tries_left }
+                    /*let rv =*/ sm_pin_cmd(card, pin_cmd_data, if tries_left_ptr.is_null() { &mut dummy_tries_left }
                         else { unsafe { &mut *tries_left_ptr } }, res_se_sm.1)
 /*
 println!("SC_PIN_CMD_VERIFY: after execution:");
@@ -2395,16 +2409,139 @@ println!();
             }
         }
     }
+
     else if SC_PIN_CMD_CHANGE   == pin_cmd_data.cmd { // pin1 is old pin, pin2 is new pin
-//        let pindata_rm = unsafe {&mut *data_ptr};
-//        println!("sc_pin_cmd_data:  flags: {:X}, pin_type: {:X}, pin_reference: {:X}, apdu: {:?}", pindata_rm.flags, pindata_rm.pin_type, pindata_rm.pin_reference, pindata_rm.apdu);
-//        println!("sc_pin_cmd_pin 1: len: {}, [{:X},{:X},{:X},{:X}]", pindata_rm.pin1.len, unsafe{*pindata_rm.pin1.data.add(0)}, unsafe{*pindata_rm.pin1.data.add(1)}, unsafe{*pindata_rm.pin1.data.add(2)}, unsafe{*pindata_rm.pin1.data.add(3)});
-//        println!("sc_pin_cmd_pin 2: len: {}, [{:X},{:X},{:X},{:X}]", pindata_rm.pin2.len, unsafe{*pindata_rm.pin2.data.add(0)}, unsafe{*pindata_rm.pin2.data.add(1)}, unsafe{*pindata_rm.pin2.data.add(2)}, unsafe{*pindata_rm.pin2.data.add(3)});
-        unsafe { (*(*sc_get_iso7816_driver()).ops).pin_cmd.unwrap()(card, pin_cmd_data, tries_left_ptr) }
+        if pin_cmd_data.pin1.len <= 0 || pin_cmd_data.pin1.data.is_null() ||
+           pin_cmd_data.pin2.len <= 0 || pin_cmd_data.pin2.data.is_null() ||
+           pin_cmd_data.pin1.len != pin_cmd_data.pin2.len ||
+           pin_cmd_data.pin1.len  > 8 {
+            return SC_ERROR_INVALID_ARGUMENTS;
+        }
+        /*
+                println!("SC_PIN_CMD_CHANGE: before execution:");
+                println!("pin_cmd_data.cmd:           {:X}", pin_cmd_data.cmd);
+                println!("pin_cmd_data.flags:         {:X}", pin_cmd_data.flags);
+                println!("pin_cmd_data.pin_type:      {:X}", pin_cmd_data.pin_type);
+                println!("pin_cmd_data.pin_reference: {:X}", pin_cmd_data.pin_reference);
+
+                println!("pin_cmd_data.apdu:          {:p}", pin_cmd_data.apdu);
+                println!("pin_cmd_data.pin2.len:      {}", pin_cmd_data.pin2.len);
+                println!();
+                println!("pin_cmd_data.pin1.prompt:   {:p}", pin_cmd_data.pin1.prompt);
+                println!("pin_cmd_data.pin1.data:     {:p}", pin_cmd_data.pin1.data);
+                println!("pin_cmd_data.pin1.len:      {}", pin_cmd_data.pin1.len);
+                if ! pin_cmd_data.pin1.data.is_null() {
+                    println!("pin_cmd_data.pin1           {:X?}", unsafe { from_raw_parts(pin_cmd_data.pin1.data, usize::try_from(pin_cmd_data.pin1.len).unwrap()) } );
+                }
+                println!("pin_cmd_data.pin1.min_length:      {}", pin_cmd_data.pin1.min_length);
+                println!("pin_cmd_data.pin1.max_length:      {}", pin_cmd_data.pin1.max_length);
+                println!("pin_cmd_data.pin1.stored_length:   {}", pin_cmd_data.pin1.stored_length);
+
+                println!("pin_cmd_data.pin1.encoding:        {:X}", pin_cmd_data.pin1.encoding);
+                println!("pin_cmd_data.pin1.pad_length:      {}", pin_cmd_data.pin1.pad_length);
+                println!("pin_cmd_data.pin1.pad_char:        {}", pin_cmd_data.pin1.pad_char);
+
+                println!("pin_cmd_data.pin1.offset:          {}", pin_cmd_data.pin1.offset);
+                println!("pin_cmd_data.pin1.length_offset:   {}", pin_cmd_data.pin1.length_offset);
+
+                println!("pin_cmd_data.pin1.max_tries:   {}", pin_cmd_data.pin1.max_tries);
+                println!("pin_cmd_data.pin1.tries_left:  {}", pin_cmd_data.pin1.tries_left);
+                println!("pin_cmd_data.pin1.logged_in:   {}", pin_cmd_data.pin1.logged_in);
+        //        println!("pin_cmd_data.pin1.acls:        {:?}", pin_cmd_data.pin1.acls);
+                println!();
+        */
+        /*
+        SC_PIN_CMD_CHANGE: before execution:
+        pin_cmd_data.cmd:           0
+        pin_cmd_data.flags:         2
+        pin_cmd_data.pin_type:      1
+        pin_cmd_data.pin_reference: 81
+        pin_cmd_data.apdu:          0x0
+        pin_cmd_data.pin2.len:      0
+
+        pin_cmd_data.pin1.prompt:   0x0
+        pin_cmd_data.pin1.data:     0x5558bdf12cc0
+        pin_cmd_data.pin1.len:      8
+        pin_cmd_data.pin1           [31, 32, 33, 34, 35, 36, 37, 38]
+        pin_cmd_data.pin1.min_length:      4
+        pin_cmd_data.pin1.max_length:      8
+        pin_cmd_data.pin1.stored_length:   0
+        pin_cmd_data.pin1.encoding:        0
+        pin_cmd_data.pin1.pad_length:      8
+        pin_cmd_data.pin1.pad_char:        255
+        pin_cmd_data.pin1.offset:          0  -> 5
+        pin_cmd_data.pin1.length_offset:   0
+        pin_cmd_data.pin1.max_tries:   0
+        pin_cmd_data.pin1.tries_left:  0      -> -1
+        pin_cmd_data.pin1.logged_in:   0      -> 1
+
+        SC_PIN_CMD_CHANGE: after execution:
+        pin_cmd_data.pin1.offset:          5
+        pin_cmd_data.pin1.length_offset:   0
+        pin_cmd_data.pin1.max_tries:   0
+        pin_cmd_data.pin1.tries_left:  -1
+        pin_cmd_data.pin1.logged_in:   1
+        */
+
+        if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 {
+            /*let rv =*/ unsafe { (*(*sc_get_iso7816_driver()).ops).pin_cmd.unwrap()(card, pin_cmd_data, tries_left_ptr) }
+            /*
+            println!("SC_PIN_CMD_VERIFY: after execution:");
+            println!("pin_cmd_data.pin1.offset:          {}", pin_cmd_data.pin1.offset);
+            println!("pin_cmd_data.pin1.length_offset:   {}", pin_cmd_data.pin1.length_offset);
+            println!("pin_cmd_data.pin1.max_tries:   {}", pin_cmd_data.pin1.max_tries);
+            println!("pin_cmd_data.pin1.tries_left:  {}", pin_cmd_data.pin1.tries_left);
+            println!("pin_cmd_data.pin1.logged_in:   {}", pin_cmd_data.pin1.logged_in);
+            println!();
+                        rv
+            */
+        }
+        else {
+            let file_id = file_id_from_cache_current_path(card);
+//println!("file_id: {:X}", file_id);
+            let scb_change_code = se_get_sae_scb(card, [0_u8, 0x24, 0, u8::try_from(pin_cmd_data.pin_reference).unwrap()]);
+//println!("scb_change_code: {:X}", scb_change_code);
+
+            if scb_change_code == 0xFF {
+                log3if!(ctx,f,line!(), cstru!(
+                    b"SC_PIN_CMD_CHANGE won't be done: It's not allowed by SAE\0"));
+                SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
+            }
+            else if (scb_change_code & 0x40) == 0x40  &&  SC_AC_CHV == pin_cmd_data.pin_type {
+                let res_se_sm = se_get_is_scb_suitable_for_sm_has_ct(card, file_id, scb_change_code & 0x1F);
+//println!("res_se_sm: {:?}", res_se_sm);
+                // TODO think about whether SM mode Confidentiality should be enforced
+                if !res_se_sm.0 {
+                    log3if!(ctx,f,line!(), cstru!(b"SC_PIN_CMD_CHANGE won't be done: It's SM protected, but the CRT }\
+                        template(s) don't accomplish requirements\0"));
+                    SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
+                }
+                else {
+                    card.sm_ctx.info.cmd = SM_CMD_PIN_SET_PIN; /*let rv =*/
+                    sm_pin_cmd(card, pin_cmd_data, if tries_left_ptr.is_null() { &mut dummy_tries_left }
+                        else { unsafe { &mut *tries_left_ptr } }, res_se_sm.1)
+                    /*
+                    println!("SC_PIN_CMD_CHANGE: after execution:");
+                    println!("pin_cmd_data.pin1.offset:          {}", pin_cmd_data.pin1.offset);
+                    println!("pin_cmd_data.pin1.length_offset:   {}", pin_cmd_data.pin1.length_offset);
+                    println!("pin_cmd_data.pin1.max_tries:   {}", pin_cmd_data.pin1.max_tries);
+                    println!("pin_cmd_data.pin1.tries_left:  {}", pin_cmd_data.pin1.tries_left);
+                    println!("pin_cmd_data.pin1.logged_in:   {}", pin_cmd_data.pin1.logged_in);
+                    println!();
+                                        rv
+                    */
+                }
+            }
+            else {
+                unsafe { (*(*sc_get_iso7816_driver()).ops).pin_cmd.unwrap()(card, pin_cmd_data, tries_left_ptr) }
+            }
+        }
     }
+
     else if SC_PIN_CMD_UNBLOCK  == pin_cmd_data.cmd { // pin1 is PUK, pin2 is new pin for the one blocked
         unsafe { (*(*sc_get_iso7816_driver()).ops).pin_cmd.unwrap()(card, pin_cmd_data, tries_left_ptr) }
     }
+
     else {
         SC_ERROR_NO_CARD_SUPPORT
 /*

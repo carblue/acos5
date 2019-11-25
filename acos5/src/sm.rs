@@ -12,16 +12,17 @@ use std::slice::from_raw_parts;
 use std::convert::TryFrom;
 
 use opensc_sys::opensc::{sc_context, sc_card, sc_hex_to_bin, sc_get_challenge, sc_bytes2apdu_wrapper, sc_transmit_apdu,
-                         sc_check_sw, sc_pin_cmd_data, SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT};
+                         sc_check_sw, sc_pin_cmd_data, SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT,
+                         SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK};
 use opensc_sys::types::{SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT, sc_apdu/*, SC_AC_CHV*/};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_SM_KEYSET_NOT_FOUND, SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_INVALID_DATA,
                          SC_ERROR_SM_IFD_DATA_MISSING, SC_ERROR_SM_RAND_FAILED, SC_ERROR_SM_AUTHENTICATION_FAILED,
                          SC_ERROR_SM_NOT_INITIALIZED, SC_ERROR_SM, SC_ERROR_PIN_CODE_INCORRECT, SC_ERROR_AUTH_METHOD_BLOCKED,
-                         SC_ERROR_KEYPAD_MSG_TOO_LONG
-                         /*, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_NOT_SUPPORTED*/};
-use opensc_sys::sm::{sm_info/*, sm_cwa_session*/, SM_SMALL_CHALLENGE_LEN, SM_CMD_FILE_READ, SM_CMD_FILE_UPDATE,
-                     /*SM_CMD_PIN_VERIFY, SM_CMD_FILE_CREATE, SM_CMD_FILE_DELETE, SM_CMD_FILE,*/ SM_CMD_PIN};
-use opensc_sys::log::{sc_dump_hex/*, SC_LOG_DEBUG_NORMAL, SC_LOG_DEBUG_SM*/};
+                         SC_ERROR_KEYPAD_MSG_TOO_LONG};
+    /*, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_NOT_SUPPORTED*/
+use opensc_sys::sm::{sm_info, SM_SMALL_CHALLENGE_LEN, SM_CMD_FILE_READ, SM_CMD_FILE_UPDATE, SM_CMD_PIN};
+    /*, sm_cwa_session, SM_CMD_PIN_VERIFY, SM_CMD_FILE_CREATE, SM_CMD_FILE_DELETE, SM_CMD_FILE,*/
+use opensc_sys::log::{sc_dump_hex}; /*, SC_LOG_DEBUG_NORMAL, SC_LOG_DEBUG_SM*/
 use opensc_sys::scconf::{scconf_block, scconf_find_blocks, scconf_get_str};
 
 use crate::constants_types::*;
@@ -574,7 +575,7 @@ pub fn sm_common_read(card: &mut sc_card,
 //println!("sm_erase_binary         get_cs_enc:  {:X?}\n", get_cs_enc(card));
 //println!("sm_delete_file          get_cs_enc:  {:X?}\n", get_cs_enc(card));
 //println!("sm_create               get_cs_enc:  {:X?}\n", get_cs_enc(card));
-//println!("sm_pin_cmd_verify       get_cs_enc:  {:X?}\n", get_cs_enc(card));
+//println!("sm_pin_cmd  verify      get_cs_enc:  {:X?}\n", get_cs_enc(card));
 //println!("sm_pin_cmd_get_policy   get_cs_enc:  {:X?}\n", get_cs_enc(card));
 
 //println!("sm_common_read          get_cs_mac:  {:X?}\n", get_cs_mac(card));
@@ -699,7 +700,7 @@ pub fn sm_common_update(card: &mut sc_card,
 //println!("sm_common_update        get_cs_mac:  {:X?}\n", get_cs_mac(card));
     assert!(buf.len()<256);
     let count = std::cmp::min(buf.len(), 255);
-    let len_update = std::cmp::min(if has_ct {232_u8} else {240_u8},u8::try_from(count).unwrap());
+    let len_update = std::cmp::min(if has_ct {232_u8} else {240_u8/*checked*/},u8::try_from(count).unwrap());
 ////println!("len_update : {}", len_update);
     let len_update2 = len_update.next_multiple_of(&DES_KEY_SZ_u8); // padding added if required
 ////println!("len_update2: {}", len_update2);
@@ -1057,15 +1058,15 @@ pub fn sm_create(card: &mut sc_card,
 } // sm_create
 
 
-pub fn sm_pin_cmd_verify(card: &mut sc_card,
-                         pin_cmd_data: &mut sc_pin_cmd_data,
-                         tries_left: &mut i32,
-                         has_ct: bool) -> i32
+pub fn sm_pin_cmd(card: &mut sc_card,
+                  pin_cmd_data: &mut sc_pin_cmd_data,
+                  tries_left: &mut i32,
+                  has_ct: bool) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!( b"sm_pin_cmd_verify\0");
-    log3ifc!(ctx,f,line!());
+    let f = cstru!(b"sm_pin_cmd\0");
+    log3if!(ctx,f,line!(), cstru!(b"called for cmd: %u\0"), pin_cmd_data.cmd);
 
     pin_cmd_data.pin1.tries_left = -1;
     *tries_left = pin_cmd_data.pin1.tries_left;
@@ -1074,57 +1075,63 @@ pub fn sm_pin_cmd_verify(card: &mut sc_card,
         return SC_ERROR_SM_NOT_INITIALIZED;
     }
 
-//println!("sm_pin_cmd_verify       get_cs_enc:  {:X?}\n", get_cs_enc(card));
-//println!("sm_pin_cmd_verify       get_cs_mac:  {:X?}\n", get_cs_mac(card));
-    let len_pin = u8::try_from(pin_cmd_data.pin1.len).unwrap();
+//println!("sm_pin_cmd  verify      get_cs_enc:  {:X?}\n", get_cs_enc(card));
+//println!("sm_pin_cmd  verify      get_cs_mac:  {:X?}\n", get_cs_mac(card));
+    let ins : u8 = match pin_cmd_data.cmd {
+        SC_PIN_CMD_VERIFY  => 0x20,
+        SC_PIN_CMD_CHANGE  => 0x24,
+        SC_PIN_CMD_UNBLOCK => 0x2C,
+        _ => panic!("unexpected pin command"),
+    };
+    let mut pin_data : Vec<u8> = Vec::with_capacity(16);
+    pin_data.extend_from_slice(unsafe { from_raw_parts(pin_cmd_data.pin1.data,
+                                                       usize::try_from(pin_cmd_data.pin1.len).unwrap()) });
+    let mut len_pin = u8::try_from(pin_cmd_data.pin1.len).unwrap();
+    if ins == 0x24 {
+        len_pin *= 2;
+        pin_data.extend_from_slice(unsafe { from_raw_parts(pin_cmd_data.pin2.data,
+                                                           usize::try_from(pin_cmd_data.pin2.len).unwrap()) });
+    }
 ////println!("len_pin : {}", len_pin);
-    let len_pin2 : u8 = len_pin.next_multiple_of(&DES_KEY_SZ_u8); // padding added if required
-////println!("len_pin2: {}", len_pin2);
-    debug_assert!(len_pin2.is_multiple_of(&DES_KEY_SZ_u8));
-    assert!(len_pin2 <= DES_KEY_SZ_u8);
+    let len2_pin : u8 = len_pin.next_multiple_of(&DES_KEY_SZ_u8); // padding added if required
+////println!("len2_pin: {}", len2_pin);
+    debug_assert!(len2_pin.is_multiple_of(&DES_KEY_SZ_u8));
+//    assert!(len2_pin <= DES_KEY_SZ_u8);
     let pi = if has_ct && !len_pin.is_multiple_of(&DES_KEY_SZ_u8) {1_u8} else {0_u8};
 ////println!("pi: {}", pi);
     /* cmd without SM: SC_APDU_CASE_3_SHORT; with SM: SC_APDU_CASE_4_SHORT */
-    let hdr = [0x89_u8,4, 0x0C, 0x20, 0, u8::try_from(pin_cmd_data.pin_reference).unwrap()];
-////println!("sm_pin_cmd_verify ssc old:                 {:X?}", unsafe { card.sm_ctx.info.session.cwa.ssc });
+    let hdr = [0x89_u8,4, 0x0C, ins, 0, u8::try_from(pin_cmd_data.pin_reference).unwrap()];
+////println!("sm_pin_cmd ssc old:                 {:X?}", unsafe { card.sm_ctx.info.session.cwa.ssc });
     sm_incr_ssc(card);
-////println!("sm_pin_cmd_verify ssc new:                 {:X?}", unsafe { card.sm_ctx.info.session.cwa.ssc });
-    let mut ivec = unsafe {card.sm_ctx.info.session.cwa.ssc};
-//                              &pin_user,
-//                              unsafe { from_raw_parts(pin_cmd_data.pin1.data, std::cmp::max(0,pin_cmd_data.pin1.len) as usize) }
-//                              ,
-
-    let data_encrypted = des_ede3_cbc_pad_80(unsafe { from_raw_parts(pin_cmd_data.pin1.data,
-                                 usize::try_from(pin_cmd_data.pin1.len).unwrap()) },
-        &get_cs_enc(card), &mut ivec, Encrypt, 0);
+////println!("sm_pin_cmd ssc new:                 {:X?}", unsafe { card.sm_ctx.info.session.cwa.ssc });
+    let mut ivec = unsafe { card.sm_ctx.info.session.cwa.ssc };
+    let data_encrypted = des_ede3_cbc_pad_80(&pin_data, &get_cs_enc(card), &mut ivec, Encrypt, 0);
 ////println!("data_encrypted.len(): {}, data_encrypted: {:X?}", data_encrypted.len(), data_encrypted);
-    assert_eq!(data_encrypted.len(), usize::from(len_pin2));
+    assert_eq!(data_encrypted.len(), usize::from(len2_pin));
 
-    let mut hdr_vec : Vec<u8> = Vec::with_capacity(hdr.len()+ 3+ usize::from(len_pin2));
+    let mut hdr_vec : Vec<u8> = Vec::with_capacity(hdr.len()+ 3+ usize::from(len2_pin));
     hdr_vec.extend_from_slice(&hdr);
     if has_ct {
-        hdr_vec.extend_from_slice(& [0x87, 1+ len_pin2, pi] );
+        hdr_vec.extend_from_slice(& [0x87, 1+ len2_pin, pi] );
         hdr_vec.extend_from_slice(&data_encrypted);
     }
     else {
         hdr_vec.extend_from_slice(& [0x81,    len_pin] );
-        hdr_vec.extend_from_slice(unsafe { from_raw_parts(pin_cmd_data.pin1.data,
-                                                          usize::try_from(pin_cmd_data.pin1.len).unwrap()) });
+        hdr_vec.extend_from_slice(&pin_data);
     }
 ////println!("hdr_vec: {:X?}", hdr_vec);
     ivec = unsafe {card.sm_ctx.info.session.cwa.ssc};
     let mac = des_ede3_cbc_pad_80_mac(&hdr_vec, &get_cs_mac(card), &mut ivec);
 ////println!("mac:                 {:X?}", mac);
-    let mut cmd_vec : Vec<u8> = Vec::with_capacity(hdr.len()-2 +4 +usize::from(len_pin2) +6 +1);
+    let mut cmd_vec : Vec<u8> = Vec::with_capacity(hdr.len()-2 +4 +usize::from(len2_pin) +6 +1);
     cmd_vec.extend_from_slice(&hdr[2..]);
     if has_ct {
-        cmd_vec.extend_from_slice(& [9 +len_pin2, 0x87, 1 +len_pin2, pi] );
+        cmd_vec.extend_from_slice(& [9 +len2_pin, 0x87, 1 +len2_pin, pi] );
         cmd_vec.extend_from_slice(&data_encrypted);
     }
     else {
         cmd_vec.extend_from_slice(& [8 +len_pin,  0x81,    len_pin] );
-        cmd_vec.extend_from_slice(unsafe { from_raw_parts(pin_cmd_data.pin1.data,
-                                                          usize::try_from(pin_cmd_data.pin1.len).unwrap()) });
+        cmd_vec.extend_from_slice(&pin_data);
     }
     cmd_vec.extend_from_slice(&[0x8E, 4]);
     cmd_vec.extend_from_slice(&mac.as_slice()[0..4]);
@@ -1132,8 +1139,8 @@ pub fn sm_pin_cmd_verify(card: &mut sc_card,
 ////println!("cmd_vec:                 {:X?}", cmd_vec);
     let mut apdu = sc_apdu::default();
     let mut rv = sc_bytes2apdu_wrapper(ctx, cmd_vec.as_slice(), &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    assert_eq!(apdu.cse, SC_APDU_CASE_4_SHORT);
+    assert_eq!(SC_SUCCESS, rv);
+    debug_assert_eq!(SC_APDU_CASE_4_SHORT, apdu.cse);
     let mut rbuf = vec![0_u8; 10];
     assert_eq!(apdu.le, rbuf.len());
     apdu.resplen =      rbuf.len();
@@ -1145,26 +1152,28 @@ pub fn sm_pin_cmd_verify(card: &mut sc_card,
         log3ifr!(ctx,f,line!(), rv);
         return rv;
     }
-
+    let mut cmd_failure = false;
     rv = unsafe { sc_check_sw(card, u32::from(rbuf[2]), u32::from(rbuf[3])) };
     if rv != SC_SUCCESS {
+        cmd_failure = true;
         pin_cmd_data.pin1.logged_in = SC_PIN_STATE_LOGGED_OUT;
         if      rv==SC_ERROR_PIN_CODE_INCORRECT  { pin_cmd_data.pin1.tries_left = i32::from(rbuf[3]&0x0F);
                                                    *tries_left = pin_cmd_data.pin1.tries_left; }
         else if rv==SC_ERROR_AUTH_METHOD_BLOCKED { pin_cmd_data.pin1.tries_left = 0;
                                                    *tries_left = pin_cmd_data.pin1.tries_left; }
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
+//        log3ifr!(ctx,f,line!(), rv);
+//        return rv;
     }
 
     /* verify mac_resp */
-    let mac_resp_in = [hdr[0],hdr[1],hdr[2],hdr[3],hdr[4],hdr[5], 0x99, 2, 0x90, 0];
+    let mac_resp_in = [hdr[0],hdr[1],hdr[2],hdr[3],hdr[4],hdr[5], 0x99, 2, rbuf[2], rbuf[3]];
     sm_incr_ssc(card);
     ivec = unsafe { card.sm_ctx.info.session.cwa.ssc };
     let mac_resp = des_ede3_cbc_pad_80_mac(&mac_resp_in, &get_cs_mac(card), &mut ivec);
 ////println!("mac_resp:                 {:X?}", mac_resp);
     log3ift!(ctx,f,line!(), cstru!(b"mac_resp verification: [%02X %02X %02X %02X]\0"),
         mac_resp[0], mac_resp[1], mac_resp[2], mac_resp[3]);
+    if cmd_failure || rbuf[2]!=0x90 || rbuf[3]!=0 { log3ifr!(ctx,f,line!(), rv); return rv; }
     if rbuf[6..10] != mac_resp[..4] {
         return SC_ERROR_SM;
     }
@@ -1203,8 +1212,8 @@ pub fn sm_pin_cmd_get_policy(card: &mut sc_card,
     let mut rbuf = vec![0_u8; 10];
     let mut apdu = sc_apdu::default();
     let mut rv = sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    debug_assert_eq!(apdu.cse, SC_APDU_CASE_4_SHORT);
+    assert_eq!(SC_SUCCESS, rv);
+    debug_assert_eq!(SC_APDU_CASE_4_SHORT, apdu.cse);
     assert_eq!(apdu.le, rbuf.len());
     apdu.resplen =      rbuf.len();
     apdu.resp = rbuf.as_mut_ptr();

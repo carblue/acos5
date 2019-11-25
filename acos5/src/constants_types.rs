@@ -86,12 +86,12 @@ pub const NAME_V4  : &[u8; 50] = b"ACOS5-EVO V4.00: Smart Card EVO or CryptoMate
 pub const CARD_DRV_NAME       : &[u8; 108] = b"'acos5_external', supporting ACOS5 Smart Card V2.00 (CryptoMate64), V3.00 (CryptoMate Nano) and V4.00 (EVO)\0";
 pub const CARD_DRV_SHORT_NAME : &[u8;  15] =  b"acos5_external\0";
 
-pub const CRATE               : &[u8;   6] = b"acos5\0"; // search acos5 mention in debug log file; each function should at least log CALLED, except small helpers or code that is clearly covered by only one possible surrounding function's called
-pub const CALLED              : &[u8;   7] = b"called\0";
-pub const RETURNING           : &[u8;  10] = b"returning\0";
-pub const RETURNING_INT       : &[u8;  20] = b"returning with: %d\n\0";
-pub const RETURNING_INT_CSTR  : &[u8;  25] = b"returning with: %d (%s)\n\0";
-pub const CSTR_INT_CSTR       : &[u8;  13] =             b"%s: %d (%s)\n\0";
+//pub const CRATE               : &[u8;   6] = b"acos5\0"; // search acos5 mention in debug log file; each function should at least log CALLED, except small helpers or code that is clearly covered by only one possible surrounding function's called
+//pub const CALLED              : &[u8;   7] = b"called\0";
+//pub const RETURNING           : &[u8;  10] = b"returning\0";
+//pub const RETURNING_INT       : &[u8;  20] = b"returning with: %d\n\0";
+//pub const RETURNING_INT_CSTR  : &[u8;  25] = b"returning with: %d (%s)\n\0";
+//pub const CSTR_INT_CSTR       : &[u8;  13] =             b"%s: %d (%s)\n\0";
 
 /*
 pub const CARD_DRIVER         : &[u8;  12] = b"card_driver\0";
@@ -271,8 +271,6 @@ pub const SC_CARDCTL_ACOS5_ENCRYPT_SYM             : c_ulong =  0x0000_0027; // 
 pub const SC_CARDCTL_ACOS5_ENCRYPT_ASYM            : c_ulong =  0x0000_0028; // data: *mut CardCtl_crypt_asym, do_encrypt_asym; Signature verification with public key
 pub const SC_CARDCTL_ACOS5_DECRYPT_SYM             : c_ulong =  0x0000_0029; // data: *mut CardCtl_crypt_sym,  do_decrypt_sym
 ////pub const SC_CARDCTL_ACOS5_DECRYPT_ASYM        : c_ulong =  0x0000_002A; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
-
-//pub const SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM    : c_ulong =  0x0000_002B; // data: *mut CardCtlArray20,  create_mf_file_system
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone,  PartialEq)]
