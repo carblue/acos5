@@ -1087,7 +1087,7 @@ pub fn sm_pin_cmd(card: &mut sc_card,
     pin_data.extend_from_slice(unsafe { from_raw_parts(pin_cmd_data.pin1.data,
                                                        usize::try_from(pin_cmd_data.pin1.len).unwrap()) });
     let mut len_pin = u8::try_from(pin_cmd_data.pin1.len).unwrap();
-    if ins == 0x24 {
+    if ins == 0x24 || ins == 0x2C {
         len_pin *= 2;
         pin_data.extend_from_slice(unsafe { from_raw_parts(pin_cmd_data.pin2.data,
                                                            usize::try_from(pin_cmd_data.pin2.len).unwrap()) });

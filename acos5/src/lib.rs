@@ -132,8 +132,8 @@ use opensc_sys::iso7816::{ISO7816_TAG_FCP_TYPE, ISO7816_TAG_FCP_LCS,  ISO7816_TA
 use opensc_sys::pkcs15::{sc_pkcs15_pubkey_rsa, sc_pkcs15_bignum, sc_pkcs15_encode_pubkey_rsa, sc_pkcs15_bind,
                          sc_pkcs15_unbind, sc_pkcs15_auth_info, sc_pkcs15_get_objects, SC_PKCS15_TYPE_AUTH_PIN,
                          sc_pkcs15_object, sc_pkcs15_card}; // , SC_PKCS15_AODF
-use opensc_sys::sm::{SM_TYPE_CWA14890, SM_CMD_PIN, SM_CMD_PIN_VERIFY, SM_CMD_PIN_SET_PIN, SM_CMD_FILE_UPDATE,
-                     SM_CMD_FILE_DELETE};
+use opensc_sys::sm::{SM_TYPE_CWA14890, SM_CMD_PIN, SM_CMD_PIN_VERIFY, SM_CMD_PIN_SET_PIN, SM_CMD_PIN_RESET,
+                     SM_CMD_FILE_UPDATE, SM_CMD_FILE_DELETE};
 
 
 #[macro_use]
@@ -789,7 +789,7 @@ extern "C" fn acos5_finish(card_ptr: *mut sc_card) -> i32
     let ctx = unsafe { &mut *card.ctx };
     log3ifc!(ctx,cstru!(b"acos5_finish\0"),line!());
 ////////////////////
-/*
+/* * /
     let mut path_x = sc_path::default();
     unsafe { sc_format_path(cstru!(b"3F00C100C200C300C304\0").as_ptr(), &mut path_x); }
     let mut rv = unsafe { sc_select_file(card, &path_x, null_mut()) };
@@ -798,9 +798,9 @@ extern "C" fn acos5_finish(card_ptr: *mut sc_card) -> i32
     {
         let mut tries_left = 0;
         let pin1_user: [u8; 8] = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]; // User pin, local  12345678
-        let pin2_user: [u8; 8] = [0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39];
+        let pin2_user: [u8; 8] = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38];
         let mut pin_cmd_data = sc_pin_cmd_data {
-            cmd: SC_PIN_CMD_GET_INFO, // SC_PIN_CMD_GET_INFO  SC_PIN_CMD_VERIFY SC_PIN_CMD_CHANGE
+            cmd: SC_PIN_CMD_UNBLOCK, // SC_PIN_CMD_GET_INFO  SC_PIN_CMD_VERIFY SC_PIN_CMD_CHANGE SC_PIN_CMD_UNBLOCK
             pin_reference: 0x81,
             pin1: sc_pin_cmd_pin {
                 data: pin1_user.as_ptr(),
@@ -817,7 +817,7 @@ extern "C" fn acos5_finish(card_ptr: *mut sc_card) -> i32
         rv = unsafe { sc_pin_cmd(card, &mut pin_cmd_data, &mut tries_left) }; // done with SM Conf
         assert_eq!(SC_SUCCESS, rv);
     }
-*/
+/ * */
     /* * /
         let mut path_x = sc_path::default();
         unsafe { sc_format_path(cstru!(b"i3F00\0").as_ptr(), &mut path_x); }
@@ -2539,7 +2539,46 @@ println!();
     }
 
     else if SC_PIN_CMD_UNBLOCK  == pin_cmd_data.cmd { // pin1 is PUK, pin2 is new pin for the one blocked
-        unsafe { (*(*sc_get_iso7816_driver()).ops).pin_cmd.unwrap()(card, pin_cmd_data, tries_left_ptr) }
+        if pin_cmd_data.pin1.len <= 0 || pin_cmd_data.pin1.data.is_null() ||
+            pin_cmd_data.pin2.len <= 0 || pin_cmd_data.pin2.data.is_null() ||
+            pin_cmd_data.pin1.len != pin_cmd_data.pin2.len ||
+            pin_cmd_data.pin1.len  > 8 {
+            return SC_ERROR_INVALID_ARGUMENTS;
+        }
+
+        if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 {
+            unsafe { (*(*sc_get_iso7816_driver()).ops).pin_cmd.unwrap()(card, pin_cmd_data, tries_left_ptr) }
+        }
+        else {
+            let file_id = file_id_from_cache_current_path(card);
+//println!("file_id: {:X}", file_id);
+            let scb_unblock_pin = se_get_sae_scb(card, [0_u8, 0x24, 0, u8::try_from(pin_cmd_data.pin_reference).unwrap()]);
+//println!("scb_unblock_pin: {:X}", scb_unblock_pin);
+
+            if scb_unblock_pin == 0xFF {
+                log3if!(ctx,f,line!(), cstru!(
+                    b"SC_PIN_CMD_CHANGE won't be done: It's not allowed by SAE\0"));
+                SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
+            }
+            else if (scb_unblock_pin & 0x40) == 0x40  &&  SC_AC_CHV == pin_cmd_data.pin_type {
+                let res_se_sm = se_get_is_scb_suitable_for_sm_has_ct(card, file_id, scb_unblock_pin & 0x1F);
+//println!("res_se_sm: {:?}", res_se_sm);
+                // TODO think about whether SM mode Confidentiality should be enforced
+                if !res_se_sm.0 {
+                    log3if!(ctx,f,line!(), cstru!(b"SC_PIN_CMD_CHANGE won't be done: It's SM protected, but the CRT }\
+                        template(s) don't accomplish requirements\0"));
+                    SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
+                }
+                else {
+                    card.sm_ctx.info.cmd = SM_CMD_PIN_RESET; /*let rv =*/
+                    sm_pin_cmd(card, pin_cmd_data, if tries_left_ptr.is_null() { &mut dummy_tries_left }
+                    else { unsafe { &mut *tries_left_ptr } }, res_se_sm.1)
+                }
+            }
+            else {
+                unsafe { (*(*sc_get_iso7816_driver()).ops).pin_cmd.unwrap()(card, pin_cmd_data, tries_left_ptr) }
+            }
+        }
     }
 
     else {

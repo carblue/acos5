@@ -10,7 +10,7 @@ use opensc_sys::pkcs15::{sc_pkcs15_card, SC_PKCS15_SKDF, SC_PKCS15_TYPE_SKEY, sc
 use opensc_sys::errors::{SC_ERROR_INVALID_ARGUMENTS };
 use opensc_sys::log::{sc_dump_hex};
 
-use crate::constants_types::*;
+//use crate::constants_types::*;
 use crate::wrappers::*;
 use crate::missing_exports::{find_df_by_type};
 
