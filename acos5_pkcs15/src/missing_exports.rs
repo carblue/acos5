@@ -1,7 +1,7 @@
 use libc::{strcasecmp, calloc, memcpy/*, memcmp,*/};
 
 use std::os::raw::{c_char};
-use std::ffi::{CStr};
+//use std::ffi::{CStr};
 
 use opensc_sys::opensc::{sc_file_dup};
 use opensc_sys::profile::{sc_profile, file_info};
@@ -11,17 +11,19 @@ use opensc_sys::pkcs15::{sc_pkcs15_bignum, sc_pkcs15_card, sc_pkcs15_df};
 //use opensc_sys::log::{sc_dump_hex};
 
 use crate::constants_types::p_void;
-use crate::wrappers::*;
+//use crate::wrappers::*;
 
 fn me_profile_find_file(profile: &mut sc_profile, _path: *const sc_path, name: *const c_char) -> *mut file_info
 {
+/*
     assert!(!profile.card.is_null());
     assert!(unsafe { (*profile.card).ctx.is_null() });
     // let card = unsafe { &mut *profile.card };
     let ctx = unsafe { &mut *(*profile.card).ctx };
     let f = cstru!(b"me_profile_find_file\0");
+*/
     let mut fi = profile.ef_list;
-    log3if!(ctx,f,line!(), cstru!(b"called  with profile.ef_list: %p\0"), profile.ef_list);
+//    log3if!(ctx,f,line!(), cstru!(b"called  with profile.ef_list: %p\0"), profile.ef_list);
 
 //    let len = if !path.is_null() { unsafe{(*path).len} } else {0};
     while !fi.is_null() {

@@ -33,13 +33,14 @@ pub type p_void = *mut c_void;
 
 /*
 Limits:
+max. 255 children within a DF, otherwise get_count_files_curr_df will panic
 
-file size:
+file size: driver's general max: u16::max
 V2:
 V3:
 V4: 38911
 
-MRL, NOR:
+MRL, NOR: driver's general max: u8::max
 V2: 255, 255
 V3:
 V4: 4096, 65535
@@ -50,16 +51,14 @@ V3:
 V4: max. 45 bytes (5+2*20), Pin ids from 1-30
 
 Sym key:
-V2: max 37 bytes, SE ids from 1-14
-V3:
-V4: min 12/20, Key ids from 1-30
-
-
-SE file:
 V2: max 37 bytes
 V3:
 V4: min 12/20, Key ids from 1-30
 
+SE file:
+V2: max 37 bytes, ids from 1-14 ?
+V3:
+V4: min 12/20, ids from 1-30 ?
 */
 
 // see also useful declarations in libopensc/iasecc.h:
@@ -243,15 +242,15 @@ pub const SC_CARDCTL_PKCS11_INIT_PIN         : c_ulong =  0x0000_0009;
 pub const SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF : c_ulong =  0x0000_0011; // data: *mut u16,  get_count_files_curr_df
 pub const SC_CARDCTL_ACOS5_GET_FILE_INFO           : c_ulong =  0x0000_0012; // data: *mut CardCtlArray8,  get_file_info
 pub const SC_CARDCTL_ACOS5_GET_FREE_SPACE          : c_ulong =  0x0000_0014; // data: *mut u32,  get_free_space
-pub const SC_CARDCTL_ACOS5_GET_IDENT_SELF          : c_ulong =  0x0000_0015; // data: *mut bool,  get_ident_self
-pub const SC_CARDCTL_ACOS5_GET_COS_VERSION         : c_ulong =  0x0000_0016; // data: *mut CardCtlArray8,  get_cos_version
-/* available only since ACOS5-64 V3: */
+pub const SC_CARDCTL_ACOS5_GET_IDENT_SELF          : c_ulong =  0x0000_0015; // data: *mut bool,  get_is_ident_self_okay
+pub const SC_CARDCTL_ACOS5_GET_COS_VERSION         : c_ulong =  0x0000_0016; // data: *mut [u8; 8],  get_cos_version
+/* available only since ACOS5-64 V3, but not all supported by SC_CARD_TYPE_ACOS5_EVO_V4: */
 pub const SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE: c_ulong =  0x0000_0017; // data: *mut u32,  get_manufacture_date
-pub const SC_CARDCTL_ACOS5_GET_ROM_SHA1            : c_ulong =  0x0000_0018; // data: *mut CardCtlArray20,  get_rom_sha1
+pub const SC_CARDCTL_ACOS5_GET_ROM_SHA1            : c_ulong =  0x0000_0018; // data: *mut [u8; 20],  get_rom_sha1
 pub const SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE        : c_ulong =  0x0000_0019; // data: *mut u8,  get_op_mode_byte
-pub const SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE     : c_ulong =  0x0000_001A; // data: *mut bool,  get_fips_compliance
-pub const SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE      : c_ulong =  0x0000_001B; // data: *mut CardCtlAuthState,  get_pin_auth_state
-pub const SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE      : c_ulong =  0x0000_001C; // data: *mut CardCtlAuthState,  get_key_auth_state
+pub const SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE     : c_ulong =  0x0000_001A; // data: *mut bool,  get_is_fips_compliant
+pub const SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE      : c_ulong =  0x0000_001B; // data: *mut CardCtlAuthState,  get_is_pin_authenticated
+pub const SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE      : c_ulong =  0x0000_001C; // data: *mut CardCtlAuthState,  get_is_key_authenticated
 
 pub const SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO   : c_ulong =  0x0000_001E; // data: null
 pub const SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO   : c_ulong =  0x0000_001F; // data: *mut CardCtlArray32,  get_files_hashmap_info
@@ -285,35 +284,36 @@ pub struct acos5_ec_curve {
 
 /* common types and general function(s) */
 
-// struct for SC_CARDCTL_GET_FILE_INFO and SC_CARDCTL_GET_COS_VERSION
+// struct for SC_CARDCTL_GET_FILE_INFO
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct CardCtlArray8 {
     pub reference  : u8,      // IN  indexing begins with 0, used for SC_CARDCTL_GET_FILE_INFO
     pub value      : [u8; 8], // OUT
 }
-
+/*
 // struct for SC_CARDCTL_GET_ROM_SHA1
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct CardCtlArray20 {
     pub value      : [u8; 20], // OUT
 }
-
-// struct for SC_CARDCTL_GET_PIN_AUTH_STATE and SC_CARDCTL_GET_KEY_AUTH_STATE
-#[repr(C)]
-#[derive(Default, Debug, Copy, Clone,  PartialEq)]
-pub struct CardCtlAuthState {
-    pub reference  : u8, // IN  pin/key reference, | 0x80 for local
-    pub value      : bool,    // OUT
-}
+*/
 
 // struct for SC_CARDCTL_GET_FILES_HASHMAP_INFO
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct CardCtlArray32 {
-    pub key    : u16,           // IN   file_id
+    pub key    : u16,      // IN   file_id
     pub value  : [u8; 32], // OUT  in the order as acos5_gui defines // alias  TreeTypeFS = Tree_k_ary!ub32;
+}
+
+// struct for SC_CARDCTL_GET_PIN_AUTH_STATE and SC_CARDCTL_GET_KEY_AUTH_STATE
+#[repr(C)]
+#[derive(Default, Debug, Copy, Clone,  PartialEq)]
+pub struct CardCtlAuthState {
+    pub reference  : u8,   // IN  pin/key reference, | 0x80 for local
+    pub value      : bool, // OUT
 }
 
 // struct for SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST and SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE, SC_CARDCTL_ACOS5_ENCRYPT_ASYM// data: *mut CardCtl_generate_crypt_asym, do_generate_asym, do_crypt_asym

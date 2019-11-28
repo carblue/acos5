@@ -36,7 +36,7 @@ use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_
                          SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA, SC_SEC_ENV_KEY_REF_PRESENT,
                          SC_SEC_ENV_ALG_REF_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_get_iso7816_driver,
                          sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_check_apdu, sc_list_files,
-                         sc_set_security_env, //sc_verify,
+                         sc_set_security_env, sc_get_challenge, //sc_verify,
                          SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_ALGORITHM_AES};
 #[cfg(not(v0_17_0))]
 use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
@@ -69,11 +69,12 @@ use opensc_sys::errors::{/*SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKNOWN, SC_ERROR
                          SC_ERROR_KEYPAD_MSG_TOO_LONG,/*, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL*/
 SC_ERROR_WRONG_LENGTH, SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT_FOUND, SC_ERROR_INCORRECT_PARAMETERS, SC_ERROR_CARD_CMD_FAILED,
 SC_ERROR_OUT_OF_MEMORY, SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_NO_CARD_SUPPORT,
+SC_ERROR_SM_RAND_FAILED
 };
 use opensc_sys::internal::{sc_atr_table};
 use opensc_sys::asn1::{sc_asn1_read_tag};
 use opensc_sys::iso7816::{ISO7816_TAG_FCI, ISO7816_TAG_FCP};
-use opensc_sys::sm::{SM_CMD_FILE_READ, SM_CMD_FILE_UPDATE};
+use opensc_sys::sm::{SM_SMALL_CHALLENGE_LEN, SM_CMD_FILE_READ, SM_CMD_FILE_UPDATE};
 
 use crate::wrappers::*;
 use crate::constants_types::*;
@@ -82,9 +83,88 @@ use crate::path::{cut_path, file_id_from_cache_current_path, file_id_from_path_v
                   is_impossible_file_match};
 use crate::missing_exports::me_get_max_recv_size;
 use crate::cmd_card_info::{get_card_life_cycle_byte_eeprom, get_op_mode_byte_eeprom, get_zeroize_card_disable_byte_eeprom};
-use crate::sm::{sm_common_read, sm_common_update};
+use crate::sm::{SM_SMALL_CHALLENGE_LEN_u8, sm_common_read, sm_common_update};
+use crate::crypto::{RAND_bytes, des_ecb3_unpadded_8, Encrypt};
 
 use super::{acos5_process_fci/*, acos5_list_files, acos5_select_file, acos5_set_security_env*/};
+
+/* card command  External Authentication
+includes getting a challenge from the card and setting a new ssc, thus it stops continuation of an 'active' SM channel
+key_host_reference must be enabled for External Authentication and it's Error Counter must have tries_left>0
+*/
+pub fn authenticate_ext(card: &mut sc_card, key_host_reference: u8, key_host: &[u8]) -> Result<bool, i32> {
+    assert!(!card.ctx.is_null());
+    let ctx = unsafe { &mut *card.ctx };
+    let f = cstru!(b"authenticate_ext\0");
+    log3ifc!(ctx,f,line!());
+    assert_eq!(24, key_host.len());
+//    if key_host_reference==0 || (key_host_reference&0x7F)>31 {
+//        return SC_ERROR_INVALID_ARGUMENTS;
+//    }
+
+    let mut rv = unsafe {
+        sc_get_challenge(card, card.sm_ctx.info.session.cwa.card_challenge.as_mut_ptr(), SM_SMALL_CHALLENGE_LEN) };
+    if rv != SC_SUCCESS {
+        log3ifr!(ctx,f,line!(), rv);
+        return Err(rv);
+    }
+//    unsafe { card.sm_ctx.info.session.cwa.ssc = card.sm_ctx.info.session.cwa.card_challenge };
+    let re = des_ecb3_unpadded_8(unsafe { &card.sm_ctx.info.session.cwa.card_challenge }, key_host,
+                                 Encrypt);
+    /* (key terminal/host) kh */
+    let mut command = [0, 0x82, 0, key_host_reference, SM_SMALL_CHALLENGE_LEN_u8, 0, 0, 0, 0, 0, 0, 0, 0];
+    command[5..5 + SM_SMALL_CHALLENGE_LEN].copy_from_slice(&re);
+    let mut apdu = sc_apdu::default();
+    rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
+    debug_assert_eq!(SC_SUCCESS, rv);
+    debug_assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
+
+    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+    if rv != SC_SUCCESS {
+        log3ifr!(ctx,f,line!(), rv);
+        return Err(rv);
+    }
+    Ok(apdu.sw2==0)
+}
+
+pub fn authenticate_int(card: &mut sc_card, key_card_reference: u8, key_card: &[u8]) -> Result<bool, i32> {
+    assert!(!card.ctx.is_null());
+    let ctx = unsafe { &mut *card.ctx };
+    let f = cstru!(b"authenticate_int\0");
+    log3ifc!(ctx,f,line!());
+    assert_eq!(24, key_card.len());
+    let mut rv = unsafe {
+        RAND_bytes(card.sm_ctx.info.session.cwa.host_challenge.as_mut_ptr(), i32::from(SM_SMALL_CHALLENGE_LEN_u8)) };
+    if rv != 1 {
+        rv = SC_ERROR_SM_RAND_FAILED;
+        log3ifr!(ctx,f,line!(), rv);
+        return Err(rv);
+    }
+    /* (key card) kc */
+    let mut command = [0, 0x88, 0, key_card_reference, SM_SMALL_CHALLENGE_LEN_u8, 0, 0, 0, 0, 0, 0, 0, 0,
+        SM_SMALL_CHALLENGE_LEN_u8];
+    command[5..5 + SM_SMALL_CHALLENGE_LEN].copy_from_slice(unsafe { &card.sm_ctx.info.session.cwa.host_challenge });
+    let mut apdu = sc_apdu::default();
+    rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
+    debug_assert_eq!(SC_SUCCESS, rv);
+    debug_assert_eq!(SC_APDU_CASE_4_SHORT, apdu.cse);
+    debug_assert_eq!(SM_SMALL_CHALLENGE_LEN, apdu.le);
+    let mut challenge_encrypted_by_card = [0; SM_SMALL_CHALLENGE_LEN];
+    apdu.resplen = SM_SMALL_CHALLENGE_LEN;
+    apdu.resp = challenge_encrypted_by_card.as_mut_ptr();
+
+    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+    if rv != SC_SUCCESS {
+        log3ifr!(ctx,f,line!(), rv);
+        return Err(rv);
+    }
+//    let challenge_encrypted_by_host = des_ecb3_unpadded_8(unsafe { &card.sm_ctx.info.session.cwa.host_challenge },
+//                                                          key_card, Encrypt);
+    Ok(des_ecb3_unpadded_8(unsafe { &card.sm_ctx.info.session.cwa.host_challenge }, key_card, Encrypt)
+        == &challenge_encrypted_by_card)
+}
 
 // reference: 1..=31
 // TODO adapt for EVO
@@ -504,6 +584,7 @@ pub fn select_file_by_path(card: &mut sc_card, path_ref: &sc_path, file_out_ptr:
     SC_SUCCESS
 }
 
+/* FIPS compliance dictates these values */
 #[allow(non_snake_case)]
 fn get_known_sec_env_entry_V3_FIPS(is_local: bool, rec_nr: u32, buf: &mut [u8])
 {
@@ -715,7 +796,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
             log3if!(ctx,f,line!(), fmt);
         }
         else {
-            let mut files_contained= vec![0_u8; 300];
+            let mut files_contained= vec![0_u8; 2*255];
             rv = /*acos5_list_files*/ unsafe { sc_list_files(card, files_contained.as_mut_ptr(), files_contained.len()) };
             if rv < SC_SUCCESS {
                 return rv;
@@ -1927,6 +2008,7 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
         }
     }
     else {
+        card.drv_data = Box::into_raw(dp) as p_void;
         return Err(SC_ERROR_FILE_NOT_FOUND);
     }
 

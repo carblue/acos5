@@ -181,11 +181,9 @@ pub mod    wrappers;
 use crate::wrappers::*;
 
 
-/*
 #[cfg(test)]
 #[cfg(test_v2_v3_token)]
 mod   test_v2_v3;
-*/
 
 
 /* #[no_mangle] pub extern fn  is the same as  #[no_mangle] pub extern "C" fn
@@ -409,7 +407,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
         return 0;
     }
-    let card       = unsafe { &mut *card_ptr };
+    let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     let f = cstru!(b"acos5_match_card\0");
     log3if!(ctx,f,line!(), cstru!(b"called. Try to match card with ATR %s\0"),
@@ -436,7 +434,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
     }
 
     /* check for 'Identity Self' */
-    match get_ident_self(card) {
+    match get_is_ident_self_okay(card) {
         Ok(val) => if !val { return 0; },
         Err(_e) => { return 0; },
     };
@@ -593,8 +591,11 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
 //    rsa_algo_flags |= SC_ALGORITHM_RSA_HASH_SHA256;
 //    rsa_algo_flags |= SC_ALGORITHM_MGF1_SHA256;
 
-    let is_fips_compliant = card.type_ > SC_CARD_TYPE_ACOS5_64_V2 &&
-        get_op_mode_byte(card).unwrap()==0 && get_fips_compliance(card).unwrap();
+    let is_fips_compliant = match card.type_ {
+        SC_CARD_TYPE_ACOS5_64_V3 |
+        SC_CARD_TYPE_ACOS5_EVO_V4 => get_op_mode_byte(card).unwrap()==0 && get_is_fips_compliant(card).unwrap(),
+        _ => false,
+    };
     let mut rv;
     let     rsa_key_len_from : u32 = if is_fips_compliant { 2048 } else {  512 };
     let     rsa_key_len_step : u32 = if is_fips_compliant { 1024 } else {  256 };
@@ -618,7 +619,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     }
 
     /* ACOS5 is capable of DES, but I think we can just skip that insecure algo; and the next, 3DES/128 with key1==key3 should NOT be used */
-    me_card_add_symmetric_alg(card, SC_ALGORITHM_DES,  64,  0);
+//    me_card_add_symmetric_alg(card, SC_ALGORITHM_DES,  64,  0);
 //    me_card_add_symmetric_alg(card, SC_ALGORITHM_3DES, 128, 0);
     me_card_add_symmetric_alg(card, SC_ALGORITHM_3DES, 192, 0);
 
@@ -789,6 +790,31 @@ extern "C" fn acos5_finish(card_ptr: *mut sc_card) -> i32
     let ctx = unsafe { &mut *card.ctx };
     log3ifc!(ctx,cstru!(b"acos5_finish\0"),line!());
 ////////////////////
+/*
+    let mut path_x = sc_path::default();
+    unsafe { sc_format_path(cstru!(b"3F00C100C200\0").as_ptr(), &mut path_x); }
+    let mut rv = unsafe { sc_select_file(card, &path_x, null_mut()) };
+    assert_eq!(SC_SUCCESS, rv);
+    {
+        let mut tries_left = 0;
+        let pin1_user: [u8; 8] = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38]; // User pin, local  12345678
+//        let pin2_user: [u8; 8] = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38];
+        let mut pin_cmd_data = sc_pin_cmd_data {
+            cmd: SC_PIN_CMD_VERIFY, // SC_PIN_CMD_GET_INFO  SC_PIN_CMD_VERIFY SC_PIN_CMD_CHANGE SC_PIN_CMD_UNBLOCK
+            pin_reference: 0x81,
+            pin1: sc_pin_cmd_pin {
+                data: pin1_user.as_ptr(),
+                len:  i32::try_from(pin1_user.len()).unwrap(),
+                ..sc_pin_cmd_pin::default()
+            },
+            ..sc_pin_cmd_data::default()
+        };
+        rv = unsafe { sc_pin_cmd(card, &mut pin_cmd_data, &mut tries_left) }; // done with SM Conf
+        assert_eq!(SC_SUCCESS, rv);
+    }
+    rv = unsafe { sc_delete_file(card, &path_x) };
+
+*/
 /* * /
     let mut path_x = sc_path::default();
     unsafe { sc_format_path(cstru!(b"3F00C100C200C300C304\0").as_ptr(), &mut path_x); }
@@ -997,154 +1023,146 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
-    let card       = unsafe { &mut *card_ptr };
+    let card = unsafe { &mut *card_ptr };
     log3ifc!(unsafe { &mut *card.ctx }, cstru!(b"acos5_card_ctl\0"), line!());
 
     if data_ptr.is_null() && ![SC_CARDCTL_LIFECYCLE_SET, SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO].contains(&command)
     { return SC_ERROR_INVALID_ARGUMENTS; }
 
     match command {
+//        SC_CARDCTL_GENERIC_BASE |
+//        SC_CARDCTL_ERASE_CARD |
+//        SC_CARDCTL_GET_DEFAULT_KEY |
+//        SC_CARDCTL_LIFECYCLE_GET |
         SC_CARDCTL_LIFECYCLE_SET =>
+//        SC_CARDCTL_GET_SE_INFO |
+//        SC_CARDCTL_GET_CHV_REFERENCE_IN_SE |
+//        SC_CARDCTL_PKCS11_INIT_TOKEN |
+//        SC_CARDCTL_PKCS11_INIT_PIN |
             SC_ERROR_NOT_SUPPORTED, // see sc_pkcs15init_bind
         SC_CARDCTL_GET_SERIALNR =>
             {
-                let serial_number = match get_serialnr(card) {
+                let rm_serialnr = unsafe { &mut *(data_ptr as *mut sc_serial_number) };
+                *rm_serialnr = match get_serialnr(card) {
                     Ok(val) => val,
                     Err(e) => return e,
                 };
-                unsafe { *(data_ptr as *mut sc_serial_number) = serial_number };
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF =>
             {
-                let count_files_curr_df = match get_count_files_curr_df(card) {
+                let rm_count_files_curr_df = unsafe { &mut *(data_ptr as *mut u16) };
+                *rm_count_files_curr_df = match get_count_files_curr_df(card) {
                     Ok(val) => val,
                     Err(e) => return e,
                 };
-                unsafe { *(data_ptr as *mut u16) = count_files_curr_df };
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_GET_FILE_INFO =>
             {
-                let file_info_ptr = data_ptr as *mut CardCtlArray8;
-                let reference = unsafe { (*file_info_ptr).reference };
-                let file_info = match get_file_info(card, reference) {
+                let rm_file_info = unsafe { &mut *(data_ptr as *mut CardCtlArray8) };
+                rm_file_info.value = match get_file_info(card, rm_file_info.reference) {
                     Ok(val) => val,
                     Err(e) => return e,
                 };
-                unsafe { (*file_info_ptr).value = file_info };
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_GET_FREE_SPACE =>
             {
-                let free_space = match get_free_space(card) {
+                let rm_free_space = unsafe { &mut *(data_ptr as *mut u32) };
+                *rm_free_space = match get_free_space(card) {
                     Ok(val) => val,
                     Err(e) => return e,
                 };
-                unsafe { *(data_ptr as *mut u32) = free_space };
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_GET_IDENT_SELF =>
             {
-                let is_hw_acos5 = match get_ident_self(card) {
+                let rm_is_hw_acos5 = unsafe { &mut *(data_ptr as *mut bool) };
+                *rm_is_hw_acos5 = match get_is_ident_self_okay(card) {
                     Ok(val) => val,
                     Err(e) => return e,
                 };
-                unsafe { *(data_ptr as *mut bool) = is_hw_acos5 };
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_GET_COS_VERSION =>
             {
-                let cos_version = match get_cos_version(card) {
+                let rm_cos_version = unsafe { &mut *(data_ptr as *mut [u8; 8]) };
+                *rm_cos_version = match get_cos_version(card) {
                     Ok(val) => val,
                     Err(e) => return e,
                 };
-                unsafe { (*(data_ptr as *mut CardCtlArray8)).value = cos_version };
                 SC_SUCCESS
             },
 
 
         SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE =>
             {
-                let manufacture_date = if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return SC_ERROR_NO_CARD_SUPPORT; }
-                    else {
-                        match get_manufacture_date(card) {
-                            Ok(val) => val,
-                            Err(e) => return e,
-                        }
-                    };
-                unsafe { *(data_ptr as *mut u32) = manufacture_date };
+                if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return SC_ERROR_NO_CARD_SUPPORT; }
+                let rm_manufacture_date = unsafe { &mut *(data_ptr as *mut u32) };
+                *rm_manufacture_date = match get_manufacture_date(card) {
+                    Ok(val) => val,
+                    Err(e) => return e,
+                };
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_GET_ROM_SHA1 =>
             {
-                let rom_sha1 = if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return SC_ERROR_NO_CARD_SUPPORT; }
-                    else {
-                        match get_rom_sha1(card) {
-                            Ok(val) => val,
-                            Err(e) => return e,
-                        }
-                    };
-                unsafe { (*(data_ptr as *mut CardCtlArray20)).value = rom_sha1 };
+                if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return SC_ERROR_NO_CARD_SUPPORT; }
+                let rm_rom_sha1 = unsafe { &mut *(data_ptr as *mut [u8; 20]) };
+                *rm_rom_sha1 = match get_rom_sha1(card) {
+                    Ok(val) => val,
+                    Err(e) => return e,
+                };
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE =>
             {
-                let op_mode_byte = if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return SC_ERROR_NO_CARD_SUPPORT; }
-                    else {
-                        match get_op_mode_byte(card) {
-                            Ok(val) => val,
-                            Err(e) => return e,
-                        }
-                    };
-                unsafe { *(data_ptr as *mut u8) = op_mode_byte };
+                if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return SC_ERROR_NO_CARD_SUPPORT; }
+                let rm_op_mode_byte = unsafe { &mut *(data_ptr as *mut u8) };
+                *rm_op_mode_byte = match get_op_mode_byte(card) {
+                    Ok(val) => val,
+                    Err(e) => return e,
+                };
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE =>
             {
                 if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return SC_ERROR_NO_CARD_SUPPORT; }
-                let is_fips_compliant = match get_fips_compliance(card) {
+                let rm_is_fips_compliant = unsafe { &mut *(data_ptr as *mut bool) };
+                *rm_is_fips_compliant = match get_is_fips_compliant(card) {
                     Ok(val) => val,
                     Err(e) => return e,
                 };
-                unsafe { *(data_ptr as *mut bool) = is_fips_compliant };
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE =>
             {
                 if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return SC_ERROR_NO_CARD_SUPPORT; }
-
-                let pin_auth_state_ptr = data_ptr as *mut CardCtlAuthState;
-                let reference = unsafe { (*pin_auth_state_ptr).reference };
-                let pin_auth_state = match get_pin_auth_state(card, reference) {
+                let rm_pin_auth_state = unsafe { &mut *(data_ptr as *mut CardCtlAuthState) };
+                rm_pin_auth_state.value = match get_is_pin_authenticated(card, rm_pin_auth_state.reference) {
                     Ok(val) => val,
                     Err(e) => return e,
                 };
-                unsafe { (*pin_auth_state_ptr).value = pin_auth_state };
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE =>
             {
                 if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return SC_ERROR_NO_CARD_SUPPORT; }
-
-                let key_auth_state_ptr = data_ptr as *mut CardCtlAuthState;
-                let reference = unsafe { (*key_auth_state_ptr).reference };
-                let key_auth_state = match get_key_auth_state(card, reference) {
+                let rm_key_auth_state = unsafe { &mut *(data_ptr as *mut CardCtlAuthState) };
+                rm_key_auth_state.value = match get_is_key_authenticated(card, rm_key_auth_state.reference) {
                     Ok(val) => val,
                     Err(e) => return e,
                 };
-                unsafe { (*key_auth_state_ptr).value = key_auth_state };
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO =>
             {
-                let files_hashmap_info_ptr = data_ptr as *mut CardCtlArray32;
-                let key = unsafe { (*files_hashmap_info_ptr).key };
-                let files_hashmap_info = match get_files_hashmap_info(card, key) {
+                let rm_files_hashmap_info = unsafe { &mut *(data_ptr as *mut CardCtlArray32) };
+                rm_files_hashmap_info.value = match get_files_hashmap_info(card, rm_files_hashmap_info.key) {
                     Ok(val) => val,
                     Err(e) => return e,
                 };
-                unsafe { (*files_hashmap_info_ptr).value = files_hashmap_info };
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO =>
@@ -1201,78 +1219,6 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
  */
 extern "C" fn acos5_select_file(card_ptr: *mut sc_card, path_ptr: *const sc_path, file_out_ptr: *mut *mut sc_file) -> i32
 {
-/*
-  Basically, the iso implementation for select_file can work for acos (and always will finally be called), but only if given appropriate parameters.
-  A small part of the following select_file implementation is dedicated to solve that, heading: use path.type_ == SC_PATH_TYPE_FILE_ID only.
-  But other requirements make the implementation quite complex:
-  1. It's necessary to ensure, that the file selected really resides at the given/selected location (path): If acos doesn't find a file within the selected directory,
-     it will look-up several other paths, thus may find another one, not intended to be selected (acos allows duplicate file ids, given the containing directories differ).
-     There is no way other than disallowing duplicate file/directory ids by the driver and to ensure rule compliance, also when updating by create_file and delete_file.
-     Function acos5_init does invoke scanning the card's file system and populate a hash map with i.a. File Information from 'Get Card Info';
-     The 'original' 8 bytes (unused ones will be replaced by other values) are: {FDB, DCB, FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI}
-     - hash map with file ids as key -
-     and will reject even a matching card that contains file id duplicate(s).
-     TODO this is not enforced currently
-
-  2. The access control implemented by acos also is quite complex: Security Attributes Compact (SAC) and Security Attributes Expanded (SAE) and boils down to this:
-     Purely by selecting a file/directory, the information about 'rights for acos commands to be allowed to execute' is not complete but must be looked up, different for each directory.
-     Thus it suggests itself to also employ a table like structure holding that information: On each selection of a directory, a look-up will be performed if the info is available, otherwise
-     retrieved and stored to the table. Any commands that alter the relevant info source (Security Environment File and it's records) must also update the look up table.
-     The source for SAE is coded within the directory's header meta data (immutable as long as the directory exists) and may also refer to the Security Environment File (with mutable data).
-
-  3. As preface: acos uses the select command also for extraordinary tasks like 'Clear the internal memory collecting Control Reference Templates (CRT)' or revoke PIN/KEY access rigths etc.
-     which must be emitted in order to take effect. On the other hand, with a simplistic impl. of select_file, it turns out that many select commands are superfluous: E.g. coming from selected path
-     3F00410043004305 in order to select 3F00410043004307 (both files in the same directory) the simple impl. will select in turn 3F00, 4100, 4300 and finally 4307,
-     though for acos it would be sufficient to issue select 4307 right away.
-     Thus there will be some logic required (making use of acos 'search files at different places' capability to speed up performance and distinguish from cases,
-     where selects must not be stripped off (i.e. when the selection path ends at a directory - even if it's the same as the actual - selection must not be skipped).
-     For this, the info from 1. comes in handy.
-
-     8.2.1.  Verify PIN
-This command is used to submit a PIN code to gain access rights. Access rights achieved will be
-invalidated when a new DF is selected. Command submission with P3=0 will return the remaining
-number of retries left for the PIN.
-
-There is an undocumented order dependence:
-This works       :  select_file, verify_pin, set_security_env
-This doesn't work:  select_file, set_security_env, verify_pin
-
-     8.4.2.1.  Set Security Environment
-To clear the accumulated CRT’s, issue a SELECT FILE command
-
-  Format of HashMap<KeyTypeFiles, ValueTypeFiles> :
-  pub type KeyTypeFiles   = u16;
-  //                                 path (absolute)                 File Info        scb8                SACinfo
-  pub type ValueTypeFiles = (Option<[u8; SC_MAX_PATH_SIZE]>, Option<[u8; 8]>, Option<[u8; 8]>, Option<Vec<SACinfo>>);
-  1. tuple element: path, the absolute path, 16 bytes
-  2. tuple element: originally it contains File Information from acos command 'Get Card Info': {FDB, DCB, FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI}
-                    FDB: the File Descriptor Byte
-                   *DCB (unused by acos): will be replaced by path.len of 1. tuple element, the len actually used for the path
-                    FILE ID: 2 bytes containing the file id, the same as hash map entry's key
-                   *SIZE or MRL: For record-based file types, the Max.Record Length, otherwise (if it's not MF/DF), the MSB of file size;
-                                 for MF/DF, this byte holds MSB of associated SE file id
-                   *SIZE or NOR: For record-based file types, the Number Of Records created for this file, otherwise (if it's not MF/DF), the LSB of file size;
-                                 for MF/DF, this byte holds LSB of associated SE file id
-                   *SFI  Short file Identifier (unused by the driver and opensc?): will be replaced by PKCS#15 file type
-                    LCSI: Life Cycle Status Integer
-  3. tuple element: scb8, 8 Security Condition Bytes after conversion, i.e. scb8[3..8] refer to Deactivate/SC_AC_OP_INVALIDATE, Activate/SC_AC_OP_REHABILITATE, Terminate/SC_AC_OP_LOCK, SC_AC_OP_DELETE_SELF, Unused Byte
-(later here: sm_mode8: Coding Secure Messaging required or not, same operations referred to by position as in scb8, i.e. an SCB 0x45 will have set at same position in sm_mode8: Either SM_MODE_CCT or SM_MODE_CCT_AND_CT_SYM, depending on content of Security Environment file record id 5)
-  4. tuple element: SACinfo referring to SAC (SAE is not covered so far)
-                    Each vector element covers the content of Security Environment file's record, identified by reference==record's SE id (should be the same as record number)
-                    SACinfo is stored for DF/MF only, each of which have different vectors
-(later here: SaeInfo)
-
-
-
-
-  If file_out_ptr != NULL then, as long as iso7816_select_file behavior is not mimiced completely, it's important to call iso7816_select_file finally: It will call process_fci
-  and evaluate the file header bytes !
-  Main reasons why this function exists:
-    acos supports P2==0 and (P1==0 (SC_PATH_TYPE_FILE_ID) or P1==4 (SC_PATH_TYPE_DF_NAME)) only
-  - Not all path.type_ are handled correctly for ACOS5 by iso7816_select_file (depending also on file_out_ptr):
-    SC_PATH_TYPE_FILE_ID can be handled by iso7816_select_file (for file_out_ptr == NULL sets incorrectly sets p2 = 0x0C, but then on error sw1sw2 == 0x6A86 corrects to p2=0
-    SC_PATH_TYPE_PATH will set P1 to 8, unknown by acos, but can be worked around splitting the path into len=2 temporary path segments with SC_PATH_TYPE_FILE_ID
-*/
     if card_ptr.is_null() || path_ptr.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
@@ -1290,8 +1236,8 @@ To clear the accumulated CRT’s, issue a SELECT FILE command
     let target_file_id = file_id_from_path_value(&path_ref.value[..path_ref.len]); // wrong result for SC_PATH_TYPE_DF_NAME, but doesn't matter
     /* if we are not called from within "is_running_init==true", then we must be sure that dp.files.2 is Some, i.e. we know the scb8 of target file when returning from select_file
        We don't know what comes next after select_file: it may be a cmd that enforces using SM (retrievable from scb8) */
-    let need_to_process_fci = !dp.is_running_init && ((path_ref.type_==SC_PATH_TYPE_DF_NAME && file_out_ptr.is_null()) ||
-        (dp.files.contains_key(&target_file_id) && dp.files[&target_file_id].2.is_none()));
+    let need_to_process_fci = !dp.is_running_init && ((path_ref.type_==SC_PATH_TYPE_DF_NAME && file_out_ptr.is_null())
+        || (dp.files.contains_key(&target_file_id) && dp.files[&target_file_id].2.is_none()));
     card.drv_data = Box::into_raw(dp) as p_void;
     if !does_mf_exist { return SC_ERROR_NOT_ALLOWED; }
     let file_opt =  if file_out_ptr.is_null() {None} else {Some(file_out_ptr)};
@@ -1331,7 +1277,7 @@ extern "C" fn acos5_get_response(card_ptr: *mut sc_card, count_ptr: *mut usize, 
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || count_ptr.is_null() || buf_ptr.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
-    let card       = unsafe { &mut *card_ptr };
+    let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     let f = cstru!(b"acos5_get_response\0");
     let cnt_in = unsafe { *count_ptr };
@@ -1385,7 +1331,7 @@ println!("### acos5_get_response returned apdu.sw1: {:X}, apdu.sw2: {:X}   Unkno
     if      apdu.sw1==0x90 && apdu.sw2==0x00 {
         /* for some cos5 commands, it's NOT necessarily true, that status word 0x9000 signals "no more data to read" */
         rv = if get_is_running_cmd_long_response(card) {set_is_running_cmd_long_response(card, false); 256} else {0 /* no more data to read */};
-        /* switching of here should also work for e.g. a 3072 bit key:
+        /* switching off here should also work for e.g. a 3072 bit key:
            The first  invocation by sc_get_response is with *count_ptr==256 (set by sc_get_response)
            The second invocation by sc_get_response is with *count_ptr==256 (got from rv, line above), fails, as the correct rv should have been 128,
              but the failure doesn't crawl up to this function, as a retransmit with corrected value 128 will be done in the low sc_transmit layer;
@@ -1540,7 +1486,7 @@ extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) 
     rv = unsafe { func_ptr(card, file_ptr) };
 
     if rv != SC_SUCCESS {
-        log3if!(ctx,f,line!(), cstru!(b"acos5_create_file failed. rv: %d\0"), rv);
+        log3ifr!(ctx,f,line!(), cstru!(b"Error: failed with\0"), rv);
     }
     else {
         let file_ref : &sc_file = file;
@@ -1667,6 +1613,10 @@ println!("file_id: {:X} is not a key of hashmap dp.files", file_id);
 }
 
 /*
+deficiency: It's not known in advance, how many files will be reported by get_count_files_curr_df, but an arg
+buflen must be supplied to sc_list_files. If that is to small and there are more files, then truncation occurs and
+x files will not be listed by this function: TODO add a warning message
+
  * what's expected are the file IDs of files within the selected directory.
  * as opensc-tool provides as buf u8[SC_MAX_APDU_BUFFER_SIZE], max 130 files for each directory can be listed
  * @param  card    INOUT
@@ -1696,16 +1646,15 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
         Err(e) => return e,
     };
     if numfiles > 0 {
-        let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let is_running_init = dp.is_running_init;
+        card.drv_data = Box::into_raw(dp) as p_void;
 
         /* collect the IDs of files in the currently selected directory, restrict to max. 255, because addressing has 1 byte only */
-        for i  in 0.. std::cmp::min(u8::try_from(numfiles).unwrap(), 255) { // [0..254] or [1..255]
-            let mut rbuf = match get_file_info(card, i + if card.type_==SC_CARD_TYPE_ACOS5_EVO_V4 {1_u8} else {0_u8}) {
+        for i  in 0..u8::try_from(numfiles).unwrap() { // [0..255]
+            let mut rbuf = match get_file_info(card, i) {
                 Ok(val) => val,
-                Err(e) => {
-                    card.drv_data = Box::into_raw(dp) as p_void;
-                    return e
-                },
+                Err(e)    => return e,
             };
             unsafe {
                 *buf_ptr.add(usize::from(i) * 2    ) = rbuf[2];
@@ -1720,7 +1669,8 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
 
             let file_id = u16::from_be_bytes([rbuf[2], rbuf[3]]);
 
-            if dp.is_running_init {
+            if is_running_init {
+                let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
                 if dp.files.contains_key(&file_id) {
                     card.drv_data = Box::into_raw(dp) as p_void;
                     let rv = SC_ERROR_NOT_ALLOWED;
@@ -1728,9 +1678,9 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
                     return rv;
                 }
                 dp.files.insert(file_id, ([0; SC_MAX_PATH_SIZE], rbuf, None, None, None));
+                card.drv_data = Box::into_raw(dp) as p_void;
             }
         } // for
-        card.drv_data = Box::into_raw(dp) as p_void;
     }
     i32::from(numfiles)*2
 }
@@ -2170,53 +2120,8 @@ extern "C" fn acos5_pin_cmd(card_ptr: *mut sc_card, data_ptr: *mut sc_pin_cmd_da
     let mut dummy_tries_left : i32 = -1;
 
     log3if!(ctx,f,line!(), cstru!(b"called for cmd: %d\0"), pin_cmd_data.cmd);
-/*
-    if      SC_PIN_CMD_GET_INFO == pin_cmd_data.cmd {
-         pin_get_policy(card, pin_cmd_data,
-                       if tries_left_ptr.is_null() {
-                                    &mut dummy_tries_left
-                                }
-                                else {
-                                    unsafe { &mut *tries_left_ptr }
-                                }
-        )
-    }
-*/
+
     if      SC_PIN_CMD_GET_INFO == pin_cmd_data.cmd { // pin1 unused, pin2 unused
-/*
-println!("SC_PIN_CMD_GET_INFO: before execution:");
-println!("pin_cmd_data.cmd:           {:X}", pin_cmd_data.cmd);
-println!("pin_cmd_data.flags:         {:X}", pin_cmd_data.flags);
-println!("pin_cmd_data.pin_type:      {:X}", pin_cmd_data.pin_type);
-println!("pin_cmd_data.pin_reference: {:X}", pin_cmd_data.pin_reference);
-
-println!("pin_cmd_data.apdu:          {:p}", pin_cmd_data.apdu);
-println!("pin_cmd_data.pin2.len:      {}", pin_cmd_data.pin2.len);
-println!();
-println!("pin_cmd_data.pin1.prompt:   {:p}", pin_cmd_data.pin1.prompt);
-println!("pin_cmd_data.pin1.data:     {:p}", pin_cmd_data.pin1.data);
-println!("pin_cmd_data.pin1.len:      {}", pin_cmd_data.pin1.len);
-if ! pin_cmd_data.pin1.data.is_null() {
-    println!("pin_cmd_data.pin1           {:X?}", unsafe { from_raw_parts(pin_cmd_data.pin1.data, usize::try_from(pin_cmd_data.pin1.len).unwrap()) } );
-}
-println!("pin_cmd_data.pin1.min_length:      {}", pin_cmd_data.pin1.min_length);
-println!("pin_cmd_data.pin1.max_length:      {}", pin_cmd_data.pin1.max_length);
-println!("pin_cmd_data.pin1.stored_length:   {}", pin_cmd_data.pin1.stored_length);
-
-println!("pin_cmd_data.pin1.encoding:        {:X}", pin_cmd_data.pin1.encoding);
-println!("pin_cmd_data.pin1.pad_length:      {}", pin_cmd_data.pin1.pad_length);
-println!("pin_cmd_data.pin1.pad_char:        {}", pin_cmd_data.pin1.pad_char);
-
-println!("pin_cmd_data.pin1.offset:          {}", pin_cmd_data.pin1.offset);
-println!("pin_cmd_data.pin1.length_offset:   {}", pin_cmd_data.pin1.length_offset);
-
-println!("pin_cmd_data.pin1.max_tries:   {}", pin_cmd_data.pin1.max_tries);
-println!("pin_cmd_data.pin1.tries_left:  {}", pin_cmd_data.pin1.tries_left);
-println!("pin_cmd_data.pin1.logged_in:   {}", pin_cmd_data.pin1.logged_in);
-//println!("pin_cmd_data.pin1.acls:        {:?}", pin_cmd_data.pin1.acls);
-println!();
-*/
-
         if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 {
             /*let rv =*/ pin_get_policy(card, pin_cmd_data,
                              if tries_left_ptr.is_null() {
@@ -2226,16 +2131,6 @@ println!();
                                  unsafe { &mut *tries_left_ptr }
                              }
             )
-/*
-println!("SC_PIN_CMD_GET_INFO: after execution:");
-println!("pin_cmd_data.pin1.offset:          {}", pin_cmd_data.pin1.offset);
-println!("pin_cmd_data.pin1.length_offset:   {}", pin_cmd_data.pin1.length_offset);
-println!("pin_cmd_data.pin1.max_tries:   {}", pin_cmd_data.pin1.max_tries);
-println!("pin_cmd_data.pin1.tries_left:  {}", pin_cmd_data.pin1.tries_left);
-println!("pin_cmd_data.pin1.logged_in:   {}", pin_cmd_data.pin1.logged_in);
-println!();
-            rv
-*/
         }
         else {
             let file_id = file_id_from_cache_current_path(card);
@@ -2260,16 +2155,6 @@ println!();
                     sm_pin_cmd_get_policy(card, pin_cmd_data,
                         if tries_left_ptr.is_null() { &mut dummy_tries_left }
                         else { unsafe { &mut *tries_left_ptr } })
-/*
-println!("SC_PIN_CMD_GET_INFO: after execution:");
-println!("pin_cmd_data.pin1.offset:          {}", pin_cmd_data.pin1.offset);
-println!("pin_cmd_data.pin1.length_offset:   {}", pin_cmd_data.pin1.length_offset);
-println!("pin_cmd_data.pin1.max_tries:   {}", pin_cmd_data.pin1.max_tries);
-println!("pin_cmd_data.pin1.tries_left:  {}", pin_cmd_data.pin1.tries_left);
-println!("pin_cmd_data.pin1.logged_in:   {}", pin_cmd_data.pin1.logged_in);
-println!();
-                    rv
-*/
                 }
             }
             else {
@@ -2417,94 +2302,18 @@ println!();
            pin_cmd_data.pin1.len  > 8 {
             return SC_ERROR_INVALID_ARGUMENTS;
         }
-        /*
-                println!("SC_PIN_CMD_CHANGE: before execution:");
-                println!("pin_cmd_data.cmd:           {:X}", pin_cmd_data.cmd);
-                println!("pin_cmd_data.flags:         {:X}", pin_cmd_data.flags);
-                println!("pin_cmd_data.pin_type:      {:X}", pin_cmd_data.pin_type);
-                println!("pin_cmd_data.pin_reference: {:X}", pin_cmd_data.pin_reference);
-
-                println!("pin_cmd_data.apdu:          {:p}", pin_cmd_data.apdu);
-                println!("pin_cmd_data.pin2.len:      {}", pin_cmd_data.pin2.len);
-                println!();
-                println!("pin_cmd_data.pin1.prompt:   {:p}", pin_cmd_data.pin1.prompt);
-                println!("pin_cmd_data.pin1.data:     {:p}", pin_cmd_data.pin1.data);
-                println!("pin_cmd_data.pin1.len:      {}", pin_cmd_data.pin1.len);
-                if ! pin_cmd_data.pin1.data.is_null() {
-                    println!("pin_cmd_data.pin1           {:X?}", unsafe { from_raw_parts(pin_cmd_data.pin1.data, usize::try_from(pin_cmd_data.pin1.len).unwrap()) } );
-                }
-                println!("pin_cmd_data.pin1.min_length:      {}", pin_cmd_data.pin1.min_length);
-                println!("pin_cmd_data.pin1.max_length:      {}", pin_cmd_data.pin1.max_length);
-                println!("pin_cmd_data.pin1.stored_length:   {}", pin_cmd_data.pin1.stored_length);
-
-                println!("pin_cmd_data.pin1.encoding:        {:X}", pin_cmd_data.pin1.encoding);
-                println!("pin_cmd_data.pin1.pad_length:      {}", pin_cmd_data.pin1.pad_length);
-                println!("pin_cmd_data.pin1.pad_char:        {}", pin_cmd_data.pin1.pad_char);
-
-                println!("pin_cmd_data.pin1.offset:          {}", pin_cmd_data.pin1.offset);
-                println!("pin_cmd_data.pin1.length_offset:   {}", pin_cmd_data.pin1.length_offset);
-
-                println!("pin_cmd_data.pin1.max_tries:   {}", pin_cmd_data.pin1.max_tries);
-                println!("pin_cmd_data.pin1.tries_left:  {}", pin_cmd_data.pin1.tries_left);
-                println!("pin_cmd_data.pin1.logged_in:   {}", pin_cmd_data.pin1.logged_in);
-        //        println!("pin_cmd_data.pin1.acls:        {:?}", pin_cmd_data.pin1.acls);
-                println!();
-        */
-        /*
-        SC_PIN_CMD_CHANGE: before execution:
-        pin_cmd_data.cmd:           0
-        pin_cmd_data.flags:         2
-        pin_cmd_data.pin_type:      1
-        pin_cmd_data.pin_reference: 81
-        pin_cmd_data.apdu:          0x0
-        pin_cmd_data.pin2.len:      0
-
-        pin_cmd_data.pin1.prompt:   0x0
-        pin_cmd_data.pin1.data:     0x5558bdf12cc0
-        pin_cmd_data.pin1.len:      8
-        pin_cmd_data.pin1           [31, 32, 33, 34, 35, 36, 37, 38]
-        pin_cmd_data.pin1.min_length:      4
-        pin_cmd_data.pin1.max_length:      8
-        pin_cmd_data.pin1.stored_length:   0
-        pin_cmd_data.pin1.encoding:        0
-        pin_cmd_data.pin1.pad_length:      8
-        pin_cmd_data.pin1.pad_char:        255
-        pin_cmd_data.pin1.offset:          0  -> 5
-        pin_cmd_data.pin1.length_offset:   0
-        pin_cmd_data.pin1.max_tries:   0
-        pin_cmd_data.pin1.tries_left:  0      -> -1
-        pin_cmd_data.pin1.logged_in:   0      -> 1
-
-        SC_PIN_CMD_CHANGE: after execution:
-        pin_cmd_data.pin1.offset:          5
-        pin_cmd_data.pin1.length_offset:   0
-        pin_cmd_data.pin1.max_tries:   0
-        pin_cmd_data.pin1.tries_left:  -1
-        pin_cmd_data.pin1.logged_in:   1
-        */
 
         if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 {
-            /*let rv =*/ unsafe { (*(*sc_get_iso7816_driver()).ops).pin_cmd.unwrap()(card, pin_cmd_data, tries_left_ptr) }
-            /*
-            println!("SC_PIN_CMD_VERIFY: after execution:");
-            println!("pin_cmd_data.pin1.offset:          {}", pin_cmd_data.pin1.offset);
-            println!("pin_cmd_data.pin1.length_offset:   {}", pin_cmd_data.pin1.length_offset);
-            println!("pin_cmd_data.pin1.max_tries:   {}", pin_cmd_data.pin1.max_tries);
-            println!("pin_cmd_data.pin1.tries_left:  {}", pin_cmd_data.pin1.tries_left);
-            println!("pin_cmd_data.pin1.logged_in:   {}", pin_cmd_data.pin1.logged_in);
-            println!();
-                        rv
-            */
+            unsafe { (*(*sc_get_iso7816_driver()).ops).pin_cmd.unwrap()(card, pin_cmd_data, tries_left_ptr) }
         }
         else {
             let file_id = file_id_from_cache_current_path(card);
 //println!("file_id: {:X}", file_id);
-            let scb_change_code = se_get_sae_scb(card, [0_u8, 0x24, 0, u8::try_from(pin_cmd_data.pin_reference).unwrap()]);
+            let scb_change_code = se_get_sae_scb(card, [0_u8,0x24,0,u8::try_from(pin_cmd_data.pin_reference).unwrap()]);
 //println!("scb_change_code: {:X}", scb_change_code);
 
             if scb_change_code == 0xFF {
-                log3if!(ctx,f,line!(), cstru!(
-                    b"SC_PIN_CMD_CHANGE won't be done: It's not allowed by SAE\0"));
+                log3if!(ctx,f,line!(), cstru!(b"SC_PIN_CMD_CHANGE won't be done: It's not allowed by SAE\0"));
                 SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
             }
             else if (scb_change_code & 0x40) == 0x40  &&  SC_AC_CHV == pin_cmd_data.pin_type {
@@ -2512,7 +2321,7 @@ println!();
 //println!("res_se_sm: {:?}", res_se_sm);
                 // TODO think about whether SM mode Confidentiality should be enforced
                 if !res_se_sm.0 {
-                    log3if!(ctx,f,line!(), cstru!(b"SC_PIN_CMD_CHANGE won't be done: It's SM protected, but the CRT }\
+                    log3if!(ctx,f,line!(), cstru!(b"SC_PIN_CMD_CHANGE won't be done: It's SM protected, but the CRT \
                         template(s) don't accomplish requirements\0"));
                     SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
                 }
@@ -2520,16 +2329,6 @@ println!();
                     card.sm_ctx.info.cmd = SM_CMD_PIN_SET_PIN; /*let rv =*/
                     sm_pin_cmd(card, pin_cmd_data, if tries_left_ptr.is_null() { &mut dummy_tries_left }
                         else { unsafe { &mut *tries_left_ptr } }, res_se_sm.1)
-                    /*
-                    println!("SC_PIN_CMD_CHANGE: after execution:");
-                    println!("pin_cmd_data.pin1.offset:          {}", pin_cmd_data.pin1.offset);
-                    println!("pin_cmd_data.pin1.length_offset:   {}", pin_cmd_data.pin1.length_offset);
-                    println!("pin_cmd_data.pin1.max_tries:   {}", pin_cmd_data.pin1.max_tries);
-                    println!("pin_cmd_data.pin1.tries_left:  {}", pin_cmd_data.pin1.tries_left);
-                    println!("pin_cmd_data.pin1.logged_in:   {}", pin_cmd_data.pin1.logged_in);
-                    println!();
-                                        rv
-                    */
                 }
             }
             else {
@@ -2552,12 +2351,11 @@ println!();
         else {
             let file_id = file_id_from_cache_current_path(card);
 //println!("file_id: {:X}", file_id);
-            let scb_unblock_pin = se_get_sae_scb(card, [0_u8, 0x24, 0, u8::try_from(pin_cmd_data.pin_reference).unwrap()]);
+            let scb_unblock_pin = se_get_sae_scb(card, [0_u8,0x24,0,u8::try_from(pin_cmd_data.pin_reference).unwrap()]);
 //println!("scb_unblock_pin: {:X}", scb_unblock_pin);
 
             if scb_unblock_pin == 0xFF {
-                log3if!(ctx,f,line!(), cstru!(
-                    b"SC_PIN_CMD_CHANGE won't be done: It's not allowed by SAE\0"));
+                log3if!(ctx,f,line!(), cstru!(b"SC_PIN_CMD_CHANGE won't be done: It's not allowed by SAE\0"));
                 SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
             }
             else if (scb_unblock_pin & 0x40) == 0x40  &&  SC_AC_CHV == pin_cmd_data.pin_type {
@@ -2565,14 +2363,14 @@ println!();
 //println!("res_se_sm: {:?}", res_se_sm);
                 // TODO think about whether SM mode Confidentiality should be enforced
                 if !res_se_sm.0 {
-                    log3if!(ctx,f,line!(), cstru!(b"SC_PIN_CMD_CHANGE won't be done: It's SM protected, but the CRT }\
+                    log3if!(ctx,f,line!(), cstru!(b"SC_PIN_CMD_CHANGE won't be done: It's SM protected, but the CRT \
                         template(s) don't accomplish requirements\0"));
                     SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
                 }
                 else {
                     card.sm_ctx.info.cmd = SM_CMD_PIN_RESET; /*let rv =*/
                     sm_pin_cmd(card, pin_cmd_data, if tries_left_ptr.is_null() { &mut dummy_tries_left }
-                    else { unsafe { &mut *tries_left_ptr } }, res_se_sm.1)
+                        else { unsafe { &mut *tries_left_ptr } }, res_se_sm.1)
                 }
             }
             else {
@@ -2583,32 +2381,6 @@ println!();
 
     else {
         SC_ERROR_NO_CARD_SUPPORT
-/*
-        unsafe {
-            if !tries_left_ptr.is_null() /* || pin_cmd_data.cmd == SC_PIN_CMD_GET_INFO */ {
-                println!("tries_left_ptr: {}", *tries_left_ptr);
-            }
-            /* */
-
-            if !pin_cmd_data.pin1.data.is_null() {
-                let mut arr_pin = [0; 8];
-                for i in 0..std::cmp::min(8_usize, usize::try_from(pin_cmd_data.pin1.len).unwrap()) {
-                    arr_pin[i] = *pin_cmd_data.pin1.data.add(i);
-                }
-                println!("pin1.data: {:?}, pin_cmd_data: {:?}", arr_pin, *pin_cmd_data); // , *pin_cmd_data.apdu
-            }
-            else {
-                println!("pin_cmd_data: {:?}", *pin_cmd_data);
-            }
-
-            /*       */
-        }
-
-        let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).pin_cmd.unwrap()(card, data, tries_left_ptr) };
-        if rv != SC_SUCCESS {
-            return rv;
-        }
-*/
     }
 }
 
@@ -2644,7 +2416,6 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
     let card       = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     let f = cstru!(b"acos5_read_public_key\0");
-//    let key_path_ref : &sc_path = unsafe { &*key_path_ptr };
     log3ifc!(ctx,f,line!());
 
     if algorithm != SC_ALGORITHM_RSA {
@@ -2658,9 +2429,7 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
     log3if!(ctx,f,line!(), cstru!(b"read public key(ref:%i; modulus_length:%i; modulus_bytes:%zu)\0"), key_reference,
         modulus_length, mlbyte);
 
-    let mut file_out_ptr_mut = null_mut();
-//    let mut rv = select_file_by_path(card_ref_mut, key_path_ref, &mut file_out_ptr_mut, true/*, true*/);
-    let mut rv = /*acos5_select_file*/unsafe {sc_select_file(card, key_path_ptr, &mut file_out_ptr_mut)};
+    let mut rv = unsafe { sc_select_file(card, key_path_ptr, null_mut()) };
     if rv != SC_SUCCESS {
         log3if!(ctx,f,line!(), cstru!(b"failed to select public key file\0"));
         return rv;
@@ -2672,40 +2441,7 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
         log3if!(ctx,f,line!(), cstru!(b"get key failed\0"));
         return rv;
     }
-/* * /
-    // TODO use instead : sc_read_binary
-    /* retrieve the raw content of currently selected RSA pub file */
-    let command = [0x80, 0xCA, 0x00, 0x00, 0xFF];
-    let mut apdu = sc_apdu::default();
-    rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
 
-    let mut rbuf = [0; RSAPUB_MAX_LEN];
-    let mut le_remaining = le_total;
-    while le_remaining > 0 {
-        let offset = le_total - le_remaining;
-        apdu.le      =  if le_remaining > 0xFFusize {0xFFusize} else {le_remaining};
-        apdu.resp    =  unsafe { rbuf.as_mut_ptr().add(offset) };
-        apdu.resplen =  rbuf.len() - offset;
-        apdu.p1      =  ((offset >> 8) & 0xFFusize) as u8;
-        apdu.p2      =  ( offset       & 0xFFusize) as u8;
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
-        rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
-        if rv != SC_SUCCESS {
-            log3if!(ctx,f,line!(), cstru!(b"get key failed\0"));
-            return rv;
-        }
-        assert_eq!(apdu.resplen, apdu.le);
-        le_remaining -= apdu.le;
-    }
-*/
-/* */
-    /* check the raw content of RSA pub file
-00 20 41 F1 03 00 00 00 00 00 00 00 00 00 00 00 . A.............
-00 00 01 00 01 6A 54 EB 93 CD 31 9E 37 2D 59 74 .....jT...1.7-Yt
-3F004100 41 31
-     */
     if    rbuf[0] != 0
        || rbuf[1] != u8::try_from((modulus_length+8)/128).unwrap() /* encode_key_RSA_ModulusBitLen(modulus_length) */
 //     || rbuf[2] != key_path_ref.value[key_path_ref.len-2] /* FIXME RSAKEYID_CONVENTION */
@@ -2796,7 +2532,8 @@ extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const
         assert!(env_ref.file_ref.len >= 2);
         let path_idx = env_ref.file_ref.len - 2;
         if SC_SEC_OPERATION_SIGN == env_ref.operation {
-            let command = [0x00, 0x22, 0x01, 0xB6, 0x0A, 0x80, 0x01, algo, 0x81, 0x02,  env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
+            let command = [0x00, 0x22, 0x01, 0xB6, 0x0A, 0x80, 0x01, algo, 0x81, 0x02, env_ref.file_ref.value[path_idx],
+                env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
             let mut apdu = sc_apdu::default();
             rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
             assert_eq!(rv, SC_SUCCESS);
@@ -3481,7 +3218,7 @@ extern "C" fn acos5_unwrap(card_ptr: *mut sc_card, crgram: *const u8, crgram_len
         path.value[..2].copy_from_slice(&dp.sym_key_file_id.to_be_bytes());
         unsafe { sc_select_file(card, &path, null_mut()) };
         /* TODO This only works if Login-PIN is the same as required for SC_AC_OP_UPDATE of file dp.sym_key_file_id */
-        unsafe { sc_update_record(card, u32::from(dp.sym_key_rec_idx), vec.as_ptr(), vec.len(), SC_RECORD_BY_REC_NR) };
+        unsafe { sc_update_record(card, u32::from(dp.sym_key_rec_idx), vec.as_ptr(), vec.len(), 0) };
         dp.is_unwrap_op_in_progress = false;
     }
     card.drv_data = Box::into_raw(dp) as p_void;
@@ -3509,44 +3246,21 @@ extern "C" fn acos5_delete_record(card_ptr: *mut sc_card, rec_nr: u32) -> i32
     let ctx = unsafe { &mut *card.ctx };
     let f = cstru!(b"acos5_delete_record\0");
     log3if!(ctx,f,line!(), cstru!(b"called with rec_nr: %u\0"), rec_nr);
+    assert!(rec_nr>0);
+    let rec_nr = u16::try_from(rec_nr).unwrap();
     let zero_buf = [0; 0xFF];
-    acos5_update_record(card, rec_nr,zero_buf.as_ptr(), zero_buf.len(), 0)
-/*
-    let command = [0, 0xDC, rec_nr as u8, 4, 1, 1];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
-    apdu.lc      = zero_buf.len();
-    apdu.datalen = zero_buf.len();
-    apdu.data    = zero_buf.as_ptr();
-    apdu.flags = SC_RECORD_BY_REC_NR | SC_APDU_FLAGS_NO_RETRY_WL;
-
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
-    if rv == SC_SUCCESS && unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) } == SC_SUCCESS  {
-        zero_buf.len() as i32
-    }
-    else if apdu.sw1 != 0x6C {
-        rv
-    }
-    else {
-        assert!(apdu.sw2 as usize <= zero_buf.len());
-        /* retransmit */
-        apdu.lc      = apdu.sw2 as usize;
-        apdu.datalen = apdu.sw2 as usize;
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
-        rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
-        if rv != SC_SUCCESS {rv} else {apdu.lc as i32}
-    }
-*/
+    common_update(card, rec_nr, &zero_buf, SC_RECORD_BY_REC_NR, false)
 }
-extern "C" fn acos5_append_record(card_ptr: *mut sc_card,
-                                  buf_ptr: *const u8, count: usize, _flags: c_ulong) -> i32
+
+extern "C" fn acos5_append_record(card_ptr: *mut sc_card, buf_ptr: *const u8, count: usize, _flags: c_ulong) -> i32
 {
     if card_ptr.is_null() || buf_ptr.is_null() || count==0 {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *card_ptr };
+    let ctx = unsafe { &mut *card.ctx };
+    let f = cstru!(b"acos5_append_record\0");
+    log3ifc!(ctx,f,line!());
     let buf      = unsafe { from_raw_parts(buf_ptr, count) };
     common_update(card, 0, buf, 0, false)
 }
@@ -3574,6 +3288,7 @@ extern "C" fn acos5_read_record(card_ptr: *mut sc_card, rec_nr: u32,
     if card_ptr.is_null() || buf_ptr.is_null() || count==0 /* || count>255*/ {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
+////    assert!(rec_nr>0); // TODO deactivated because opensc-tool is buggy
     let rec_nr = u16::try_from(rec_nr).unwrap();
     let count = u16::try_from(count).unwrap();
     let card = unsafe { &mut *card_ptr };

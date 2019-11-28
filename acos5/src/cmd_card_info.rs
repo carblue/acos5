@@ -18,7 +18,7 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-/* functions callable via sc_card_ctl(acos5_card_ctl), mostly used by acos5_gui */
+/* functions, (most of) callable via sc_card_ctl(acos5_card_ctl), mostly used by acos5_gui */
 
 use std::ffi::CStr;
 use std::convert::TryFrom;
@@ -27,16 +27,17 @@ use opensc_sys::opensc::{sc_card, sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_ch
 use opensc_sys::types::{sc_serial_number, sc_apdu, SC_MAX_SERIALNR, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_CARD_CMD_FAILED};
 
-use crate::constants_types::*;
-use crate::wrappers::*;
+use crate::constants_types::{SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3};
+use crate::wrappers::{wr_do_log};
 
-/*
- * Get card's (hardware) serial number
- * @apiNote  SC_CARDCTL_GET_SERIALNR; exempt from this function, card.serialnr MUST be treated as immutable
- * @param   card
- * @return  serial number (6 for SC_CARD_TYPE_ACOS5_64_V2 or 8 bytes) or an error encoding
- */
+
 //QS
+/// Get card's (hardware identifying) serial number. Copies result to card.serialnr
+///
+/// @apiNote  SC_CARDCTL_GET_SERIALNR; exempt from this function, card.serialnr MUST be treated as immutable. It's not
+/// clear to me if for SC_CARD_TYPE_ACOS5_64_V3 the last 2 bytes are meaningful if not in FIPS mode (at least they are
+/// the same for each call, thus this uncertainty doesn't matter).\
+/// @return  serial number (6 bytes for SC_CARD_TYPE_ACOS5_64_V2, otherwise 8 bytes) or an OpenSC error
 pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
 {
     assert!(!card.ctx.is_null());
@@ -47,11 +48,11 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
         return Ok(card.serialnr);
     }
 
-    let len_card_serial_number: u8 = if card.type_ > SC_CARD_TYPE_ACOS5_64_V2 {8} else {6};
+    let len_card_serial_number = if card.type_ > SC_CARD_TYPE_ACOS5_64_V2 {8} else {6};
     let command = [0x80, 0x14, 0, 0, len_card_serial_number];
     let mut apdu = sc_apdu::default();
     let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
+    debug_assert_eq!(SC_SUCCESS, rv);
     debug_assert_eq!(SC_APDU_CASE_2_SHORT, apdu.cse);
     debug_assert!(SC_MAX_SERIALNR >= usize::from(len_card_serial_number));
 
@@ -72,6 +73,12 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
 
 
 //QS
+/// Get count of files within currently selected DF.
+///
+/// @apiNote  SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF; ATTENTION: There shouldn't be more than 255 files in a DF, but
+/// if there are more, then the function panics, because the following command get_file_info
+/// works based on byte-size indexing only !\
+/// @return  count of files or an OpenSC error
 pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
 {
     assert!(!card.ctx.is_null());
@@ -82,20 +89,35 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
     let command = [0x80, 0x14, 1, 0];
     let mut apdu = sc_apdu::default();
     let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
+    debug_assert_eq!(SC_SUCCESS, rv);
     debug_assert_eq!(SC_APDU_CASE_1, apdu.cse);
 
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Card Info: Operation Number of files \
+        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Card Info: Number of files \
             under the currently selected DF' failed\0"));
         return Err(SC_ERROR_CARD_CMD_FAILED);
+    }
+    if apdu.sw2 > 255 {
+        panic!("There are more than 255 children in this DF !");
+        /*
+        driver's working currently depends on populating the HashMap files with all card content during card_init, but
+        that would be impossible with more than 255 children in a DF: I.e. checking for duplicates would be incomplete
+        and all assertions that any file is contained in  HashMap files  would be wrong
+        */
     }
     Ok(u16::try_from(apdu.sw2).unwrap())
 }
 
 
+//QS
+/// Get compact file information (8 bytes) of file referenced within currently selected DF.\
+/// The 8 bytes are: FDB, DCB, FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI
+///
+/// @apiNote  SC_CARDCTL_ACOS5_GET_FILE_INFO; for clients: for all card types indexing starts from 0. This function will
+/// care for cards, that behave differently\
+/// @return  file information (8 bytes) or an OpenSC error
 /* Note that reference starts from 0 with V2 and V3, but with V4 reference starts from 1 */
 pub fn get_file_info(card: &mut sc_card, reference: u8) -> Result<[u8; 8], i32>
 {
@@ -104,10 +126,10 @@ pub fn get_file_info(card: &mut sc_card, reference: u8) -> Result<[u8; 8], i32>
     let f = cstru!(b"get_file_info\0");
     log3ifc!(ctx,f,line!());
 
-    let command = [0x80, 0x14, 2, reference+ if card.type_ == SC_CARD_TYPE_ACOS5_EVO_V4 {1} else {0}, 8];
+    let command = [0x80, 0x14, 2, reference+ if card.type_ > SC_CARD_TYPE_ACOS5_64_V3 {1} else {0}, 8];
     let mut apdu = sc_apdu::default();
     let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
+    debug_assert_eq!(SC_SUCCESS, rv);
     debug_assert_eq!(SC_APDU_CASE_2_SHORT, apdu.cse);
     let mut rbuf = [0; 8];
     apdu.resp    =  rbuf.as_mut_ptr();
@@ -118,15 +140,19 @@ pub fn get_file_info(card: &mut sc_card, reference: u8) -> Result<[u8; 8], i32>
         Ok(rbuf)
     }
     else {
-        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'File ID'-retrieval failed\0"));
+        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'File Info'-retrieval failed\0"));
         Err(SC_ERROR_CARD_CMD_FAILED)
     }
 }
 
 
-/* free_space in bytes */
 //TODO allow nonminimal_bool, a false positive here
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::nonminimal_bool))]
+//QS
+/// Get free EEPROM space in bytes.
+///
+/// @apiNote  SC_CARDCTL_ACOS5_GET_FREE_SPACE
+/// @return  free EEPROM space or an OpenSC error
 pub fn get_free_space(card: &mut sc_card) -> Result<u32, i32>
 {
     assert!(!card.ctx.is_null());
@@ -137,7 +163,7 @@ pub fn get_free_space(card: &mut sc_card) -> Result<u32, i32>
     let command = [0x80, 0x14, 4, 0, if card.type_> SC_CARD_TYPE_ACOS5_64_V3 {3} else {2}];
     let mut apdu = sc_apdu::default();
     let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
+    debug_assert_eq!(SC_SUCCESS, rv);
     debug_assert_eq!(SC_APDU_CASE_2_SHORT, apdu.cse);
 
     let mut rbuf = [0; 4];
@@ -159,11 +185,11 @@ pub fn get_free_space(card: &mut sc_card) -> Result<u32, i32>
 // true, then it's acos5
 //TODO allow nonminimal_bool, a false positive here
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::nonminimal_bool))]
-pub fn get_ident_self(card: &mut sc_card) -> Result<bool, i32>
+pub fn get_is_ident_self_okay(card: &mut sc_card) -> Result<bool, i32> // get_ident_self
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"get_ident_self\0");
+    let f = cstru!(b"get_is_ident_self_okay\0");
     log3ifc!(ctx,f,line!());
 
     let command = [0x80, 0x14, 5, 0];
@@ -328,11 +354,11 @@ pub fn get_op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 }
 
 //  V2.00 *DOES NOT* supports this command
-pub fn get_fips_compliance(card: &mut sc_card) -> Result<bool, i32> // is_FIPS_compliant==true
+pub fn get_is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_FIPS_compliant==true get_fips_compliance
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"get_fips_compliance\0");
+    let f = cstru!(b"get_is_fips_compliant\0");
     log3ifc!(ctx,f,line!());
 
     let command = [0x80, 0x14, 10, 0];
@@ -355,7 +381,7 @@ pub fn get_fips_compliance(card: &mut sc_card) -> Result<bool, i32> // is_FIPS_c
 }
 
 //  ONLY V3.00 *DOES* support this command
-pub fn get_pin_auth_state(card: &mut sc_card, reference: u8) -> Result<bool, i32>
+pub fn get_is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -389,7 +415,7 @@ pub fn get_pin_auth_state(card: &mut sc_card, reference: u8) -> Result<bool, i32
 }
 
 //  ONLY V3.00 *DOES* support this command
-pub fn get_key_auth_state(card: &mut sc_card, reference: u8) -> Result<bool, i32>
+pub fn get_is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };

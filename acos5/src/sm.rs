@@ -11,12 +11,12 @@ use std::ptr::{null, null_mut};
 use std::slice::from_raw_parts;
 use std::convert::TryFrom;
 
-use opensc_sys::opensc::{sc_context, sc_card, sc_hex_to_bin, sc_get_challenge, sc_bytes2apdu_wrapper, sc_transmit_apdu,
+use opensc_sys::opensc::{sc_context, sc_card, sc_hex_to_bin/*, sc_get_challenge*/, sc_bytes2apdu_wrapper, sc_transmit_apdu,
                          sc_check_sw, sc_pin_cmd_data, SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT,
                          SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK};
-use opensc_sys::types::{SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT, sc_apdu/*, SC_AC_CHV*/};
+use opensc_sys::types::{/*SC_APDU_CASE_3_SHORT,*/ SC_APDU_CASE_4_SHORT, sc_apdu/*, SC_AC_CHV*/};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_SM_KEYSET_NOT_FOUND, SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_INVALID_DATA,
-                         SC_ERROR_SM_IFD_DATA_MISSING, SC_ERROR_SM_RAND_FAILED, SC_ERROR_SM_AUTHENTICATION_FAILED,
+                         SC_ERROR_SM_IFD_DATA_MISSING, SC_ERROR_SM_AUTHENTICATION_FAILED,
                          SC_ERROR_SM_NOT_INITIALIZED, SC_ERROR_SM, SC_ERROR_PIN_CODE_INCORRECT, SC_ERROR_AUTH_METHOD_BLOCKED,
                          SC_ERROR_KEYPAD_MSG_TOO_LONG};
     /*, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_NOT_SUPPORTED*/
@@ -26,9 +26,10 @@ use opensc_sys::log::{sc_dump_hex}; /*, SC_LOG_DEBUG_NORMAL, SC_LOG_DEBUG_SM*/
 use opensc_sys::scconf::{scconf_block, scconf_find_blocks, scconf_get_str};
 
 use crate::constants_types::*;
-use crate::crypto::{DES_KEY_SZ, DES_KEY_SZ_u8, des_ecb3_unpadded_8, des_ede3_cbc_pad_80_mac, des_ede3_cbc_pad_80, Encrypt, Decrypt, RAND_bytes};
+use crate::crypto::{DES_KEY_SZ, DES_KEY_SZ_u8, des_ecb3_unpadded_8, des_ede3_cbc_pad_80_mac, des_ede3_cbc_pad_80, Encrypt, Decrypt};
+use crate::no_cdecl::{authenticate_ext, authenticate_int};
 use crate::wrappers::*;
-//use crate::cmd_card_info::get_key_auth_state;
+//use crate::cmd_card_info::get_is_key_authenticated;
 
 
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_possible_truncation))]
@@ -193,7 +194,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
         if (*elem).is_null() { break; }
         let blocks_ptr = unsafe { scconf_find_blocks(ctx.conf, *elem,
             cstru!(/*b"secure_messaging\0"*/ b"card_driver\0").as_ptr(),
-        /*sm_info.config_section.as_ptr()*/ cstru!(CARD_DRV_SHORT_NAME).as_ptr()) };//card_driver acos5_external
+        /*sm_info.config_section.as_ptr()*/ cstru!(CARD_DRV_SHORT_NAME).as_ptr()) };
         if blocks_ptr.is_null() { continue; }
         sm_conf_block = unsafe { *blocks_ptr }; // blocks[0];
 
@@ -356,8 +357,8 @@ sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "IFD.K: %s", sc_dump_hex(cwa_session->ifd.k, 
 fn sm_cwa_initialize(card: &mut sc_card/*, sm_info: &mut sm_info, _rdata: &mut sc_remote_data*/) -> i32
 {
     /*
-    cwa_keyset_mac_host: [F1, E0, D0, C1, B0, A1, 89, 8, 7, 16, 45, 4, 13, 2, 1, F1, 89, FE, B3, C8, 37, 45, 16, 94] corresponds to key_reference 0x81 (external auth. key terminal/host in DF 0x4100) kh, that will be authenticated
-    cwa_keyset_enc_card: [F1, 1, 2, 13, 4, 85, 16, 7, 8, 49, A1, B0, C1, D0, E0, F1, 45, 89, B3, 16, FE, 94, 37, C8] corresponds to key_reference 0x82 (internal auth. key card          in DF 0x4100) kc
+    ck_mac_host: [F1, E0, D0, C1, B0, A1, 89, 8, 7, 16, 45, 4, 13, 2, 1, F1, 89, FE, B3, C8, 37, 45, 16, 94] corresponds to key_reference 0x81 (external auth. key terminal/host in DF 0x4100) kh, that will be authenticated
+    ck_enc_card: [F1, 1, 2, 13, 4, 85, 16, 7, 8, 49, A1, B0, C1, D0, E0, F1, 45, 89, B3, 16, FE, 94, 37, C8] corresponds to key_reference 0x82 (internal auth. key card          in DF 0x4100) kc
 
     keyset_41434F53504B43532D313576312E3030_02_mac = "F1:E0:D0:C1:B0:A1:89:08:07:16:45:04:13:02:01:F1:89:FE:B3:C8:37:45:16:94"; # corresponds to key_reference 0x81 (external auth. key terminal/host in DF 0x4100) kh, that will be authenticated
     keyset_41434F53504B43532D313576312E3030_02_enc = "F1:01:02:13:04:85:16:07:08:49:A1:B0:C1:D0:E0:F1:45:89:B3:16:FE:94:37:C8"; # corresponds to key_reference 0x82 (internal auth. key card          in DF 0x4100) kc
@@ -365,7 +366,9 @@ fn sm_cwa_initialize(card: &mut sc_card/*, sm_info: &mut sm_info, _rdata: &mut s
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
     let f = cstru!(b"sm_cwa_initialize\0");
+    log3ifc!(ctx,f,line!());
     /* Mutual Authentication Procedure with 2 different keys, (key card) kc and (key terminal/host) kh */
+/*
     /* External Authentication */
     let mut rv = unsafe {
         sc_get_challenge(card, card.sm_ctx.info.session.cwa.card_challenge.as_mut_ptr(), SM_SMALL_CHALLENGE_LEN) };
@@ -390,41 +393,51 @@ fn sm_cwa_initialize(card: &mut sc_card/*, sm_info: &mut sm_info, _rdata: &mut s
         log3ifr!(ctx,f,line!(), rv);
         return rv;
     }
-
-    /* Internal Authentication */
-    rv = unsafe {
-        RAND_bytes(card.sm_ctx.info.session.cwa.host_challenge.as_mut_ptr(), i32::from(SM_SMALL_CHALLENGE_LEN_u8)) };
-    if rv != 1 {
-        rv = SC_ERROR_SM_RAND_FAILED;
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
+*/
+    match authenticate_ext(card, 0x81, &get_ck_mac_host(card)) {
+        Ok(val) => if !val { return SC_ERROR_SM_AUTHENTICATION_FAILED; },
+        Err(_e) => { return SC_ERROR_SM_AUTHENTICATION_FAILED; },
     }
-    let mut cmd_int = [0, 0x88, 0, 0x82 /*(key card) kc*/,
-        SM_SMALL_CHALLENGE_LEN_u8, 0, 0, 0, 0, 0, 0, 0, 0, SM_SMALL_CHALLENGE_LEN_u8];
-    cmd_int[5..5 + SM_SMALL_CHALLENGE_LEN].copy_from_slice(unsafe { &card.sm_ctx.info.session.cwa.host_challenge });
-    apdu = sc_apdu::default();
-    rv = sc_bytes2apdu_wrapper(ctx, &cmd_int, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_4_SHORT, apdu.cse);
-    debug_assert_eq!(SM_SMALL_CHALLENGE_LEN, apdu.le);
-    let mut challenge_encrypted_by_card = [0; SM_SMALL_CHALLENGE_LEN];
-    apdu.resplen = SM_SMALL_CHALLENGE_LEN;
-    apdu.resp = challenge_encrypted_by_card.as_mut_ptr();
+    unsafe { card.sm_ctx.info.session.cwa.ssc = card.sm_ctx.info.session.cwa.card_challenge };
+    /*
+        /* Internal Authentication */
+        let mut rv = unsafe {
+            RAND_bytes(card.sm_ctx.info.session.cwa.host_challenge.as_mut_ptr(), i32::from(SM_SMALL_CHALLENGE_LEN_u8)) };
+        if rv != 1 {
+            rv = SC_ERROR_SM_RAND_FAILED;
+            log3ifr!(ctx,f,line!(), rv);
+            return rv;
+        }
+        let mut cmd_int = [0, 0x88, 0, 0x82 /*(key card) kc*/,
+            SM_SMALL_CHALLENGE_LEN_u8, 0, 0, 0, 0, 0, 0, 0, 0, SM_SMALL_CHALLENGE_LEN_u8];
+        cmd_int[5..5 + SM_SMALL_CHALLENGE_LEN].copy_from_slice(unsafe { &card.sm_ctx.info.session.cwa.host_challenge });
+        let mut apdu = sc_apdu::default();
+        rv = sc_bytes2apdu_wrapper(ctx, &cmd_int, &mut apdu);
+        assert_eq!(SC_SUCCESS, rv);
+        debug_assert_eq!(SC_APDU_CASE_4_SHORT, apdu.cse);
+        debug_assert_eq!(SM_SMALL_CHALLENGE_LEN, apdu.le);
+        let mut challenge_encrypted_by_card = [0; SM_SMALL_CHALLENGE_LEN];
+        apdu.resplen = SM_SMALL_CHALLENGE_LEN;
+        apdu.resp = challenge_encrypted_by_card.as_mut_ptr();
 
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
-    rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
-    if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
+        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+        rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+        if rv != SC_SUCCESS {
+            log3ifr!(ctx,f,line!(), rv);
+            return rv;
+        }
+
+        let challenge_encrypted_by_host = des_ecb3_unpadded_8(unsafe { &card.sm_ctx.info.session.cwa.host_challenge },
+                                &get_ck_enc_card(card), Encrypt);
+        if  challenge_encrypted_by_host != challenge_encrypted_by_card.to_vec() {
+            return SC_ERROR_SM_AUTHENTICATION_FAILED;
+        }
+    */
+    match authenticate_int(card, 0x82, &get_ck_enc_card(card)) {
+        Ok(val) => if !val { return SC_ERROR_SM_AUTHENTICATION_FAILED; },
+        Err(_e) => { return SC_ERROR_SM_AUTHENTICATION_FAILED; },
     }
-
-    let challenge_encrypted_by_host = des_ecb3_unpadded_8(unsafe { &card.sm_ctx.info.session.cwa.host_challenge },
-                            &get_ck_enc_card(card), Encrypt);
-    if  challenge_encrypted_by_host != challenge_encrypted_by_card.to_vec() {
-        return SC_ERROR_SM_AUTHENTICATION_FAILED;
-    }
-
-    /* session keys generation. acos5 does it internally automatically and we must do the same here */
+    /* session key(s) generation. acos5 does it internally automatically and we must do the same here */
     let mut deriv_data = Vec::with_capacity(3 * DES_KEY_SZ);
     unsafe {
         deriv_data.extend_from_slice(&card.sm_ctx.info.session.cwa.card_challenge[4..8]);
@@ -433,6 +446,8 @@ fn sm_cwa_initialize(card: &mut sc_card/*, sm_info: &mut sm_info, _rdata: &mut s
         deriv_data.extend_from_slice(&card.sm_ctx.info.session.cwa.host_challenge[4..8]);
         deriv_data.extend_from_slice(&card.sm_ctx.info.session.cwa.host_challenge[0..4]);
         deriv_data.extend_from_slice(&card.sm_ctx.info.session.cwa.card_challenge[4..8]);
+        card.sm_ctx.info.session.cwa.card_challenge.copy_from_slice(&[0; 8]);
+        card.sm_ctx.info.session.cwa.host_challenge.copy_from_slice(&[0; 8]);
     }
 //        writefln("deriv_data_plain:     0x [ %(%x %) ]", deriv_data);
 
@@ -446,8 +461,8 @@ fn sm_cwa_initialize(card: &mut sc_card/*, sm_info: &mut sm_info, _rdata: &mut s
         card.sm_ctx.info.session.cwa.session_mac.copy_from_slice(&sess_mac_buf[..2*DES_KEY_SZ]);
         card.sm_ctx.info.session.cwa.ifd.k[DES_KEY_SZ..2*DES_KEY_SZ].copy_from_slice(&sess_mac_buf[2*DES_KEY_SZ..]);
     }
-//println!("get_key_auth_state(card, 0x81).unwrap(): {}", get_key_auth_state(card, 0x81).unwrap()); // : true
-//println!("get_key_auth_state(card, 0x82).unwrap(): {}", get_key_auth_state(card, 0x82).unwrap()); // : false
+//println!("is_key_authenticated(card, 0x81): {}", get_is_key_authenticated(card, 0x81).unwrap()); // : true
+//println!("is_key_authenticated(card, 0x82): {}", get_is_key_authenticated(card, 0x82).unwrap()); // : false
     SC_SUCCESS
 }
 
@@ -951,24 +966,22 @@ pub fn sm_delete_file(card: &mut sc_card) -> i32
 } // sm_delete_file
 
 
-//#[no_mangle] // original APDU type (without SM): SC_APDU_CASE_3_SHORT: yes command data, but doesn't expect
-// response data (with SM, there are response data)
 //TODO this doesn't work for SM Confidentiality (has_ct==true)
-pub fn sm_create(card: &mut sc_card,
+pub fn sm_create_file(card: &mut sc_card,
                         buf: &[u8], // starting with 0x62
                         has_ct: bool) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!( b"sm_create\0");
+    let f = cstru!( b"sm_create_file\0");
     log3ifc!(ctx,f,line!());
 
     if sm_manage_keyset(card) != SC_SUCCESS || sm_manage_initialize(card) != SC_SUCCESS {
         return SC_ERROR_SM_NOT_INITIALIZED;
     }
 
-//println!("sm_create               get_cs_enc:  {:X?}\n", get_cs_enc(card));
-//println!("sm_create               get_cs_mac:  {:X?}\n", get_cs_mac(card));
+//println!("sm_create_file          get_cs_enc:  {:X?}\n", get_cs_enc(card));
+//println!("sm_create_file          get_cs_mac:  {:X?}\n", get_cs_mac(card));
 //    let count = std::cmp::min(buf.len(), 255);
     let len_update = std::cmp::min(if has_ct {232_u8} else {240_u8},u8::try_from(buf.len()).unwrap());
     assert!(buf.len()<= usize::from(len_update));
@@ -981,9 +994,9 @@ pub fn sm_create(card: &mut sc_card,
 ////println!("pi: {}", pi);
     /* cmd without SM: SC_APDU_CASE_3_SHORT; with SM: SC_APDU_CASE_4_SHORT */
     let hdr = [0x89_u8,4, 0x0C, 0xE0, 0, 0];
-////println!("sm_common_update ssc old:                 {:X?}", unsafe { card.sm_ctx.info.session.cwa.ssc });
+//println!("sm_common_update ssc old:                 {:X?}", unsafe { card.sm_ctx.info.session.cwa.ssc });
     sm_incr_ssc(card);
-////println!("sm_common_update ssc new:                 {:X?}", unsafe { card.sm_ctx.info.session.cwa.ssc });
+//println!("sm_common_update ssc new:                 {:X?}", unsafe { card.sm_ctx.info.session.cwa.ssc });
     let mut ivec = unsafe {card.sm_ctx.info.session.cwa.ssc};
     let data_encrypted = des_ede3_cbc_pad_80(&buf[..usize::from(len_update)],
        &get_cs_enc(card), &mut ivec, Encrypt, 0);
@@ -1055,7 +1068,7 @@ pub fn sm_create(card: &mut sc_card,
 //    rv = i32::from(len_update);
     log3ifr!(ctx,f,line!(), rv);
     rv
-} // sm_create
+} // sm_create_file
 
 
 pub fn sm_pin_cmd(card: &mut sc_card,
@@ -1249,27 +1262,3 @@ pub fn sm_pin_cmd_get_policy(card: &mut sc_card,
     log3ifr!(ctx,f,line!(), rv);
     rv
 }
-
-/*
-#[cfg(test)]
-mod tests {
-    use crate::crypto::DES_KEY_SZ;
-    use super::sm_incr_ssc;
-
-    #[test]
-    fn test_sm_incr_ssc() {
-        let mut ssc: [u8; DES_KEY_SZ]  = [1,2,3,4,5,6, 0xFE,0xFE];
-        sm_incr_ssc(&mut ssc);
-        assert_eq!(ssc, [1,2,3,4,5,6, 0xFE,0xFF]);
-        sm_incr_ssc(&mut ssc);
-        assert_eq!(ssc, [1,2,3,4,5,6, 0xFF,0x00]);
-        sm_incr_ssc(&mut ssc);
-        assert_eq!(ssc, [1,2,3,4,5,6, 0xFF,0x01]);
-        ssc = [1,2,3,4,5,6, 0xFF,0xFF];
-        sm_incr_ssc(&mut ssc);
-        assert_eq!(ssc, [1,2,3,4,5,6, 0,0]);
-        sm_incr_ssc(&mut ssc);
-        assert_eq!(ssc, [1,2,3,4,5,6, 0,1]);
-    }
-}
-*/
