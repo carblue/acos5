@@ -45,20 +45,25 @@ pub const SC_MAX_PIN_SIZE               : usize =   256; /* OpenPGP card has 254
 pub const SC_MAX_ATR_SIZE               : usize =    33;
 pub const SC_MAX_UID_SIZE               : usize =    10; /* since opensc source release v0.17.0 */
 pub const SC_MAX_AID_SIZE               : usize =    16;
-pub const SC_MAX_AID_STRING_SIZE        : usize = (SC_MAX_AID_SIZE * 2 + 3);
+pub const SC_MAX_AID_STRING_SIZE        : usize = SC_MAX_AID_SIZE * 2 + 3;
 pub const SC_MAX_IIN_SIZE               : usize =    10;
 pub const SC_MAX_OBJECT_ID_OCTETS       : usize =    16;
 pub const SC_MAX_PATH_SIZE              : usize =    16;
-pub const SC_MAX_PATH_STRING_SIZE       : usize = (SC_MAX_PATH_SIZE * 2 + 3);
+pub const SC_MAX_PATH_STRING_SIZE       : usize = SC_MAX_PATH_SIZE * 2 + 3;
 pub const SC_MAX_SDO_ACLS               : usize =     8;
 pub const SC_MAX_CRTS_IN_SE             : usize =    12;
 pub const SC_MAX_SE_NUM                 : usize =     8;
 
 /* When changing this value, pay attention to the initialization of the ASN1
  * static variables that use this macro, like, for example,
- * 'c_asn1_supported_algorithms' in src/libopensc/pkcs15.c
+ * 'c_asn1_supported_algorithms' in src/libopensc/pkcs15.c,
+ * src/libopensc/pkcs15-prkey.c and src/libopensc/pkcs15-skey.c
+ * `grep "src/libopensc/types.h SC_MAX_SUPPORTED_ALGORITHMS  defined as"'
  */
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
 pub const SC_MAX_SUPPORTED_ALGORITHMS   : usize =     8;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+pub const SC_MAX_SUPPORTED_ALGORITHMS   : usize =     16;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -209,7 +214,7 @@ impl sc_crt {
 pub const SC_AC_NONE             : u32 =  0x0000_0000;
 pub const SC_AC_CHV              : u32 =  0x0000_0001; /* Card Holder Verif. */
 pub const SC_AC_TERM             : u32 =  0x0000_0002; /* Terminal auth. */
-pub const SC_AC_PRO              : u32 =  0x0000_0004; /* Secure Messaging */
+pub const SC_AC_PRO              : u32 =  0x0000_0004; /* Secure Messaging */ /* just a marker: the OpenSC framework will do nothing else than print */
 pub const SC_AC_AUT              : u32 =  0x0000_0008; /* Key auth. */
 pub const SC_AC_SYMBOLIC         : u32 =  0x0000_0010; /* internal use only */
 pub const SC_AC_SEN              : u32 =  0x0000_0020; /* Security Environment. */
@@ -294,6 +299,7 @@ pub type sc_acl_entry_t = sc_acl_entry;
 */
 
 /* File types */
+pub const SC_FILE_TYPE_UNKNOWN     : u32 =  0x00;  // since v0_21_0
 pub const SC_FILE_TYPE_DF          : u32 =  0x04;
 pub const SC_FILE_TYPE_INTERNAL_EF : u32 =  0x03;
 pub const SC_FILE_TYPE_WORKING_EF  : u32 =  0x01;

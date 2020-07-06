@@ -39,6 +39,7 @@ pub const SC_LOG_DEBUG_RFU2        : i32 = 5;        /* RFU */
 pub const SC_LOG_DEBUG_SM          : i32 = 5;        /* secure messaging */
 pub const SC_LOG_DEBUG_ASN1        : i32 = 6;        /* asn1.c */
 pub const SC_LOG_DEBUG_MATCH       : i32 = 7;        /* card matching */
+pub const SC_LOG_DEBUG_PIN         : i32 = 8;        /* PIN commands */
 
 pub const SC_COLOR_FG_RED          : i32 = 0x0001;  // since master
 pub const SC_COLOR_FG_GREEN        : i32 = 0x0002;

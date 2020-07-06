@@ -132,6 +132,21 @@ unsigned short bebytes2ushort(const u8 *buf);
  * @return       the converted value
  */
 unsigned short lebytes2ushort(const u8 *buf); // added since opensc source release v0.17.0
+/**
+ * Convert 4 bytes in little endian order into an unsigned long
+ * @param  buf   the byte array of 4 bytes
+ * @return       the converted value
+ */
+unsigned long lebytes2ulong(const u8 *buf);
+
+/* Usable for setting string elements of token info, which
+ * are either initialized to NULL or we need to clean
+ * previous value.
+ *
+ * @param   strp   The pointer where to store string
+ * @param   value  The string to store (is strdupped)
+ */
+void set_string(char **strp, const char *value);
 
 #define BYTES4BITS(num)  (((num) + 7) / 8)    /* number of bytes necessary to hold 'num' bits */
 */

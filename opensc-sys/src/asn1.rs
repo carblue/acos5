@@ -350,7 +350,10 @@ pub fn sc_asn1_decode_bit_string_ni(inbuf: *const u8, inlen: usize, outbuf: p_vo
 /// @param outbuf  OUT Receiving address for: Decoded i32\
 /// @return        SC_SUCCESS or error code\
 /// @test available
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
 pub fn sc_asn1_decode_integer(inbuf: *const u8, inlen: usize, out: *mut i32) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+pub fn sc_asn1_decode_integer(inbuf: *const u8, inlen: usize, out: *mut i32, strict: i32) -> i32;
 
 /// Decodes DER object_id bytes to sc_object_id
 ///
@@ -417,15 +420,15 @@ pub fn sc_asn1_write_element(ctx: *mut sc_context, tag: u32, data : *const u8, d
                              out: *mut *mut u8, outlen: *mut usize) -> i32;
 
 /// Undocumented, untested
-pub fn sc_asn1_sig_value_rs_to_sequence(ctx: *mut sc_context, in_: *mut u8, inlen: usize,
+pub fn sc_asn1_sig_value_rs_to_sequence(ctx: *mut sc_context, r#in: *mut u8, inlen: usize,
                                         buf: *mut *mut u8, buflen: *mut usize) -> i32;
 
 /// Undocumented, untested
 #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-pub fn sc_asn1_sig_value_sequence_to_rs(ctx: *mut sc_context, in_: *mut u8, inlen: usize,
+pub fn sc_asn1_sig_value_sequence_to_rs(ctx: *mut sc_context, r#in: *mut u8, inlen: usize,
                                         buf: *mut u8, buflen: usize) -> i32;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub fn sc_asn1_sig_value_sequence_to_rs(ctx: *mut sc_context, in_: *const u8, inlen: usize,
+pub fn sc_asn1_sig_value_sequence_to_rs(ctx: *mut sc_context, r#in: *const u8, inlen: usize,
                                         buf: *mut u8, buflen: usize) -> i32;
 } // extern "C"
 
@@ -797,6 +800,7 @@ mod tests {
         assert_eq!(vec, [/*0x30, 0x31,*/ 0x30,0x0F,0x0C,0x06,0x43,0x41,0x72,0x6F,0x6F,0x74,0x03,0x02,0x06,0xC0]);
     }
 
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
     #[test]
     fn test_sc_asn1_decode_integer() {
         let integer_in = [0x10_u8, 0x00];

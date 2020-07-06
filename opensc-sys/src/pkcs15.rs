@@ -624,7 +624,7 @@ pub struct sc_pkcs15_pubkey_info {
     pub modulus_length : usize, /* RSA in bits; Attention: This seems to get set according to MSB set */
     pub field_length : usize,   /* EC in bits */
 
-    pub algo_refs : [u32 ; SC_MAX_SUPPORTED_ALGORITHMS],
+    pub algo_refs : [u32; SC_MAX_SUPPORTED_ALGORITHMS],
 
     pub subject : sc_pkcs15_der,
 
@@ -1021,8 +1021,12 @@ pub fn sc_pkcs15_free_tokeninfo(tokeninfo: *mut sc_pkcs15_tokeninfo);
 pub fn sc_pkcs15_decipher(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, flags: c_ulong,
                           in_: *const u8 , inlen: usize, out: *mut u8, outlen: usize) -> i32;
 
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
 pub fn sc_pkcs15_derive(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, flags: c_ulong,
-                        in_: *const u8, inlen: usize, out: *mut u8, poutlen: *mut usize) -> i32;
+                        r#in: *const u8, inlen: usize, out: *mut u8, poutlen: *mut c_ulong) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+pub fn sc_pkcs15_derive(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, flags: c_ulong,
+                        r#in: *const u8, inlen: usize, out: *mut u8, poutlen: *mut usize) -> i32;
 
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub fn sc_pkcs15_unwrap(p15card: *mut sc_pkcs15_card,
@@ -1129,6 +1133,10 @@ pub fn sc_pkcs15_find_cert_by_id(card: *mut sc_pkcs15_card, id: *const sc_pkcs15
 
 pub fn sc_pkcs15_get_name_from_dn(ctx: *mut sc_context, dn: *const u8, dn_len: usize, type_: *const sc_object_id,
                                   name: *mut *mut u8, name_len: *mut usize) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+fn sc_pkcs15_map_usage(cert_usage: u32, algorithm: i32,
+                       pub_usage_ptr: *mut u32, pr_usage_ptr: *mut u32,
+                       allow_nonrepudiation: i32) -> i32;
 
 fn sc_pkcs15_get_extension(ctx: *mut sc_context, cert: *mut sc_pkcs15_cert, type_: *const sc_object_id,
                            ext_val: *mut *mut u8, ext_val_len: *mut usize, is_critical: *mut i32) -> i32;
@@ -1340,6 +1348,7 @@ fn sc_pkcs15_get_supported_algo(p15card: *mut sc_pkcs15_card, operation: u32, me
     -> *mut sc_supported_algo_info;
 
 /* find algorithm from card's supported algorithms by operation, mechanism and object_id */
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 fn sc_pkcs15_get_specific_supported_algo(p15card: *mut sc_pkcs15_card,
                                          operation: u32, mechanism: u32, algo_oid: *const sc_object_id)
     -> *mut sc_supported_algo_info;

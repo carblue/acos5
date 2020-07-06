@@ -343,7 +343,7 @@ pub struct sc_pkcs15init_certargs {
 
 pub const P15_ATTR_TYPE_LABEL : u32 =  0;
 pub const P15_ATTR_TYPE_ID    : u32 =  1;
-pub const P15_ATTR_TYPE_VALUE : u32 =  2;
+pub const P15_ATTR_TYPE_VALUE : u32 =  2; // since v0_20_0
 
 
 extern "C" {
@@ -452,6 +452,7 @@ pub fn sc_pkcs15init_sanity_check(arg1: *mut sc_pkcs15_card, arg2: *mut sc_profi
 
 pub fn sc_pkcs15init_finalize_profile(card: *mut sc_card, profile: *mut sc_profile, aid: *mut sc_aid) -> i32;
 /*
+since v0_20_0, no libary export
 extern int    sc_pkcs15init_unwrap_key(struct sc_pkcs15_card *p15card, struct sc_profile *profile,
         struct sc_pkcs15_object *key, u8* wrapped_key, size_t wrapped_key_len,
         struct sc_pkcs15init_skeyargs *keyargs, struct sc_pkcs15_object **res_obj);

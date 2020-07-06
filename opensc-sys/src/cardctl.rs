@@ -20,6 +20,8 @@
  */
 
 use std::os::raw::{c_char, c_ulong};
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+use crate::pkcs15::{sc_pkcs15_tokeninfo};
 
 //#define _CTL_PREFIX(a, b, c) (((a) << 24) | ((b) << 16) | ((c) << 8))
 
@@ -76,6 +78,7 @@ pub const SC_CARDCTL_PKCS11_INIT_PIN         : c_ulong =  0x0000_0009;
     SC_CARDCTL_CARDOS_PUT_DATA_OCI,
     SC_CARDCTL_CARDOS_PUT_DATA_SECI,
     SC_CARDCTL_CARDOS_GENERATE_KEY,
+    SC_CARDCTL_CARDOS_PASS_ALGO_FLAGS,
 
     /*
      * Starcos SPK 2.3 specific calls
@@ -296,6 +299,16 @@ pub const SC_CARDCTL_PKCS11_INIT_PIN         : c_ulong =  0x0000_0009;
     SC_CARDCTL_GIDS_INITIALIZE,
     SC_CARDCTL_GIDS_SET_ADMIN_KEY,
     SC_CARDCTL_GIDS_AUTHENTICATE_ADMIN,
+
+    /*
+     * IDPrime specific calls
+     */
+    SC_CARDCTL_IDPRIME_BASE = _CTL_PREFIX('I', 'D', 'P'),
+    SC_CARDCTL_IDPRIME_INIT_GET_OBJECTS,
+    SC_CARDCTL_IDPRIME_GET_NEXT_OBJECT,
+    SC_CARDCTL_IDPRIME_FINAL_GET_OBJECTS,
+    SC_CARDCTL_IDPRIME_GET_TOKEN_NAME,
+
 };
 */
 
@@ -347,6 +360,17 @@ pub struct sc_cardctl_pkcs11_init_pin {
 #[allow(non_camel_case_types)]
 pub type sc_cardctl_pkcs11_init_pin_t = sc_cardctl_pkcs11_init_pin;
 */
+
+/*
+ * Generic cardctl - card driver can examine token info
+ */
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct sc_cardctl_parsed_token_info {
+    pub flags : u32,
+    pub tokeninfo : *mut sc_pkcs15_tokeninfo,
+}
 
 /*
 /*
@@ -416,6 +440,15 @@ struct sc_cardctl_cardos_genkey_info {
     unsigned int    key_id;
     unsigned int    key_bits;
     unsigned short    fid;
+};
+
+struct sc_cardctl_cardos_pass_algo_flags {
+    unsigned int pass;
+    unsigned long card_flags; /* from card->flags i.e. user set */
+    unsigned long used_flags; /* as set by default */
+    unsigned long new_flags; /* set in pkcs15-cardos.c */
+    unsigned long ec_flags; /* for EC keys */
+    unsigned long ext_flags; /* for EC keys */
 };
 
 /*
@@ -578,19 +611,19 @@ typedef struct sc_cardctl_muscle_key_info {
     u8*     modValue;
     size_t     expLength;
     u8*     expValue;
-    int     pLength;
+    size_t     pLength;
     u8*     pValue;
-    int     qLength;
+    size_t     qLength;
     u8*     qValue;
-    int     pqLength;
+    size_t     pqLength;
     u8*     pqValue;
-    int     dp1Length;
+    size_t     dp1Length;
     u8*     dp1Value;
-    int     dq1Length;
+    size_t     dq1Length;
     u8*     dq1Value;
-    int     gLength;
+    size_t     gLength;
     u8*     gValue;
-    int     yLength;
+    size_t     yLength;
     u8*     yValue;
 } sc_cardctl_muscle_key_info_t;
 

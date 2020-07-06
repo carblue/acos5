@@ -150,8 +150,10 @@ pub const SC_ALGORITHM_RSA_RAW         : u32 = 0x0000_0001;
 pub const SC_ALGORITHM_RSA_PADS        : u32 = 0x0000_000E; // it's indistinguishable whether SC_ALGORITHM_RSA_PAD_NONE is included
 #[cfg(                          v0_19_0)]
 pub const SC_ALGORITHM_RSA_PADS        : u32 = 0x0000_001E; // it's indistinguishable whether SC_ALGORITHM_RSA_PAD_NONE is included
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+#[cfg(                                   v0_20_0)]
 pub const SC_ALGORITHM_RSA_PADS        : u32 = 0x0000_001F; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+pub const SC_ALGORITHM_RSA_PADS        : u32 = 0x0000_003F; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
 
 /** Use SC_ALGORITHM_RSA_PAD_NONE, if card/driver expects an in_len to card.ops.compute_signature of RSA_modulus_length bytes,
     i.e. card/driver won't pad before signing */
@@ -169,6 +171,8 @@ pub const SC_ALGORITHM_RSA_PAD_ANSI    : u32 = 0x0000_0004;
 pub const SC_ALGORITHM_RSA_PAD_ISO9796 : u32 = 0x0000_0008;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
 pub const SC_ALGORITHM_RSA_PAD_PSS     : u32 = 0x0000_0010; // since opensc source release v0.19.0
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+pub const SC_ALGORITHM_RSA_PAD_OAEP    : u32 = 0x0000_0020; /* PKCS#1 v2.0 OAEP */
 
 /* If the card is willing to produce a cryptogram with the following
  * hash values, set these flags accordingly.  The interpretation of the hash
@@ -242,7 +246,7 @@ pub const SC_ALGORITHM_RSA_HASHES      : u32 = 0x0001_FE00; // this is without S
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub const SC_ALGORITHM_RSA_HASHES      : u32 = 0x0001_FF00; // this is WITH SC_ALGORITHM_RSA_HASH_NONE
 
-/* This defines the hashes to be used with MGF1 in PSS padding */
+/* This defines the hashes to be used with MGF1 in PSS padding */ // since v0_20_0
 pub const SC_ALGORITHM_MGF1_SHA1       : u32 = 0x0010_0000;
 pub const SC_ALGORITHM_MGF1_SHA256     : u32 = 0x0020_0000;
 pub const SC_ALGORITHM_MGF1_SHA384     : u32 = 0x0040_0000;
@@ -306,15 +310,20 @@ pub const SC_ALGORITHM_ECDSA_HASH_SHA224   : u32 = SC_ALGORITHM_RSA_HASH_SHA224;
 pub const SC_ALGORITHM_ECDSA_HASH_SHA256   : u32 = SC_ALGORITHM_RSA_HASH_SHA256;
 pub const SC_ALGORITHM_ECDSA_HASH_SHA384   : u32 = SC_ALGORITHM_RSA_HASH_SHA384;
 pub const SC_ALGORITHM_ECDSA_HASH_SHA512   : u32 = SC_ALGORITHM_RSA_HASH_SHA512;
-pub const SC_ALGORITHM_ECDSA_HASHES        : u32 = (SC_ALGORITHM_ECDSA_HASH_SHA1 |
-       SC_ALGORITHM_ECDSA_HASH_SHA224 |
-       SC_ALGORITHM_ECDSA_HASH_SHA256 |
-       SC_ALGORITHM_ECDSA_HASH_SHA384 |
-       SC_ALGORITHM_ECDSA_HASH_SHA512);
+pub const SC_ALGORITHM_ECDSA_HASHES        : u32 = SC_ALGORITHM_ECDSA_HASH_SHA1 |
+                                                   SC_ALGORITHM_ECDSA_HASH_SHA224 |
+                                                   SC_ALGORITHM_ECDSA_HASH_SHA256 |
+                                                   SC_ALGORITHM_ECDSA_HASH_SHA384 |
+                                                   SC_ALGORITHM_ECDSA_HASH_SHA512;
 
 /* define mask of all algorithms that can do raw */
-pub const SC_ALGORITHM_RAW_MASK            : u32 = (SC_ALGORITHM_RSA_RAW | SC_ALGORITHM_GOSTR3410_RAW | SC_ALGORITHM_ECDSA_RAW);
-
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
+pub const SC_ALGORITHM_RAW_MASK            : u32 = SC_ALGORITHM_RSA_RAW | SC_ALGORITHM_GOSTR3410_RAW | SC_ALGORITHM_ECDSA_RAW;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+pub const SC_ALGORITHM_RAW_MASK            : u32 = SC_ALGORITHM_RSA_RAW |
+                                                   SC_ALGORITHM_GOSTR3410_RAW |
+                                                   SC_ALGORITHM_ECDH_CDH_RAW |
+                                                   SC_ALGORITHM_ECDSA_RAW;
 /* extended algorithm bits for selected mechs */
 pub const SC_ALGORITHM_EXT_EC_F_P          : u32 = 0x0000_0001;
 pub const SC_ALGORITHM_EXT_EC_F_2M         : u32 = 0x0000_0002;
@@ -342,7 +351,7 @@ pub const SC_EVENT_READER_ATTACHED : u32 = 0x0004;
 pub const SC_EVENT_READER_DETACHED : u32 = 0x0008;
 pub const SC_EVENT_READER_EVENTS   : u32 = SC_EVENT_READER_ATTACHED | SC_EVENT_READER_DETACHED;
 
-pub const MAX_FILE_SIZE : usize = 65535;
+pub const MAX_FILE_SIZE : usize = 65535; // since v0_20_0
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -350,7 +359,7 @@ pub struct sc_supported_algo_info {
     pub reference : u32,
     pub mechanism : u32,
     #[cfg(not(v0_17_0))]
-    pub parameters : *mut sc_object_id, /* OID for ECC, NULL for RSA */  // since opensc source release v0.18.0
+    pub parameters : *mut sc_object_id, /* OID for ECC */  // since opensc source release v0.18.0
     pub operations : u32,
     pub algo_id : sc_object_id,
     pub algo_ref : u32,
@@ -774,6 +783,8 @@ pub struct sc_pin_cmd_data {
 
     pub pin_type : u32,    /* usually SC_AC_CHV */
     pub pin_reference : i32,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+    pub puk_reference : i32, /* non-zero means that reference is available */
 
     pub pin1 : sc_pin_cmd_pin,
     pub pin2 : sc_pin_cmd_pin,
@@ -789,6 +800,8 @@ impl Default for sc_pin_cmd_data {
             flags: 2,    // 2 == SC_PIN_CMD_NEED_PADDING  TODO check that for acos5 and how it works
             pin_type: 1, // 1 == SC_AC_CHV
             pin_reference: 0,
+            #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+            puk_reference: 0,
             pin1: sc_pin_cmd_pin::default(),
             pin2: sc_pin_cmd_pin::default(),
             apdu: null_mut(),
@@ -880,10 +893,6 @@ pub const SC_CARD_CAP_ISO7816_PIN_INFO : c_ulong = 0x0000_0008; // since opensc 
  * instead of relying on the ACL info in the profile files. */
 pub const SC_CARD_CAP_USE_FCI_AC     : c_ulong = 0x0000_0010;
 
-/* D-TRUST CardOS cards special flags */
-pub const SC_CARD_CAP_ONLY_RAW_HASH  : c_ulong = 0x0000_0040;
-pub const SC_CARD_CAP_ONLY_RAW_HASH_STRIPPED : c_ulong = 0x0000_0080;
-
 /* Card (or card driver) supports a protected authentication mechanism */
 pub const SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH : c_ulong = 0x0000_0100; // since opensc source release v0.17.0
 
@@ -959,28 +968,93 @@ pub type sc_card_t = sc_card;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_card_operations {
-    /* Called in sc_connect_card().  Must return 1, if the current
+    /** @brief Match a card with the given card driver.
+     *
+     * Called in sc_connect_card().  Must return 1, if the current
      * card can be handled with this driver, or 0 otherwise.  ATR
      * field of the sc_card struct is filled in before calling
-     * this function. */
+     * this function. It is recommended not to modify `card` during this call.
+     * */
     pub match_card : Option< unsafe extern "C" fn (card : *mut sc_card) -> i32 >,
 
-    /* Called when ATR of the inserted card matches an entry in ATR
+    /** @brief Initialize a card.
+     *
+     * Called when ATR of the inserted card matches an entry in ATR
      * table.  May return SC_ERROR_INVALID_CARD to indicate that
-     * the card cannot be handled with this driver. */
+     * the card cannot be handled with this driver. drv_data may be used to
+     * store card driver's (allocated) private data. */
     pub init : Option< unsafe extern "C" fn (card: *mut sc_card) -> i32 >,
-    /* Called when the card object is being freed.  finish() has to
+
+    /** @brief Deinitialize a card.
+     *
+     * Called when the `card` object is being freed.  finish() has to
      * deallocate all possible private data. */
     pub finish : Option< unsafe extern "C" fn (card: *mut sc_card) -> i32 >,
 
     /* ISO 7816-4 functions */
 
+    /**
+     * @brief Read data from a binary EF with a single command
+     *
+     * Implementation of this call back is optional and may be NULL.
+     *
+     * @param  card   struct sc_card object on which to issue the command
+     * @param  idx    index within the file with the data to read
+     * @param  buf    buffer to the read data
+     * @param  count  number of bytes to read
+     * @param  flags  flags for the READ BINARY command (currently not used)
+     * @return number of bytes read or an error code
+     *
+     * @see sc_read_binary()
+     */
     pub read_binary   : Option< unsafe extern "C" fn (card: *mut sc_card, idx: u32,
-                                                      buf:   *mut u8, count: usize, flags: c_ulong) -> i32 >,
+                                                      buf: *mut u8, count: usize, flags: c_ulong) -> i32 >,
+
+    /**
+     * @brief Write data to a binary EF with a single command
+     *
+     * Implementation of this call back is optional and may be NULL.
+     *
+     * @param  card   struct sc_card object on which to issue the command
+     * @param  idx    index within the file for the data to be written
+     * @param  buf    buffer with the data
+     * @param  count  number of bytes to write
+     * @param  flags  flags for the WRITE BINARY command (currently not used)
+     * @return number of bytes written or an error code
+     *
+     * @see sc_write_binary()
+     */
     pub write_binary  : Option< unsafe extern "C" fn (card: *mut sc_card, idx: u32,
                                                       buf: *const u8, count: usize, flags: c_ulong) -> i32 >,
+    /** @brief Updates the content of a binary EF
+     *
+     * Implementation of this call back is optional and may be NULL.
+     *
+     * @param  card   struct sc_card object on which to issue the command
+     * @param  idx    index within the file for the data to be updated
+     * @param  buf    buffer with the new data
+     * @param  count  number of bytes to update
+     * @param  flags  flags for the UPDATE BINARY command (currently not used)
+     * @return number of bytes written or an error code
+     *
+     * @see sc_update_binary()
+     */
     pub update_binary : Option< unsafe extern "C" fn (card: *mut sc_card, idx: u32,
                                                       buf: *const u8, count: usize, flags: c_ulong) -> i32 >,
+
+    /**
+     * @brief Sets (part of) the content fo an EF to its logical erased state
+     *
+     * Implementation of this call back is optional and may be NULL.
+     *
+     * @param  card   struct sc_card object on which to issue the command
+     * @param  idx    index within the file for the data to be erased
+     * @param  count  number of bytes to erase
+     * @param  flags  flags for the ERASE BINARY command (currently not used)
+     * @return number of bytes erased or an error code
+     *
+     * @see sc_erase_binary()
+     */
     pub erase_binary  : Option< unsafe extern "C" fn (card: *mut sc_card, idx: u32,
                                                       count: usize, flags: c_ulong) -> i32 >,
 
@@ -1528,18 +1602,25 @@ pub fn sc_disconnect_card(card: *mut sc_card) -> i32;
 pub fn sc_detect_card_presence(reader: *mut sc_reader) -> i32;
 
 /**
- * Waits for an event on readers. Note: only the event is detected,
- * there is no update of any card or other info.
- * NOTE: Only PC/SC backend implements this.
- * @param ctx  pointer to a Context structure
- * @param event_mask The types of events to wait for; this should
- *   be ORed from one of the following
- *    SC_EVENT_CARD_REMOVED
- *    SC_EVENT_CARD_INSERTED
- * SC_EVENT_READER_ATTACHED
- * @param event_reader (OUT) the reader on which the event was detected, or NULL if new reader
+ * Waits for an event on readers.
+ *
+ * In case of a reader event (attached/detached), the list of reader is
+ * adjusted accordingly. This means that a subsequent call to
+ * `sc_ctx_detect_readers()` is not needed.
+ *
+ * @note Only PC/SC backend implements this. An infinite timeout on macOS does
+ * not detect reader events (use a limited timeout instead if needed).
+ *
+ * @param ctx (IN) pointer to a Context structure
+ * @param event_mask (IN) The types of events to wait for; this should
+ *   be ORed from one of the following:
+ *   - SC_EVENT_CARD_REMOVED
+ *   - SC_EVENT_CARD_INSERTED
+ *	 - SC_EVENT_READER_ATTACHED
+ *	 - SC_EVENT_READER_DETACHED
+ * @param event_reader (OUT) the reader on which the event was detected
  * @param event (OUT) the events that occurred. This is also ORed
- *   from the SC_EVENT_CARD_* constants listed above.
+ *   from the constants listed above.
  * @param timeout Amount of millisecs to wait; -1 means forever
  * @retval < 0 if an error occurred
  * @retval = 0 if a an event happened
@@ -1627,7 +1708,10 @@ pub fn sc_select_file(card: *mut sc_card, path: *const sc_path, file: *mut *mut 
  */
 pub fn sc_list_files(card: *mut sc_card, buf: *mut u8, buflen: usize) -> i32;
 /**
- * Read data from a binary EF
+ * @brief Read data from a binary EF
+ *
+ * If `count` exceeds the card's transmission limits, multiple commands are issued.
+ *
  * @param  card   struct sc_card object on which to issue the command
  * @param  idx    index within the file with the data to read
  * @param  buf    buffer to the read data
@@ -2232,6 +2316,16 @@ pub fn iso7816_update_binary_sfid(card: *mut sc_card, sfid: u8,
 #[cfg(not(v0_17_0))]
 fn iso7816_logout(card: *mut sc_card, pin_reference: u8) -> i32;
 
+/**
+ * Free a buffer returned by OpenSC.
+ * Use this instead your C libraries free() to free memory allocated by OpenSC.
+ * For more details see <https://github.com/OpenSC/OpenSC/issues/2054>
+ *
+ * @param[in] p the buffer
+ */
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+pub fn sc_free(p: *mut c_void);
+
 } // extern "C"
 
 
@@ -2317,12 +2411,12 @@ assert_eq!(c_string.as_bytes_with_nul().len(), cap);
         Err(rv)
     }
 }
-*/
+
 
 pub fn sc_bytes2apdu_wrapper(ctx: &mut sc_context, in_: &[u8], apdu: &mut sc_apdu) -> i32 {
     unsafe { sc_bytes2apdu(ctx, in_.as_ptr(), in_.len(), apdu) }
 }
-
+*/
 
 #[cfg(test)]
 mod tests {
