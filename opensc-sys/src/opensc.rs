@@ -2411,12 +2411,11 @@ assert_eq!(c_string.as_bytes_with_nul().len(), cap);
         Err(rv)
     }
 }
-
-
-pub fn sc_bytes2apdu_wrapper(ctx: &mut sc_context, in_: &[u8], apdu: &mut sc_apdu) -> i32 {
-    unsafe { sc_bytes2apdu(ctx, in_.as_ptr(), in_.len(), apdu) }
-}
 */
+
+pub fn sc_bytes2apdu_wrapper(ctx: &mut sc_context, r#in: &[u8], apdu: &mut sc_apdu) -> i32 {
+    unsafe { sc_bytes2apdu(ctx, r#in.as_ptr(), r#in.len(), apdu) }
+}
 
 #[cfg(test)]
 mod tests {
