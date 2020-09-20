@@ -1,3 +1,27 @@
+/*
+ * sm.rs: Driver 'acos5' - Secure Messaging file
+ *
+ * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
+ */
+/*
+Secure Messaging is handled transparently towards OpenSC, meaning, it's done when necessary, but not communicated
+towards OpenSC (OpenSC wouldn't help anyway but just confuse if setting SC_AC_PRO is used)
+*/
+
 extern crate libc;
 extern crate num_integer;
 extern crate opensc_sys;
@@ -6,15 +30,15 @@ use libc::{free, snprintf, strlen};
 use num_integer::Integer;
 
 use std::os::raw::{c_char, c_ulong};
-use std::ffi::CStr;
+// use std::ffi::CStr;
 use std::ptr::{null, null_mut};
 use std::slice::from_raw_parts;
 use std::convert::TryFrom;
 
-use opensc_sys::opensc::{sc_context, sc_card, sc_hex_to_bin/*, sc_get_challenge*/, sc_bytes2apdu_wrapper, sc_transmit_apdu,
+use opensc_sys::opensc::{sc_context, sc_card, sc_hex_to_bin, sc_transmit_apdu,
                          sc_check_sw, sc_pin_cmd_data, SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT,
                          SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK};
-use opensc_sys::types::{/*SC_APDU_CASE_3_SHORT,*/ SC_APDU_CASE_4_SHORT, sc_apdu/*, SC_AC_CHV*/};
+use opensc_sys::types::{SC_APDU_CASE_4_SHORT};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_SM_KEYSET_NOT_FOUND, SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_INVALID_DATA,
                          SC_ERROR_SM_IFD_DATA_MISSING, SC_ERROR_SM_AUTHENTICATION_FAILED,
                          SC_ERROR_SM_NOT_INITIALIZED, SC_ERROR_SM, SC_ERROR_PIN_CODE_INCORRECT, SC_ERROR_AUTH_METHOD_BLOCKED,
@@ -27,7 +51,7 @@ use opensc_sys::scconf::{scconf_block, scconf_find_blocks, scconf_get_str};
 
 use crate::constants_types::*;
 use crate::crypto::{DES_KEY_SZ, DES_KEY_SZ_u8, des_ecb3_unpadded_8, des_ede3_cbc_pad_80_mac, des_ede3_cbc_pad_80, Encrypt, Decrypt};
-use crate::no_cdecl::{authenticate_ext, authenticate_int};
+use crate::no_cdecl::{authenticate_external, authenticate_internal};
 use crate::wrappers::*;
 //use crate::cmd_card_info::get_is_key_authenticated;
 
@@ -394,7 +418,7 @@ fn sm_cwa_initialize(card: &mut sc_card/*, sm_info: &mut sm_info, _rdata: &mut s
         return rv;
     }
 */
-    match authenticate_ext(card, 0x81, &get_ck_mac_host(card)) {
+    match authenticate_external(card, 0x81, &get_ck_mac_host(card)) {
         Ok(val) => if !val { return SC_ERROR_SM_AUTHENTICATION_FAILED; },
         Err(_e) => { return SC_ERROR_SM_AUTHENTICATION_FAILED; },
     }
@@ -433,7 +457,7 @@ fn sm_cwa_initialize(card: &mut sc_card/*, sm_info: &mut sm_info, _rdata: &mut s
             return SC_ERROR_SM_AUTHENTICATION_FAILED;
         }
     */
-    match authenticate_int(card, 0x82, &get_ck_enc_card(card)) {
+    match authenticate_internal(card, 0x82, &get_ck_enc_card(card)) {
         Ok(val) => if !val { return SC_ERROR_SM_AUTHENTICATION_FAILED; },
         Err(_e) => { return SC_ERROR_SM_AUTHENTICATION_FAILED; },
     }
@@ -636,16 +660,11 @@ pub fn sm_common_read(card: &mut sc_card,
 ////println!("mac_cmd:                 {:X?}", mac_cmd);
     let cmd  = [hdr[2],hdr[3],hdr[4],hdr[5], 9,  hdr[6],hdr[7],hdr[8],
         0x8E,4, mac_cmd[0],mac_cmd[1],mac_cmd[2],mac_cmd[3], len_resp /*>0, otherwise arbitrary*/];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_4_SHORT, apdu.cse);
     let mut rbuf = vec![0_u8; usize::from(len_resp)];
+    let mut apdu = build_apdu(ctx, &cmd, SC_APDU_CASE_4_SHORT, &mut rbuf);
     assert_eq!(apdu.le, rbuf.len());
-    apdu.resplen =      rbuf.len();
-    apdu.resp = rbuf.as_mut_ptr();
 
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         log3ifr!(ctx,f,line!(), rv);
@@ -774,16 +793,11 @@ pub fn sm_common_update(card: &mut sc_card,
     cmd_vec.extend_from_slice(&mac.as_slice()[0..4]);
     cmd_vec.push(10);
 ////println!("cmd_vec:                 {:X?}", cmd_vec);
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, cmd_vec.as_slice(), &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_4_SHORT, apdu.cse);
     let mut rbuf = vec![0_u8; 10];
+    let mut apdu = build_apdu(ctx, &cmd_vec, SC_APDU_CASE_4_SHORT, &mut rbuf);
     assert_eq!(apdu.le, rbuf.len());
-    apdu.resplen =      rbuf.len();
-    apdu.resp = rbuf.as_mut_ptr();
 
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         log3ifr!(ctx,f,line!(), rv);
@@ -868,16 +882,10 @@ pub fn sm_erase_binary(card: &mut sc_card, idx: u16, count: u16, flags: c_ulong,
     cmd_vec.extend_from_slice(&mac_cmd.as_slice()[0..4]);
     cmd_vec.push(10);
 ////println!("cmd_vec:                 {:X?}", cmd_vec);
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &cmd_vec, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_4_SHORT, apdu.cse);
-    let mut rbuf = vec![0_u8; 10];
-    assert_eq!(apdu.le, rbuf.len());
-    apdu.resplen =      rbuf.len();
-    apdu.resp = rbuf.as_mut_ptr();
-
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    let mut rbuf = [0; 10];
+    let mut apdu = build_apdu(ctx, &cmd_vec, SC_APDU_CASE_4_SHORT, &mut rbuf);
+    debug_assert_eq!(apdu.le, rbuf.len());
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         log3ifr!(ctx,f,line!(), rv);
@@ -929,16 +937,10 @@ pub fn sm_delete_file(card: &mut sc_card) -> i32
     let mac_cmd = des_ede3_cbc_pad_80_mac(&hdr, &get_cs_mac(card), &mut ivec);
 ////println!("mac_cmd:                 {:X?}", mac_cmd);
     let cmd  = [hdr[2],hdr[3],hdr[4],hdr[5], 6, 0x8E,4, mac_cmd[0],mac_cmd[1],mac_cmd[2],mac_cmd[3], 10];
-    let mut rbuf = vec![0_u8; 10];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_4_SHORT, apdu.cse);
-    assert_eq!(apdu.le, rbuf.len());
-    apdu.resplen =      rbuf.len();
-    apdu.resp = rbuf.as_mut_ptr();
-
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    let mut rbuf = [0; 10];
+    let mut apdu = build_apdu(ctx, &cmd, SC_APDU_CASE_4_SHORT, &mut rbuf);
+    debug_assert_eq!(apdu.le, rbuf.len());
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         log3ifr!(ctx,f,line!(), rv);
@@ -1031,16 +1033,10 @@ pub fn sm_create_file(card: &mut sc_card,
     cmd_vec.extend_from_slice(&mac.as_slice()[0..4]);
     cmd_vec.push(10);
 ////println!("cmd_vec:                 {:X?}", cmd_vec);
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, cmd_vec.as_slice(), &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_4_SHORT, apdu.cse);
-    let mut rbuf = vec![0_u8; 10];
+    let mut rbuf = [0; 10];
+    let mut apdu = build_apdu(ctx, &cmd_vec, SC_APDU_CASE_4_SHORT, &mut rbuf);
     assert_eq!(apdu.le, rbuf.len());
-    apdu.resplen =      rbuf.len();
-    apdu.resp = rbuf.as_mut_ptr();
-
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         log3ifr!(ctx,f,line!(), rv);
@@ -1150,16 +1146,10 @@ pub fn sm_pin_cmd(card: &mut sc_card,
     cmd_vec.extend_from_slice(&mac.as_slice()[0..4]);
     cmd_vec.push(10);
 ////println!("cmd_vec:                 {:X?}", cmd_vec);
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, cmd_vec.as_slice(), &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_4_SHORT, apdu.cse);
-    let mut rbuf = vec![0_u8; 10];
+    let mut rbuf = [0; 10];
+    let mut apdu = build_apdu(ctx, &cmd_vec, SC_APDU_CASE_4_SHORT, &mut rbuf);
     assert_eq!(apdu.le, rbuf.len());
-    apdu.resplen =      rbuf.len();
-    apdu.resp = rbuf.as_mut_ptr();
-
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         log3ifr!(ctx,f,line!(), rv);
@@ -1222,16 +1212,10 @@ pub fn sm_pin_cmd_get_policy(card: &mut sc_card,
     let mac_cmd = des_ede3_cbc_pad_80_mac(&hdr, &get_cs_mac(card), &mut ivec);
 ////println!("mac_cmd:                 {:X?}", mac_cmd);
     let cmd  = [hdr[2],hdr[3],hdr[4],hdr[5], 6, 0x8E,4, mac_cmd[0],mac_cmd[1],mac_cmd[2],mac_cmd[3], 10];
-    let mut rbuf = vec![0_u8; 10];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &cmd, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_4_SHORT, apdu.cse);
+    let mut rbuf = [0; 10];
+    let mut apdu = build_apdu(ctx, &cmd, SC_APDU_CASE_4_SHORT, &mut rbuf);
     assert_eq!(apdu.le, rbuf.len());
-    apdu.resplen =      rbuf.len();
-    apdu.resp = rbuf.as_mut_ptr();
-
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         log3ifr!(ctx,f,line!(), rv);
@@ -1256,7 +1240,7 @@ pub fn sm_pin_cmd_get_policy(card: &mut sc_card,
         rv = SC_ERROR_SM;
     }
     else {
-        pin_cmd_data.pin1.tries_left = i32::from(rbuf[3]&0x0F); //  63 Cnh     n is remaining tries
+        pin_cmd_data.pin1.tries_left = i32::from(rbuf[3] & 0x0F); //  63 Cnh     n is remaining tries
         *tries_left = pin_cmd_data.pin1.tries_left;
     }
     log3ifr!(ctx,f,line!(), rv);

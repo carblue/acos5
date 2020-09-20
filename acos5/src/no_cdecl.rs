@@ -30,7 +30,7 @@ use std::slice::from_raw_parts;
 
 use num_integer::Integer;
 
-use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_file_free,
+use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_apdu, sc_file_free,
                          sc_read_record, sc_format_path, sc_select_file, sc_check_sw, //SC_ALGORITHM_RSA_PAD_PKCS1,
                          SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
                          SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA, SC_SEC_ENV_KEY_REF_PRESENT,
@@ -47,9 +47,9 @@ use opensc_sys::opensc::{SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGO
 use opensc_sys::types::{sc_object_id,sc_apdu, /*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_MAX_PATH_SIZE, sc_file_t,
     SC_MAX_ATR_SIZE, SC_FILE_TYPE_DF,  */  sc_path, sc_file, SC_PATH_TYPE_FILE_ID/*, SC_PATH_TYPE_PATH*/,
                         SC_MAX_APDU_BUFFER_SIZE, SC_MAX_PATH_SIZE, SC_APDU_FLAGS_CHAINING,
-                        SC_APDU_CASE_1, /*SC_APDU_CASE_2_SHORT,*/ SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT,
+                        SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT,
                         SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
-                        SC_APDU_CASE_2_SHORT, SC_AC_CHV, SC_AC_AUT, SC_AC_NONE, SC_AC_SCB, /*, SC_AC_UNKNOWN*/
+                        SC_AC_CHV, SC_AC_AUT, SC_AC_NONE, SC_AC_SCB, /*, SC_AC_UNKNOWN*/
                         sc_acl_entry, SC_MAX_AC_OPS
                         ,SC_AC_OP_READ
                         ,SC_AC_OP_UPDATE
@@ -88,11 +88,49 @@ use crate::crypto::{RAND_bytes, des_ecb3_unpadded_8, Encrypt};
 
 use super::{acos5_process_fci/*, acos5_list_files, acos5_select_file, acos5_set_security_env*/};
 
+pub fn sc_ac_op_name_from_idx(idx: usize) -> &'static CStr
+{
+    match idx {
+         0  => cstru!(b"SC_AC_OP_SELECT\0"),
+         1  => cstru!(b"SC_AC_OP_LOCK\0"),
+         2  => cstru!(b"SC_AC_OP_DELETE\0"),
+         3  => cstru!(b"SC_AC_OP_CREATE\0"),
+         4  => cstru!(b"SC_AC_OP_REHABILITATE\0"),
+         5  => cstru!(b"SC_AC_OP_INVALIDATE\0"),
+         6  => cstru!(b"SC_AC_OP_LIST_FILES\0"),
+         7  => cstru!(b"SC_AC_OP_CRYPTO\0"),
+         8  => cstru!(b"SC_AC_OP_DELETE_SELF\0"),
+         9  => cstru!(b"SC_AC_OP_PSO_DECRYPT\0"),
+        10  => cstru!(b"SC_AC_OP_PSO_ENCRYPT\0"),
+        11  => cstru!(b"SC_AC_OP_PSO_COMPUTE_SIGNATURE\0"),
+        12  => cstru!(b"SC_AC_OP_PSO_VERIFY_SIGNATURE\0"),
+        13  => cstru!(b"SC_AC_OP_PSO_COMPUTE_CHECKSUM\0"),
+        14  => cstru!(b"SC_AC_OP_PSO_VERIFY_CHECKSUM\0"),
+        15  => cstru!(b"SC_AC_OP_INTERNAL_AUTHENTICATE\0"),
+        16  => cstru!(b"SC_AC_OP_EXTERNAL_AUTHENTICATE\0"),
+        17  => cstru!(b"SC_AC_OP_PIN_DEFINE\0"),
+        18  => cstru!(b"SC_AC_OP_PIN_CHANGE\0"),
+        19  => cstru!(b"SC_AC_OP_PIN_RESET\0"),
+        20  => cstru!(b"SC_AC_OP_ACTIVATE\0"),
+        21  => cstru!(b"SC_AC_OP_DEACTIVATE\0"),
+        22  => cstru!(b"SC_AC_OP_READ\0"),
+        23  => cstru!(b"SC_AC_OP_UPDATE\0"),
+        24  => cstru!(b"SC_AC_OP_WRITE\0"),
+        25  => cstru!(b"SC_AC_OP_RESIZE\0"),
+        26  => cstru!(b"SC_AC_OP_GENERATE\0"),
+        27  => cstru!(b"SC_AC_OP_CREATE_EF\0"),
+        28  => cstru!(b"SC_AC_OP_CREATE_DF\0"),
+        29  => cstru!(b"SC_AC_OP_ADMIN\0"),
+        30  => cstru!(b"SC_AC_OP_PIN_USE\0"),
+        _   => cstru!(b"UNKNOWN\0")
+    }
+}
+
 /* card command  External Authentication
 includes getting a challenge from the card and setting a new ssc, thus it stops continuation of an 'active' SM channel
 key_host_reference must be enabled for External Authentication and it's Error Counter must have tries_left>0
 */
-pub fn authenticate_ext(card: &mut sc_card, key_host_reference: u8, key_host: &[u8]) -> Result<bool, i32> {
+pub fn authenticate_external(card: &mut sc_card, key_host_reference: u8, key_host: &[u8]) -> Result<bool, i32> {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
     let f = cstru!(b"authenticate_ext\0");
@@ -114,11 +152,7 @@ pub fn authenticate_ext(card: &mut sc_card, key_host_reference: u8, key_host: &[
     /* (key terminal/host) kh */
     let mut command = [0, 0x82, 0, key_host_reference, SM_SMALL_CHALLENGE_LEN_u8, 0, 0, 0, 0, 0, 0, 0, 0];
     command[5..5 + SM_SMALL_CHALLENGE_LEN].copy_from_slice(&re);
-    let mut apdu = sc_apdu::default();
-    rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    debug_assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
-
+    let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
@@ -128,7 +162,7 @@ pub fn authenticate_ext(card: &mut sc_card, key_host_reference: u8, key_host: &[
     Ok(apdu.sw2==0)
 }
 
-pub fn authenticate_int(card: &mut sc_card, key_card_reference: u8, key_card: &[u8]) -> Result<bool, i32> {
+pub fn authenticate_internal(card: &mut sc_card, key_card_reference: u8, key_card: &[u8]) -> Result<bool, i32> {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
     let f = cstru!(b"authenticate_int\0");
@@ -145,23 +179,15 @@ pub fn authenticate_int(card: &mut sc_card, key_card_reference: u8, key_card: &[
     let mut command = [0, 0x88, 0, key_card_reference, SM_SMALL_CHALLENGE_LEN_u8, 0, 0, 0, 0, 0, 0, 0, 0,
         SM_SMALL_CHALLENGE_LEN_u8];
     command[5..5 + SM_SMALL_CHALLENGE_LEN].copy_from_slice(unsafe { &card.sm_ctx.info.session.cwa.host_challenge });
-    let mut apdu = sc_apdu::default();
-    rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    debug_assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_4_SHORT, apdu.cse);
+    let mut challenge_encrypted_by_card = [0_u8; SM_SMALL_CHALLENGE_LEN];
+    let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_4_SHORT, &mut challenge_encrypted_by_card);
     debug_assert_eq!(SM_SMALL_CHALLENGE_LEN, apdu.le);
-    let mut challenge_encrypted_by_card = [0; SM_SMALL_CHALLENGE_LEN];
-    apdu.resplen = SM_SMALL_CHALLENGE_LEN;
-    apdu.resp = challenge_encrypted_by_card.as_mut_ptr();
-
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         log3ifr!(ctx,f,line!(), rv);
         return Err(rv);
     }
-//    let challenge_encrypted_by_host = des_ecb3_unpadded_8(unsafe { &card.sm_ctx.info.session.cwa.host_challenge },
-//                                                          key_card, Encrypt);
     Ok(des_ecb3_unpadded_8(unsafe { &card.sm_ctx.info.session.cwa.host_challenge }, key_card, Encrypt)
         == &challenge_encrypted_by_card)
 }
@@ -173,17 +199,12 @@ pub fn logout_pin(card: &mut sc_card, reference: u8) -> i32 {
     let ctx = unsafe { &mut *card.ctx };
     let f = cstru!(b"logout_pin\0");
     log3ifc!(ctx,f,line!());
-    if reference==0 || (reference&0x7F)>31 {
+    if reference == 0  ||  reference & 0x7F > 31 {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
 
-    let command = [0x80, 0x2E, 0, reference];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_1, apdu.cse);
-
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    let mut apdu = build_apdu(ctx, &[0x80, 0x2E, 0, reference], SC_APDU_CASE_1, &mut[]);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Logout command' failed\0"));
@@ -199,20 +220,15 @@ pub fn logout_key(card: &mut sc_card, reference: u8) -> i32 {
     let ctx = unsafe { &mut *card.ctx };
     let f = cstru!(b"logout_key\0");
     log3ifc!(ctx,f,line!());
-    if reference==0 || (reference&0x7F)>31 {
+    if reference == 0  ||  reference & 0x7F > 31 {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     dp.sm_cmd = 0;
     card.drv_data = Box::into_raw(dp) as p_void;
 
-    let command = [0x80, 0x8A, 0, reference];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_1, apdu.cse);
-
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    let mut apdu = build_apdu(ctx, &[0x80, 0x8A, 0, reference], SC_APDU_CASE_1, &mut[]);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'De-authenticate command' failed\0"));
@@ -584,7 +600,7 @@ pub fn select_file_by_path(card: &mut sc_card, path_ref: &sc_path, file_out_ptr:
     SC_SUCCESS
 }
 
-/* FIPS compliance dictates these values */
+/* FIPS compliance dictates these values for SC_CARD_TYPE_ACOS5_64_V3 */
 #[allow(non_snake_case)]
 fn get_known_sec_env_entry_V3_FIPS(is_local: bool, rec_nr: u32, buf: &mut [u8])
 {
@@ -841,7 +857,56 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
         card.drv_data = Box::into_raw(dp) as p_void;
     }
     SC_SUCCESS
-}
+} // enum_dir
+
+pub fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*, depth: i32*/) -> i32
+{
+    assert!(!card.ctx.is_null());
+    let ctx = unsafe { &mut *card.ctx };
+    let f = cstru!(b"enum_dir_gui\0");
+    let mut fmt   = cstru!(b"called for path: %s\0");
+    log3if!(ctx,f,line!(), fmt, unsafe {sc_dump_hex(path_ref.value.as_ptr(), path_ref.len)});
+
+    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    assert!(path_ref.len >= 2);
+    let file_id = u16::from_be_bytes([path_ref.value[path_ref.len-2], path_ref.value[path_ref.len-1]]);
+    let dp_files_value = &dp.files[&file_id];
+    let fdb = dp_files_value.1[0];
+    let is_none_2 = dp_files_value.2.is_none();
+    card.drv_data = Box::into_raw(dp) as p_void;
+
+    if is_DFMF(fdb)
+    {
+        assert!(path_ref.len <= SC_MAX_PATH_SIZE);
+        let mut rv = /*acos5_select_file*/unsafe { sc_select_file(card, path_ref, null_mut()) };
+        assert_eq!(rv, SC_SUCCESS);
+        if path_ref.len == 16 {
+            fmt  = cstru!(b"### enum_dir: couldn't visit all files due to OpenSC path.len limit.\
+ Such deep file system structures are not recommended, nor supported by cos5 with file access control! ###\0");
+            log3if!(ctx,f,line!(), fmt);
+        }
+        else {
+            let mut files_contained= vec![0_u8; 2*255];
+            rv = unsafe { sc_list_files(card, files_contained.as_mut_ptr(), files_contained.len()) };
+            if rv < SC_SUCCESS || rv%2==1 {
+                return rv;
+            }
+            files_contained.truncate(usize::try_from(rv).unwrap());
+            for chunk in files_contained.chunks(2) {
+                let mut tmp_path = *path_ref;
+                tmp_path.value[tmp_path.len  ] = chunk[0];
+                tmp_path.value[tmp_path.len+1] = chunk[1];
+                tmp_path.len += 2;
+                enum_dir_gui(card, &tmp_path/*, only_se_df*/ /*, depth + 1*/);
+            }
+        }
+    }
+    else if is_none_2 {
+        let rv = unsafe { sc_select_file(card, path_ref, null_mut()) };
+        assert_eq!(rv, SC_SUCCESS);
+    }
+    SC_SUCCESS
+} // enum_dir_gui
 
 
 /* SCB: Security Condition Byte
@@ -874,7 +939,6 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
  */
 pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Result<[u8; 8], i32>
 {
-//   assert_eq!(0b0101_1010u16.popcnt(), 4);
     let mut scb8 = [0_u8; 8]; // if AM has no 1 bit for a command/operation, then it's : always allowed
     scb8[7] = 0xFF; // though not expected to be accidentally set, it get's overridden to NEVER: it's not used by ACOS
 
@@ -1094,22 +1158,24 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
 
     data.pin1.min_length = 4; /* min length of PIN */
     data.pin1.max_length = 8; /* max length of PIN */
-    data.pin1.stored_length = 8; /* stored length of PIN */
+    #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
+    {
+        data.pin1.stored_length = 8; /* stored length of PIN */
+    }
     data.pin1.encoding = SC_PIN_ENCODING_ASCII; /* ASCII-numeric, BCD, etc */
 //  data.pin1.pad_length    = 0; /* filled in by the card driver */
     data.pin1.pad_char = 0xFF;
     data.pin1.offset = 5; /* PIN offset in the APDU */
-//  data.pin1.length_offset = 5;
-    data.pin1.length_offset = 0; /* Effective PIN length offset in the APDU */
+    #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
+    {
+//      data.pin1.length_offset = 5;
+        data.pin1.length_offset = 0; /* Effective PIN length offset in the APDU */
+    }
 
     data.pin1.max_tries = 8;//pin_tries_max; /* Used for signaling back from SC_PIN_CMD_GET_INFO */ /* assume: 8 as factory setting; max allowed number of retries is unretrievable with proper file access condition NEVER read */
 
-    let command = [0x00_u8, 0x20, 0x00, u8::try_from(data.pin_reference).unwrap()];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    assert_eq!(apdu.cse, SC_APDU_CASE_1);
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
+    let mut apdu = build_apdu(ctx, &[0x00_u8, 0x20, 0x00, u8::try_from(data.pin_reference).unwrap()], SC_APDU_CASE_1, &mut[]);
+    let rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     if rv != SC_SUCCESS || apdu.sw1 != 0x63 || (apdu.sw2 & 0xC0) != 0xC0 {
         log3if!(ctx,f,line!(), cstru!(b"Error: 'Get remaining number of retries left for the PIN' failed\0"));
         return SC_ERROR_KEYPAD_MSG_TOO_LONG;
@@ -1119,7 +1185,7 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
     SC_SUCCESS
 }
 
-pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 4]
+pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 3]
 {
     [
         sc_atr_table {
@@ -1138,6 +1204,7 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 4]
             flags: 0,
             card_atr: null_mut(),
         },
+/*
         sc_atr_table {
             atr:     cstru!(ATR_V4).as_ptr(),
             atrmask: cstru!(ATR_MASK).as_ptr(),
@@ -1146,6 +1213,7 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 4]
             flags: 0,
             card_atr: null_mut(),
         },
+*/
         sc_atr_table::default(),
     ]
 }
@@ -1177,6 +1245,7 @@ pub /*const*/ fn acos5_supported_ec_curves() -> [acos5_ec_curve; 4]
 //        acos5_ec_curve::default(),
     ]
 }
+
 pub fn set_is_running_cmd_long_response(card: &mut sc_card, value: bool)
 {
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
@@ -1310,25 +1379,15 @@ pub fn encrypt_public_rsa(card_ptr: *mut sc_card, signature: *const u8, siglen: 
     let file_ptr_address = null_mut();
     let mut rv = unsafe { sc_select_file(card, &path, file_ptr_address) };
     assert_eq!(rv, SC_SUCCESS);
-    let command = [0_u8, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x12, 0x81, 0x02, 0x41, 0x33, 0x95, 0x01, 0x80];
-    let mut apdu = sc_apdu::default();
-    rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
+    let mut apdu = build_apdu(ctx, &[0_u8, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x12, 0x81, 0x02, 0x41, 0x33, 0x95, 0x01, 0x80], SC_APDU_CASE_3_SHORT, &mut[]);
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
     assert_eq!(rv, SC_SUCCESS);
-    let command = [0_u8, 0x2A, 0x84, 0x80, 0x02, 0xFF, 0xFF, 0xFF]; // will replace lc, cmd_data, le later; the last 4 bytes are placeholders only for sc_bytes2apdu_wrapper
-    apdu = sc_apdu::default();
-    rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    assert_eq!(apdu.cse, SC_APDU_CASE_4_SHORT);
     let mut rbuf = [0_u8; 512];
     assert_eq!(rbuf.len(), siglen);
+    apdu = build_apdu(ctx, &[0_u8, 0x2A, 0x84, 0x80, 0x02, 0xFF, 0xFF, 0xFF], SC_APDU_CASE_4_SHORT, &mut rbuf);
     apdu.data    = signature;
     apdu.datalen = siglen;
     apdu.lc      = siglen;
-    apdu.resp    = rbuf.as_mut_ptr();
-    apdu.resplen = siglen;
     apdu.le      = std::cmp::min(siglen, SC_READER_SHORT_APDU_MAX_RECV_SIZE);
     if apdu.lc > card.max_send_size {
         apdu.flags |= SC_APDU_FLAGS_CHAINING;
@@ -1397,18 +1456,13 @@ pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtl_generate_crypt_
             return rv;
         }
     }
-    let command = [0_u8, 0x2A, 0x84, 0x80, 0x02, 0xFF, 0xFF, 0xFF]; // will replace lc, cmd_data, le later; the last 4 bytes are placeholders only for sc_bytes2apdu_wrapper
-    let mut apdu = sc_apdu::default();
-    rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    assert_eq!(apdu.cse, SC_APDU_CASE_4_SHORT);
     let mut rbuf = [0_u8; 512];
  //   assert_eq!(rbuf.len(), siglen);
+    // will replace lc, cmd_data, le later; the last 4 bytes are placeholders only for sc_bytes2apdu
+    let mut apdu = build_apdu(ctx, &[0_u8, 0x2A, 0x84, 0x80, 0x02, 0xFF, 0xFF, 0xFF], SC_APDU_CASE_4_SHORT, &mut rbuf);
     apdu.data    = crypt_data.data.as_ptr();
     apdu.datalen = crypt_data.data_len;
     apdu.lc      = crypt_data.data_len;
-    apdu.resp    = rbuf.as_mut_ptr();
-    apdu.resplen = rbuf.len();
     apdu.le      = std::cmp::min(crypt_data.data_len, SC_READER_SHORT_APDU_MAX_RECV_SIZE);
     if apdu.lc > card.max_send_size {
         apdu.flags |= SC_APDU_FLAGS_CHAINING;
@@ -1486,10 +1540,7 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
     let mut command = [0_u8, 0x46, 0,0,18, data.key_len_code, data.key_priv_type_code, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
     if data.do_generate_with_standard_rsa_pub_exponent { command[4] = 2; }
     else { command[7..23].copy_from_slice(&data.rsa_pub_exponent); }
-    let mut apdu = sc_apdu::default();
-    rv = sc_bytes2apdu_wrapper(ctx, &command[.. command.len() - if data.do_generate_with_standard_rsa_pub_exponent {16} else {0}], &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
+    let mut apdu = build_apdu(ctx, &command[.. command.len() - if data.do_generate_with_standard_rsa_pub_exponent {16} else {0}], SC_APDU_CASE_3_SHORT, &mut[]);
     let fmt  = cstru!(b"generate_asym: %s\0");
     log3if!(ctx,f,line!(), fmt, unsafe {sc_dump_hex(command.as_ptr(), 7)});
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
@@ -1862,10 +1913,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     let max_send = 256_usize - block_size;
     let command : [u8; 7] = [if !crypt_sym.cbc || (Len1==Len2 && Len1<=max_send) {0_u8} else {0x10_u8}, 0x2A,
         if crypt_sym.encrypt {0x84_u8} else {0x80_u8}, if crypt_sym.encrypt {0x80_u8} else {0x84_u8}, 0x01, 0xFF, 0xFF];
-    let mut apdu = sc_apdu::default();
-    rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    assert_eq!(apdu.cse, SC_APDU_CASE_4_SHORT);
+    let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_4_SHORT, &mut[]);
     let mut cnt = 0_usize; // counting apdu.resplen bytes received;
     let mut path = sc_path::default();
     /* select currently selected DF (clear accumulated CRT) */
@@ -1940,7 +1988,6 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     }
     else {
         let mut last_block_values = [0_u8; 16];
-//        unsafe { copy_nonoverlapping(outdata_ptr.add(cnt-block_size), last_block_values.as_mut_ptr(), block_size) };
         last_block_values[..block_size].copy_from_slice(unsafe {from_raw_parts(outdata_ptr.add(cnt-block_size), block_size)});
         crypt_sym.outdata_len = cnt - usize::from(trailing_blockcipher_padding_get_length(crypt_sym.block_size, crypt_sym.pad_type,
             &last_block_values[..block_size]).unwrap());
@@ -2035,9 +2082,9 @@ pub fn update_hashmap(card: &mut sc_card) {
 
     let mut path = sc_path::default();
     unsafe { sc_format_path(cstru!(b"3F00\0").as_ptr(), &mut path); } // type = SC_PATH_TYPE_PATH;
-    let rv = enum_dir(card, &path, false/*, 0*/);
+    let rv = enum_dir_gui(card, &path);
     assert_eq!(rv, SC_SUCCESS);
-/* * /
+
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let fmt1  = cstru!(b"key: %04X, val.1: %s\0");
     let fmt2  = cstru!(b"key: %04X, val.2: %s\0");
@@ -2053,12 +2100,15 @@ pub fn update_hashmap(card: &mut sc_card) {
         }
     }
     card.drv_data = Box::into_raw(dp) as p_void;
-/ * */
     log3ifr!(ctx,f,line!());
 }
 
 
-pub fn common_read(card: &mut sc_card, idx: u16, buf: &mut [u8]/*, count: usize*/, flags: c_ulong, bin: bool) -> i32
+pub fn common_read(card: &mut sc_card,
+                   idx: u16,
+                   buf: &mut [u8],
+                   flags: c_ulong,
+                   bin: bool) -> i32
 {
     if card.ctx.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
@@ -2115,7 +2165,7 @@ pub fn common_read(card: &mut sc_card, idx: u16, buf: &mut [u8]/*, count: usize*
 
 pub fn common_update(card: &mut sc_card,
                      idx: u16,
-                     buf: &[u8]/* *const u8, count: usize*/,
+                     buf: &[u8],
                      flags: c_ulong,
                      bin: bool) -> i32
 {
@@ -2181,7 +2231,6 @@ mod tests {
     use super::{convert_bytes_tag_fcp_sac_to_scb_array, convert_amdo_to_cla_ins_p1_p2_array,
                 trailing_blockcipher_padding_calculate, trailing_blockcipher_padding_get_length};
     use crate::constants_types::*;
-//    use opensc_sys::errors::*;
 
     #[test]
     fn test_convert_bytes_tag_fcp_sac_to_scb_array() {
@@ -2211,7 +2260,6 @@ mod tests {
         assert_eq!(scb8, [0x45, 0x01, 0x00, 0x03, 0x00, 0x05, 0x00, 0xFF]);
     }
 
-//    pub fn convert_amdo_to_cla_ins_p1_p2_array(amdo_tag: u8, amdo_bytes: &[u8]) -> Result<[u8; 4], i32> //Access Mode Data Object
     #[test]
     fn test_convert_amdo_to_cla_ins_p1_p2_array() {
         let amdo_bytes = [0xAA_u8];

@@ -270,7 +270,6 @@
 // for FILE and free
 extern crate libc;
 
-
 #[doc = " ASN.1 handling"]
 #[allow(dead_code)]
 pub mod asn1;
@@ -541,8 +540,8 @@ mod tests {
                 assert_eq!(sse, 1816);
                 assert_eq!(sef,  176);
                 assert_eq!(srd,   32);
-                assert_eq!(pcp, 4456);
-                assert_eq!(pcd, 8944);
+                assert_eq!(pcp,   88);
+                assert_eq!(pcd,  208);
                 assert_eq!(sco,  296);
                 #[cfg(any(target_pointer_width = "32", windows))]
                 { assert_eq!(scc,  624); }
@@ -582,7 +581,8 @@ mod tests {
                 assert_eq!(sse, 1112);
                 assert_eq!(sef,  176);
                 assert_eq!(srd,   32);
-                assert_eq!(pcp, 4456);
+                assert_eq!(pcp,   88);
+                assert_eq!(pcd,  208);
                 assert_eq!(sco,  296);
                 #[cfg(any(target_pointer_width = "32", windows))]
                 { assert_eq!(scc,  624); }

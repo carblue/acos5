@@ -7,7 +7,6 @@ edition = "2018"
 [dependencies]
 libc = "0.2"
 num-integer = "0.1"
-iso7816-tlv = "0.3"
 opensc-sys = { path = "../opensc-sys" }
 
 [build-dependencies]

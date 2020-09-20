@@ -34,7 +34,7 @@ see file src/libopensc/libopensc.exports
 2. In the meantime, for the external driver, that code must be duplicated here in Rust
 */
 
-use libc::{realloc};
+use libc::{realloc/*, strnlen*/};
 
 use std::convert::TryFrom;
 

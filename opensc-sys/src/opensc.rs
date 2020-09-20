@@ -48,7 +48,9 @@ use std::ptr::{null, null_mut};
 
 use crate::types::{sc_apdu, sc_path, sc_file, sc_acl_entry, sc_object_id, sc_lv_data, sc_aid, sc_ddo, sc_atr,
                    sc_serial_number, sc_version, sc_remote_data, sc_uid,
-                   SC_MAX_SUPPORTED_ALGORITHMS, SC_MAX_SDO_ACLS, SC_MAX_CARD_APPS, SC_MAX_CARD_DRIVERS};
+                   SC_MAX_SUPPORTED_ALGORITHMS, SC_MAX_CARD_APPS, SC_MAX_CARD_DRIVERS};
+#[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
+use crate::types::SC_MAX_SDO_ACLS;
 use crate::scconf::{scconf_context, scconf_block};
 use crate::internal::sc_atr_table;
 use crate::sm::sm_context;
@@ -724,30 +726,38 @@ pub const SC_PIN_STATE_UNKNOWN       : i32 = -1;    // since opensc source relea
 pub const SC_PIN_STATE_LOGGED_OUT    : i32 = 0;     // since opensc source release v0.17.0
 pub const SC_PIN_STATE_LOGGED_IN     : i32 = 1;     // since opensc source release v0.17.0
 
+/* A card driver receives the sc_pin_cmd_data and sc_pin_cmd_pin structures filled in by the
+ * caller, with the exception of the fields returned by the driver for SC_PIN_CMD_GET_INFO.
+ * It may use and update any of the fields before passing the structure to the ISO 7816 layer for
+ * processing.
+ */
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pin_cmd_pin {
     pub prompt : *const c_char, /* Prompt to display */
 
-    pub data : *const u8, /* PIN, if given by the appliction */
+    pub data : *const u8, /* PIN, set to NULL when using pin pad */
     pub len : i32, /* set to -1 to get pin from pin pad */
 
     pub min_length    : usize, /* min length of PIN */
     pub max_length    : usize, /* max length of PIN */
+    #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
     pub stored_length : usize, /* stored length of PIN */
 
     pub encoding : u32, /* ASCII-numeric, BCD, etc */
 
-    pub pad_length : usize, /* filled in by the card driver */
+    pub pad_length : usize, /* PIN padding options, used with SC_PIN_CMD_NEED_PADDING */
     pub pad_char : u8,
 
-    pub offset        : usize, /* PIN offset in the APDU */
+    pub offset        : usize, /* PIN offset in the APDU when using pin pad */
+    #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
     pub length_offset : usize, /* Effective PIN length offset in the APDU */
 
     pub max_tries  : i32, /* Used for signaling back from SC_PIN_CMD_GET_INFO */
     pub tries_left : i32, /* Used for signaling back from SC_PIN_CMD_GET_INFO  or if the command failed */
     pub logged_in : i32,  /* Used for signaling back from SC_PIN_CMD_GET_INFO, see SC_PIN_STATE_* */  // since opensc source release v0.17.0
 
+    #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
     pub acls : [sc_acl_entry; SC_MAX_SDO_ACLS],
 }
 
@@ -760,21 +770,30 @@ impl Default for sc_pin_cmd_pin {
             len: 0,
             min_length: 4,    // not imposed by acos
             max_length: 8,    // this may be different for ACOS5-EVO
+            #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
             stored_length: 8, // this may be different for ACOS5-EVO
             encoding: 0,      // 0 == SC_PIN_ENCODING_ASCII
             pad_length: 8,
             pad_char: 0xFF,
             offset: 5,        // this may be different for ACOS5-EVO
+            #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
             length_offset: 0,
             max_tries: 8, // 1-14 or 0xFF
             tries_left: 0,
             logged_in: 0, // 0 == SC_PIN_STATE_LOGGED_OUT
+            #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
             acls: [sc_acl_entry::default(); SC_MAX_SDO_ACLS]
         }
     }
 }
 
 
+/* A NULL in apdu means that the APDU is prepared by the ISO 7816 layer, which also handles PIN
+ * padding and setting offset fields for the PINs (for PIN-pad use). A non-NULL in APDU means that
+ * the card driver has prepared the APDU (including padding) and set the PIN offset fields.
+ *
+ * Note that flags apply to both PINs for multi-PIN operations.
+ */
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pin_cmd_data {
@@ -1393,7 +1412,7 @@ pub fn sc_bytes2apdu(ctx: *mut sc_context, buf: *const u8, len: usize, apdu: *mu
  *  @param  apdu    APDU to be encoded as an octet string
  *  @param  proto   protocol version to be used
  *  @param  out     output buffer of size outlen.
- *  @param  outlen  size of hte output buffer
+ *  @param  outlen  size of the output buffer
  *  @return SC_SUCCESS on success and an error code otherwise
  */
 #[cfg(not(v0_17_0))]

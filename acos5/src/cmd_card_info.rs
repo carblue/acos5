@@ -20,16 +20,15 @@
 
 /* functions, (most of) callable via sc_card_ctl(acos5_card_ctl), mostly used by acos5_gui */
 
-use std::ffi::CStr;
+// use std::ffi::CStr;
 use std::convert::TryFrom;
 
-use opensc_sys::opensc::{sc_card, sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_check_sw};
-use opensc_sys::types::{sc_serial_number, sc_apdu, SC_MAX_SERIALNR, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT};
+use opensc_sys::opensc::{sc_card, sc_transmit_apdu, sc_check_sw};
+use opensc_sys::types::{sc_serial_number, SC_MAX_SERIALNR, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_CARD_CMD_FAILED};
 
-use crate::constants_types::{SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3};
+use crate::constants_types::{build_apdu, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3};
 use crate::wrappers::{wr_do_log};
-
 
 //QS
 /// Get card's (hardware identifying) serial number. Copies result to card.serialnr
@@ -48,24 +47,17 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
         return Ok(card.serialnr);
     }
 
-    let len_card_serial_number = if card.type_ > SC_CARD_TYPE_ACOS5_64_V2 {8} else {6};
-    let command = [0x80, 0x14, 0, 0, len_card_serial_number];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    debug_assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_2_SHORT, apdu.cse);
-    debug_assert!(SC_MAX_SERIALNR >= usize::from(len_card_serial_number));
-
+    let len_serial_num: usize = if card.type_ > SC_CARD_TYPE_ACOS5_64_V2 {8} else {6};
+    debug_assert!(SC_MAX_SERIALNR >= len_serial_num);
     let mut serial = sc_serial_number::default();
-    apdu.resp =    serial.value.as_mut_ptr();
-    apdu.resplen = serial.value.len(); // SC_MAX_SERIALNR
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 0, 0, u8::try_from(len_serial_num).unwrap()], SC_APDU_CASE_2_SHORT, &mut serial.value);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
-    if rv != SC_SUCCESS || apdu.resplen != usize::from(len_card_serial_number) {
+    if rv != SC_SUCCESS || apdu.resplen != len_serial_num {
         log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Card Info: Serial Number' failed\0"));
         return Err(SC_ERROR_CARD_CMD_FAILED);
     }
-    serial.len = usize::from(len_card_serial_number);
+    serial.len = len_serial_num;
     card.serialnr.value = serial.value;
     card.serialnr.len   = serial.len;
     Ok(serial)
@@ -86,13 +78,8 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
     let f = cstru!(b"get_count_files_curr_df\0");
     log3ifc!(ctx,f,line!());
 
-    let command = [0x80, 0x14, 1, 0];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    debug_assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_1, apdu.cse);
-
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 1, 0], SC_APDU_CASE_1, &mut[]);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Card Info: Number of files \
@@ -118,7 +105,6 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
 /// @apiNote  SC_CARDCTL_ACOS5_GET_FILE_INFO; for clients: for all card types indexing starts from 0. This function will
 /// care for cards, that behave differently\
 /// @return  file information (8 bytes) or an OpenSC error
-/* Note that reference starts from 0 with V2 and V3, but with V4 reference starts from 1 */
 pub fn get_file_info(card: &mut sc_card, reference: u8) -> Result<[u8; 8], i32>
 {
     assert!(!card.ctx.is_null());
@@ -126,15 +112,10 @@ pub fn get_file_info(card: &mut sc_card, reference: u8) -> Result<[u8; 8], i32>
     let f = cstru!(b"get_file_info\0");
     log3ifc!(ctx,f,line!());
 
-    let command = [0x80, 0x14, 2, reference+ if card.type_ > SC_CARD_TYPE_ACOS5_64_V3 {1} else {0}, 8];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    debug_assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_2_SHORT, apdu.cse);
     let mut rbuf = [0; 8];
-    apdu.resp    =  rbuf.as_mut_ptr();
-    apdu.resplen =  rbuf.len();
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 2, reference+ if card.type_>SC_CARD_TYPE_ACOS5_64_V3 {1} else {0}, 8],
+        SC_APDU_CASE_2_SHORT, &mut rbuf);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.resplen == rbuf.len() {
         Ok(rbuf)
@@ -160,16 +141,10 @@ pub fn get_free_space(card: &mut sc_card) -> Result<u32, i32>
     let f = cstru!(b"get_free_space\0");
     log3ifc!(ctx,f,line!());
 
-    let command = [0x80, 0x14, 4, 0, if card.type_> SC_CARD_TYPE_ACOS5_64_V3 {3} else {2}];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    debug_assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_2_SHORT, apdu.cse);
-
     let mut rbuf = [0; 4];
-    apdu.resp    = rbuf.as_mut_ptr();
-    apdu.resplen = rbuf.len();
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 4, 0, if card.type_> SC_CARD_TYPE_ACOS5_64_V3 {3} else {2}],
+         SC_APDU_CASE_2_SHORT, &mut rbuf);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && (card.type_>  SC_CARD_TYPE_ACOS5_64_V3 && apdu.resplen == 3 ||
                             card.type_<= SC_CARD_TYPE_ACOS5_64_V3 && apdu.resplen == 2) {
@@ -192,13 +167,8 @@ pub fn get_is_ident_self_okay(card: &mut sc_card) -> Result<bool, i32> // get_id
     let f = cstru!(b"get_is_ident_self_okay\0");
     log3ifc!(ctx,f,line!());
 
-    let command = [0x80, 0x14, 5, 0];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_1, apdu.cse);
-
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 5, 0], SC_APDU_CASE_1, &mut[]);
+    let rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     if apdu.sw1 == 0x95 && (card.type_>  SC_CARD_TYPE_ACOS5_64_V3 && apdu.sw2 == 0xC0 ||
                             card.type_<= SC_CARD_TYPE_ACOS5_64_V3 && apdu.sw2 == 0x40) {
         Ok(true)
@@ -217,15 +187,9 @@ pub fn get_cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
     let f = cstru!(b"get_cos_version\0");
     log3ifc!(ctx,f,line!());
 
-    let command = [0x80, 0x14, 6, 0, 8];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_2_SHORT, apdu.cse);
     let mut rbuf = [0; 8];
-    apdu.resp    = rbuf.as_mut_ptr();
-    apdu.resplen = rbuf.len();
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 6, 0, 8], SC_APDU_CASE_2_SHORT, &mut rbuf);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.resplen == rbuf.len() {
         Ok(rbuf)
@@ -244,16 +208,9 @@ pub fn get_manufacture_date(card: &mut sc_card) -> Result<u32, i32>
     let f = cstru!(b"get_manufacture_date\0");
     log3ifc!(ctx,f,line!());
 
-    let command = [0x80, 0x14, 7, 0, 4];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
-
     let mut rbuf = [0; 4];
-    apdu.resp    = rbuf.as_mut_ptr();
-    apdu.resplen = rbuf.len();
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 7, 0, 4], SC_APDU_CASE_2_SHORT, &mut rbuf);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.resplen == rbuf.len() {
         Ok(u32::from_be_bytes(rbuf))
@@ -272,15 +229,9 @@ pub fn get_rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
     let f = cstru!(b"get_rom_sha1\0");
     log3ifc!(ctx,f,line!());
 
-    let command = [0x80, 0x14, 8, 0, 20];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_2_SHORT, apdu.cse);
     let mut rbuf = [0; 20];
-    apdu.resp    = rbuf.as_mut_ptr();
-    apdu.resplen = rbuf.len();
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 8, 0, 20], SC_APDU_CASE_2_SHORT, &mut rbuf);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.resplen == rbuf.len() {
         Ok(rbuf)
@@ -299,12 +250,8 @@ pub fn get_op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
     let f = cstru!(b"get_op_mode_byte\0");
     log3ifc!(ctx,f,line!());
 
-    let command = [0x80, 0x14, 9, 0];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_1, apdu.cse);
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 9, 0], SC_APDU_CASE_1, &mut[]);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && (apdu.sw2 == 0 || apdu.sw2 == 1 || apdu.sw2 == 2 || apdu.sw2 == 16) {
         /*  for SC_CARD_TYPE_ACOS5_64_V3: apdu.sw2:
@@ -333,19 +280,12 @@ pub fn get_op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
     let f = cstru!(b"get_op_mode_byte_eeprom\0");
     log3ifc!(ctx,f,line!());
 
-    let mut operation_mode_byte : u8 = 0xFF; // also called compatibility byte
-    let command = [0, 0xB0, 0xC1, 0x91, 1];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_2_SHORT, apdu.cse);
-
-    apdu.resp    = &mut operation_mode_byte;
-    apdu.resplen = 1;
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut rbuf = [0xFF; 1];
+    let mut apdu = build_apdu(ctx, &[0, 0xB0, 0xC1, 0x91, 1], SC_APDU_CASE_2_SHORT, &mut rbuf);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.resplen == 1 {
-        Ok(operation_mode_byte)
+        Ok(rbuf[0]) // also called compatibility byte
     }
     else {
         log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Operation Mode Byte' failed\0"));
@@ -361,12 +301,8 @@ pub fn get_is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_FIPS
     let f = cstru!(b"get_is_fips_compliant\0");
     log3ifc!(ctx,f,line!());
 
-    let command = [0x80, 0x14, 10, 0];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_1, apdu.cse);
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 10, 0], SC_APDU_CASE_1, &mut[]);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.sw2==0 {
         log3if!(ctx,f,line!(), cstru!(b"'Get Card Info: Verify FIPS Compliance' returned: Card's \
@@ -388,19 +324,8 @@ pub fn get_is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<boo
     let f = cstru!(b"get_pin_auth_state\0");
     log3ifc!(ctx,f,line!());
 
-    let command = [0x80, 0x14, 11, reference/*, 1*/];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_1, apdu.cse);
-
-/*
-    debug_assert_eq!(SC_APDU_CASE_2_SHORT, apdu.cse);
-    let mut rbuf = [0_u8; 1];
-    apdu.resp = rbuf.as_mut_ptr();
-    apdu.resplen = rbuf.len();
-*/
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 11, reference], SC_APDU_CASE_1, &mut[]);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS {
         Ok(true)
@@ -422,22 +347,11 @@ pub fn get_is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<boo
     let f = cstru!(b"get_key_auth_state\0");
     log3ifc!(ctx,f,line!());
 
-    let command = [0x80, 0x14, 12, reference/*, 1*/];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    debug_assert_eq!(apdu.cse, SC_APDU_CASE_1);
-
-/*
-    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
-    let mut rbuf = [0_u8; 1];
-    apdu.resp = rbuf.as_mut_ptr();
-    apdu.resplen = rbuf.len();
-*/
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 12, reference], SC_APDU_CASE_1, &mut[]);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS {
-        Ok(/*rbuf[0] == 1*/true)
+        Ok(true)
     }
     else if apdu.sw1 == 0x6F && apdu.sw2 == 0 {
         Ok(false)
@@ -456,22 +370,15 @@ pub fn get_zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i3
     let f = cstru!(b"get_zeroize_card_disable_byte_eeprom\0");
     log3ifc!(ctx,f,line!());
 
-    let command = [0, 0xB0, 0xC1, 0x92, 1];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
-
-    let mut zeroize_card_disable_byte : u8 = 0xFF;
-    apdu.resp = &mut zeroize_card_disable_byte;
-    apdu.resplen = 1;
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut rbuf = [0xFF; 1];
+    let mut apdu = build_apdu(ctx, &[0, 0xB0, 0xC1, 0x92, 1], SC_APDU_CASE_2_SHORT, &mut rbuf);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen != 1 {
         log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Zeroize Card Disable Byte' failed\0"));
         return Err(SC_ERROR_CARD_CMD_FAILED);
     }
-    Ok(zeroize_card_disable_byte)
+    Ok(rbuf[0])
 }
 
 /* This is NOT a card command, but reading from EEPROM; allowed only in stage manufacturer */
@@ -482,20 +389,13 @@ pub fn get_card_life_cycle_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
     let f = cstru!(b"get_card_life_cycle_byte_eeprom\0");
     log3ifc!(ctx,f,line!());
 
-    let mut card_life_cycle_byte : u8 = 0xFF;
-    let command = [0, 0xB0, 0xC1, 0x84, 1];
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
-
-    apdu.resp = &mut card_life_cycle_byte;
-    apdu.resplen = 1;
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut rbuf = [0xFF; 1];
+    let mut apdu = build_apdu(ctx, &[0, 0xB0, 0xC1, 0x84, 1], SC_APDU_CASE_2_SHORT, &mut rbuf);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen != 1 {
         log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Card Life Cycle Byte' failed\0"));
         return Err(SC_ERROR_CARD_CMD_FAILED);
     }
-    Ok(card_life_cycle_byte)
+    Ok(rbuf[0])
 }

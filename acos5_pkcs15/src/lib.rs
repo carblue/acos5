@@ -87,7 +87,7 @@ use std::convert::TryFrom;
 use std::slice::from_raw_parts;
 
 
-use opensc_sys::opensc::{sc_context, sc_card, sc_select_file, sc_file_free, sc_card_ctl, SC_ALGORITHM_DES, SC_ALGORITHM_3DES, SC_ALGORITHM_AES, sc_card_find_rsa_alg, sc_file_new, sc_bytes2apdu_wrapper, sc_transmit_apdu, sc_file_dup,  sc_delete_file, sc_check_sw};
+use opensc_sys::opensc::{sc_context, sc_card, sc_select_file, sc_file_free, sc_card_ctl, SC_ALGORITHM_DES, SC_ALGORITHM_3DES, SC_ALGORITHM_AES, sc_card_find_rsa_alg, sc_file_new, sc_transmit_apdu, sc_file_dup,  sc_delete_file, sc_check_sw};
 
 use opensc_sys::profile::{sc_profile};
 use opensc_sys::pkcs15::{sc_pkcs15_card, sc_pkcs15_object, sc_pkcs15_prkey, sc_pkcs15_pubkey, sc_pkcs15_skey_info,
@@ -108,7 +108,7 @@ use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
                          //,SC_ERROR_INCONSISTENT_CONFIGURATION, SC_ERROR_UNKNOWN, SC_ERROR_FILE_NOT_FOUND
 };
 //use opensc_sys::sm::{sm_info};
-use opensc_sys::types::{sc_file, sc_path, sc_apdu, SC_AC_OP_CREATE_EF, SC_AC_OP_DELETE, SC_AC_OP_READ, SC_AC_OP_DELETE_SELF,//SC_AC_OP_DELETE_SELF, SC_FILE_TYPE_INTERNAL_EF,
+use opensc_sys::types::{sc_file, sc_path, SC_AC_OP_CREATE_EF, SC_AC_OP_DELETE, SC_AC_OP_READ, SC_AC_OP_DELETE_SELF,//SC_AC_OP_DELETE_SELF, SC_FILE_TYPE_INTERNAL_EF,
                         SC_AC_OP_UPDATE, SC_APDU_CASE_1/*, SC_APDU_CASE_3*/, SC_PATH_TYPE_PATH, sc_acl_entry};
 // SC_FILE_EF_TRANSPARENT, SC_FILE_STATUS_CREATION, SC_MAX_PATH_SIZE,  SC_PATH_TYPE_FILE_ID, SC_AC_OP_DELETE
 //use opensc_sys::types::{/*SC_MAX_CRTS_IN_SE, sc_crt*/};
@@ -238,11 +238,7 @@ extern "C" fn acos5_pkcs15_erase_card(profile_ptr: *mut sc_profile, p15card_ptr:
         return rv;
     }
 
-    let command = [0x80, 0x30, 0, 0];
-    let mut apdu = sc_apdu::default();
-    rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    assert_eq!(apdu.cse, SC_APDU_CASE_1);
+    let mut apdu = build_apdu(ctx, &[0x80, 0x30, 0, 0], SC_APDU_CASE_1, &mut[]);
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
@@ -804,11 +800,7 @@ P*/
         if rv != SC_SUCCESS {
             return rv;
         }
-        let command = [0x00, 0x44, 0x00, 0x00];
-        let mut apdu = sc_apdu::default();
-        rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-        assert_eq!(rv, SC_SUCCESS);
-        assert_eq!(apdu.cse, SC_APDU_CASE_1);
+        let mut apdu = build_apdu(ctx, &[0x00, 0x44, 0x00, 0x00], SC_APDU_CASE_1, &mut[]);
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
         if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 {
             let fmt = cstru!(b"sc_transmit_apdu failed or ### File Activation failed for private key ###\0");

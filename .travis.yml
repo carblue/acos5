@@ -3,12 +3,13 @@ rust:
   - stable
 
 sudo: required
-dist: bionic  # see https://docs.travis-ci.com/user/reference/bionic/
+#dist: bionic  # see https://docs.travis-ci.com/user/reference/bionic/
+dist: focal  # see https://docs.travis-ci.com/user/reference/focal/   focal supplies OpenSC version 0.20.0-3; current is version 0.20.0  libopensc.so.6
 
 before_install:
-  - sudo apt-get install -y opensc opensc-pkcs11 # bionic supplies OpenSC version 0.17.0; current is version 0.19.0
+  - sudo apt-get install -y opensc opensc-pkcs11
   - ls -lh /usr/lib/x86_64-linux-gnu/libopensc*
-  - sudo ln -s -T /usr/lib/x86_64-linux-gnu/libopensc.so.5 /usr/lib/x86_64-linux-gnu/libopensc.so
+  - sudo ln -s -T /usr/lib/x86_64-linux-gnu/libopensc.so.6 /usr/lib/x86_64-linux-gnu/libopensc.so
   - ls -lh /usr/lib/x86_64-linux-gnu/libopensc*
 #  - sudo printf "prefix=/usr\nexec_prefix=${prefix}\nlibdir=/usr/lib/x86_64-linux-gnu\nincludedir=${prefix}/include\n\nName: OpenSC smartcard framework\nDescription: OpenSC library\nVersion: 0.17.0\nLibs: -L${libdir} -lopensc\n" > /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc
   - sudo cp travis_opensc.pc /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc

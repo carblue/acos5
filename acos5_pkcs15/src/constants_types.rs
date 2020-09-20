@@ -21,15 +21,60 @@
 use std::os::raw::{c_char, c_ulong, c_void};
 use std::collections::HashMap;
 
-use opensc_sys::opensc::{sc_security_env};
-use opensc_sys::types::{sc_crt, sc_object_id, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
+use opensc_sys::opensc::{sc_context, sc_security_env, sc_bytes2apdu};
+use opensc_sys::types::{sc_apdu, sc_crt, sc_object_id, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
 use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUSTED,
                          SC_PKCS15_SKDF, SC_PKCS15_CDF, SC_PKCS15_CDF_TRUSTED, SC_PKCS15_CDF_USEFUL,
                          SC_PKCS15_DODF, SC_PKCS15_AODF};
+use opensc_sys::errors::{SC_SUCCESS};
 
 
 #[allow(non_camel_case_types)]
 pub type p_void = *mut c_void;
+
+#[derive(Debug, Copy, Clone)]
+pub struct TLV<'a> {
+    tag: u8,
+    length: u8,
+    value: &'a [u8],
+
+    rem: &'a [u8],
+}
+
+impl<'a> TLV<'a> {
+    pub fn new(input: &'a[u8]) -> Self {
+        Self { tag: 0, length: 0, value: input, rem: input }
+    }
+
+    pub fn tag(&self) -> u8 {
+        self.tag
+    }
+    pub fn length(&self) -> u8 {
+        self.length
+    }
+    pub fn value(&self) -> &'a [u8] {
+        self.value
+    }
+}
+
+impl<'a> Iterator for TLV<'a> {
+    type Item = TLV<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.rem.is_empty() {
+            None
+        }
+        else {
+            assert!(self.rem.len()>=2);
+            self.tag    = self.rem[0];
+            self.length = self.rem[1];
+            assert!(self.rem.len() >=  2+usize::from(self.length));
+            self.value  = &self.rem[2..2+usize::from(self.length)];
+            self.rem    = &self.rem[   2+usize::from(self.length)..];
+            Some(*self)
+        }
+    }
+}
 
 /*
 Limits:
@@ -82,7 +127,7 @@ pub const NAME_V2  : &[u8; 43] = b"ACOS5-64 V2.00: Smart Card or CryptoMate64\0"
 pub const NAME_V3  : &[u8; 46] = b"ACOS5-64 V3.00: Smart Card or CryptoMate Nano\0";
 pub const NAME_V4  : &[u8; 50] = b"ACOS5-EVO V4.00: Smart Card EVO or CryptoMate EVO\0";
 
-pub const CARD_DRV_NAME       : &[u8; 108] = b"'acos5_external', supporting ACOS5 Smart Card V2.00 (CryptoMate64), V3.00 (CryptoMate Nano) and V4.00 (EVO)\0";
+pub const CARD_DRV_NAME       : &[u8; 92] = b"'acos5_external', supporting ACOS5 Smart Card V2.00 (CryptoMate64), V3.00 (CryptoMate Nano)\0";
 pub const CARD_DRV_SHORT_NAME : &[u8;  15] =  b"acos5_external\0";
 
 //pub const CRATE               : &[u8;   6] = b"acos5\0"; // search acos5 mention in debug log file; each function should at least log CALLED, except small helpers or code that is clearly covered by only one possible surrounding function's called
@@ -291,14 +336,6 @@ pub struct CardCtlArray8 {
     pub reference  : u8,      // IN  indexing begins with 0, used for SC_CARDCTL_GET_FILE_INFO
     pub value      : [u8; 8], // OUT
 }
-/*
-// struct for SC_CARDCTL_GET_ROM_SHA1
-#[repr(C)]
-#[derive(Default, Debug, Copy, Clone,  PartialEq)]
-pub struct CardCtlArray20 {
-    pub value      : [u8; 20], // OUT
-}
-*/
 
 // struct for SC_CARDCTL_GET_FILES_HASHMAP_INFO
 #[repr(C)]
@@ -542,6 +579,19 @@ pub fn is_DFMF(fdb: u8) -> bool
 {
     (fdb & FDB_DF) == FDB_DF
 }
+
+pub fn build_apdu(ctx: &mut sc_context, cmd: &[u8], cse: i32, rbuf: &mut [u8]) -> sc_apdu {
+    let mut apdu = sc_apdu::default();
+    let rv = unsafe { sc_bytes2apdu(ctx, cmd.as_ptr(), cmd.len(), &mut apdu) };
+    assert_eq!(SC_SUCCESS, rv);
+    debug_assert_eq!(cse, apdu.cse);
+    if !rbuf.is_empty() {
+        apdu.resp    = rbuf.as_mut_ptr();
+        apdu.resplen = rbuf.len();
+    }
+    apdu
+}
+
 
 ////////////////
 ////////////////

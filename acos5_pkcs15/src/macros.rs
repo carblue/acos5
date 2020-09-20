@@ -1,6 +1,6 @@
 
 macro_rules! cstru {
-    ($x:expr) => (unsafe { CStr::from_bytes_with_nul_unchecked($x) })
+    ($x:expr) => (unsafe { std::ffi::CStr::from_bytes_with_nul_unchecked($x) })
 }
 
 /*
@@ -50,6 +50,7 @@ macro_rules! log3ifr {
 macro_rules! log3ifc {
     ($a:expr, $b:expr, $c:expr)                                               => (wr_do_log     ($a, $b, $c,  cstru!(b"called\0")));
 }
+
 
 /*
 

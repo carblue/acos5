@@ -275,6 +275,7 @@ pub struct sc_acl_entry {
     pub method  : u32, /* See SC_AC_* */
     pub key_ref : u32, /* SC_AC_KEY_REF_NONE or an integer */
 
+    #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
     pub crts    : [sc_crt; SC_MAX_CRTS_IN_SE],
 
     pub next    : *mut sc_acl_entry,
@@ -286,6 +287,7 @@ impl Default for sc_acl_entry {
         Self {
             method: 0, // 0 == SC_AC_OP_SELECT
             key_ref: 0,
+            #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
             crts: [sc_crt::default(); SC_MAX_CRTS_IN_SE],
             next: null_mut()
         }

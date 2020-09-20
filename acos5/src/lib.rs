@@ -22,7 +22,11 @@
 
  https://www.acs.com.hk/en/products/308/acos5-64-v3.00-cryptographic-card-contact/
  https://www.acs.com.hk/en/products/414/cryptomate-nano-cryptographic-usb-tokens/
+
  https://www.acs.com.hk/en/products/464/acos5-evo-pki-smart-card-contact/
+ https://www.acs.com.hk/en/products/494/cryptomate-evo-cryptographic-usb-tokens/
+
+ http://acsccid.sourceforge.net/
 
  https://help.github.com/en/articles/changing-a-remotes-url
 
@@ -33,7 +37,7 @@ Case     Command data     Expected response data
 3         Data                No data
 4         Data                Data
 
-TODO Many error returns are provisorily set to SC_ERROR_KEYPAD_MSG_TOO_LONG to be refined later
+TODO Many error returns are provisionally set to SC_ERROR_KEYPAD_MSG_TOO_LONG to be refined later
 TODO Only set to anything other than SC_ERROR_KEYPAD_MSG_TOO_LONG, if that's the final setting
 
 
@@ -63,7 +67,8 @@ TODO Only set to anything other than SC_ERROR_KEYPAD_MSG_TOO_LONG, if that's the
 
 extern crate libc;
 extern crate num_integer;
-extern crate iso7816_tlv;
+//extern crate iso7816_tlv;
+//iso7816-tlv = "0.3"
 //extern crate tlv_parser;
 extern crate opensc_sys;
 //extern crate bitintr; //no_cdecl.rs
@@ -82,8 +87,8 @@ use std::convert::TryFrom;
 
 
 use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_security_env, sc_pin_cmd_data,
-                         sc_get_iso7816_driver, sc_file_add_acl_entry, sc_format_path, sc_file_set_prop_attr,
-                         sc_transmit_apdu, sc_bytes2apdu_wrapper, sc_check_sw, SC_CARD_CAP_RNG, SC_CARD_CAP_USE_FCI_AC,
+                         sc_get_iso7816_driver, sc_format_path, sc_file_set_prop_attr,
+                         sc_transmit_apdu, sc_check_sw, SC_CARD_CAP_RNG, SC_CARD_CAP_USE_FCI_AC,
                          SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_ALGORITHM_RSA,
                          SC_ALGORITHM_ONBOARD_KEY_GEN, SC_ALGORITHM_RSA_RAW, SC_SEC_OPERATION_SIGN,
                          SC_SEC_OPERATION_DECIPHER, SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_DERIVE,
@@ -111,12 +116,12 @@ use opensc_sys::opensc::{sc_update_record, SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM
 use opensc_sys::types::{sc_aid, SC_MAX_AID_SIZE, SC_AC_CHV, sc_path, sc_file, sc_serial_number, SC_MAX_PATH_SIZE,
                         SC_PATH_TYPE_FILE_ID, SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH,
 //                        SC_PATH_TYPE_PATH_PROT, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
-                        SC_FILE_TYPE_DF, SC_FILE_TYPE_INTERNAL_EF, SC_FILE_EF_TRANSPARENT, SC_AC_NONE,
+                        SC_FILE_TYPE_DF, SC_FILE_TYPE_INTERNAL_EF, SC_FILE_EF_TRANSPARENT,/* SC_AC_NONE,
                         SC_AC_KEY_REF_NONE, SC_AC_OP_LIST_FILES, SC_AC_OP_SELECT, SC_AC_OP_DELETE, SC_AC_OP_CREATE_EF,
                         SC_AC_OP_CREATE_DF, SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_READ,
                         SC_AC_OP_UPDATE, SC_AC_OP_CRYPTO, SC_AC_OP_DELETE_SELF, SC_AC_OP_CREATE, SC_AC_OP_WRITE,
-                        SC_AC_OP_GENERATE, SC_APDU_FLAGS_CHAINING, SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_1,
-                        SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT, sc_apdu};
+                        SC_AC_OP_GENERATE,*/ SC_APDU_FLAGS_CHAINING, SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_1,
+                        SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT};
 
 use opensc_sys::errors::{SC_SUCCESS/*, SC_ERROR_INTERNAL*/, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
                          SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY, SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING,
@@ -164,14 +169,14 @@ use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_arra
     /*, create_mf_file_system*/ convert_acl_array_to_bytes_tag_fcp_sac, get_sec_env_mod_len,
     ACL_CATEGORY_DF_MF, ACL_CATEGORY_EF_CHV, ACL_CATEGORY_KEY, ACL_CATEGORY_SE,
     get_is_running_compute_signature, set_is_running_compute_signature,
-    common_read, common_update, acos5_supported_ec_curves, logout_pin
+    common_read, common_update, acos5_supported_ec_curves, logout_pin//, sc_ac_op_name_from_idx
 };
 
 pub mod    path;
 use crate::path::{file_id_from_cache_current_path, file_id_from_path_value, current_path_df};
 
 pub mod    se;
-use crate::se::{se_file_add_acl_entry, se_get_is_scb_suitable_for_sm_has_ct, se_parse_sae,
+use crate::se::{map_scb8_to_acl, se_get_is_scb_suitable_for_sm_has_ct, se_parse_sae,
                 se_get_sae_scb};
 
 pub mod    sm;
@@ -181,9 +186,11 @@ pub mod    wrappers;
 use crate::wrappers::*;
 
 
+/*
 #[cfg(test)]
 #[cfg(test_v2_v3_token)]
 mod   test_v2_v3;
+*/
 
 
 /* #[no_mangle] pub extern fn  is the same as  #[no_mangle] pub extern "C" fn
@@ -204,9 +211,9 @@ mod   test_v2_v3;
 ///           It's accuracy depends on how closely the opensc-sys binding and driver code has covered the possible
 ///           differences in API and behavior (it's build.rs mention the last OpenSC commit covered).
 ///           master will be handled as an imaginary new version release:
-///           E.g. while currently the latest release is 0.19.0, build OpenSC from source such that it reports imaginary
-///           version 0.20.0 (change config.h after ./configure and before make, and change opensc.pc as well)
-///           In this example, cfg!(v0_20_0) will then match that
+///           E.g. while currently the latest release is 0.20.0, build OpenSC from source such that it reports imaginary
+///           version 0.21.0 (change config.h after ./configure and before make, and change opensc.pc as well)
+///           In this example, cfg!(v0_21_0) will then match that
 ///
 /// @return   The OpenSC release/imaginary version, that this driver implementation supports
 #[no_mangle]
@@ -214,7 +221,8 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
     if       cfg!(v0_17_0) { cstru!(b"0.17.0\0").as_ptr() }
     else  if cfg!(v0_18_0) { cstru!(b"0.18.0\0").as_ptr() }
     else  if cfg!(v0_19_0) { cstru!(b"0.19.0\0").as_ptr() }
-    else  if cfg!(v0_20_0) { cstru!(b"0.20.0\0").as_ptr() } // experimental only: see build.rs which github commit is supported
+    else  if cfg!(v0_20_0) { cstru!(b"0.20.0\0").as_ptr() }
+    else  if cfg!(v0_21_0) { cstru!(b"0.21.0\0").as_ptr() } // experimental only: see build.rs which github commit is supported
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -790,9 +798,38 @@ extern "C" fn acos5_finish(card_ptr: *mut sc_card) -> i32
     let ctx = unsafe { &mut *card.ctx };
     log3ifc!(ctx,cstru!(b"acos5_finish\0"),line!());
 ////////////////////
-/*
+/* * /
     let mut path_x = sc_path::default();
-    unsafe { sc_format_path(cstru!(b"3F00C100C200\0").as_ptr(), &mut path_x); }
+    let mut file_x = null_mut();
+    unsafe { sc_format_path(cstru!(b"3F0041004102\0").as_ptr(), &mut path_x); }
+    let rv = unsafe { sc_select_file(card, &path_x, &mut file_x) };
+    assert_eq!(SC_SUCCESS, rv);
+
+    {
+        assert!(!file_x.is_null());
+        let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let scb8 = dp.files[&0x4102].2.unwrap();
+        card.drv_data = Box::into_raw(dp) as p_void;
+
+        let file = unsafe { &mut *file_x };
+        println!("file_id: {:X?}, scb8: {:X?}", 0x4102, scb8);
+        for (i, elem) in file.acl.iter().enumerate() {
+            if !(*elem).is_null() {
+                if unsafe { (*elem) as usize==1 || (*elem) as usize==2 || (*elem) as usize==3 } {
+                    println!("i: {} {:?}, pointer: {:p}", i, sc_ac_op_name_from_idx(i), (*elem));
+                }
+                else {
+                    let acl =  unsafe { &mut *(*elem) };
+                    println!("i: {} {:?}, method: {:X}, key_ref: {:X}, next: {:p}", i, sc_ac_op_name_from_idx(i), acl.method, acl.key_ref, acl.next);
+                }
+            }
+        }
+        unsafe { sc_file_free(file_x) };
+    }
+/ * */
+/* * /
+    let mut path_x = sc_path::default();
+    unsafe { sc_format_path(cstru!(b"3F0041004103\0").as_ptr(), &mut path_x); }
     let mut rv = unsafe { sc_select_file(card, &path_x, null_mut()) };
     assert_eq!(SC_SUCCESS, rv);
     {
@@ -812,9 +849,9 @@ extern "C" fn acos5_finish(card_ptr: *mut sc_card) -> i32
         rv = unsafe { sc_pin_cmd(card, &mut pin_cmd_data, &mut tries_left) }; // done with SM Conf
         assert_eq!(SC_SUCCESS, rv);
     }
-    rv = unsafe { sc_delete_file(card, &path_x) };
+//    rv = unsafe { sc_delete_file(card, &path_x) };
 
-*/
+/ **/
 /* * /
     let mut path_x = sc_path::default();
     unsafe { sc_format_path(cstru!(b"3F00C100C200C300C304\0").as_ptr(), &mut path_x); }
@@ -973,11 +1010,7 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
         }
     }
     else {
-        let command = [0_u8, 0x0E, 0, 0,  2, 0xFF, 0xFF];
-        let mut apdu = sc_apdu::default();
-        let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-        assert_eq!(rv, SC_SUCCESS);
-        assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
+        let mut apdu = build_apdu(ctx, &[0, 0x0E, 0, 0,  2, 0xFF, 0xFF], SC_APDU_CASE_3_SHORT, &mut[]);
         apdu.flags = flags;
 
         if idx != 0 {
@@ -1001,7 +1034,7 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
             apdu.data = end_offset.as_ptr();
         }
 
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
+        let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
         if rv != SC_SUCCESS {
             log3if!(ctx,f,line!(), cstru!(b"Error: #### Failed to erase binary\0"));
@@ -1288,20 +1321,17 @@ extern "C" fn acos5_get_response(card_ptr: *mut sc_card, count_ptr: *mut usize, 
     card.max_recv_size = SC_READER_SHORT_APDU_MAX_RECV_SIZE;
     /* request at most max_recv_size bytes */
     let rlen = std::cmp::min(cnt_in, me_get_max_recv_size(card));
-    unsafe{ *count_ptr = 0 };
+    unsafe { *count_ptr = 0 }; // prepare to be an OUT variable now
 //println!("### acos5_get_response rlen: {}", rlen);
-    let command = [0, 0xC0, 0x00, 0x00, 0xFF]; // will replace le later; the last byte is a placeholder only for sc_bytes2apdu_wrapper
-    let mut apdu = sc_apdu::default();
-    let mut rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    assert_eq!(apdu.cse, SC_APDU_CASE_2_SHORT);
+    // will replace le later; the last byte is a placeholder only for sc_bytes2apdu
+    let mut apdu = build_apdu(ctx, &[0, 0xC0, 0x00, 0x00, 0xFF], SC_APDU_CASE_2_SHORT, &mut[]);
     apdu.le      = rlen;
     apdu.resplen = rlen;
     apdu.resp    = buf_ptr;
     /* don't call GET RESPONSE recursively */
     apdu.flags  |= SC_APDU_FLAGS_NO_GET_RESP;
 
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
 //    LOG_TEST_RET(card->ctx, rv, "APDU transmit failed");
     if rv != SC_SUCCESS {
         if      apdu.sw1==0x6B && apdu.sw2==0x00 {
@@ -1720,16 +1750,16 @@ extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || file_ptr.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
-    let card       = unsafe { &mut *card_ptr };
+    let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let file        = unsafe { &mut *file_ptr };
+    let file = unsafe { &mut *file_ptr };
 
     log3ifc!(ctx, cstru!(b"acos5_process_fci\0"), line!());
 
     let mut vec_bytes_tag_fcp_sac : Vec<u8> = Vec::with_capacity(8);
     let mut len_bytes_tag_fcp_sac = 0_usize;
-    let ptr_bytes_tag_fcp_sac = unsafe { sc_asn1_find_tag(ctx, buf_ref_ptr, buflen,
-                                                          u32::from(ISO7816_RFU_TAG_FCP_SAC), &mut len_bytes_tag_fcp_sac) };
+    let     ptr_bytes_tag_fcp_sac = unsafe { sc_asn1_find_tag(ctx, buf_ref_ptr, buflen,
+        u32::from(ISO7816_RFU_TAG_FCP_SAC), &mut len_bytes_tag_fcp_sac) };
     assert!(!ptr_bytes_tag_fcp_sac.is_null());
     vec_bytes_tag_fcp_sac.extend_from_slice(unsafe { from_raw_parts(ptr_bytes_tag_fcp_sac, len_bytes_tag_fcp_sac) });
     let scb8 = match convert_bytes_tag_fcp_sac_to_scb_array(vec_bytes_tag_fcp_sac.as_slice()) {
@@ -1752,8 +1782,8 @@ extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
 /* */
     // retrieve FDB FileDescriptorByte and perform some corrective actions
     // if file.type_== 0 || (file.type_!= SC_FILE_TYPE_DF && file.ef_structure != SC_FILE_EF_TRANSPARENT)
-    let mut len_bytes_tag_fcp_type = 0_usize;
-    let     ptr_bytes_tag_fcp_type = unsafe { sc_asn1_find_tag(ctx, buf_ref_ptr, buflen, u32::from(ISO7816_TAG_FCP_TYPE), &mut len_bytes_tag_fcp_type) };
+    let mut  len_bytes_tag_fcp_type = 0_usize;
+    let      ptr_bytes_tag_fcp_type = unsafe { sc_asn1_find_tag(ctx, buf_ref_ptr, buflen, u32::from(ISO7816_TAG_FCP_TYPE), &mut len_bytes_tag_fcp_type) };
     assert!(!ptr_bytes_tag_fcp_type.is_null()); // It's a mandatory tag
     assert!( len_bytes_tag_fcp_type >=2 );
     let fdb = unsafe { *ptr_bytes_tag_fcp_type };
@@ -1809,45 +1839,47 @@ file_id: 4300
     assert_eq!(len_bytes_tag_fcp_lcs, 1);
     let lcsi = unsafe { *ptr_bytes_tag_fcp_lcs };
 
+    /* Map from scb8 to file.acl array */
+    map_scb8_to_acl(card, file, scb8, fdb);
+    /*
+        /* select_file is always allowed */
+        assert_eq!(    SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, SC_AC_OP_SELECT,     SC_AC_NONE, SC_AC_KEY_REF_NONE) } );
+        if is_DFMF(fdb) {
+            /* list_files is always allowed for MF/DF */
+            assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, SC_AC_OP_LIST_FILES, SC_AC_NONE, SC_AC_KEY_REF_NONE) } );
+            /* for opensc-tool also add the general SC_AC_OP_CREATE, which shall comprise both, SC_AC_OP_CREATE_EF and SC_AC_OP_CREATE_DF (added below later)  */
+            se_file_add_acl_entry(card, file, scb8[1], SC_AC_OP_CREATE); // Create EF
+            se_file_add_acl_entry(card, file, scb8[2], SC_AC_OP_CREATE); // Create DF
+        }
+        else {
+            /* for an EF, acos doesn't distinguish access right update <-> write, thus add SC_AC_OP_WRITE as a synonym to SC_AC_OP_UPDATE */
+            se_file_add_acl_entry(card, file, scb8[1], SC_AC_OP_WRITE);
+            /* usage of SC_AC_OP_DELETE_SELF <-> SC_AC_OP_DELETE seems to be in confusion in opensc, thus for opensc-tool and EF add SC_AC_OP_DELETE to SC_AC_OP_DELETE_SELF
+               My understanding is:
+               SC_AC_OP_DELETE_SELF designates the right to delete the EF/DF that contains this right in it's SCB
+               SC_AC_OP_DELETE      designates the right of a directory, that a contained file may be deleted; acos calls that Delete Child
+            */
+            se_file_add_acl_entry(card, file, scb8[6], SC_AC_OP_DELETE);
+        }
+        /* for RSA key file add SC_AC_OP_GENERATE to SC_AC_OP_CRYPTO */
+        if fdb == FDB_RSA_KEY_EF {
+            se_file_add_acl_entry(card, file, scb8[2], SC_AC_OP_GENERATE); // MSE/PSO Commands
+        }
 
-    /* select_file is always allowed */
-    assert_eq!(    SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, SC_AC_OP_SELECT,     SC_AC_NONE, SC_AC_KEY_REF_NONE) } );
-    if is_DFMF(fdb) {
-        /* list_files is always allowed for MF/DF */
-        assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, SC_AC_OP_LIST_FILES, SC_AC_NONE, SC_AC_KEY_REF_NONE) } );
-        /* for opensc-tool also add the general SC_AC_OP_CREATE, which shall comprise both, SC_AC_OP_CREATE_EF and SC_AC_OP_CREATE_DF (added below later)  */
-        se_file_add_acl_entry(card, file, scb8[1], SC_AC_OP_CREATE); // Create EF
-        se_file_add_acl_entry(card, file, scb8[2], SC_AC_OP_CREATE); // Create DF
-    }
-    else {
-        /* for an EF, acos doesn't distinguish access right update <-> write, thus add SC_AC_OP_WRITE as a synonym to SC_AC_OP_UPDATE */
-        se_file_add_acl_entry(card, file, scb8[1], SC_AC_OP_WRITE);
-        /* usage of SC_AC_OP_DELETE_SELF <-> SC_AC_OP_DELETE seems to be in confusion in opensc, thus for opensc-tool and EF add SC_AC_OP_DELETE to SC_AC_OP_DELETE_SELF
-           My understanding is:
-           SC_AC_OP_DELETE_SELF designates the right to delete the EF/DF that contains this right in it's SCB
-           SC_AC_OP_DELETE      designates the right of a directory, that a contained file may be deleted; acos calls that Delete Child
-        */
-        se_file_add_acl_entry(card, file, scb8[6], SC_AC_OP_DELETE);
-    }
-    /* for RSA key file add SC_AC_OP_GENERATE to SC_AC_OP_CRYPTO */
-    if fdb == FDB_RSA_KEY_EF {
-        se_file_add_acl_entry(card, file, scb8[2], SC_AC_OP_GENERATE); // MSE/PSO Commands
-    }
+        let ops_df_mf  = [ SC_AC_OP_DELETE/*_CHILD*/, SC_AC_OP_CREATE_EF, SC_AC_OP_CREATE_DF, SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE_SELF ];
+        let ops_ef_chv = [ SC_AC_OP_READ,             SC_AC_OP_UPDATE,    0xFF,               SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE_SELF ];
+        let ops_key    = [ SC_AC_OP_READ,             SC_AC_OP_UPDATE,    SC_AC_OP_CRYPTO,    SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE_SELF ];
+        let ops_se     = [ SC_AC_OP_READ,             SC_AC_OP_UPDATE,    SC_AC_OP_CRYPTO,    SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE_SELF ];
 
-    let ops_df_mf  = [ SC_AC_OP_DELETE/*_CHILD*/, SC_AC_OP_CREATE_EF, SC_AC_OP_CREATE_DF, SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE_SELF ];
-    let ops_ef_chv = [ SC_AC_OP_READ,             SC_AC_OP_UPDATE,    0xFF,               SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE_SELF ];
-    let ops_key    = [ SC_AC_OP_READ,             SC_AC_OP_UPDATE,    SC_AC_OP_CRYPTO,    SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE_SELF ];
-    let ops_se     = [ SC_AC_OP_READ,             SC_AC_OP_UPDATE,    SC_AC_OP_CRYPTO,    SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE_SELF ];
-
-    for idx_scb8 in 0..7 {
-        let op =
-            if       is_DFMF(fdb)                                         { ops_df_mf [idx_scb8] }
-            else if  fdb == FDB_SE_FILE                                   { ops_se    [idx_scb8] }
-            else if  fdb == FDB_RSA_KEY_EF || fdb == FDB_SYMMETRIC_KEY_EF { ops_key   [idx_scb8] }
-            else                                                          { ops_ef_chv[idx_scb8] };
-        se_file_add_acl_entry(card, file, scb8[idx_scb8], op);
-    }
-
+        for idx_scb8 in 0..7 {
+            let op =
+                if       is_DFMF(fdb)                                         { ops_df_mf [idx_scb8] }
+                else if  fdb == FDB_SE_FILE                                   { ops_se    [idx_scb8] }
+                else if  fdb == FDB_RSA_KEY_EF || fdb == FDB_SYMMETRIC_KEY_EF { ops_key   [idx_scb8] }
+                else                                                          { ops_ef_chv[idx_scb8] };
+            se_file_add_acl_entry(card, file, scb8[idx_scb8], op);
+        }
+    */
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let file_id = u16::try_from(file.id).unwrap();
 //println!("file_id: {:X}", file_id);
@@ -1904,9 +1936,8 @@ file_id: 4300
     }
 
     card.drv_data = Box::into_raw(dp) as p_void;
-
     SC_SUCCESS
-}
+} // acos5_process_fci
 
 
 // assembles the byte string/data part for file creation via command "Create File"
@@ -2171,8 +2202,8 @@ extern "C" fn acos5_pin_cmd(card_ptr: *mut sc_card, data_ptr: *mut sc_pin_cmd_da
     }
 
     else if SC_PIN_CMD_VERIFY   == pin_cmd_data.cmd { // pin1 is used, pin2 unused
-        if pin_cmd_data.pin1.len <= 0 || pin_cmd_data.pin1.data.is_null() {
-            return -1;
+        if SC_AC_CHV != pin_cmd_data.pin_type || pin_cmd_data.pin1.len <= 0 || pin_cmd_data.pin1.data.is_null() {
+            return SC_ERROR_INVALID_ARGUMENTS;
         }
 /*
         println!("SC_PIN_CMD_VERIFY: before execution:");
@@ -2260,8 +2291,7 @@ println!();
 //println!("scb_verify: {:X}", scb_verify);
 
             if scb_verify == 0xFF {
-                log3if!(ctx,f,line!(), cstru!(
-                    b"SC_PIN_CMD_VERIFY won't be done: It's not allowed by SAE\0"));
+                log3if!(ctx,f,line!(), cstru!(b"SC_PIN_CMD_VERIFY won't be done: It's not allowed by SAE\0"));
                 SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
             }
             else if (scb_verify & 0x40) == 0x40  &&  SC_AC_CHV == pin_cmd_data.pin_type {
@@ -2510,11 +2540,8 @@ extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const
         let command = [0x00, 0x22, 0x01, 0xB6, 0x0A, 0x80, 0x01, 0x10, 0x81, 0x02,
             env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01,
             if SC_SEC_OPERATION_GENERATE_RSAPRIVATE == env_ref.operation {0x40} else {0x80}];
-        let mut apdu = sc_apdu::default();
-        rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-        assert_eq!(rv, SC_SUCCESS);
-        assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
+        let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
+        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
 //    println!("rv: {}, apdu: {:?}", rv, apdu);
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
         if rv != SC_SUCCESS {
@@ -2534,11 +2561,8 @@ extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const
         if SC_SEC_OPERATION_SIGN == env_ref.operation {
             let command = [0x00, 0x22, 0x01, 0xB6, 0x0A, 0x80, 0x01, algo, 0x81, 0x02, env_ref.file_ref.value[path_idx],
                 env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
-            let mut apdu = sc_apdu::default();
-            rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-            assert_eq!(rv, SC_SUCCESS);
-            assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
-            rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
+            let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
+            rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
             rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
 //    println!("rv: {}, apdu: {:?}", rv, apdu);
             if rv != SC_SUCCESS {
@@ -2551,11 +2575,8 @@ extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const
         /* sign may need decrypt (for non-SHA1/SHA256 hashes), thus prepare for a CT as well */
         let command = [0x00, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x13, 0x81, 0x02,
             env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
-        let mut apdu = sc_apdu::default();
-        rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-        assert_eq!(rv, SC_SUCCESS);
-        assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
+        let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
+        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
 //    println!("rv: {}, apdu: {:?}", rv, apdu);
         if rv != SC_SUCCESS {
@@ -2574,10 +2595,7 @@ extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const
         let path_idx = env_ref.file_ref.len - 2;
         let command = [0x00, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x13, 0x81, 0x02,
             env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
-        let mut apdu = sc_apdu::default();
-        rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-        assert_eq!(rv, SC_SUCCESS);
-        assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
+        let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
 //    println!("rv: {}, apdu: {:?}", rv, apdu);
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
@@ -2597,10 +2615,7 @@ extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const
         let path_idx = env_ref.file_ref.len - 2;
         let command = [0x00, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x12, 0x81, 0x02,
             env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
-        let mut apdu = sc_apdu::default();
-        rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-        assert_eq!(rv, SC_SUCCESS);
-        assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
+        let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
 //    println!("rv: {}, apdu: {:?}", rv, apdu);
@@ -2711,10 +2726,7 @@ pub const SC_SEC_ENV_PARAM_DES_CBC           : u32 = 4;
         vec[10] = u8::try_from(env_ref.algorithm_ref).unwrap();
         vec[13] = env_ref.key_ref[0];
 
-        let mut apdu = sc_apdu::default();
-        rv = sc_bytes2apdu_wrapper(ctx, &vec, &mut apdu);
-        assert_eq!(rv, SC_SUCCESS);
-        assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
+        let mut apdu = build_apdu(ctx, &vec, SC_APDU_CASE_3_SHORT, &mut[]);
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
         if rv != SC_SUCCESS {
@@ -2733,10 +2745,7 @@ pub const SC_SEC_ENV_PARAM_DES_CBC           : u32 = 4;
             let path_idx = env_ref.file_ref.len - 2;
             let command = [0x00, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x13, 0x81, 0x02,
                 env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
-            let mut apdu = sc_apdu::default();
-            rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-            assert_eq!(rv, SC_SUCCESS);
-            assert_eq!(apdu.cse, SC_APDU_CASE_3_SHORT);
+            let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
             rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
 //    println!("rv: {}, apdu: {:?}", rv, apdu);
             rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
@@ -2831,18 +2840,12 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
         }
     }
 
-    let command = [0, 0x2A, 0x80, 0x84, 0x02, 0xFF, 0xFF, 0xFF]; // will replace lc, cmd_data and le later; the last 4 bytes are placeholders only for sc_bytes2apdu_wrapper
-    let mut apdu = sc_apdu::default();
-    rv = sc_bytes2apdu_wrapper(ctx, &command, &mut apdu);
-    assert_eq!(rv, SC_SUCCESS);
-    assert_eq!(apdu.cse, SC_APDU_CASE_4_SHORT);
-
+    let command = [0, 0x2A, 0x80, 0x84, 2, 0xFF, 0xFF, 0xFF]; // will replace lc, cmd_data and le later; the last 4 bytes are placeholders only for sc_bytes2apdu
     let mut vec = vec![0_u8; outlen];
+    let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_4_SHORT, &mut vec);
     apdu.data    = crgram_ref_ptr;
     apdu.datalen = crgram_len;
     apdu.lc      = crgram_len;
-    apdu.resp    = vec.as_mut_ptr();
-    apdu.resplen = outlen;
     apdu.le      = std::cmp::min(crgram_len, SC_READER_SHORT_APDU_MAX_RECV_SIZE);
     if apdu.lc > card.max_send_size {
         apdu.flags |= SC_APDU_FLAGS_CHAINING;
@@ -3322,3 +3325,54 @@ extern "C" fn acos5_update_record(card_ptr: *mut sc_card, rec_nr: u32,
     let buf      = unsafe { from_raw_parts(buf_ptr, usize::from(count)) };
     common_update(card, rec_nr, buf, SC_RECORD_BY_REC_NR, false)
 }
+
+/*
+/* Access Control flags */
+SC_AC_NONE
+SC_AC_CHV              /* Card Holder Verif. */
+                          util_acl_to_str prints with    key_ref: "CHV";
+SC_AC_TERM             /* Terminal auth. */
+                          util_acl_to_str prints without key_ref: "TERM";
+                          profile.c map: { "TERM",	SC_AC_TERM	}
+                          no more OpenSC framework usage and card-specific usage only by: card-several.c
+SC_AC_PRO              /* Secure Messaging */
+                          util_acl_to_str prints without key_ref: "PROT";
+                          profile.c map: { "PRO",	SC_AC_PRO	}
+                          pkcs15-lib.c: get_pin_ident_name: "secure messaging key"
+                                        sc_pkcs15init_verify_secret : pinsize = 0; "No 'verify' for secure messaging"
+                          tools/pkcs15-init.c
+                          tools/opensc-explorer.c
+
+SC_AC_AUT              /* Key auth. */
+                          util_acl_to_str prints with    key_ref: "AUTH";
+                          profile.c map: { "AUT",	SC_AC_AUT	}
+                          profile.c map: { "KEY",	SC_AC_AUT	}
+                          pkcs15-lib.c: get_pin_ident_name: "authentication key"
+                                        sc_pkcs15init_verify_secret : sc_card_ctl(SC_CARDCTL_GET_CHV_REFERENCE_IN_SE) ...  -> SC_AC_CHV
+
+SC_AC_SYMBOLIC         /* internal use only */
+
+SC_AC_SEN              /* Security Environment. */
+                          util_acl_to_str prints with    key_ref: "Sec.Env. ";
+                          profile.c map: { "SEN",	SC_AC_SEN	}
+                          pkcs15-lib.c: get_pin_ident_name: "security environment"
+                                        sc_pkcs15init_verify_secret : sc_card_ctl(SC_CARDCTL_GET_CHV_REFERENCE_IN_SE) ...  -> SC_AC_CHV
+                          no more OpenSC framework usage and card-specific usage only by: pkcs15-iasecc.c, card-iasecc.c and iasecc-sdo.c
+SC_AC_SCB              /* IAS/ECC SCB byte. */
+                          util_acl_to_str prints with    key_ref: "Sec.ControlByte ";
+                          profile.c map: { "SCB",	SC_AC_SCB	}
+                          pkcs15-lib.c: get_pin_ident_name: "SCB byte in IAS/ECC"
+                                        sc_pkcs15init_verify_secret : pinsize = 0;
+                          no more OpenSC framework usage and card-specific usage only by: pkcs15-iasecc.c, card-iasecc.c and card-authentic.c
+SC_AC_IDA              /* PKCS#15 authentication ID */
+                          util_acl_to_str prints with    key_ref: "PKCS#15 AuthID ";
+                          profile.c map: { "IDA",	SC_AC_IDA	}
+                          pkcs15-lib.c: get_pin_ident_name: "PKCS#15 reference"
+                          no more OpenSC framework usage and card-specific usage only by: pkcs15-iasecc.c
+SC_AC_SESSION          /* Session PIN */ // since opensc source release v0.17.0
+#[cfg(not(v0_17_0))]
+SC_AC_CONTEXT_SPECIFIC /* Context specific login */ // since opensc source release v0.18.0
+
+The driver doesn't support access control condition: 'authenticate a key' because OpenSC doesn't support that either.
+
+*/
