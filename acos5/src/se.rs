@@ -74,9 +74,7 @@ what to be shown in opensc-tool -f
 For SAE (Security Attributes Expanded), TODO
 */
 
-use std::os::raw::c_ulong;
 use std::convert::TryFrom;
-//use std::ffi::CStr;
 
 use opensc_sys::opensc::{sc_card, sc_file_add_acl_entry};
 use opensc_sys::types::{sc_file, sc_crt, SC_AC_NONE, SC_AC_NEVER, SC_AC_UNKNOWN, SC_AC_KEY_REF_NONE,
@@ -204,10 +202,10 @@ SCB: 81; [80 01 01  A4 09 83 01 81 83 01 01 95 01 08]                           
                 return;
             }
             /* SM implicitly has the (unsupported by OpenSC) OR operator for access conditions, thus drop any references except the first */
-            let loop_cnt = if pin_ref.len()==1 || (scb & 0x40) != 0 || (scb & 0x80) == 0 { 1_usize }
+            let loop_cnt = if (scb & 0x40) != 0 || (scb & 0x80) == 0 { 1_usize }
                                   else { pin_ref.len() };
-            for i in 0..loop_cnt {
-                rv =unsafe { sc_file_add_acl_entry(file, op, SC_AC_CHV, c_ulong::try_from(pin_ref[i]).unwrap()) };
+            for &elem in pin_ref.iter().take(loop_cnt) {
+                rv =unsafe { sc_file_add_acl_entry(file, op, SC_AC_CHV, elem.into()) };
                 assert_eq!(SC_SUCCESS, rv);
             }
             if (scb & 0x40) != 0 && res_se_sm.0 { // SM processing is requested and possible: add SC_AC_PRO as a marker
@@ -241,15 +239,15 @@ SCB: 81; [80 01 01  A4 09 83 01 01 83 01 81 95 01 80  B4 08 84 00 95 01 30 80 01
                     assert_eq!(SC_SUCCESS, rv);
                     return;
                 }
-                contains_sm_key = key_ref.iter().position(|&x| x == 0x81).is_some();
+                contains_sm_key = key_ref.iter().any(|&x| x == 0x81);
             }
 
             /* SM implicitly has the (unsupported by OpenSC) OR operator for access conditions, thus drop any references except the first */
             let loop_cnt = if contains_sm_key { 0_usize }
-                                  else if key_ref.len()==1 || (scb & 0x40) != 0 || (scb & 0x80) == 0 { 1_usize }
+                                  else if (scb & 0x40) != 0 || (scb & 0x80) == 0 { 1_usize }
                                   else { key_ref.len() };
-            for i in 0..loop_cnt {
-                rv = unsafe { sc_file_add_acl_entry(file, op, SC_AC_AUT, c_ulong::try_from(key_ref[i]).unwrap()) };
+            for &elem in key_ref.iter().take(loop_cnt) {
+                rv = unsafe { sc_file_add_acl_entry(file, op, SC_AC_AUT, elem.into()) };
                 assert_eq!(SC_SUCCESS, rv);
             }
             if (scb & 0x40) != 0 && res_se_sm.0 {
@@ -282,19 +280,19 @@ SCB: 81; [80 01 01  A4 09 83 01 81 83 01 01 95 01 88]                           
                     assert_eq!(SC_SUCCESS, rv);
                     return;
                 }
-                contains_sm_key = pin_key_ref.iter().position(|&x| x == 0x81).is_some();
+                contains_sm_key = pin_key_ref.iter().any(|&x| x == 0x81);
             }
 
             /* SM implicitly has the (unsupported by OpenSC) OR operator for access conditions, thus drop any references except the first */
             let loop_cnt = //if contains_sm_key { 0_usize }
-            if pin_key_ref.len()==1 || (scb & 0x40) != 0 || (scb & 0x80) == 0 { 1_usize }
+            if (scb & 0x40) != 0 || (scb & 0x80) == 0 { 1_usize }
             else { pin_key_ref.len() };
-            for i in 0..loop_cnt {
-                rv = unsafe { sc_file_add_acl_entry(file, op, SC_AC_CHV, c_ulong::try_from(pin_key_ref[i]).unwrap()) };
+            for &elem in pin_key_ref.iter().take(loop_cnt) {
+                rv = unsafe { sc_file_add_acl_entry(file, op, SC_AC_CHV, elem.into()) };
                 assert_eq!(SC_SUCCESS, rv);
                 if contains_sm_key {}
                 else {
-                    rv = unsafe { sc_file_add_acl_entry(file, op, SC_AC_AUT, c_ulong::try_from(pin_key_ref[i]).unwrap()) };
+                    rv = unsafe { sc_file_add_acl_entry(file, op, SC_AC_AUT, elem.into()) };
                     assert_eq!(SC_SUCCESS, rv);
                 }
             }
@@ -358,9 +356,9 @@ fn se_get_references(card: &mut sc_card, file_id: u16, se_reference: u8, search_
                     for crt in &sac_info.crts[..sac_info.crts_len] {
                         if crt.tag   != search_template.tag   { continue; }
                         if crt.usage != search_template.usage { continue; }
-                        for elem in &crt.refs {
-                            if *elem != 0 { result.push(*elem); }
-                            else          { break; /*for elem*/ }
+                        for &elem in &crt.refs {
+                            if elem != 0 { result.push(elem); }
+                            else         { break; /*for elem*/ }
                         }
                         break; // for crt
                     }
@@ -598,7 +596,7 @@ pub fn se_parse_sae(vec_sac_info: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp
         };
 //println!("parsed: {:X?}", tlv);
         assert_eq!(0x80, tlv.tag() & 0xF0);
-        assert_eq!(usize::try_from((tlv.tag() & 0x0F).count_ones()).unwrap(), usize::from(tlv.length()));
+        assert_eq!(usize::try_from((tlv.tag() & 0x0F).count_ones()).unwrap(), tlv.length().into());
         assert_eq!(4, tlv.tag() & 4); // ins must be included
         let mut sae_info = SAEinfo::default();
         sae_info.tag_AMDO = tlv.tag();
@@ -631,21 +629,20 @@ pub fn se_parse_sae(vec_sac_info: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp
                 let mut sac_info = SACinfo::default();
                 idx_virtual += 1;
                 sae_info.scb       = idx_virtual;
-                sac_info.reference = u32::from(idx_virtual);
+                sac_info.reference = idx_virtual.into();
                 sac_info.crts_len  = 1;
-                sac_info.crts[0].tag = u32::from(tlv.tag());
+                sac_info.crts[0].tag = tlv.tag().into();
                 let mut idx_ref = 0_usize;
                 for chunk in tlv.value().chunks(3) {
                     assert_eq!(1, chunk[1]);
                     match chunk[0] {
-                        0x95 => { sac_info.crts[0].usage         = u32::from(chunk[2]); },
-                        0x83 => { sac_info.crts[0].refs[idx_ref] = u32::from(chunk[2]); idx_ref += 1; },
+                        0x95 => { sac_info.crts[0].usage         = chunk[2].into(); },
+                        0x83 => { sac_info.crts[0].refs[idx_ref] = chunk[2].into(); idx_ref += 1; },
                         0x81 => { /*if card.type_== SC_CARD_TYPE_ACOS5_EVO_V4 {TODO EVO also has tag 0x81} else {panic!()}*/ }
                         _    => panic!("unexpected"),
                     }
                 }
-                if (*vec_sac_info).is_none() { *vec_sac_info = Some(Vec::new()) }
-                (*vec_sac_info).as_mut().unwrap().push(sac_info);
+                vec_sac_info.get_or_insert(Vec::new()).push(sac_info);
             },
             _ => {} // TODO for now: skip support of tags A0 and AF
         }

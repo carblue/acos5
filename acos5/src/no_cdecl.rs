@@ -189,7 +189,7 @@ pub fn authenticate_internal(card: &mut sc_card, key_card_reference: u8, key_car
         return Err(rv);
     }
     Ok(des_ecb3_unpadded_8(unsafe { &card.sm_ctx.info.session.cwa.host_challenge }, key_card, Encrypt)
-        == &challenge_encrypted_by_card)
+        == challenge_encrypted_by_card)
 }
 
 // reference: 1..=31
@@ -2095,7 +2095,7 @@ pub fn update_hashmap(card: &mut sc_card) {
         }
     }
     for (key, val) in dp.files.iter() {
-        if !val.2.is_some() {
+        if val.2.is_none() {
             log3if!(ctx,f,line!(), fmt1, *key, unsafe { sc_dump_hex(val.1.as_ptr(), 8) });
         }
     }

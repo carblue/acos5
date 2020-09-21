@@ -86,6 +86,7 @@ impl Default for sc_atr_table {
 }
 
 #[allow(non_snake_case)]
+#[must_use]
 pub fn BYTES4BITS(num: u32) -> u32 { (num + 7) / 8 }    /* number of bytes necessary to hold 'num' bits */
 
 extern "C" {

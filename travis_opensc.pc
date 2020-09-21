@@ -5,5 +5,5 @@ includedir=${prefix}/include
 
 Name: OpenSC smartcard framework
 Description: OpenSC library
-Version: 0.17.0
+Version: 0.20.0
 Libs: -L${libdir} -lopensc

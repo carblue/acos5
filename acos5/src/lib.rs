@@ -54,7 +54,7 @@ TODO Only set to anything other than SC_ERROR_KEYPAD_MSG_TOO_LONG, if that's the
 
 
 #![cfg_attr(feature = "cargo-clippy", warn(clippy::all))] 
-#![cfg_attr(feature = "cargo-clippy", warn(clippy::pedantic))]
+// #![cfg_attr(feature = "cargo-clippy", warn(clippy::pedantic))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::doc_markdown))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::module_name_repetitions))]
 

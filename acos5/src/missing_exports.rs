@@ -36,7 +36,8 @@ see file src/libopensc/libopensc.exports
 
 use libc::{realloc/*, strnlen*/};
 
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
+use std::slice::from_raw_parts_mut;
 
 use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, SC_CARD_CAP_APDU_EXT,
                          SC_READER_SHORT_APDU_MAX_RECV_SIZE, //SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_PROTO_T0,
@@ -123,16 +124,15 @@ pub fn me_get_max_send_size(card_ref: &sc_card) -> usize
 
 fn me_card_add_algorithm(card: &mut sc_card, info_ref: &sc_algorithm_info) -> i32
 {
-    let mut p_ptr = unsafe { realloc(card.algorithms as p_void, usize::try_from(card.algorithm_count + 1).unwrap() *
+    let p_ptr = unsafe { realloc(card.algorithms as p_void, usize::try_from(card.algorithm_count + 1).unwrap() *
         std::mem::size_of::<sc_algorithm_info>()) } as *mut sc_algorithm_info;
 
     if p_ptr.is_null() {
         return SC_ERROR_OUT_OF_MEMORY;
     }
     card.algorithms = p_ptr;
-    unsafe { p_ptr = p_ptr.add(usize::try_from(card.algorithm_count).unwrap()) };
+    let p = unsafe { &mut * p_ptr.add(card.algorithm_count.try_into().unwrap()) };
     card.algorithm_count += 1;
-    let p =  unsafe {&mut *p_ptr};
     *p = *info_ref;
 //println!("card.algorithm_count: {}, p.algorithm: {}, p.key_length: {}, p.flags: {}", card.algorithm_count, p.algorithm, p.key_length, p.flags);
     SC_SUCCESS
@@ -144,18 +144,18 @@ pub fn me_card_add_symmetric_alg(card: &mut sc_card, algorithm: u32, key_length:
     me_card_add_algorithm(card, &info)
 }
 
-pub fn me_card_find_alg(card: &mut sc_card, algorithm: u32, key_length: u32,
-                        param: Option<p_void>) -> Option<*mut sc_algorithm_info>
+pub fn me_card_find_alg(card: &mut sc_card, algorithm: u32, key_length: u32, param: Option<*const sc_object_id>)
+    -> Option<*mut sc_algorithm_info>
 {
-    for info in unsafe { std::slice::from_raw_parts_mut(card.algorithms, usize::try_from(card.algorithm_count).unwrap()) } {
+    for info in unsafe { from_raw_parts_mut(card.algorithms, card.algorithm_count.try_into().unwrap()) } {
         if info.algorithm != algorithm   { continue; }
         if info.key_length != key_length { continue; }
 
         if param.is_some() && info.algorithm == SC_ALGORITHM_EC &&
-              unsafe { sc_compare_oid(param.unwrap() as *mut sc_object_id, &info.u.ec.params.id) } != 0 {
+              unsafe { sc_compare_oid(param.unwrap(), &info.u.ec.params.id) } != 0 {
             continue;
         }
-        return Some(info as *mut sc_algorithm_info);
+        return Some(info);
     }
     None
 }

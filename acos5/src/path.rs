@@ -18,8 +18,6 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
-// use std::ffi::CStr;
-
 use opensc_sys::opensc::{sc_card};
 use opensc_sys::types::{sc_path/*, SC_MAX_PATH_SIZE*/};
 //use opensc_sys::log::{sc_dump_hex};
@@ -27,12 +25,10 @@ use opensc_sys::types::{sc_path/*, SC_MAX_PATH_SIZE*/};
 
 use crate::constants_types::*;
 use crate::wrappers::*;
-use std::convert::AsRef;
 
 /* The following 2 functions take the file id from the last valid path component */
-pub fn file_id_from_path_value(path_value: impl AsRef<[u8]>) -> u16
+pub fn file_id_from_path_value(path_value: &[u8]) -> u16
 {
-    let path_value = path_value.as_ref();
     let len = path_value.len();
     assert!(len>=2);
     u16::from_be_bytes([path_value[len-2], path_value[len-1]])

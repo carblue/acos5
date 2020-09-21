@@ -195,16 +195,19 @@ pub struct sc_crt {
 #[cfg(impl_newAT_newCCT_newCT)]
 impl sc_crt {
     /* new with Authentication Template tag 0xA4 */
+    #[must_use]
     pub fn new_AT(usage: u32) -> Self {
         Self { tag: 0xA4, usage, ..Self::default() }
     }
 
     /* new with Cryptographic Checksum Template tag 0xB4 */
+    #[must_use]
     pub fn new_CCT(usage: u32) -> Self {
         Self { tag: 0xB4, usage, ..Self::default() }
     }
 
     /* new with Confidentiality Template tag 0xB8 */
+    #[must_use]
     pub fn new_CT(usage: u32) -> Self {
         Self { tag: 0xB8, usage, ..Self::default() }
     }

@@ -1635,8 +1635,8 @@ pub fn sc_detect_card_presence(reader: *mut sc_reader) -> i32;
  *   be ORed from one of the following:
  *   - SC_EVENT_CARD_REMOVED
  *   - SC_EVENT_CARD_INSERTED
- *	 - SC_EVENT_READER_ATTACHED
- *	 - SC_EVENT_READER_DETACHED
+ *   - SC_EVENT_READER_ATTACHED
+ *   - SC_EVENT_READER_DETACHED
  * @param event_reader (OUT) the reader on which the event was detected
  * @param event (OUT) the events that occurred. This is also ORed
  *   from the constants listed above.

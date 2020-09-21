@@ -61,7 +61,7 @@ Message in debug_file: successfully loaded pkcs15init driver 'acos5-external'
 #![allow(unused_macros)]
 
 #![cfg_attr(feature = "cargo-clippy", warn(clippy::all))]
-#![cfg_attr(feature = "cargo-clippy", warn(clippy::pedantic))]
+// #![cfg_attr(feature = "cargo-clippy", warn(clippy::pedantic))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::doc_markdown))]
 //#![cfg_attr(feature = "cargo-clippy", allow(clippy::module_name_repetitions))]
 

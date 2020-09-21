@@ -42,16 +42,20 @@ pub struct TLV<'a> {
 }
 
 impl<'a> TLV<'a> {
+    #[must_use]
     pub fn new(input: &'a[u8]) -> Self {
         Self { tag: 0, length: 0, value: input, rem: input }
     }
 
+    #[must_use]
     pub fn tag(&self) -> u8 {
         self.tag
     }
+    #[must_use]
     pub fn length(&self) -> u8 {
         self.length
     }
+    #[must_use]
     pub fn value(&self) -> &'a [u8] {
         self.value
     }
