@@ -76,8 +76,19 @@ use opensc_sys::asn1::{sc_asn1_read_tag};
 use opensc_sys::iso7816::{ISO7816_TAG_FCI, ISO7816_TAG_FCP};
 use opensc_sys::sm::{SM_SMALL_CHALLENGE_LEN, SM_CMD_FILE_READ, SM_CMD_FILE_UPDATE};
 
-use crate::wrappers::*;
-use crate::constants_types::*;
+use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tt, wr_do_log_ttt, wr_do_log_tu,
+                      wr_do_log_tuv};
+use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES,
+                             BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, BLOCKCIPHER_PAD_TYPE_PKCS5,
+                             BLOCKCIPHER_PAD_TYPE_ZEROES, CardCtl_crypt_sym, CardCtl_generate_crypt_asym, DataPrivate,
+                             FDB_CYCLIC_EF, FDB_ECC_KEY_EF, FDB_LINEAR_VARIABLE_EF, FDB_RSA_KEY_EF, FDB_SE_FILE,
+                             FDB_SYMMETRIC_KEY_EF, NAME_V2, NAME_V3, PKCS15_FILE_TYPE_ECCPRIVATEKEY,
+                             PKCS15_FILE_TYPE_ECCPUBLICKEY, PKCS15_FILE_TYPE_RSAPRIVATEKEY, PKCS15_FILE_TYPE_RSAPUBLICKEY,
+                             SACinfo, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3,
+                             SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
+                             SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
+                             SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
+                             acos5_ec_curve, build_apdu, is_DFMF, p_void};
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, file_id_from_path_value, current_path_df,
                   is_impossible_file_match};
@@ -88,6 +99,7 @@ use crate::crypto::{RAND_bytes, des_ecb3_unpadded_8, Encrypt};
 
 use super::{acos5_process_fci/*, acos5_list_files, acos5_select_file, acos5_set_security_env*/};
 
+#[must_use]
 pub fn sc_ac_op_name_from_idx(idx: usize) -> &'static CStr
 {
     match idx {
@@ -130,6 +142,7 @@ pub fn sc_ac_op_name_from_idx(idx: usize) -> &'static CStr
 includes getting a challenge from the card and setting a new ssc, thus it stops continuation of an 'active' SM channel
 key_host_reference must be enabled for External Authentication and it's Error Counter must have tries_left>0
 */
+#[allow(clippy::missing_errors_doc)]
 pub fn authenticate_external(card: &mut sc_card, key_host_reference: u8, key_host: &[u8]) -> Result<bool, i32> {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -162,6 +175,7 @@ pub fn authenticate_external(card: &mut sc_card, key_host_reference: u8, key_hos
     Ok(apdu.sw2==0)
 }
 
+#[allow(clippy::missing_errors_doc)]
 pub fn authenticate_internal(card: &mut sc_card, key_card_reference: u8, key_card: &[u8]) -> Result<bool, i32> {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -937,6 +951,7 @@ pub fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/
  * @param
  * @return
  */
+#[allow(clippy::missing_errors_doc)]
 pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Result<[u8; 8], i32>
 {
     let mut scb8 = [0_u8; 8]; // if AM has no 1 bit for a command/operation, then it's : always allowed
@@ -963,6 +978,7 @@ pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Resul
     Ok(scb8)
 }
 
+#[allow(clippy::missing_errors_doc)]
 pub fn convert_amdo_to_cla_ins_p1_p2_array(amdo_tag: u8, amdo_bytes: &[u8]) -> Result<[u8; 4], i32> //Access Mode Data Object
 {
     assert!(!amdo_bytes.is_empty() && amdo_bytes.len() <= 4);
@@ -992,6 +1008,7 @@ pub const ACL_CATEGORY_SE     : u8 =  4;
 This MUST match exactly how *mut sc_acl_entry are added in acos5_process_fci or profile.c
 */
 //TODO temporarily allow cognitive_complexity and too_many_lines
+#[allow(clippy::missing_errors_doc)]
 pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_AC_OPS], acl_category: u8) -> Result<[u8; 8], i32>
 {
     let mut result = [0x7F_u8,0,0,0,0,0,0,0];
@@ -1185,6 +1202,7 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
     SC_SUCCESS
 }
 
+#[must_use]
 pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 3]
 {
     [
@@ -1219,6 +1237,7 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 3]
 }
 
 /*  ECC: Curves P-224/P-256/P-384/P-521 */
+#[must_use]
 pub /*const*/ fn acos5_supported_ec_curves() -> [acos5_ec_curve; 4]
 {
     [
@@ -1556,6 +1575,7 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
   This function refers only to hash algorithms other than sha1 / sha256
 */
 #[allow(non_snake_case)]
+#[must_use]
 pub fn is_any_known_digestAlgorithm(digest_info: &[u8]) -> bool
 {
     let known_len = [34_usize, 35, 47, 51, 67, 83];
@@ -1621,6 +1641,7 @@ RFC 8017                      PKCS #1 v2.2                 November 2016
     false
 }
 
+#[must_use]
 pub fn trailing_blockcipher_padding_calculate(
     block_size   : u8, // 16 or 8
     padding_type : u8, // any of BLOCKCIPHER_PAD_TYPE_*
@@ -1667,6 +1688,7 @@ pub fn trailing_blockcipher_padding_calculate(
     vec
 }
 
+#[allow(clippy::missing_errors_doc)]
 pub fn trailing_blockcipher_padding_get_length(
     block_size   : u8, // 16 or 8
     padding_type : u8, // any of BLOCKCIPHER_PAD_TYPE_*
@@ -1758,6 +1780,7 @@ fn algo_ref_cos5_sym_MSE(algo: u32, op_mode_cbc: bool) -> u32
     }
 }
 
+#[allow(clippy::missing_errors_doc)]
 fn vecu8_from_file(path_ptr: *const c_char) -> std::io::Result<Vec<u8>>
 {
     if path_ptr.is_null() {
@@ -2022,6 +2045,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
 }
 
 
+#[allow(clippy::missing_errors_doc)]
 pub fn get_files_hashmap_info(card: &mut sc_card, key: u16) -> Result<[u8; 32], i32>
 {
     assert!(!card.ctx.is_null());
@@ -2088,13 +2112,13 @@ pub fn update_hashmap(card: &mut sc_card) {
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let fmt1  = cstru!(b"key: %04X, val.1: %s\0");
     let fmt2  = cstru!(b"key: %04X, val.2: %s\0");
-    for (key, val) in dp.files.iter() {
+    for (key, val) in &dp.files {
         if val.2.is_some() {
             log3if!(ctx,f,line!(), fmt1, *key, unsafe { sc_dump_hex(val.1.as_ptr(), 8) });
             log3if!(ctx,f,line!(), fmt2, *key, unsafe { sc_dump_hex(val.2.unwrap().as_ptr(), 8) });
         }
     }
-    for (key, val) in dp.files.iter() {
+    for (key, val) in &dp.files {
         if val.2.is_none() {
             log3if!(ctx,f,line!(), fmt1, *key, unsafe { sc_dump_hex(val.1.as_ptr(), 8) });
         }

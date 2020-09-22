@@ -61,7 +61,7 @@ Message in debug_file: successfully loaded pkcs15init driver 'acos5-external'
 #![allow(unused_macros)]
 
 #![cfg_attr(feature = "cargo-clippy", warn(clippy::all))]
-// #![cfg_attr(feature = "cargo-clippy", warn(clippy::pedantic))]
+#![cfg_attr(feature = "cargo-clippy", warn(clippy::pedantic))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::doc_markdown))]
 //#![cfg_attr(feature = "cargo-clippy", allow(clippy::module_name_repetitions))]
 
@@ -122,10 +122,11 @@ pub mod    missing_exports; // this is NOT the same as in acos5
 use crate::missing_exports::{me_profile_get_file, me_pkcs15_dup_bignum};
 
 pub mod    constants_types; // shared file among modules acos5, acos5_pkcs15 and acos5_sm
-use crate::constants_types::*;
+use crate::constants_types::{CARD_DRV_SHORT_NAME, CardCtl_generate_crypt_asym, DataPrivate, SC_CARDCTL_ACOS5_SDO_CREATE,
+                             SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, SC_CARD_TYPE_ACOS5_64_V3, build_apdu, p_void};
 
 pub mod    wrappers; // shared file among modules acos5, acos5_pkcs15 and acos5_sm
-use crate::wrappers::*;
+use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tu};
 
 pub mod    no_cdecl; // this is NOT the same as in acos5
 use crate::no_cdecl::{rsa_modulus_bits_canonical, first_of_free_indices}; /*call_dynamic_update_hashmap, call_dynamic_sm_test,*/
@@ -139,12 +140,14 @@ const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 ///           Current auto-adaption to binary version in build.rs (for pkg-config supporting OS) may not be correct
 ///           for OpenSC master code not yet inspected. auto-adaption for OpenSC 0.17.0 - 0.20.0-rc2 is okay
 /// @return   The OpenSC release version, that this driver implementation supports
+#[allow(clippy::same_functions_in_if_condition)]
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     if       cfg!(v0_17_0) { cstru!(b"0.17.0\0").as_ptr() }
     else  if cfg!(v0_18_0) { cstru!(b"0.18.0\0").as_ptr() }
     else  if cfg!(v0_19_0) { cstru!(b"0.19.0\0").as_ptr() }
     else  if cfg!(v0_20_0) { cstru!(b"0.20.0\0").as_ptr() }
+    else  if cfg!(v0_21_0) { cstru!(b"0.21.0\0").as_ptr() } // experimental only: see build.rs which github commit is supported
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 

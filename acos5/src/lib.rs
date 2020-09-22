@@ -54,7 +54,7 @@ TODO Only set to anything other than SC_ERROR_KEYPAD_MSG_TOO_LONG, if that's the
 
 
 #![cfg_attr(feature = "cargo-clippy", warn(clippy::all))] 
-// #![cfg_attr(feature = "cargo-clippy", warn(clippy::pedantic))]
+#![cfg_attr(feature = "cargo-clippy", warn(clippy::pedantic))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::doc_markdown))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::module_name_repetitions))]
 
@@ -146,10 +146,38 @@ pub mod    macros;
 
 //#[allow(dead_code)]
 pub mod    cmd_card_info;
-use crate::cmd_card_info::*;
+use crate::cmd_card_info::{get_cos_version, get_count_files_curr_df, get_file_info, get_free_space, get_is_fips_compliant,
+                           get_is_ident_self_okay, get_is_key_authenticated, get_is_pin_authenticated, get_manufacture_date,
+                           get_op_mode_byte, get_rom_sha1, get_serialnr};
 
 pub mod    constants_types;
-use crate::constants_types::*;
+// use crate::constants_types::*;
+use crate::constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES,
+                             BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, BLOCKCIPHER_PAD_TYPE_PKCS5,
+                             BLOCKCIPHER_PAD_TYPE_ZEROES, CARD_DRV_NAME, CARD_DRV_SHORT_NAME,
+                             CardCtlArray32, CardCtlArray8, CardCtlAuthState, CardCtl_crypt_sym,
+                             CardCtl_generate_crypt_asym, CardCtl_generate_inject_asym, DataPrivate,
+                             FDB_CHV_EF, FDB_CYCLIC_EF, FDB_DF, FDB_ECC_KEY_EF, FDB_LINEAR_FIXED_EF,
+                             FDB_LINEAR_VARIABLE_EF, FDB_MF, FDB_PURSE_EF, FDB_RSA_KEY_EF, FDB_SE_FILE,
+                             FDB_SYMMETRIC_KEY_EF, FDB_TRANSPARENT_EF, ISO7816_RFU_TAG_FCP_SAC, ISO7816_RFU_TAG_FCP_SAE,
+                             ISO7816_RFU_TAG_FCP_SEID, KeyTypeFiles, PKCS15_FILE_TYPE_NONE, PKCS15_FILE_TYPE_PIN,
+                             PKCS15_FILE_TYPE_RSAPRIVATEKEY, PKCS15_FILE_TYPE_RSAPUBLICKEY, PKCS15_FILE_TYPE_SECRETKEY,
+                             RSAPUB_MAX_LEN, SC_CARDCTL_ACOS5_DECRYPT_SYM, SC_CARDCTL_ACOS5_ENCRYPT_ASYM,
+                             SC_CARDCTL_ACOS5_ENCRYPT_SYM, SC_CARDCTL_ACOS5_GET_COS_VERSION,
+                             SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO,
+                             SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE, SC_CARDCTL_ACOS5_GET_FREE_SPACE,
+                             SC_CARDCTL_ACOS5_GET_IDENT_SELF, SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE,
+                             SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE, SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE,
+                             SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE, SC_CARDCTL_ACOS5_GET_ROM_SHA1,
+                             SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO, SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO,
+                             SC_CARDCTL_ACOS5_SDO_CREATE, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES,
+                             SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET,
+                             SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET, SC_CARD_TYPE_ACOS5_64_V2,
+                             SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_BASE, SC_CARD_TYPE_ACOS5_EVO_V4,
+                             SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
+                             SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
+                             SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
+                             ValueTypeFiles, build_apdu, is_DFMF, p_void};
 
 pub mod    crypto;
 
@@ -183,7 +211,7 @@ pub mod    sm;
 use crate::sm::{sm_erase_binary, sm_delete_file, sm_pin_cmd, sm_pin_cmd_get_policy};
 
 pub mod    wrappers;
-use crate::wrappers::*;
+use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tt, wr_do_log_tu, wr_do_log_tuv};
 
 
 /*
@@ -216,6 +244,7 @@ mod   test_v2_v3;
 ///           In this example, cfg!(v0_21_0) will then match that
 ///
 /// @return   The OpenSC release/imaginary version, that this driver implementation supports
+#[allow(clippy::same_functions_in_if_condition)]
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     if       cfg!(v0_17_0) { cstru!(b"0.17.0\0").as_ptr() }
@@ -230,7 +259,7 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 /// @apiNote TODO inspect behavior in multi-threading context
 /// @param   name passed in by OpenSC (acc. opensc.conf: assoc. 'acos5_external' <-> ATR or card_driver acos5_external
 /// @return  function pointer; calling that returns acos5_external's sc_card_driver struct address
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::missing_safety_doc))]
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> p_void {
     if !name.is_null() && CStr::from_ptr(name) == cstru!(CARD_DRV_SHORT_NAME) {

@@ -87,7 +87,8 @@ SC_AC_OP_GENERATE};
 use opensc_sys::errors::{SC_SUCCESS};
 use opensc_sys::asn1::{sc_asn1_read_tag, SC_ASN1_TAG_EOC};
 
-use crate::constants_types::*;
+use crate::constants_types::{DataPrivate, FDB_RSA_KEY_EF, FDB_SE_FILE, FDB_SYMMETRIC_KEY_EF, SACinfo, SAEinfo, TLV,
+                             is_DFMF, p_void};
 use crate::path::{current_path_df, file_id_from_path_value};
 //use crate::wrappers::*;
 
@@ -577,6 +578,7 @@ pub fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], se_info
 }
 
 
+#[allow(clippy::missing_errors_doc)]
 pub fn se_parse_sae(vec_sac_info: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp_sae: &[u8]) -> Result<Vec<SAEinfo>, i32>
 {
     use num_integer::Integer;

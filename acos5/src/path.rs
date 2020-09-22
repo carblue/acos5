@@ -23,10 +23,13 @@ use opensc_sys::types::{sc_path/*, SC_MAX_PATH_SIZE*/};
 //use opensc_sys::log::{sc_dump_hex};
 //use opensc_sys::errors::{SC_SUCCESS};
 
-use crate::constants_types::*;
-use crate::wrappers::*;
+use crate::constants_types::{DataPrivate, FDB_CHV_EF, FDB_CYCLIC_EF, FDB_DF, FDB_ECC_KEY_EF, FDB_LINEAR_FIXED_EF,
+                             FDB_LINEAR_VARIABLE_EF, FDB_MF, FDB_PURSE_EF, FDB_RSA_KEY_EF, FDB_SE_FILE,
+                             FDB_SYMMETRIC_KEY_EF, FDB_TRANSPARENT_EF, is_DFMF, p_void};
+use crate::wrappers::wr_do_log_t;
 
 /* The following 2 functions take the file id from the last valid path component */
+#[must_use]
 pub fn file_id_from_path_value(path_value: &[u8]) -> u16
 {
     let len = path_value.len();
@@ -34,6 +37,7 @@ pub fn file_id_from_path_value(path_value: &[u8]) -> u16
     u16::from_be_bytes([path_value[len-2], path_value[len-1]])
 }
 
+#[must_use]
 pub fn file_id_from_cache_current_path(card: &sc_card) -> u16
 {
     file_id_from_path_value(&card.cache.current_path.value[..card.cache.current_path.len])
@@ -76,6 +80,7 @@ pub fn current_path_df(card: &mut sc_card) -> &[u8]
  * @param
  * @return
  */
+#[must_use]
 pub fn is_impossible_file_match(path_target: &sc_path) -> bool {
     let len = path_target.len;
     assert!(len>=2);

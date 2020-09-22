@@ -37,6 +37,7 @@ use crate::wrappers::{wr_do_log};
 /// clear to me if for SC_CARD_TYPE_ACOS5_64_V3 the last 2 bytes are meaningful if not in FIPS mode (at least they are
 /// the same for each call, thus this uncertainty doesn't matter).\
 /// @return  serial number (6 bytes for SC_CARD_TYPE_ACOS5_64_V2, otherwise 8 bytes) or an OpenSC error
+#[allow(clippy::missing_errors_doc)]
 pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
 {
     assert!(!card.ctx.is_null());
@@ -71,6 +72,7 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
 /// if there are more, then the function panics, because the following command get_file_info
 /// works based on byte-size indexing only !\
 /// @return  count of files or an OpenSC error
+#[allow(clippy::missing_errors_doc)]
 pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
 {
     assert!(!card.ctx.is_null());
@@ -105,6 +107,7 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
 /// @apiNote  SC_CARDCTL_ACOS5_GET_FILE_INFO; for clients: for all card types indexing starts from 0. This function will
 /// care for cards, that behave differently\
 /// @return  file information (8 bytes) or an OpenSC error
+#[allow(clippy::missing_errors_doc)]
 pub fn get_file_info(card: &mut sc_card, reference: u8) -> Result<[u8; 8], i32>
 {
     assert!(!card.ctx.is_null());
@@ -134,6 +137,7 @@ pub fn get_file_info(card: &mut sc_card, reference: u8) -> Result<[u8; 8], i32>
 ///
 /// @apiNote  SC_CARDCTL_ACOS5_GET_FREE_SPACE
 /// @return  free EEPROM space or an OpenSC error
+#[allow(clippy::missing_errors_doc)]
 pub fn get_free_space(card: &mut sc_card) -> Result<u32, i32>
 {
     assert!(!card.ctx.is_null());
@@ -160,6 +164,7 @@ pub fn get_free_space(card: &mut sc_card) -> Result<u32, i32>
 // true, then it's acos5
 //TODO allow nonminimal_bool, a false positive here
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::nonminimal_bool))]
+#[allow(clippy::missing_errors_doc)]
 pub fn get_is_ident_self_okay(card: &mut sc_card) -> Result<bool, i32> // get_ident_self
 {
     assert!(!card.ctx.is_null());
@@ -180,6 +185,7 @@ pub fn get_is_ident_self_okay(card: &mut sc_card) -> Result<bool, i32> // get_id
     }
 }
 
+#[allow(clippy::missing_errors_doc)]
 pub fn get_cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
 {
     assert!(!card.ctx.is_null());
@@ -201,6 +207,7 @@ pub fn get_cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
 }
 
 //  ONLY V3.00 *DOES* support this command
+#[allow(clippy::missing_errors_doc)]
 pub fn get_manufacture_date(card: &mut sc_card) -> Result<u32, i32>
 {
     assert!(!card.ctx.is_null());
@@ -222,6 +229,7 @@ pub fn get_manufacture_date(card: &mut sc_card) -> Result<u32, i32>
 }
 
 //  V2.00 *DOES NOT* supports this command
+#[allow(clippy::missing_errors_doc)]
 pub fn get_rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
 {
     assert!(!card.ctx.is_null());
@@ -243,6 +251,7 @@ pub fn get_rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
 }
 
 //  V2.00 *DOES NOT* supports this command
+#[allow(clippy::missing_errors_doc)]
 pub fn get_op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
@@ -273,6 +282,7 @@ pub fn get_op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
 }
 
 /* This is NOT a card command, but reading from EEPROM; allowed only in stage manufacturer */
+#[allow(clippy::missing_errors_doc)]
 pub fn get_op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
@@ -294,6 +304,7 @@ pub fn get_op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 }
 
 //  V2.00 *DOES NOT* supports this command
+#[allow(clippy::missing_errors_doc)]
 pub fn get_is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_FIPS_compliant==true get_fips_compliance
 {
     assert!(!card.ctx.is_null());
@@ -317,6 +328,7 @@ pub fn get_is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_FIPS
 }
 
 //  ONLY V3.00 *DOES* support this command
+#[allow(clippy::missing_errors_doc)]
 pub fn get_is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i32>
 {
     assert!(!card.ctx.is_null());
@@ -340,6 +352,7 @@ pub fn get_is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<boo
 }
 
 //  ONLY V3.00 *DOES* support this command
+#[allow(clippy::missing_errors_doc)]
 pub fn get_is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i32>
 {
     assert!(!card.ctx.is_null());
@@ -363,6 +376,7 @@ pub fn get_is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<boo
 }
 
 /* This is NOT a card command, but reading from EEPROM; allowed only in stage manufacturer */
+#[allow(clippy::missing_errors_doc)]
 pub fn get_zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
@@ -382,6 +396,7 @@ pub fn get_zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i3
 }
 
 /* This is NOT a card command, but reading from EEPROM; allowed only in stage manufacturer */
+#[allow(clippy::missing_errors_doc)]
 pub fn get_card_life_cycle_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());

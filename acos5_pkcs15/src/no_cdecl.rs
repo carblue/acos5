@@ -11,10 +11,10 @@ use opensc_sys::errors::{SC_ERROR_INVALID_ARGUMENTS };
 use opensc_sys::log::{sc_dump_hex};
 
 //use crate::constants_types::*;
-use crate::wrappers::*;
+use crate::wrappers::{wr_do_log, wr_do_log_t};
 use crate::missing_exports::{find_df_by_type};
 
-
+#[must_use]
 pub fn rsa_modulus_bits_canonical(rsa_modulus_bits: usize) -> usize { ((rsa_modulus_bits + 8) /256) *256 }
 
 pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mut u16) -> i32

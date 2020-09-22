@@ -61,6 +61,7 @@ impl<'a> TLV<'a> {
     }
 }
 
+#[allow(clippy::copy_iterator)]
 impl<'a> Iterator for TLV<'a> {
     type Item = TLV<'a>;
 
@@ -579,6 +580,7 @@ pub struct DataPrivate { // see settings in acos5_init
 /*  returns true, if given a fdb parameter that represents type MF or DF, which are directories,
     returns false for any other fdb, which are 'real' files */
 #[allow(non_snake_case)]
+#[must_use]
 pub fn is_DFMF(fdb: u8) -> bool
 {
     (fdb & FDB_DF) == FDB_DF

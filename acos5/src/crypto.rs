@@ -110,6 +110,7 @@ pub fn des_ecb3_pad_pkcs5(data: &[u8], key: &str, mode: i32) -> Vec<u8> {
 */
 
 /* this gets used currently only for Encrypt and data known to be multiple of DES_KEY_SZ */
+#[must_use]
 pub fn des_ecb3_unpadded_8(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> { // -> [u8; DES_KEY_SZ] {
     assert!(data.len().is_multiple_of(&DES_KEY_SZ));
     assert_eq!(24, key.len());

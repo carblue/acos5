@@ -77,6 +77,7 @@ use crate::constants_types::p_void;
 
 
 /* for acos5_get_response only */
+#[must_use]
 pub fn me_get_max_recv_size(card_ref: &sc_card) -> usize
 { // an equivalent copy of sc_get_max_recv_size
     if /*card_ref == NULL ||*/ card_ref.reader.is_null() {
@@ -349,6 +350,7 @@ PKCS #1: RSA Cryptography Specifications  Version 2.2  https://tools.ietf.org/ht
 ///     NULL
 ///   OCTET STRING (64 byte) 2B16E868F69142C1F72BAE04A5F375343F223FA9A7690B431D5D26169970F3029FD436…
 ///
+#[allow(clippy::missing_errors_doc)]
 pub fn me_pkcs1_strip_01_padding(in_dat: &[u8]) -> Result<&[u8], i32>
 {
     let  in_len = in_dat.len();

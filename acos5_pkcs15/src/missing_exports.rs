@@ -102,7 +102,7 @@ pub fn me_pkcs15_dup_bignum(dst: &mut sc_pkcs15_bignum, src: &sc_pkcs15_bignum) 
     0
 }
 
-
+#[allow(clippy::missing_errors_doc)]
 pub fn find_df_by_type(p15card: &mut sc_pkcs15_card, type_: u8) -> Result<&mut sc_pkcs15_df, i32>
 {
     let mut df  = p15card.df_list;
