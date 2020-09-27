@@ -32,7 +32,7 @@ use opensc_sys::errors::{SC_SUCCESS};
 #[allow(non_camel_case_types)]
 pub type p_void = *mut c_void;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct TLV<'a> {
     tag: u8,
     length: u8,
@@ -61,7 +61,6 @@ impl<'a> TLV<'a> {
     }
 }
 
-#[allow(clippy::copy_iterator)]
 impl<'a> Iterator for TLV<'a> {
     type Item = TLV<'a>;
 
@@ -73,10 +72,11 @@ impl<'a> Iterator for TLV<'a> {
             assert!(self.rem.len()>=2);
             self.tag    = self.rem[0];
             self.length = self.rem[1];
-            assert!(self.rem.len() >=  2+usize::from(self.length));
-            self.value  = &self.rem[2..2+usize::from(self.length)];
-            self.rem    = &self.rem[   2+usize::from(self.length)..];
-            Some(*self)
+            let len = usize::from(self.length) + 2;
+            assert!(self.rem.len() >=  len);
+            self.value  = &self.rem[2..len];
+            self.rem    = &self.rem[   len..];
+            Some(self.clone())
         }
     }
 }

@@ -37,7 +37,7 @@ see file src/libopensc/libopensc.exports
 use libc::{realloc/*, strnlen*/};
 
 use std::convert::{TryFrom, TryInto};
-use std::slice::from_raw_parts_mut;
+use std::slice::from_raw_parts;
 
 use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, SC_CARD_CAP_APDU_EXT,
                          SC_READER_SHORT_APDU_MAX_RECV_SIZE, //SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_PROTO_T0,
@@ -145,16 +145,17 @@ pub fn me_card_add_symmetric_alg(card: &mut sc_card, algorithm: u32, key_length:
     me_card_add_algorithm(card, &info)
 }
 
-pub fn me_card_find_alg(card: &mut sc_card, algorithm: u32, key_length: u32, param: Option<*const sc_object_id>)
-    -> Option<*mut sc_algorithm_info>
+pub fn me_card_find_alg(card: &mut sc_card, algorithm: u32, key_length: u32, param_opt: Option<*const sc_object_id>)
+    -> Option<*const sc_algorithm_info>
 {
-    for info in unsafe { from_raw_parts_mut(card.algorithms, card.algorithm_count.try_into().unwrap()) } {
+    for info in unsafe { from_raw_parts(card.algorithms, card.algorithm_count.try_into().unwrap()) } {
         if info.algorithm != algorithm   { continue; }
         if info.key_length != key_length { continue; }
 
-        if param.is_some() && info.algorithm == SC_ALGORITHM_EC &&
-              unsafe { sc_compare_oid(param.unwrap(), &info.u.ec.params.id) } != 0 {
-            continue;
+        if let Some(param) = param_opt {
+            if info.algorithm == SC_ALGORITHM_EC && unsafe { sc_compare_oid(param, &info.u.ec.params.id) } != 0 {
+                continue;
+            }
         }
         return Some(info);
     }
@@ -350,7 +351,9 @@ PKCS #1: RSA Cryptography Specifications  Version 2.2  https://tools.ietf.org/ht
 ///     NULL
 ///   OCTET STRING (64 byte) 2B16E868F69142C1F72BAE04A5F375343F223FA9A7690B431D5D26169970F3029FD436…
 ///
-#[allow(clippy::missing_errors_doc)]
+/// # Errors
+///
+/// Will return `Err` if there is no valid 01 padding
 pub fn me_pkcs1_strip_01_padding(in_dat: &[u8]) -> Result<&[u8], i32>
 {
     let  in_len = in_dat.len();

@@ -55,10 +55,9 @@ use crate::crypto::{DES_KEY_SZ, DES_KEY_SZ_u8, des_ecb3_unpadded_8, des_ede3_cbc
 use crate::no_cdecl::{authenticate_external, authenticate_internal};
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tttt, wr_do_log_tu, wr_do_log_tuv,
                       wr_do_log_tuvw};
-//use crate::cmd_card_info::get_is_key_authenticated;
 
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_possible_truncation))]
+#[allow(clippy::cast_possible_truncation)]
 #[allow(non_upper_case_globals)]
 pub const SM_SMALL_CHALLENGE_LEN_u8 : u8 = SM_SMALL_CHALLENGE_LEN as u8;
 

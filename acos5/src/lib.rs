@@ -59,17 +59,14 @@ TODO Only set to anything other than SC_ERROR_KEYPAD_MSG_TOO_LONG, if that's the
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::module_name_repetitions))]
 
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::similar_names))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::cognitive_complexity))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_lines))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
+// #![cfg_attr(feature = "cargo-clippy", allow(clippy::cognitive_complexity))]
+// #![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_lines))]
+// #![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::if_not_else))]
 
 
 extern crate libc;
 extern crate num_integer;
-//extern crate iso7816_tlv;
-//iso7816-tlv = "0.3"
-//extern crate tlv_parser;
 extern crate opensc_sys;
 //extern crate bitintr; //no_cdecl.rs
 //extern crate ring;
@@ -213,7 +210,6 @@ use crate::sm::{sm_erase_binary, sm_delete_file, sm_pin_cmd, sm_pin_cmd_get_poli
 pub mod    wrappers;
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tt, wr_do_log_tu, wr_do_log_tuv};
 
-
 /*
 #[cfg(test)]
 #[cfg(test_v2_v3_token)]
@@ -259,10 +255,14 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 /// @apiNote TODO inspect behavior in multi-threading context
 /// @param   name passed in by OpenSC (acc. opensc.conf: assoc. 'acos5_external' <-> ATR or card_driver acos5_external
 /// @return  function pointer; calling that returns acos5_external's sc_card_driver struct address
+///
+/// # Safety
+///
+/// This function should not be called before the horsemen are ready.
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> p_void {
-    if !name.is_null() && CStr::from_ptr(name) == cstru!(CARD_DRV_SHORT_NAME) {
+    if !name.is_null() && unsafe {CStr::from_ptr(name)} == cstru!(CARD_DRV_SHORT_NAME) {
         acos5_get_card_driver as p_void
     }
     else {
@@ -319,7 +319,7 @@ static struct sc_card_operations iso_ops = {
     NULL             /* unwrap */
 };
 */
-    let iso_ops = unsafe { *(*sc_get_iso7816_driver()).ops };
+    let iso_ops = unsafe { &*(*sc_get_iso7816_driver()).ops };
     let b_sc_card_operations = Box::new( sc_card_operations {
         match_card:            Some(acos5_match_card),        // no_match     is insufficient for cos5: It just doesn't match any ATR
         init:                  Some(acos5_init),              // iso7816_init is insufficient for cos5: It just returns SC_SUCCESS without doing anything
@@ -381,7 +381,7 @@ static struct sc_card_operations iso_ops = {
         #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
         unwrap:                Some(acos5_unwrap),            // NULL
 
-        ..iso_ops // untested so far whether remaining functionality from libopensc/iso7816.c is sufficient for cos5
+        ..*iso_ops // untested so far whether remaining functionality from libopensc/iso7816.c is sufficient for cos5
 /* from iso_ops:
     NULL,            /* verify,                deprecated */
 
@@ -566,7 +566,7 @@ what can we rely on, when this get's called:
  * @param
  * @return
  */
-//TODO temporarily allow too_many_lines
+#[allow(clippy::too_many_lines)]
 extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
@@ -1079,7 +1079,7 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
  * @param
  * @return
  */
-//TODO temporarily allow too_many_lines
+#[allow(clippy::too_many_lines)]
 extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr: p_void) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
@@ -1333,7 +1333,7 @@ SW1 SW2   Definition
  * @param  buf
  * @return how many bytes can be expected to be fetched the next time, this function get's called: It's a guess only
  */
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::suspicious_else_formatting))]
+#[allow(clippy::suspicious_else_formatting)]
 extern "C" fn acos5_get_response(card_ptr: *mut sc_card, count_ptr: *mut usize, buf_ptr: *mut u8) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || count_ptr.is_null() || buf_ptr.is_null() {
@@ -1386,7 +1386,6 @@ println!("### acos5_get_response returned apdu.sw1: {:X}, apdu.sw2: {:X}   Unkno
 
     unsafe { *count_ptr = apdu.resplen };
 
-    //TODO temporarily allow suspicious_else_formatting
     if      apdu.sw1==0x90 && apdu.sw2==0x00 {
         /* for some cos5 commands, it's NOT necessarily true, that status word 0x9000 signals "no more data to read" */
         rv = if get_is_running_cmd_long_response(card) {set_is_running_cmd_long_response(card, false); 256} else {0 /* no more data to read */};
@@ -1763,6 +1762,8 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
  * @param
  * @return
  */
+#[allow(clippy::too_many_lines)]
+// #[must_use]
 extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
                                 buf_ref_ptr: *const u8, buflen: usize) -> i32
 {
@@ -1972,7 +1973,6 @@ file_id: 4300
 // assembles the byte string/data part for file creation via command "Create File"
 // TODO special treatment for DF/MF is missing: optional ISO7816_RFU_TAG_FCP_SAE
 // ATTENTION : expects from file.type the fdb , but NOT what usually is in file.type like e.g. SC_FILE_TYPE_WORKING_EF
-//#[allow(dead_code)]
 extern "C" fn acos5_construct_fci(card_ptr: *mut sc_card, file_ref_ptr: *const sc_file,
                                   out_ptr: *mut u8, outlen_ptr: *mut usize) -> i32
 {
@@ -2167,7 +2167,7 @@ println!("Non-match in let acl_category. file_ref.type_: {}", file_ref.type_);
  * @param
  * @return
  */
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::if_same_then_else))]
+#[allow(clippy::too_many_lines)]
 extern "C" fn acos5_pin_cmd(card_ptr: *mut sc_card, data_ptr: *mut sc_pin_cmd_data, tries_left_ptr: *mut i32) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || data_ptr.is_null() {
@@ -2536,7 +2536,7 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
 }
 
 
-//TODO temporarily allow cognitive_complexity
+#[allow(clippy::too_many_lines)]
 extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const sc_security_env, _se_num: i32) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || env_ref_ptr.is_null() {
@@ -2981,7 +2981,8 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
  * @param
  * @return  error code (neg. value) or number of bytes written into out
  */
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::suspicious_else_formatting))]
+#[allow(clippy::suspicious_else_formatting)]
+#[allow(clippy::too_many_lines)]
 extern "C" fn acos5_compute_signature(card_ptr: *mut sc_card, data_ref_ptr: *const u8, data_len: usize,
                                                                    out_ptr:   *mut u8,   outlen: usize) -> i32
 {
@@ -3197,7 +3198,6 @@ when pkcs1_strip_PSS_padding works
             }
         }}
 */
-        //TODO temporarily allow suspicious_else_formatting
         else {
             rv = 0; // do nothing and live with a verification error
         }

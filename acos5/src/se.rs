@@ -476,7 +476,7 @@ pub fn se_get_sae_scb(card: &mut sc_card, cla_ins_p1_p2: [u8; 4]) -> u8
                     0x9E |
                     0xA4 => { scb = sae_info.scb; break; }, // depends on scb
                     0xA0 | 0xAF => { /*panic!();*/ }, // not implemented
-                    _    => { panic!(); }, // not expected
+                    _    => { unreachable!("Encountered unexpected byte"); },
                 }
             }
         }
@@ -578,11 +578,12 @@ pub fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], se_info
 }
 
 
-#[allow(clippy::missing_errors_doc)]
-pub fn se_parse_sae(vec_sac_info: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp_sae: &[u8]) -> Result<Vec<SAEinfo>, i32>
+/// # Errors
+///
+/// Will return `Err` if there are errors in the SAE encoding
+pub fn se_parse_sae(vec_sac_info_opt: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp_sae: &[u8]) -> Result<Vec<SAEinfo>, i32>
 {
     use num_integer::Integer;
-//    use iso7816_tlv::simple::Tlv;
     use crate::no_cdecl::{convert_amdo_to_cla_ins_p1_p2_array};
 
     // add the A4 tag as virtual SE-file record (SAC), starting with se record id 16, the max. of real ones is 14
@@ -598,7 +599,7 @@ pub fn se_parse_sae(vec_sac_info: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp
         };
 //println!("parsed: {:X?}", tlv);
         assert_eq!(0x80, tlv.tag() & 0xF0);
-        assert_eq!(usize::try_from((tlv.tag() & 0x0F).count_ones()).unwrap(), tlv.length().into());
+        assert_eq!((tlv.tag() & 0x0F).count_ones(), tlv.length().into());
         assert_eq!(4, tlv.tag() & 4); // ins must be included
         let mut sae_info = SAEinfo::default();
         sae_info.tag_AMDO = tlv.tag();
@@ -634,17 +635,17 @@ pub fn se_parse_sae(vec_sac_info: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp
                 sac_info.reference = idx_virtual.into();
                 sac_info.crts_len  = 1;
                 sac_info.crts[0].tag = tlv.tag().into();
-                let mut idx_ref = 0_usize;
+                let mut idx_ref = 0;
                 for chunk in tlv.value().chunks(3) {
                     assert_eq!(1, chunk[1]);
                     match chunk[0] {
                         0x95 => { sac_info.crts[0].usage         = chunk[2].into(); },
                         0x83 => { sac_info.crts[0].refs[idx_ref] = chunk[2].into(); idx_ref += 1; },
                         0x81 => { /*if card.type_== SC_CARD_TYPE_ACOS5_EVO_V4 {TODO EVO also has tag 0x81} else {panic!()}*/ }
-                        _    => panic!("unexpected"),
+                        _    => unreachable!("Encountered unexpected byte"),
                     }
                 }
-                vec_sac_info.get_or_insert(Vec::new()).push(sac_info);
+                vec_sac_info_opt.get_or_insert(Vec::new()).push(sac_info);
             },
             _ => {} // TODO for now: skip support of tags A0 and AF
         }
@@ -663,7 +664,7 @@ mod tests {
     fn test_se_parse_sac() {
         let mut sac_info = SACinfo::default();
         let data : [u8; 11] = [/* 80 01 01 */ 0xA4, 0x06, 0x83, 0x01, 0x81, 0x95, 0x01, 0x08,   0x00, 0x00, 0x00];
-        let mut rv = se_parse_sac(/*card: &mut sc_card,*/ 1, &data, &mut sac_info);
+        let mut rv = se_parse_sac(1, &data, &mut sac_info);
         assert_eq!(usize::try_from(rv).unwrap(), data.len()-3);
 //        assert_eq!(sac_info.next, std::ptr::null_mut());
         assert_eq!(sac_info.reference, 1);
@@ -676,7 +677,7 @@ mod tests {
             0xA4, 0x06, 0x83, 0x01, 0x81, 0x95, 0x01, 0x08,
             0xB4, 0x09, 0x83, 0x01, 0x01, 0x95, 0x01, 0x08, 0x80, 0x01, 0x02,
             0xB8, 0x09, 0x83, 0x01, 0x01, 0x95, 0x01, 0x08, 0x80, 0x01, 0x02,  0x00, 0x00, 0x00];
-        rv = se_parse_sac(/*card: &mut sc_card,*/ 2, &data, &mut sac_info);
+        rv = se_parse_sac(2, &data, &mut sac_info);
         assert_eq!(usize::try_from(rv).unwrap(), data.len()-3);
         assert_eq!(sac_info.reference, 2);
         assert_eq!(sac_info.crts_len,  3);
@@ -687,7 +688,7 @@ mod tests {
         sac_info =  SACinfo::default();
         let data : [u8; 11] = [/* 80 01 03 */
             0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x08,  0x00, 0x00, 0x00];
-        rv = se_parse_sac(/*card: &mut sc_card,*/ 3, &data, &mut sac_info);
+        rv = se_parse_sac(3, &data, &mut sac_info);
         assert_eq!(usize::try_from(rv).unwrap(), data.len()-3);
         assert_eq!(sac_info.reference, 3);
         assert_eq!(sac_info.crts_len,  1);
@@ -696,7 +697,7 @@ mod tests {
         sac_info =  SACinfo::default();
         let data : [u8; 14] = [/* 80 01 04 */
             0xA4, 0x09, 0x83, 0x01, 0x81, 0x83, 0x01, 0x01, 0x95, 0x01, 0x08,      0x00, 0x00, 0x00];
-        rv = se_parse_sac(/*card: &mut sc_card,*/ 4, &data, &mut sac_info);
+        rv = se_parse_sac(4, &data, &mut sac_info);
         assert_eq!(usize::try_from(rv).unwrap(), data.len()-3);
         assert_eq!(sac_info.reference, 4);
         assert_eq!(sac_info.crts_len,  1);
@@ -706,7 +707,7 @@ mod tests {
         let data : [u8; 21] = [/* 80 01 05 */
             0xA4, 0x06, 0x83, 0x01, 0x81, 0x95, 0x01, 0x80,
             0xB4, 0x08, 0x84, 0x00, 0x95, 0x01, 0x30, 0x80, 0x01, 0x02,   0x00, 0x00, 0x00];
-        rv = se_parse_sac(/*card: &mut sc_card,*/ 5, &data, &mut sac_info);
+        rv = se_parse_sac(5, &data, &mut sac_info);
         assert_eq!(usize::try_from(rv).unwrap(), data.len()-3);
         assert_eq!(sac_info.reference, 5);
         assert_eq!(sac_info.crts_len,  2);
@@ -718,7 +719,7 @@ mod tests {
             0xA4, 0x06, 0x83, 0x01, 0x81, 0x95, 0x01, 0x80,
             0xB4, 0x08, 0x84, 0x00, 0x95, 0x01, 0x30, 0x80, 0x01, 0x02,
             0xB8, 0x08, 0x84, 0x00, 0x95, 0x01, 0x30, 0x80, 0x01, 0x02,   0x00, 0x00, 0x00];
-        rv = se_parse_sac(/*card: &mut sc_card,*/ 6, &data, &mut sac_info);
+        rv = se_parse_sac(6, &data, &mut sac_info);
         assert_eq!(usize::try_from(rv).unwrap(), data.len()-3);
         assert_eq!(sac_info.reference, 6);
         assert_eq!(sac_info.crts_len,  3);
@@ -731,7 +732,7 @@ mod tests {
             0xA4, 0x06, 0x83, 0x01, 0x81, 0x95, 0x01, 0x08,
             0xB4, 0x08, 0x84, 0x00, 0x95, 0x01, 0x30, 0x80, 0x01, 0x02,
             0xB8, 0x08, 0x84, 0x00, 0x95, 0x01, 0x30, 0x80, 0x01, 0x02,   0x00, 0x00, 0x00];
-        rv = se_parse_sac(/*card: &mut sc_card,*/ 7, &data, &mut sac_info);
+        rv = se_parse_sac(7, &data, &mut sac_info);
         assert_eq!(usize::try_from(rv).unwrap(), data.len()-3);
         assert_eq!(sac_info.reference, 7);
         assert_eq!(sac_info.crts_len,  3);
@@ -742,7 +743,7 @@ mod tests {
         sac_info =  SACinfo::default();
         let data : [u8; 9] = [/* 80 01 08 */
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00,     0x00, 0x00, 0x00];
-        rv = se_parse_sac(/*card: &mut sc_card,*/ 8, &data, &mut sac_info);
+        rv = se_parse_sac(8, &data, &mut sac_info);
         assert_eq!(rv, 0);
         assert_eq!(sac_info, SACinfo::default());
 
@@ -751,22 +752,13 @@ mod tests {
             0xA4, 0x09, 0x83, 0x01, 0x82, 0x83, 0x01, 0x83, 0x95, 0x01, 0x80,
             0xB4, 0x08, 0x84, 0x00, 0x95, 0x01, 0x30, 0x80, 0x01, 0x02,
             0xB8, 0x08, 0x84, 0x00, 0x95, 0x01, 0x30, 0x80, 0x01, 0x02,   0x00, 0x00, 0x00];
-        rv = se_parse_sac(/*card: &mut sc_card,*/ 9, &data, &mut sac_info);
+        rv = se_parse_sac(9, &data, &mut sac_info);
         assert_eq!(usize::try_from(rv).unwrap(), data.len()-3);
         assert_eq!(sac_info.reference, 9);
         assert_eq!(sac_info.crts_len,  3);
         assert_eq!(sac_info.crts[0],   sc_crt{tag: 0xA4, usage: 0x80, algo: 0, refs: [0x82,0x83,0,0,0,0,0,0]}); // =>
         assert_eq!(sac_info.crts[1],   sc_crt{tag: 0xB4, usage: 0x30, algo: 2, refs: [0x84,0,0,0,0,0,0,0]});
         assert_eq!(sac_info.crts[2],   sc_crt{tag: 0xB8, usage: 0x30, algo: 2, refs: [0x84,0,0,0,0,0,0,0]});
-
-
-        /* SC_CARD_TYPE_ACOS5_64_V3, FIPS requirements */
-//        SEID #1: Security Officer Key must be authenticated
-//        80 01 01 A4 06 83 01 01 95 01 80h
-
-//        SEID #2: Security Officer Key must be authenticated and command must be in Secure Messaging mode.
-//        80 01 02 A4 06 83 01 01 95 01 80 B4 09 80 01 02 83 01 02 95 01 30 B8 09 80 01 02 83 01 02 95 01 30h
-
     }
 
     #[test]
@@ -783,20 +775,9 @@ mod tests {
             SAEinfo { tag_AMDO: 0x8C, cla: 0x80, ins: 0x30, p1: 0, p2: 0, tag_SCDO: 0x97, scb: 0xFF },
             SAEinfo { tag_AMDO: 0x84, cla: 0,    ins: 0x22, p1: 0, p2: 0, tag_SCDO: 0xA4, scb: 0x10 } ];
 
-        let mut vec_sac_info : Option<Vec<SACinfo>> = None;
-        let res = se_parse_sae(&mut vec_sac_info, &v);
-        assert_eq!(sac_info_expected, vec_sac_info.unwrap()[0]);
+        let mut vec_sac_info_opt : Option<Vec<SACinfo>> = None;
+        let res = se_parse_sae(&mut vec_sac_info_opt, &v);
+        assert_eq!(sac_info_expected, vec_sac_info_opt.unwrap()[0]);
         assert_eq!(vec_sae_info_expected, res.unwrap());
     }
 }
-/*
-A4 39 30 0C 0C 03 53 4D 31 03 02 06 C0 04 01 01 30 0F 04 01 01 03 02 06 C0 03 02 04 B0 02 02 00 81 A0 04 02 02 00 C0 A1 12 30 10 30 0E 04 06 3F 00 41 00 41 02 02 01 01 80 01 25
-A4 39 30 0C 0C 03 53 4D 32 03 02 06 C0 04 01 01 30 0F 04 01 02 03 02 06 C0 03 02 04 B0 02 02 00 82 A0 04 02 02 00 C0 A1 12 30 10 30 0E 04 06 3F 00 41 00 41 02 02 01 02 80 01 25
-A4 39 30 0C 0C 03 53 4B 33 03 02 06 C0 04 01 01 30 0F 04 01 03 03 02 06 C0 03 02 04 B0 02 02 00 83 A0 04 02 02 00 C0 A1 12 30 10 30 0E 04 06 3F 00 41 00 41 02 02 01 03 80 01 25
-A4 39 30 0C 0C 03 53 4B 34 03 02 06 C0 04 01 01 30 0F 04 01 04 03 02 06 C0 03 02 04 B0 02 02 00 84 A0 04 02 02 00 C0 A1 12 30 10 30 0E 04 06 3F 00 41 00 41 02 02 01 04 80 01 25
-
-A439300C0C03534D31030206C0040101300F040101030206C0030204B002020081A004020200C0A1123010300E04063F0041004102020101800125
-A439300C0C03534D32030206C0040101300F040102030206C0030204B002020082A004020200C0A1123010300E04063F0041004102020102800125
-A439300C0C03534B33030206C0040101300F040103030206C0030204B002020083A004020200C0A1123010300E04063F0041004102020103800125
-A439300C0C03534B34030206C0040101300F040104030206C0030204B002020084A004020200C0A1123010300E04063F0041004102020104800125
-*/

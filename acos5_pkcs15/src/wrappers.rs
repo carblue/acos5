@@ -61,7 +61,6 @@ pub fn wr_do_log_tt<T>  (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, 
     }
 }
 
-//TODO temporarily allow too_many_arguments
 pub fn wr_do_log_ttt<T> (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: T, arg3: T)
 {
     if cfg!(log) {
@@ -69,7 +68,6 @@ pub fn wr_do_log_ttt<T> (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, 
     }
 }
 
-//TODO temporarily allow too_many_arguments
 pub fn wr_do_log_tttt<T>(ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: T, arg3: T, arg4: T)
 {
     if cfg!(log) {
@@ -79,7 +77,6 @@ pub fn wr_do_log_tttt<T>(ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, 
 
 
 
-//TODO temporarily allow too_many_arguments
 pub fn wr_do_log_tu<T,U>      (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: U)
 {
     if cfg!(log) {
@@ -87,7 +84,6 @@ pub fn wr_do_log_tu<T,U>      (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &
     }
 }
 
-//TODO temporarily allow too_many_arguments
 pub fn wr_do_log_tuv<T,U,V>   (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: U, arg3: V)
 {
     if cfg!(log) {
@@ -116,7 +112,6 @@ pub fn wr_do_log_8u8_i32(ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, 
 */
 
 // usage for error return (<0) with: LOG_TEST_RET, LOG_TEST_GOTO_ERR
-//TODO temporarily allow too_many_arguments
 pub fn wr_do_log_sds(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv: i32/*, arg3: &CStr*/)
 {
     if cfg!(log) {

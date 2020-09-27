@@ -67,7 +67,7 @@ pub fn current_path_df(card: &mut sc_card) -> &[u8]
         assert!(!card.ctx.is_null());
         log3if!(unsafe { &mut *card.ctx }, cstru!(b"current_path_df\0"), line!(),
             cstru!(b"Error: ### fdb: %d is incorrect ########################\0"), fdb);
-        panic!();
+        unreachable!("Encountered unknown FDB");
     }
     assert!(is_DFMF(fdb) || len>=4);
     &card.cache.current_path.value[..len - if is_DFMF(fdb) {0} else {2}]

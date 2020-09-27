@@ -25,7 +25,7 @@ use std::os::raw::{c_char, c_ulong};
 use std::ffi::{/*CString,*/ CStr};
 use std::fs;//::{read/*, write*/};
 use std::ptr::{null_mut};
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::slice::from_raw_parts;
 
 use num_integer::Integer;
@@ -257,8 +257,7 @@ thus issue a correct APDU right away
 The code differs from the C version in 1 line only, where setting apdu.p2 = 0x0C;
 */
 //allow cognitive_complexity: This is almost equal to iso7816_select_file. Thus for easy comparison, don't split this
-//TODO temporarily allow unnecessary_unwrap, a false positive
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::unnecessary_unwrap))]
+#[allow(clippy::too_many_lines)]
 fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_out_ptr: Option<*mut *mut sc_file>) -> i32
 {
     assert!(!card.ctx.is_null());
@@ -310,14 +309,12 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
             apdu.lc      = in_path_ref.aid.len;
 
             r =  unsafe { sc_transmit_apdu(card, &mut apdu) };
-//            LOG_TEST_RET(ctx, r, "APDU transmit failed");
             if r < 0 {
                 log3ifr!(ctx,f,line!(), cstru!(b"APDU transmit failed\0"), r);
                 return r;
             }
             r = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
             if r != SC_SUCCESS {
-//                LOG_FUNC_RETURN(ctx, r);
                 log3ifr!(ctx,f,line!(), r);
                 return r;
             }
@@ -380,11 +377,10 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
         apdu.p2 = 0;        /* first record, return FCI */
         apdu.resp = buf.as_mut_ptr();
         apdu.resplen = buf.len();
-        apdu.le = if me_get_max_recv_size(card) < 256 {me_get_max_recv_size(card)} else {256};
+        apdu.le = std::cmp::min(me_get_max_recv_size(card), 256);
     }
 
     r = unsafe { sc_transmit_apdu(card, &mut apdu) };
-//    LOG_TEST_RET(ctx, r, "APDU transmit failed");
     if r < 0 {
         log3ifr!(ctx,f,line!(), cstru!(b"APDU transmit failed\0"), r);
         return r;
@@ -400,47 +396,40 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
             }
         }
         if apdu.sw1 == 0x61 {
-//            LOG_FUNC_RETURN(ctx, SC_SUCCESS);
             r = SC_SUCCESS;
-            log3ifr!(ctx,f,line!(), r);
-            return r;
         }
 
-//        LOG_FUNC_RETURN(ctx, r);
         log3ifr!(ctx,f,line!(), r);
         return r;
     }
 
     r = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if r != SC_SUCCESS {
-//        LOG_FUNC_RETURN(ctx, r);
         log3ifr!(ctx,f,line!(), r);
         return r;
     }
 
-    //TODO temporarily allow unnecessary_unwrap, a false positive
-    if file_out_ptr.is_some() && apdu.resplen == 0 {
+    if let Some(file_out_ptr_ptr)=file_out_ptr {
+    if apdu.resplen == 0 {
         /* For some cards 'SELECT' MF or DF_NAME do not return FCI. */
         if select_mf>0 || pathtype == SC_PATH_TYPE_DF_NAME   {
             let file_ptr = unsafe { sc_file_new() };
             if file_ptr.is_null() {
-//                LOG_FUNC_RETURN(ctx, SC_ERROR_OUT_OF_MEMORY);
                 r = SC_ERROR_OUT_OF_MEMORY;
                 log3ifr!(ctx,f,line!(), r);
                 return r;
             }
-            unsafe { (*file_ptr).path = *in_path_ref };
-
-            unsafe { *file_out_ptr.unwrap() = file_ptr };
-//            LOG_FUNC_RETURN(ctx, SC_SUCCESS);
+            unsafe {
+                (*file_ptr).path = *in_path_ref;
+                *file_out_ptr_ptr = file_ptr;
+            }
             r = SC_SUCCESS;
             log3ifr!(ctx,f,line!(), r);
             return r;
         }
-    }
+    }}
 
     if apdu.resplen < 2 {
-//        LOG_FUNC_RETURN(ctx, SC_ERROR_UNKNOWN_DATA_RECEIVED);
         r = SC_ERROR_UNKNOWN_DATA_RECEIVED;
         log3ifr!(ctx,f,line!(), r);
         return r;
@@ -451,7 +440,6 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
         ISO7816_TAG_FCP => {
             let file_ptr = unsafe { sc_file_new() };
             if file_ptr.is_null() {
-//                LOG_FUNC_RETURN(ctx, SC_ERROR_OUT_OF_MEMORY);
                 r = SC_ERROR_OUT_OF_MEMORY;
                 log3ifr!(ctx,f,line!(), r);
                 return r;
@@ -475,7 +463,6 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
             unsafe { *file_out_ptr.unwrap() = file_ptr };
         },
         _ => {
-//            LOG_FUNC_RETURN(ctx, SC_ERROR_UNKNOWN_DATA_RECEIVED);
                 r = SC_ERROR_UNKNOWN_DATA_RECEIVED;
                 log3ifr!(ctx,f,line!(), r);
                 return r;
@@ -665,7 +652,7 @@ fn get_known_sec_env_entry_V3_FIPS(is_local: bool, rec_nr: u32, buf: &mut [u8])
  * @param
  * @return
  */
-//TODO temporarily allow cognitive_complexity and too_many_lines
+#[allow(clippy::too_many_lines)]
 pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, depth: i32*/) -> i32
 {
     assert!(!card.ctx.is_null());
@@ -731,7 +718,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
             }
         }
 */
-        let mut vec_sac_info : Vec<SACinfo> = Vec::new();
+        let mut vec_sac_info = Vec::with_capacity(14);
         if (card.type_== SC_CARD_TYPE_ACOS5_64_V3  &&  SC_AC_AUT==acl_entry_read_method) ||
              SC_AC_NONE == acl_entry_read_method ||
             (SC_AC_CHV  == acl_entry_read_method && pin_verified)
@@ -773,14 +760,9 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
 
         let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
         assert!(dp.files.contains_key(&file_id_dir));
-        dp_files_value = dp.files.get_mut(&file_id_dir).unwrap(); // Option< &mut () >
+        dp_files_value = dp.files.get_mut(&file_id_dir).unwrap(); // &mut tuple
         /* DF's SAE processing was done already, i.e. dp_files_value.3 may be Some */
-        if let Some(vec) = (&mut dp_files_value.3).as_mut() {
-            vec.extend_from_slice(&vec_sac_info);
-        }
-        else {
-            dp_files_value.3 = Some(vec_sac_info);
-        }
+        dp_files_value.3.get_or_insert(Vec::new()).extend_from_slice(&vec_sac_info);
         card.drv_data = Box::into_raw(dp) as p_void;
     }
     else if is_DFMF(fdb)
@@ -951,6 +933,8 @@ pub fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/
  * @param
  * @return
  */
+///
+/// # Errors
 #[allow(clippy::missing_errors_doc)]
 pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Result<[u8; 8], i32>
 {
@@ -978,13 +962,15 @@ pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Resul
     Ok(scb8)
 }
 
+///
+/// # Errors
 #[allow(clippy::missing_errors_doc)]
 pub fn convert_amdo_to_cla_ins_p1_p2_array(amdo_tag: u8, amdo_bytes: &[u8]) -> Result<[u8; 4], i32> //Access Mode Data Object
 {
     assert!(!amdo_bytes.is_empty() && amdo_bytes.len() <= 4);
     let amb = amdo_tag&0x0F;
     assert!(amb>0);
-    if usize::try_from(amb.count_ones()).unwrap() != amdo_bytes.len() { // the count of 1-valued bits of amb Byte must equal  the count of bytes following amb
+    if amdo_bytes.len() != amb.count_ones().try_into().unwrap() { // the count of 1-valued bits of amb Byte must equal  the count of bytes following amb
         return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
     }
     let mut idx = 0;
@@ -1007,7 +993,8 @@ pub const ACL_CATEGORY_SE     : u8 =  4;
 /*
 This MUST match exactly how *mut sc_acl_entry are added in acos5_process_fci or profile.c
 */
-//TODO temporarily allow cognitive_complexity and too_many_lines
+///
+/// # Errors
 #[allow(clippy::missing_errors_doc)]
 pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_AC_OPS], acl_category: u8) -> Result<[u8; 8], i32>
 {
@@ -1375,14 +1362,13 @@ pub fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
 }
 //std::cmp::min(512,outlen)
 
+/// # Safety
+///
+/// This function should not be called before the horsemen are ready.
 //TODO integrate this into encrypt_asym
-//TODO while it's unused, allow not_unsafe_ptr_arg_deref
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::not_unsafe_ptr_arg_deref))]
-//TODO temporarily allow shadow_unrelated
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::shadow_unrelated))]
 #[allow(dead_code)]
 /* this is tailored for a special testing use case, don't use generally, SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC */
-pub fn encrypt_public_rsa(card_ptr: *mut sc_card, signature: *const u8, siglen: usize)
+pub unsafe fn encrypt_public_rsa(card_ptr: *mut sc_card, signature: *const u8, siglen: usize)
 {
 /*
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
@@ -1688,6 +1674,8 @@ pub fn trailing_blockcipher_padding_calculate(
     vec
 }
 
+///
+/// # Errors
 #[allow(clippy::missing_errors_doc)]
 pub fn trailing_blockcipher_padding_get_length(
     block_size   : u8, // 16 or 8
@@ -1780,6 +1768,8 @@ fn algo_ref_cos5_sym_MSE(algo: u32, op_mode_cbc: bool) -> u32
     }
 }
 
+///
+/// # Errors
 #[allow(clippy::missing_errors_doc)]
 fn vecu8_from_file(path_ptr: *const c_char) -> std::io::Result<Vec<u8>>
 {
@@ -1804,7 +1794,7 @@ https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Cipher_Block_Chaini
 
 */
 #[allow(non_snake_case)]
-//TODO temporarily allow cognitive_complexity and too_many_lines
+#[allow(clippy::too_many_lines)]
 pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> i32
 {
     assert!(!card.ctx.is_null());
@@ -1854,13 +1844,12 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
         outdata_len = Len2;
         outdata_ptr = vec_out.as_mut_ptr();
     }
-/* */
+
     assert!(indata_len >= 32);
     let mut fmt  = cstru!(b"called with indata_len: %zu, first 16 bytes: %s\0");
     log3if!(ctx,f,line!(), fmt, indata_len, unsafe {sc_dump_hex(indata_ptr, 32)});
     fmt = cstru!(b"called with infile_name: %s, outfile_name: %s\0");
     log3ift!(ctx,f,line!(), fmt, crypt_sym.infile, crypt_sym.outfile);
-/* */
 
     if !crypt_sym.infile.is_null() && !crypt_sym.outfile.is_null()
     { assert_ne!(crypt_sym.infile, crypt_sym.outfile); } // FIXME doesn't work for symbolic links: the check is meant for using copy_nonoverlapping
@@ -1868,8 +1857,6 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     assert!(Len1 == Len2 || outdata_len == Len2);
     let mut inDataRem = Vec::with_capacity(block_size);
     if crypt_sym.encrypt && Len1 != Len2 {
-//        inDataRem.resize(Len1-Len0, 0_u8);
-//        unsafe { copy_nonoverlapping(indata_ptr.add(Len0), inDataRem.as_mut_ptr(), Len1-Len0) };
         inDataRem.extend_from_slice(unsafe { from_raw_parts(indata_ptr.add(Len0), Len1-Len0) });
         inDataRem.extend_from_slice(trailing_blockcipher_padding_calculate(crypt_sym.block_size, crypt_sym.pad_type, u8::try_from(Len1-Len0).unwrap()).as_slice() );
         assert_eq!(inDataRem.len(), block_size);
@@ -1953,9 +1940,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
                 rv = /*acos5_set_security_env*/ unsafe { sc_set_security_env(card, &env, 0) };
                 if rv < 0 {
                     /*
-
                     tlv_new[posIV..posIV+blockSize] = inData[cnt-blockSize..cnt];
-
                       mixin (log!(__FUNCTION__,  "acos5_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
                       hstat.SetString(IUP_TITLE, "acos5_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
                       return IUP_DEFAULT;
@@ -2045,6 +2030,8 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
 }
 
 
+///
+/// # Errors
 #[allow(clippy::missing_errors_doc)]
 pub fn get_files_hashmap_info(card: &mut sc_card, key: u16) -> Result<[u8; 32], i32>
 {

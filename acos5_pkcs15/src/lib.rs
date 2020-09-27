@@ -151,8 +151,8 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
+#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::missing_safety_doc))]
 pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> p_void {
     if !name.is_null() && CStr::from_ptr(name) == cstru!(CARD_DRV_SHORT_NAME) {
         acos5_get_pkcs15init_ops as p_void
