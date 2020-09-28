@@ -37,7 +37,8 @@ use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_
                          SC_SEC_ENV_ALG_REF_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_get_iso7816_driver,
                          sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_check_apdu, sc_list_files,
                          sc_set_security_env, sc_get_challenge, //sc_verify,
-                         SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_ALGORITHM_AES};
+                         SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_ALGORITHM_AES,
+                         SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT, SC_PIN_STATE_UNKNOWN};
 #[cfg(not(v0_17_0))]
 use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
@@ -93,7 +94,8 @@ use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, file_id_from_path_value, current_path_df,
                   is_impossible_file_match};
 use crate::missing_exports::me_get_max_recv_size;
-use crate::cmd_card_info::{get_card_life_cycle_byte_eeprom, get_op_mode_byte_eeprom, get_zeroize_card_disable_byte_eeprom};
+use crate::cmd_card_info::{get_card_life_cycle_byte_eeprom, get_op_mode_byte_eeprom, get_zeroize_card_disable_byte_eeprom,
+                           get_is_pin_authenticated};
 use crate::sm::{SM_SMALL_CHALLENGE_LEN_u8, sm_common_read, sm_common_update};
 use crate::crypto::{RAND_bytes, des_ecb3_unpadded_8, Encrypt};
 
@@ -1186,6 +1188,15 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
     }
     data.pin1.tries_left = i32::try_from(apdu.sw2 & 0x0F_u32).unwrap(); //  63 Cnh     n is remaining tries
     *tries_left = data.pin1.tries_left;
+    if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 {
+        data.pin1.logged_in = SC_PIN_STATE_LOGGED_IN; // without this, session will be closed for pkcs11-tool -t -l, since v0.20.0
+    }
+    else {
+        match get_is_pin_authenticated(card, data.pin_reference.try_into().unwrap()) {
+            Ok(val) => data.pin1.logged_in = if val {SC_PIN_STATE_LOGGED_IN} else {SC_PIN_STATE_LOGGED_OUT},
+            Err(_e) => data.pin1.logged_in = SC_PIN_STATE_UNKNOWN,
+        }
+    }
     SC_SUCCESS
 }
 

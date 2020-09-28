@@ -2181,7 +2181,7 @@ extern "C" fn acos5_pin_cmd(card_ptr: *mut sc_card, data_ptr: *mut sc_pin_cmd_da
 
     log3if!(ctx,f,line!(), cstru!(b"called for cmd: %d\0"), pin_cmd_data.cmd);
 
-    if      SC_PIN_CMD_GET_INFO == pin_cmd_data.cmd { // pin1 unused, pin2 unused
+    if      SC_PIN_CMD_GET_INFO == pin_cmd_data.cmd { // pin1 used, pin2 unused
         if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 {
             /*let rv =*/ pin_get_policy(card, pin_cmd_data,
                              if tries_left_ptr.is_null() {

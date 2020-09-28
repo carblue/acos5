@@ -757,9 +757,9 @@ pub struct sc_pin_cmd_pin {
     #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
     pub length_offset : usize, /* Effective PIN length offset in the APDU */
 
-    pub max_tries  : i32, /* Used for signaling back from SC_PIN_CMD_GET_INFO */
+    pub max_tries  : i32, /* Used for signaling back from SC_PIN_CMD_GET_INFO; ACOS5: gets set in the pin record but is not retrievable */
     pub tries_left : i32, /* Used for signaling back from SC_PIN_CMD_GET_INFO  or if the command failed */
-    pub logged_in : i32,  /* Used for signaling back from SC_PIN_CMD_GET_INFO, see SC_PIN_STATE_* */  // since opensc source release v0.17.0
+    pub logged_in : i32,  /* Used for signaling back from SC_PIN_CMD_GET_INFO, see SC_PIN_STATE_*; ACOS5: any other than ACOS5-64 V3.00: not retrievable */  // since opensc source release v0.17.0
 
     #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
     pub acls : [sc_acl_entry; SC_MAX_SDO_ACLS],
@@ -782,8 +782,8 @@ impl Default for sc_pin_cmd_pin {
             offset: 5,        // this may be different for ACOS5-EVO
             #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
             length_offset: 0,
-            max_tries: 8, // 1-14 or 0xFF
-            tries_left: 0,
+            max_tries: 8,  // 1-14 or 0xFF(unlimited)
+            tries_left: 8, // 0-14 or 0xFF(unlimited)
             logged_in: 0, // 0 == SC_PIN_STATE_LOGGED_OUT
             #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
             acls: [sc_acl_entry::default(); SC_MAX_SDO_ACLS]
