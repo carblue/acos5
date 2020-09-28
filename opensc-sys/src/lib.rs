@@ -373,7 +373,7 @@ mod tests {
         let prki = std::mem::size_of::<crate::pkcs15::sc_pkcs15_prkey_info>();
         let puki = std::mem::size_of::<crate::pkcs15::sc_pkcs15_pubkey_info>();
         let ski  = std::mem::size_of::<crate::pkcs15::sc_pkcs15_skey_info>();
-
+        let sai  = std::mem::size_of::<crate::opensc::sc_supported_algo_info>();
 
         assert_eq!(sl,  120);
 
@@ -485,8 +485,8 @@ mod tests {
                     size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \
                     size_of::<sc_pkcs15_card>: {}, size_of::<sc_file>: {}, size_of::<scconf_context>: {}, size_of::<sc_pkcs15init_prkeyargs>: {}, \
                     size_of::<sc_pkcs15init_skeyargs>: {}, size_of::<sc_pkcs15_prkey_info>: {}, size_of::<sc_pkcs15_pubkey_info>: {}, \
-                    size_of::<sc_pkcs15_skey_info>: {}",
-                         sl, sc, sr, sse, sef, srd, pcp, pcd, sco, scc, spo, sca, sf, sccc, ip, is,  prki, puki, ski);
+                    size_of::<sc_pkcs15_skey_info>: {}, size_of::<sc_supported_algo_info>: {}",
+                         sl, sc, sr, sse, sef, srd, pcp, pcd, sco, scc, spo, sca, sf, sccc, ip, is,  prki, puki, ski, sai);
                 #[cfg(any(target_pointer_width = "32", windows))]
                 { assert_eq!(sc,  1376); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
@@ -517,8 +517,9 @@ mod tests {
                 assert_eq!(prki, 440);
                 assert_eq!(puki, 464);
                 assert_eq!(ski,  408);
+                assert_eq!(sai,   88);
             }
-            else  if cfg!(v0_21_0) { // experimental only: it's git-master, Latest commit 0defebf, defined as version 0.21.0
+            else  if cfg!(v0_21_0) { // experimental only: it's git-master, Latest commit 57a391f, defined as version 0.21.0
 // WARNING watch out for everything that depends on SC_MAX_SUPPORTED_ALGORITHMS, increased from 8 -> 16  sse,
 // sc_pin_cmd_data with new int field
                 println!("For OpenSC 0.21.0 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
@@ -526,8 +527,8 @@ mod tests {
                     size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \
                     size_of::<sc_pkcs15_card>: {}, size_of::<sc_file>: {}, size_of::<scconf_context>: {}, size_of::<sc_pkcs15init_prkeyargs>: {}, \
                     size_of::<sc_pkcs15init_skeyargs>: {}, size_of::<sc_pkcs15_prkey_info>: {}, size_of::<sc_pkcs15_pubkey_info>: {}, \
-                    size_of::<sc_pkcs15_skey_info>: {}",
-                         sl, sc, sr, sse, sef, srd, pcp, pcd, sco, scc, spo, sca, sf, sccc, ip, is,  prki, puki, ski);
+                    size_of::<sc_pkcs15_skey_info>: {}, size_of::<sc_supported_algo_info>: {}",
+                         sl, sc, sr, sse, sef, srd, pcp, pcd, sco, scc, spo, sca, sf, sccc, ip, is,  prki, puki, ski, sai);
                 #[cfg(any(target_pointer_width = "32", windows))]
                 { assert_eq!(sc,  1376); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
@@ -537,7 +538,7 @@ mod tests {
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
                 { assert_eq!(sr,   208); }
 
-                assert_eq!(sse, 1816);
+                assert_eq!(sse, 2712);
                 assert_eq!(sef,  176);
                 assert_eq!(srd,   32);
                 assert_eq!(pcp,   88);
@@ -558,6 +559,7 @@ mod tests {
                 assert_eq!(prki, 472);
                 assert_eq!(puki, 496);
                 assert_eq!(ski,  440);
+                assert_eq!(sai,  144);
             }
             else {
                 // experimental use only, this check may not be consistent with current master
@@ -567,18 +569,18 @@ mod tests {
                     size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \
                     size_of::<sc_pkcs15_card>: {}, size_of::<sc_file>: {}, size_of::<scconf_context>: {}, size_of::<sc_pkcs15init_prkeyargs>: {}, \
                     size_of::<sc_pkcs15init_skeyargs>: {}, size_of::<sc_pkcs15_prkey_info>: {}, size_of::<sc_pkcs15_pubkey_info>: {}, \
-                    size_of::<sc_pkcs15_skey_info>: {}",
-                         sl, sc, sr, sse, sef, srd, pcp, pcd, sco, scc, spo, sca, sf, sccc, ip, is,  prki, puki, ski);
+                    size_of::<sc_pkcs15_skey_info>: {}, size_of::<sc_supported_algo_info>: {}",
+                         sl, sc, sr, sse, sef, srd, pcp, pcd, sco, scc, spo, sca, sf, sccc, ip, is,  prki, puki, ski, sai);
                 #[cfg(any(target_pointer_width = "32", windows))]
                 { assert_eq!(sc,  1384); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
-                { assert_eq!(sc,  1400); }
+                { assert_eq!(sc,  1392); }
                 #[cfg(any(target_pointer_width = "32", windows))]
                 { assert_eq!(sr,   200); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
                 { assert_eq!(sr,   208); }
 
-                assert_eq!(sse, 1112);
+                assert_eq!(sse, 2712);
                 assert_eq!(sef,  176);
                 assert_eq!(srd,   32);
                 assert_eq!(pcp,   88);
@@ -599,6 +601,7 @@ mod tests {
                 assert_eq!(prki, 472);
                 assert_eq!(puki, 496);
                 assert_eq!(ski,  440);
+                assert_eq!(sai,  144);
             }
             println!("\nTesting whether linking against the OpenSC binary works: On success, it will state the OpenSC version in the following line:");
             println!("\n### Release version of installed OpenSC binaries is  {:?}  ###\n",

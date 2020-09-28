@@ -360,8 +360,10 @@ pub const MAX_FILE_SIZE : usize = 65535; // since v0_20_0
 pub struct sc_supported_algo_info {
     pub reference : u32,
     pub mechanism : u32,
-    #[cfg(not(v0_17_0))]
-    pub parameters : *mut sc_object_id, /* OID for ECC */  // since opensc source release v0.18.0
+    #[cfg(    any(         v0_18_0, v0_19_0, v0_20_0))]
+    pub parameters : *mut sc_object_id, /* OID for ECC, NULL for RSA */  // since opensc source release v0.18.0
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+    pub parameters : sc_object_id, /* OID for ECC */  // since opensc source release v0.21.0
     pub operations : u32,
     pub algo_id : sc_object_id,
     pub algo_ref : u32,
@@ -373,8 +375,10 @@ impl Default for sc_supported_algo_info {
         Self {
             reference: 0,
             mechanism: 0,
-            #[cfg(not(v0_17_0))]
+            #[cfg(    any(         v0_18_0, v0_19_0, v0_20_0))]
             parameters : null_mut(),
+            #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+            parameters : sc_object_id::default(),
             operations: 0,
             algo_id: sc_object_id::default(),
             algo_ref: 0
