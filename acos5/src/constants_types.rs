@@ -72,10 +72,11 @@ impl<'a> Iterator for TLV<'a> {
             assert!(self.rem.len()>=2);
             self.tag    = self.rem[0];
             self.length = self.rem[1];
-            let len = usize::from(self.length) + 2;
-            assert!(self.rem.len() >=  len);
-            self.value  = &self.rem[2..len];
-            self.rem    = &self.rem[   len..];
+            self.rem    = &self.rem[2..];
+            let len = usize::from(self.length);
+            assert!(self.rem.len() >= len);
+            self.value  = &self.rem[..len]; // can this be easily replaced using split_at ?
+            self.rem    = &self.rem[  len..];
             Some(self.clone())
         }
     }
@@ -133,7 +134,7 @@ pub const NAME_V3  : &[u8; 46] = b"ACOS5-64 V3.00: Smart Card or CryptoMate Nano
 pub const NAME_V4  : &[u8; 50] = b"ACOS5-EVO V4.00: Smart Card EVO or CryptoMate EVO\0";
 
 pub const CARD_DRV_NAME       : &[u8; 92] = b"'acos5_external', supporting ACOS5 Smart Card V2.00 (CryptoMate64), V3.00 (CryptoMate Nano)\0";
-pub const CARD_DRV_SHORT_NAME : &[u8;  15] =  b"acos5_external\0";
+pub const CARD_DRV_SHORT_NAME : &[u8; 15] =  b"acos5_external\0";
 
 //pub const CRATE               : &[u8;   6] = b"acos5\0"; // search acos5 mention in debug log file; each function should at least log CALLED, except small helpers or code that is clearly covered by only one possible surrounding function's called
 //pub const CALLED              : &[u8;   7] = b"called\0";
@@ -610,7 +611,7 @@ use std::ffi::{CStr};
 #[cfg(enable_acos5_ui)]
 use opensc_sys::opensc::{sc_card/*, SC_CTX_FLAG_DISABLE_POPUPS*/};
 #[cfg(enable_acos5_ui)]
-use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_KEYPAD_MSG_TOO_LONG, SC_ERROR_NOT_ALLOWED};
+use opensc_sys::errors::{SC_ERROR_KEYPAD_MSG_TOO_LONG, SC_ERROR_NOT_ALLOWED};
 #[cfg(enable_acos5_ui)]
 use opensc_sys::scconf::{scconf_find_blocks, scconf_get_bool/*, scconf_get_str*/};
 

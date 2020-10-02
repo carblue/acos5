@@ -26,7 +26,11 @@ extern crate libc;
 extern crate num_integer;
 extern crate opensc_sys;
 
-use libc::{free, snprintf, strlen};
+// libc doesn't provide snprintf for windows
+#[cfg(not(windows))]
+use libc::snprintf;
+
+use libc::{free, strlen};
 use num_integer::Integer;
 
 use std::os::raw::{c_char, c_ulong};
@@ -199,6 +203,7 @@ fn sm_incr_ssc(card: &mut sc_card) {
 }
 
 
+#[cfg(not(windows))]
 fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
 {
     let cwa_session = unsafe { &mut sm_info.session.cwa };
@@ -510,13 +515,15 @@ fn sm_manage_keyset(card: &mut sc_card) -> i32
         SC_SUCCESS
     }
     else {
-////    sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "Current AID: %s", sc_dump_hex(sm_info->current_aid.value, sm_info->current_aid.len));
         log3if!(ctx,f,line!(), cstru!(b"Current AID: %s\0"),
             unsafe { sc_dump_hex(card.sm_ctx.info.current_aid.value.as_ptr(), card.sm_ctx.info.current_aid.len) });
 
 //        case SM_TYPE_CWA14890:
-        let rv = sm_cwa_config_get_keyset(ctx, &mut card.sm_ctx.info);
-//            LOG_TEST_RET(ctx, rv, "SM iasecc configuration error");
+        let rv;
+        #[cfg(not(windows))]
+        { rv = sm_cwa_config_get_keyset(ctx, &mut card.sm_ctx.info); }
+        #[cfg(    windows)]
+        { rv = SC_ERROR_SM; }
         if rv < SC_SUCCESS {
             log3ifr!(ctx,f,line!(), cstru!(b"SM acos5 configuration error\0"), rv);
         }

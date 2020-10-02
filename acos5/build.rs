@@ -20,7 +20,7 @@ fn main() {
    This will print to stdout (for (K)ubuntu) some required arguments for the linker/compiler:
    cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu
    cargo:rustc-link-lib=opensc
-   cargo:rustc-cfg=v0_19_0   <= or whatever version the installed OpenSC package is. The relevant version info is taken from /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc
+   cargo:rustc-cfg=v0_20_0   <= or whatever version the installed OpenSC package is. The relevant version info is taken from /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc
 
    Whenever the installed OpenSC package changes, be reminded of these actions required:
    1. Check that a file or symbolic link libopensc.so/opensc.lib exists in OS library search path (and points to the correct library)
@@ -47,11 +47,16 @@ fn main() {
     };
 /* in case of non-availability of pkg-config or failure of above, uncomment this block, comment-out the previous
    (possibly adapt next line for path_to of /path_to/libopensc.so|dylib|lib; for Windows, the path to import library .lib):
-//  println!("cargo:rustc-link-search=native=/path/to/opensc-sys/windows-x86_64/lib/v0_19_0"); // Windows, the directory that contains opensc.lib
+//  println!("cargo:rustc-link-search=native=/path/to/opensc-sys/windows-x86_64/lib/v0_20_0"); // Windows, the directory that contains opensc.lib
+//  println!("cargo:rustc-link-search=native=C:/Program Files/OpenSSL-Win64/lib"); // Windows, the directory that contains OpenSSL's libcrypto.lib
     println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");                      // Posix,   the directory that contains libopensc.so/libopensc.dylib
     println!("cargo:rustc-link-lib=opensc");
-    println!("cargo:rustc-cfg=v0_19_0"); //  <= or whatever version the installed OpenSC package is
+    println!("cargo:rustc-cfg=v0_20_0"); //  <= or whatever version the installed OpenSC package is
 */
+    #[cfg(not(target_os = "windows"))]
+    println!("cargo:rustc-link-lib=crypto");
+    #[cfg(    target_os = "windows")]
+    println!("cargo:rustc-link-lib=libcrypto"); // libeay32.lib -> libcrypto.lib; Since version 1.1.0 OpenSSL have changed their library names from: libeay32.dll -> libcrypto.dll etc.
 
     /* other conditionaĺ compilation settings */
     println!("cargo:rustc-cfg=log"); // enables driver log output to file debug_file, set in opensc.conf (e.g. debug_file = "/tmp/opensc-debug.log";). Otherwise the driver will be almost quiet referring that

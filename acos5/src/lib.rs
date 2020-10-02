@@ -592,7 +592,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
         }
         if elem.type_ == card.type_ {
             card.name = elem.name;
-            card.flags = elem.flags; // FIXME maybe omit her and set later
+            card.flags = elem.flags; // FIXME maybe omit here and set later
             break;
         }
     }

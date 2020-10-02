@@ -31,8 +31,6 @@ pub struct DES_key_schedule {
     ks: [DES_cblock; 16],
 }
 
-// TODO is this portable ?
-#[link(name = "crypto")]
 extern {
     pub fn OpenSSL_version_num() -> c_ulong;
     pub fn OpenSSL_version(type_: i32) -> *const c_char;

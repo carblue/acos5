@@ -1,4 +1,4 @@
-use libc::{strcasecmp, calloc, memcpy/*, memcmp,*/};
+use libc::{strcmp, calloc, memcpy/*, memcmp,*/};
 
 use std::os::raw::{c_char};
 //use std::ffi::{CStr};
@@ -61,7 +61,8 @@ fn me_profile_find_file(profile: &mut sc_profile, _path: *const sc_path, name: *
   //        log3if!(ctx,f,line!(), cstru!(b"fi_ref.inst_path: %s\0"),     unsafe { sc_dump_hex(fi_ref.inst_path.value.as_ptr(), fi_ref.inst_path.len) });
   //        log3if!(ctx,f,line!(), cstru!(b"fi_ref.profile_ext: %p\0"),   fi_ref.profile_extension);
 / * */
-        if unsafe { strcasecmp(fi_ref.ident, name) == 0 } /*&& file_ref.path.len >= len && !path.is_null() &&
+        // strcasecmp
+        if unsafe { strcmp(fi_ref.ident, name) == 0 } /*&& file_ref.path.len >= len && !path.is_null() &&
             unsafe { memcmp(file_ref.path.value.as_ptr() as *const c_void, (*path).value.as_ptr() as *const c_void, len) == 0 }*/ {
             return fi;
         }

@@ -1873,14 +1873,14 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
         assert_eq!(inDataRem.len(), block_size);
     }
 
+    #[cfg(        v0_17_0)]
+    let env;
+    #[cfg(    any(         v0_18_0, v0_19_0))]
+    let mut env;
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     let mut env = sc_security_env::default();
     if crypt_sym.perform_mse {
-        #[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
-        let env;
         /* Security Environment */
-        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-        let sec_env_param;
         env = sc_security_env {
             operation: if crypt_sym.encrypt {SC_SEC_OPERATION_ENCIPHER_SYMMETRIC} else {SC_SEC_OPERATION_DECIPHER_SYMMETRIC},
             flags    : SC_SEC_ENV_KEY_REF_PRESENT | SC_SEC_ENV_ALG_REF_PRESENT | SC_SEC_ENV_ALG_PRESENT,
@@ -1909,7 +1909,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
 
             if crypt_sym.iv_len > 0 {
                 assert_eq!(crypt_sym.iv_len, block_size);
-                sec_env_param = sc_sec_env_param {
+                let sec_env_param = sc_sec_env_param {
                     param_type: SC_SEC_ENV_PARAM_IV,
                     value: crypt_sym.iv.as_mut_ptr() as p_void,
                     value_len: u32::try_from(crypt_sym.iv_len).unwrap()

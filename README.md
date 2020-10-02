@@ -72,6 +72,8 @@ Invoke `opensc-tool --info` in order to know Your installed OpenSC version. The 
 
 
 The required opensc.conf entries:<br>
+The location of opensc.conf on Linux: /etc/opensc/opensc.conf.<br>
+The location of opensc.conf on Windows: C:\Program Files\OpenSC Project\OpenSC\opensc.conf.<br>
 Since recently, OpenSC installs a very short opensc.conf. The long version (that I'm using and referring to here) is in github's/tarball's etc/opensc.conf.example.in<br>
 ......... just denotes, there is other opensc.conf content before this line<br>
 Content within ... (excluded) must be adapted (/something/like/path/to/acos5/target/releaseORdebug/) and added, otherwise there will be no support for ACOS5.<br>
@@ -136,4 +138,6 @@ The driver component libacos5_pkcs15 (if that is executing) requires read-access
 
 Note that using Secure Messaging with record-based files with record length > 232 bytes may not work as expected: In this case the accessible record lenght is 232-240 bytes, depending on command and SM mode (see ref. manual). E.g. a 255 byte record to be erased by sc_delete_record with SM mode Confidentiality can access/zeroize the first 232 bytes only.
 
-There is a tool in progress: [acos5_gui](https://github.com/carblue/acos5_gui "https://github.com/carblue/acos5_gui")
+Windows<br>
+It's possible to build acos5.dll and acos5_pkcs15.dll on Windows with adaptions within the 3 build.rs files. But for me (Windows 10), the v0.20.0/x64 OpenSC supplied opensc.dll is unusable (missing dependencies in dependency walker), thus unable to use/test the driver on Windows.
+

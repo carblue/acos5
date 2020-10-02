@@ -34,10 +34,8 @@ see file src/libopensc/libopensc.exports
 2. In the meantime, for the external driver, that code must be duplicated here in Rust
 */
 
-use libc::{realloc/*, strnlen*/};
-
 use std::convert::{TryFrom, TryInto};
-use std::slice::from_raw_parts;
+use std::slice;
 
 use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, SC_CARD_CAP_APDU_EXT,
                          SC_READER_SHORT_APDU_MAX_RECV_SIZE, //SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_PROTO_T0,
@@ -75,57 +73,57 @@ use opensc_sys::types::{sc_object_id};
 use crate::constants_types::p_void;
 //use crate::wrappers::*;
 
-
-/* for acos5_get_response only */
+/// An equivalent copy of: src/libopensc/card.c:  size_t sc_get_max_recv_size(const sc_card_t *card)
+/* for acos5_get_response and iso7816_select_file_replica only */
 #[must_use]
-pub fn me_get_max_recv_size(card_ref: &sc_card) -> usize
-{ // an equivalent copy of sc_get_max_recv_size
-    if /*card_ref == NULL ||*/ card_ref.reader.is_null() {
+pub fn me_get_max_recv_size(card: &sc_card) -> usize
+{
+    if card.reader.is_null() {
         return 0;
     }
-    let card_reader_ref = unsafe { &*card_ref.reader };
-    let mut max_recv_size = card_ref.max_recv_size;
+    let card_reader = unsafe { &*card.reader };
+    let mut max_recv_size = card.max_recv_size;
 
     /* initialize max_recv_size to a meaningful value */
     if max_recv_size == 0 {
-        max_recv_size = if (card_ref.caps & SC_CARD_CAP_APDU_EXT) == 0 {SC_READER_SHORT_APDU_MAX_RECV_SIZE}
+        max_recv_size = if (card.caps & SC_CARD_CAP_APDU_EXT) == 0 {SC_READER_SHORT_APDU_MAX_RECV_SIZE}
                         else {0x1_0000};
     }
 
     /*  Override card limitations with reader limitations. */
-    if card_reader_ref.max_recv_size != 0 && (card_reader_ref.max_recv_size < max_recv_size) {
-        max_recv_size = card_reader_ref.max_recv_size;
+    if card_reader.max_recv_size != 0 && (card_reader.max_recv_size < max_recv_size) {
+        max_recv_size = card_reader.max_recv_size;
     }
     max_recv_size
 }
 
 /*
 /* no usage currently */
-pub fn me_get_max_send_size(card_ref: &sc_card) -> usize
+pub fn me_get_max_send_size(card: &sc_card) -> usize
 { // an equivalent copy of sc_get_max_send_size
-    if /*card_ref == NULL ||*/ card_ref.reader.is_null() {
+    if /*card == NULL ||*/ card.reader.is_null() {
         return 0;
     }
-    let card_reader_ref = unsafe { & *card_ref.reader };
-    let mut max_send_size = card_ref.max_send_size;
+    let card_reader = unsafe { & *card.reader };
+    let mut max_send_size = card.max_send_size;
 
     /* initialize max_send_size to a meaningful value */
     if max_send_size == 0 {
-        max_send_size = if (card_ref.caps & SC_CARD_CAP_APDU_EXT) != 0 &&
-            card_reader_ref.active_protocol != SC_PROTO_T0 {0x1_0000-1} else {SC_READER_SHORT_APDU_MAX_SEND_SIZE};
+        max_send_size = if (card.caps & SC_CARD_CAP_APDU_EXT) != 0 &&
+            card_reader.active_protocol != SC_PROTO_T0 {0x1_0000-1} else {SC_READER_SHORT_APDU_MAX_SEND_SIZE};
     }
 
     /*  Override card limitations with reader limitations. */
-    if card_reader_ref.max_send_size != 0 && (card_reader_ref.max_send_size < card_ref.max_send_size) {
-        max_send_size = card_reader_ref.max_send_size;
+    if card_reader.max_send_size != 0 && (card_reader.max_send_size < card.max_send_size) {
+        max_send_size = card_reader.max_send_size;
     }
     max_send_size
 }
 */
 
-fn me_card_add_algorithm(card: &mut sc_card, info_ref: &sc_algorithm_info) -> i32
+fn me_card_add_algorithm(card: &mut sc_card, info: &sc_algorithm_info) -> i32
 {
-    let p_ptr = unsafe { realloc(card.algorithms as p_void, usize::try_from(card.algorithm_count + 1).unwrap() *
+    let p_ptr = unsafe { libc::realloc(card.algorithms as p_void, usize::try_from(card.algorithm_count + 1).unwrap() *
         std::mem::size_of::<sc_algorithm_info>()) } as *mut sc_algorithm_info;
 
     if p_ptr.is_null() {
@@ -134,7 +132,7 @@ fn me_card_add_algorithm(card: &mut sc_card, info_ref: &sc_algorithm_info) -> i3
     card.algorithms = p_ptr;
     let p = unsafe { &mut * p_ptr.add(card.algorithm_count.try_into().unwrap()) };
     card.algorithm_count += 1;
-    *p = *info_ref;
+    *p = *info;
 //println!("card.algorithm_count: {}, p.algorithm: {}, p.key_length: {}, p.flags: {}", card.algorithm_count, p.algorithm, p.key_length, p.flags);
     SC_SUCCESS
 }
@@ -148,7 +146,7 @@ pub fn me_card_add_symmetric_alg(card: &mut sc_card, algorithm: u32, key_length:
 pub fn me_card_find_alg(card: &mut sc_card, algorithm: u32, key_length: u32, param_opt: Option<*const sc_object_id>)
     -> Option<*const sc_algorithm_info>
 {
-    for info in unsafe { from_raw_parts(card.algorithms, card.algorithm_count.try_into().unwrap()) } {
+    for info in unsafe { slice::from_raw_parts(card.algorithms, card.algorithm_count.try_into().unwrap()) } {
         if info.algorithm != algorithm   { continue; }
         if info.key_length != key_length { continue; }
 

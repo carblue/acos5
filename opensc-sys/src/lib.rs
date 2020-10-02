@@ -381,17 +381,19 @@ mod tests {
             // FIXME windows OpenSC32 <-> OpenSC64
             println!("Testing version's struct sizes actually *DOES* take place");
             if cfg!(v0_17_0) {
+                // testing v0_17_0 verified with Windows 10:    ?
+                // testing v0_17_0 verified with Kubuntu 18.04: yes, ok
                 println!("For OpenSC 0.17.0 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
                     size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
                     size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, size_of::<sc_pkcs15_card>: {}, \
                     size_of::<sc_file>: {}, size_of::<scconf_context>: {}, size_of::<sc_pkcs15init_prkeyargs>: {}, size_of::<sc_pkcs15init_skeyargs>: {}",
                          sl, sc, sr, sse, sef, srd, pcp, sco, scc, spo, sca, sf, sccc, ip, is);
                 #[cfg(any(target_pointer_width = "32", windows))]
-                    { assert_eq!(sc,  1384); }
+                { assert_eq!(sc,  1384); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
                 { assert_eq!(sc,  1400); }
                 #[cfg(any(target_pointer_width = "32", windows))]
-                    { assert_eq!(sr,   200); }
+                { assert_eq!(sr,   200); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
                 { assert_eq!(sr,   208); }
                 assert_eq!(sse,  744);
@@ -400,7 +402,7 @@ mod tests {
                 assert_eq!(pcp, 4456);
                 assert_eq!(sco,  280);
                 #[cfg(any(target_pointer_width = "32", windows))]
-                    { assert_eq!(scc,  632); }
+                { assert_eq!(scc,  632); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
                 { assert_eq!(scc,  632); }
 
@@ -412,17 +414,19 @@ mod tests {
                 assert_eq!(is,   584);
             }
             else  if cfg!(v0_18_0) {
+                // testing v0_18_0 verified with Windows 10:    ?
+                // testing v0_18_0 verified with Kubuntu 18.04: yes, ok
                 println!("For OpenSC 0.18.0 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
                     size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
                     size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, size_of::<sc_pkcs15_card>: {}, \
                     size_of::<sc_file>: {}, size_of::<scconf_context>: {}, size_of::<sc_pkcs15init_prkeyargs>: {}, size_of::<sc_pkcs15init_skeyargs>: {}",
                          sl, sc, sr, sse, sef, srd, pcp, sco, scc, spo, sca, sf, sccc, ip, is);
                 #[cfg(any(target_pointer_width = "32", windows))]
-                    { assert_eq!(sc,  1384); }
+                { assert_eq!(sc,  1384); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
                 { assert_eq!(sc,  1400); }
                 #[cfg(any(target_pointer_width = "32", windows))]
-                    { assert_eq!(sr,   200); }
+                { assert_eq!(sr,   200); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
                 { assert_eq!(sr,   208); }
 
@@ -432,7 +436,7 @@ mod tests {
                 assert_eq!(pcp, 4456);
                 assert_eq!(sco,  280);
                 #[cfg(any(target_pointer_width = "32", windows))]
-                    { assert_eq!(scc,  632); }
+                { assert_eq!(scc,  632); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
                 { assert_eq!(scc,  632); }
 
@@ -444,6 +448,8 @@ mod tests {
                 assert_eq!(is,   584);
             }
             else  if cfg!(v0_19_0) {
+                // testing v0_19_0 verified with Windows 10:    ?
+                // testing v0_19_0 verified with Kubuntu 18.04: yes, ok
                 println!("For OpenSC 0.19.0 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
                     size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
                     size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, size_of::<sc_pkcs15_card>: {}, \
@@ -480,6 +486,8 @@ mod tests {
                 assert_eq!(puki, 464);
             }
             else  if cfg!(v0_20_0) {
+                // testing v0_20_0 verified with Windows 10:    yes, ok
+                // testing v0_20_0 verified with Kubuntu 18.04: yes, ok
                 println!("For OpenSC 0.20.0 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
                     size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
                     size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \
@@ -503,7 +511,7 @@ mod tests {
                 assert_eq!(pcd, 8936);
                 assert_eq!(sco,  296);
                 #[cfg(any(target_pointer_width = "32", windows))]
-                    { assert_eq!(scc,  624); }
+                { assert_eq!(scc,  624); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
                 { assert_eq!(scc,  632); }
 
@@ -511,8 +519,15 @@ mod tests {
                 assert_eq!(sca,  160);
                 assert_eq!(sf,   456);
                 assert_eq!(sccc,  32);
-                assert_eq!(ip,   800);
-                assert_eq!(is,   592);
+                #[cfg(any(target_pointer_width = "32", windows))]
+                { assert_eq!(ip,   792); }
+                #[cfg(all(target_pointer_width = "64", not(windows)))]
+                { assert_eq!(ip,   800); }
+
+                #[cfg(any(target_pointer_width = "32", windows))]
+                { assert_eq!(is,   584); }
+                #[cfg(all(target_pointer_width = "64", not(windows)))]
+                { assert_eq!(is,   592); }
 
                 assert_eq!(prki, 440);
                 assert_eq!(puki, 464);
@@ -520,8 +535,11 @@ mod tests {
                 assert_eq!(sai,   88);
             }
             else  if cfg!(v0_21_0) { // experimental only: it's git-master, Latest commit 57a391f, defined as version 0.21.0
+                // testing v0_21_0 verified with Windows 10:    ?
+                // testing v0_21_0 verified with Kubuntu 18.04: yes, ok for latest commit  0b40d3b
 // WARNING watch out for everything that depends on SC_MAX_SUPPORTED_ALGORITHMS, increased from 8 -> 16  sse,
-// sc_pin_cmd_data with new int field
+// sc_pin_cmd_data pcd with new int field
+// sc_pin_cmd_pin  pcp with some fields removed
                 println!("For OpenSC 0.21.0 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
                     size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
                     size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \
@@ -553,8 +571,15 @@ mod tests {
                 assert_eq!(sca,  160);
                 assert_eq!(sf,   456);
                 assert_eq!(sccc,  32);
-                assert_eq!(ip,   800);
-                assert_eq!(is,   592);
+                #[cfg(any(target_pointer_width = "32", windows))]
+                { assert_eq!(ip,   792); }
+                #[cfg(all(target_pointer_width = "64", not(windows)))]
+                { assert_eq!(ip,   800); }
+
+                #[cfg(any(target_pointer_width = "32", windows))]
+                { assert_eq!(is,   584); }
+                #[cfg(all(target_pointer_width = "64", not(windows)))]
+                { assert_eq!(is,   592); }
 
                 assert_eq!(prki, 472);
                 assert_eq!(puki, 496);
@@ -595,8 +620,15 @@ mod tests {
                 assert_eq!(sca,  160);
                 assert_eq!(sf,   456);
                 assert_eq!(sccc,  32);
-                assert_eq!(ip,   800);
-                assert_eq!(is,   592);
+                #[cfg(any(target_pointer_width = "32", windows))]
+                { assert_eq!(ip,   792); }
+                #[cfg(all(target_pointer_width = "64", not(windows)))]
+                { assert_eq!(ip,   800); }
+
+                #[cfg(any(target_pointer_width = "32", windows))]
+                { assert_eq!(is,   584); }
+                #[cfg(all(target_pointer_width = "64", not(windows)))]
+                { assert_eq!(is,   592); }
 
                 assert_eq!(prki, 472);
                 assert_eq!(puki, 496);
