@@ -73,31 +73,39 @@ pub const SC_SEC_OPERATION_DECIPHER     : i32 = 0x0001;
 pub const SC_SEC_OPERATION_SIGN         : i32 = 0x0002;
 pub const SC_SEC_OPERATION_AUTHENTICATE : i32 = 0x0003;
 pub const SC_SEC_OPERATION_DERIVE       : i32 = 0x0004;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_SEC_OPERATION_WRAP         : i32 = 0x0005;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_SEC_OPERATION_UNWRAP       : i32 = 0x0006;
+cfg_if::cfg_if! {
+    if #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))] {
+        pub const SC_SEC_OPERATION_WRAP         : i32 = 0x0005;
+        pub const SC_SEC_OPERATION_UNWRAP       : i32 = 0x0006;
+    }
+}
 
 /* sc_security_env flags */
 pub const SC_SEC_ENV_ALG_REF_PRESENT         : c_ulong = 0x0001;
 pub const SC_SEC_ENV_FILE_REF_PRESENT        : c_ulong = 0x0002;
 pub const SC_SEC_ENV_KEY_REF_PRESENT         : c_ulong = 0x0004;
-/* FIXME: the flag below is misleading */
-#[cfg(    v0_17_0)]
-pub const SC_SEC_ENV_KEY_REF_ASYMMETRIC      : c_ulong = 0x0008;
-#[cfg(not(v0_17_0))]
-pub const SC_SEC_ENV_KEY_REF_SYMMETRIC       : c_ulong = 0x0008;
-pub const SC_SEC_ENV_ALG_PRESENT             : c_ulong = 0x0010;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_SEC_ENV_TARGET_FILE_REF_PRESENT : c_ulong = 0x0020;  /* unused */
+cfg_if::cfg_if! {
+    if #[cfg(v0_17_0)] {
+        /* FIXME: the flag below is misleading */
+        pub const SC_SEC_ENV_KEY_REF_ASYMMETRIC : c_ulong = 0x0008;
+    }
+    else {
+        pub const SC_SEC_ENV_KEY_REF_SYMMETRIC  : c_ulong = 0x0008;
+    }
+}
 
-/* sc_security_env additional parameters */
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_SEC_ENV_MAX_PARAMS              : usize = 10;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_SEC_ENV_PARAM_IV                : u32 = 1;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_SEC_ENV_PARAM_TARGET_FILE       : u32 = 2;       /* unused */
+pub const SC_SEC_ENV_ALG_PRESENT             : c_ulong = 0x0010;
+cfg_if::cfg_if! {
+    if #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))] {
+        pub const SC_SEC_ENV_TARGET_FILE_REF_PRESENT : c_ulong = 0x0020;  /* unused */
+
+        /* sc_security_env additional parameters */
+        pub const SC_SEC_ENV_MAX_PARAMS              : usize = 10;
+        pub const SC_SEC_ENV_PARAM_IV                : u32 = 1;
+        pub const SC_SEC_ENV_PARAM_TARGET_FILE       : u32 = 2;       /* unused */
+    }
+}
+
 //pub const SC_SEC_ENV_PARAM_DES_ECB           : u32 = 3;
 //pub const SC_SEC_ENV_PARAM_DES_CBC           : u32 = 4;
 
@@ -130,10 +138,14 @@ pub const SC_ALGORITHM_PBES2     : u32 = 256;
 pub const SC_ALGORITHM_ONBOARD_KEY_GEN : u32 = 0x8000_0000;
 /* need usage = either sign or decrypt. keys with both? decrypt, emulate sign */
 pub const SC_ALGORITHM_NEED_USAGE      : u32 = 0x4000_0000;
-#[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_SPECIFIC_FLAGS  : u32 = 0x0001_FFFF;
-#[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_SPECIFIC_FLAGS  : u32 = 0x001F_FFFF;
+cfg_if::cfg_if! {
+    if #[cfg(any(v0_17_0, v0_18_0))] {
+        pub const SC_ALGORITHM_SPECIFIC_FLAGS  : u32 = 0x0001_FFFF;
+    }
+    else {
+        pub const SC_ALGORITHM_SPECIFIC_FLAGS  : u32 = 0x001F_FFFF;
+    }
+}
 
 /*look at libopensc/padding.c: sc_get_encoding_flags/sc_pkcs1_encode, how these flags are processed */
 
@@ -148,31 +160,41 @@ pub const SC_ALGORITHM_SPECIFIC_FLAGS  : u32 = 0x001F_FFFF;
     for versions since 0.20.0, switch to using SC_ALGORITHM_RSA_PAD_NONE for that purpose */
 pub const SC_ALGORITHM_RSA_RAW         : u32 = 0x0000_0001;
 
-#[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_PADS        : u32 = 0x0000_000E; // it's indistinguishable whether SC_ALGORITHM_RSA_PAD_NONE is included
-#[cfg(                          v0_19_0)]
-pub const SC_ALGORITHM_RSA_PADS        : u32 = 0x0000_001E; // it's indistinguishable whether SC_ALGORITHM_RSA_PAD_NONE is included
-#[cfg(                                   v0_20_0)]
-pub const SC_ALGORITHM_RSA_PADS        : u32 = 0x0000_001F; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
-pub const SC_ALGORITHM_RSA_PADS        : u32 = 0x0000_003F; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
+cfg_if::cfg_if! {
+    if #[cfg(any(v0_17_0, v0_18_0))] {
+        pub const SC_ALGORITHM_RSA_PADS : u32 = 0x0000_000E; // it's indistinguishable whether SC_ALGORITHM_RSA_PAD_NONE is included
+    }
+    else if #[cfg(v0_19_0)] {
+        pub const SC_ALGORITHM_RSA_PADS : u32 = 0x0000_001E; // it's indistinguishable whether SC_ALGORITHM_RSA_PAD_NONE is included
+    }
+    else if #[cfg(v0_20_0)] {
+        pub const SC_ALGORITHM_RSA_PADS : u32 = 0x0000_001F; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
+    }
+    else {
+        pub const SC_ALGORITHM_RSA_PADS : u32 = 0x0000_003F; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
+    }
+}
 
-/** Use SC_ALGORITHM_RSA_PAD_NONE, if card/driver expects an in_len to card.ops.compute_signature of RSA_modulus_length bytes,
+/* Use SC_ALGORITHM_RSA_PAD_NONE, if card/driver expects an in_len to card.ops.compute_signature of RSA_modulus_length bytes,
     i.e. card/driver won't pad before signing */
-#[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-pub const SC_ALGORITHM_RSA_PAD_NONE    : u32 = 0x0000_0000;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_ALGORITHM_RSA_PAD_NONE    : u32 = 0x0000_0001; // SC_ALGORITHM_RSA_RAW
+cfg_if::cfg_if! {
+    if #[cfg(any(v0_17_0, v0_18_0, v0_19_0))] {
+        pub const SC_ALGORITHM_RSA_PAD_NONE : u32 = 0x0000_0000;
+    }
+    else {
+        pub const SC_ALGORITHM_RSA_PAD_NONE : u32 = 0x0000_0001; // SC_ALGORITHM_RSA_RAW
+    }
+}
 
 /** Use SC_ALGORITHM_RSA_PAD_PKCS1, if card/driver expects as input to card.ops.compute_signature: EMSA-PKCS1-v1_5 DigestInfo\
     https://tools.ietf.org/html/rfc8017#page-62\
     Not OpenSC, but the card/driver will pad according to EMSA-PKCS1-v1_5; EMSA = Encoding Method for Signature with Appendix
     before signing */
-pub const SC_ALGORITHM_RSA_PAD_PKCS1   : u32 = 0x0000_0002;
+pub const SC_ALGORITHM_RSA_PAD_PKCS1   : u32 = 0x0000_0002; /* PKCS#1 v1.5 padding */
 pub const SC_ALGORITHM_RSA_PAD_ANSI    : u32 = 0x0000_0004;
 pub const SC_ALGORITHM_RSA_PAD_ISO9796 : u32 = 0x0000_0008;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_PAD_PSS     : u32 = 0x0000_0010; // since opensc source release v0.19.0
+pub const SC_ALGORITHM_RSA_PAD_PSS     : u32 = 0x0000_0010; /* PKCS#1 v2.0 PSS */
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
 pub const SC_ALGORITHM_RSA_PAD_OAEP    : u32 = 0x0000_0020; /* PKCS#1 v2.0 OAEP */
 
@@ -196,57 +218,41 @@ pub const SC_ALGORITHM_RSA_PAD_OAEP    : u32 = 0x0000_0020; /* PKCS#1 v2.0 OAEP 
  * It's possible that the card may support different hashes for PKCS1 and PSS
  * signatures; in this case the card driver has to pick the lowest-denominator
  * when it sets these flags to indicate its capabilities. */
-#[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_NONE   : u32 = 0x0000_0010;
-#[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_NONE   : u32 = 0x0000_0100; /* only applies to PKCS1 padding */
-
-#[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_SHA1   : u32 = 0x0000_0020;
-#[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_SHA1   : u32 = 0x0000_0200;
-
-#[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_MD5    : u32 = 0x0000_0040;
-#[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_MD5    : u32 = 0x0000_0400;
-
-#[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_MD5_SHA1 : u32 = 0x0000_0080;
-#[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_MD5_SHA1 : u32 = 0x0000_0800;
-
-#[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_RIPEMD160 : u32 = 0x0000_0100;
-#[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_RIPEMD160 : u32 = 0x0000_1000;
-
-#[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_SHA256 : u32 = 0x0000_0200;
-#[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_SHA256 : u32 = 0x0000_2000;
-
-#[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_SHA384 : u32 = 0x0000_0400;
-#[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_SHA384 : u32 = 0x0000_4000;
-
-#[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_SHA512 : u32 = 0x0000_0800;
-#[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_SHA512 : u32 = 0x0000_8000;
-
-#[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASH_SHA224 : u32 = 0x0000_1000;
-#[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ALGORITHM_RSA_HASH_SHA224 : u32 = 0x0001_0000;
-
-#[cfg(    any(v0_17_0, v0_18_0))]
-pub const SC_ALGORITHM_RSA_HASHES      : u32 = 0x0000_1FE0; // this is without SC_ALGORITHM_RSA_HASH_NONE
-#[cfg(                          v0_19_0)]
-pub const SC_ALGORITHM_RSA_HASHES      : u32 = 0x0001_FE00; // this is without SC_ALGORITHM_RSA_HASH_NONE
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_ALGORITHM_RSA_HASHES      : u32 = 0x0001_FF00; // this is WITH SC_ALGORITHM_RSA_HASH_NONE
+cfg_if::cfg_if! {
+    if #[cfg(any(v0_17_0, v0_18_0))] {
+        pub const SC_ALGORITHM_RSA_HASH_NONE      : u32 = 0x0000_0010;
+        pub const SC_ALGORITHM_RSA_HASH_SHA1      : u32 = 0x0000_0020;
+        pub const SC_ALGORITHM_RSA_HASH_MD5       : u32 = 0x0000_0040;
+        pub const SC_ALGORITHM_RSA_HASH_MD5_SHA1  : u32 = 0x0000_0080;
+        pub const SC_ALGORITHM_RSA_HASH_RIPEMD160 : u32 = 0x0000_0100;
+        pub const SC_ALGORITHM_RSA_HASH_SHA256    : u32 = 0x0000_0200;
+        pub const SC_ALGORITHM_RSA_HASH_SHA384    : u32 = 0x0000_0400;
+        pub const SC_ALGORITHM_RSA_HASH_SHA512    : u32 = 0x0000_0800;
+        pub const SC_ALGORITHM_RSA_HASH_SHA224    : u32 = 0x0000_1000;
+    }
+    else {
+        pub const SC_ALGORITHM_RSA_HASH_NONE      : u32 = 0x0000_0100; /* only applies to PKCS1 padding */
+        pub const SC_ALGORITHM_RSA_HASH_SHA1      : u32 = 0x0000_0200;
+        pub const SC_ALGORITHM_RSA_HASH_MD5       : u32 = 0x0000_0400;
+        pub const SC_ALGORITHM_RSA_HASH_MD5_SHA1  : u32 = 0x0000_0800;
+        pub const SC_ALGORITHM_RSA_HASH_RIPEMD160 : u32 = 0x0000_1000;
+        pub const SC_ALGORITHM_RSA_HASH_SHA256    : u32 = 0x0000_2000;
+        pub const SC_ALGORITHM_RSA_HASH_SHA384    : u32 = 0x0000_4000;
+        pub const SC_ALGORITHM_RSA_HASH_SHA512    : u32 = 0x0000_8000;
+        pub const SC_ALGORITHM_RSA_HASH_SHA224    : u32 = 0x0001_0000;
+    }
+}
+cfg_if::cfg_if! {
+    if #[cfg(any(v0_17_0, v0_18_0))] {
+        pub const SC_ALGORITHM_RSA_HASHES      : u32 = 0x0000_1FE0; // this is without SC_ALGORITHM_RSA_HASH_NONE
+    }
+    else if #[cfg(v0_19_0)] {
+        pub const SC_ALGORITHM_RSA_HASHES      : u32 = 0x0001_FE00; // this is without SC_ALGORITHM_RSA_HASH_NONE
+    }
+    else {
+        pub const SC_ALGORITHM_RSA_HASHES      : u32 = 0x0001_FF00; // this is WITH SC_ALGORITHM_RSA_HASH_NONE
+    }
+}
 
 /* This defines the hashes to be used with MGF1 in PSS padding */ // since v0_20_0
 pub const SC_ALGORITHM_MGF1_SHA1       : u32 = 0x0010_0000;
@@ -678,7 +684,7 @@ pub struct sc_reader__atr_info {
 }
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_reader {
     pub ctx : *mut sc_context,
     pub driver : *const sc_reader_driver,
@@ -1277,7 +1283,7 @@ pub const SC_CTX_FLAG_DISABLE_POPUPS        : c_ulong = 0x0000_0010;  // since o
 pub const SC_CTX_FLAG_DISABLE_COLORS        : c_ulong = 0x0000_0020;  // since opensc source release v0.20.0
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_context {
     pub conf : *mut scconf_context,
     pub conf_blocks : [*mut scconf_block; 3],

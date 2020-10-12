@@ -89,7 +89,7 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
                              SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
                              SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                              SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
-                             acos5_ec_curve, build_apdu, is_DFMF, p_void};
+                             Acos5EcCurve, build_apdu, is_DFMF, p_void};
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, file_id_from_path_value, current_path_df,
                   is_impossible_file_match};
@@ -141,7 +141,7 @@ pub fn sc_ac_op_name_from_idx(idx: usize) -> &'static CStr
 }
 
 /* card command  External Authentication
-includes getting a challenge from the card and setting a new ssc, thus it stops continuation of an 'active' SM channel
+includes getting a challenge from the card, thus it stops continuation of an 'active' SM channel
 key_host_reference must be enabled for External Authentication and it's Error Counter must have tries_left>0
 */
 #[allow(clippy::missing_errors_doc)]
@@ -254,13 +254,13 @@ pub fn logout_key(card: &mut sc_card, reference: u8) -> i32 {
 }
 
 /*
-In principle, iso7816_select_file is usable in a controlled manner, but if file_out_ptr is null, the first shot for an APDU is wrong, the second corrected one is okay,
+In principle, iso7816_select_file is usable in a controlled manner, but if file_out is null, the first shot for an APDU is wrong, the second corrected one is okay,
 thus issue a correct APDU right away
 The code differs from the C version in 1 line only, where setting apdu.p2 = 0x0C;
 */
 //allow cognitive_complexity: This is almost equal to iso7816_select_file. Thus for easy comparison, don't split this
 #[allow(clippy::too_many_lines)]
-fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_out_ptr: Option<*mut *mut sc_file>) -> i32
+fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_out: &mut Option<&mut *mut sc_file>) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -283,7 +283,7 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
     log3if!(ctx,f,line!(), fmt_1, card.cache.current_path.type_,
         unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)});
 */
-    log3if!(ctx,f,line!(), cstru!(b"called with file_out_ptr: %p\n\0"), file_out_ptr.unwrap_or(null_mut()));
+    log3if!(ctx,f,line!(), cstru!(b"called with file_out: %p\n\0"), if let Some(p)=file_out {p} else {null_mut()} );
 
     /*
         if (card == NULL || in_path_ref == NULL) {
@@ -371,7 +371,7 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
     apdu.data = pathvalue_ptr;
     apdu.datalen = pathlen;
 
-    if file_out_ptr.is_none() {
+    if file_out.is_none() {
 ////        apdu.p2 = 0x0C;        /* first record, return nothing */
         apdu.cse = if apdu.lc == 0 {SC_APDU_CASE_1} else {SC_APDU_CASE_3_SHORT};
     }
@@ -388,7 +388,7 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
         return r;
     }
 
-    if file_out_ptr.is_none() {
+    if file_out.is_none() {
         /* For some cards 'SELECT' can be only with request to return FCI/FCP. */
         r = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
         if apdu.sw1 == 0x6A && apdu.sw2 == 0x86 {
@@ -411,25 +411,26 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
         return r;
     }
 
-    if let Some(file_out_ptr_ptr)=file_out_ptr {
-    if apdu.resplen == 0 {
-        /* For some cards 'SELECT' MF or DF_NAME do not return FCI. */
-        if select_mf>0 || pathtype == SC_PATH_TYPE_DF_NAME   {
-            let file_ptr = unsafe { sc_file_new() };
-            if file_ptr.is_null() {
-                r = SC_ERROR_OUT_OF_MEMORY;
+    if let Some(file_out_ptr) = file_out {
+        if apdu.resplen == 0 {
+            /* For some cards 'SELECT' MF or DF_NAME do not return FCI. */
+            if select_mf>0 || pathtype == SC_PATH_TYPE_DF_NAME {
+                let mut file = match unsafe { sc_file_new() }  {
+                    ptr if ptr.is_null() => {
+                        r = SC_ERROR_OUT_OF_MEMORY;
+                        log3ifr!(ctx,f,line!(), r);
+                        return r;
+                    },
+                    ptr => unsafe { &mut *ptr },
+                };
+                file.path = *in_path_ref;
+                **file_out_ptr = file;
+                r = SC_SUCCESS;
                 log3ifr!(ctx,f,line!(), r);
                 return r;
             }
-            unsafe {
-                (*file_ptr).path = *in_path_ref;
-                *file_out_ptr_ptr = file_ptr;
-            }
-            r = SC_SUCCESS;
-            log3ifr!(ctx,f,line!(), r);
-            return r;
         }
-    }}
+    }
 
     if apdu.resplen < 2 {
         r = SC_ERROR_UNKNOWN_DATA_RECEIVED;
@@ -440,29 +441,32 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
     match unsafe { *apdu.resp } {
         ISO7816_TAG_FCI |
         ISO7816_TAG_FCP => {
-            let file_ptr = unsafe { sc_file_new() };
-            if file_ptr.is_null() {
-                r = SC_ERROR_OUT_OF_MEMORY;
-                log3ifr!(ctx,f,line!(), r);
-                return r;
-            }
-            let mut file = unsafe { &mut *file_ptr };
+            let mut file : &mut sc_file = match unsafe { sc_file_new() }  {
+                ptr if ptr.is_null() => {
+                    r = SC_ERROR_OUT_OF_MEMORY;
+                    log3ifr!(ctx,f,line!(), r);
+                    return r;
+                },
+                ptr => unsafe { &mut *ptr },
+            };
             file.path = *in_path_ref;
 /*
             if card->ops->process_fci == NULL {
-                sc_file_free(file_ptr);
+                sc_file_free(file);
                 LOG_FUNC_RETURN(ctx, SC_ERROR_NOT_SUPPORTED);
             }
 */
             let mut buffer : *const u8 = apdu.resp;
             r = unsafe { sc_asn1_read_tag(&mut buffer, apdu.resplen, &mut cla, &mut tag, &mut buffer_len) };
             if r == SC_SUCCESS {
-                acos5_process_fci(card, file_ptr, buffer, buffer_len); // card->ops->process_fci(card, file_ptr, buffer, buffer_len);
+                acos5_process_fci(card, file, buffer, buffer_len); // card->ops->process_fci(card, file, buffer, buffer_len);
             }
             assert!(file.prop_attr_len>0);
             assert!(!file.prop_attr.is_null());
-            assert!(file_out_ptr.is_some());
-            unsafe { *file_out_ptr.unwrap() = file_ptr };
+            assert!(file_out.is_some());
+            if let Some(file_out_ptr) = file_out {
+                **file_out_ptr = file;
+            }
         },
         _ => {
                 r = SC_ERROR_UNKNOWN_DATA_RECEIVED;
@@ -488,10 +492,8 @@ same @param and @return as iso7816_select_file
  * @param
  * @return
  */
-pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Option<*mut *mut sc_file>, need_to_process_fci: bool) -> i32
+pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Option<&mut *mut sc_file>, force_process_fci: bool) -> i32
 {
-    /* if !file_out.is_null(), then process_fci will be called anyway, thus we must ensure, that process_fci will also be called
-       for:  file_out.is_null() && need_to_process_fci */
     debug_assert!((path_ref.type_ == SC_PATH_TYPE_FILE_ID && path_ref.len==2) ||
                   (path_ref.type_ == SC_PATH_TYPE_DF_NAME && path_ref.len>=2));
     assert!(!card.ctx.is_null());
@@ -500,25 +502,25 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Op
     }
     let ctx = unsafe { &mut *card.ctx };
     let f = cstru!(b"tracking_select_file\0");
-    let fmt_1   = cstru!(b"    called. curr_type: %d, curr_value: %s, need_to_process_fci: %d\0");
+    let fmt_1   = cstru!(b"    called. curr_type: %d, curr_value: %s, force_process_fci: %d\0");
     let fmt_2   = cstru!(b"              to_type: %d,   to_value: %s\0");
     let fmt_3   = cstru!(b"returning:  curr_type: %d, curr_value: %s, rv=%d\0");
     log3if!(ctx,f,line!(), fmt_1, card.cache.current_path.type_,
-        unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, need_to_process_fci);
+        unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, force_process_fci);
     log3if!(ctx,f,line!(), fmt_2, path_ref.type_, unsafe {sc_dump_hex(path_ref.value.as_ptr(), path_ref.len)});
-    let force_process_fci = file_out.is_none() && need_to_process_fci;
-    let mut file_ptr_tmp = null_mut();
-    let file_tmp : Option<*mut *mut sc_file> = Some(&mut file_ptr_tmp);
+    // let force_process_fci = file_out.is_none() && need_to_process_fci;
+    let mut file_tmp_ptr = null_mut::<sc_file>();
+    let mut file_tmp : Option<&mut *mut sc_file> = if force_process_fci {Some(&mut file_tmp_ptr)} else {file_out};
 
 //    let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).select_file.unwrap()(card, path_ref, file_out) };
-    let rv = iso7816_select_file_replica(card, path_ref, if force_process_fci {file_tmp} else {file_out});
+    let rv = iso7816_select_file_replica(card, path_ref, &mut file_tmp);
     let mut file_id : u16 =
         if rv==SC_SUCCESS && path_ref.type_ == SC_PATH_TYPE_DF_NAME {
-            u16::try_from(unsafe { if force_process_fci {(*file_ptr_tmp).id } else {(*(*file_out.unwrap())).id} }).unwrap()
+            u16::try_from(unsafe { (*(*file_tmp.unwrap())).id } ).unwrap()
         }
         else {0};
-    if force_process_fci && !file_ptr_tmp.is_null() {
-        unsafe { sc_file_free(file_ptr_tmp) };
+    if force_process_fci && !file_tmp_ptr.is_null() {
+        unsafe { sc_file_free(file_tmp_ptr) };
     }
 
     /*
@@ -562,16 +564,19 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Op
 }
 
 
-/* process path by chunks, 2 byte each and select_file with SC_PATH_TYPE_FILE_ID */
+/* process path by chunks, 2 byte each and select_file with SC_PATH_TYPE_FILE_ID
+   1. Don't select more than necessary
+   2. Suppress process_fci for intermediate selections
+   */
 /*
  * What it does
  * @apiNote
  * @param
  * @return
  */
-pub fn select_file_by_path(card: &mut sc_card, path_ref: &sc_path, file_out_ptr: Option<*mut *mut sc_file>, need_to_process_fci: bool) -> i32
+pub fn select_file_by_path(card: &mut sc_card, path_ref: &sc_path, file_out: Option<&mut *mut sc_file>, force_process_fci: bool) -> i32
 {
-    /* manage file_out_ptr and need_to_process_fci: They need to be active only eventually for the target file_id */
+    /* manage file_out and force_process_fci: They need to be active only eventually for the target file_id */
     if  path_ref.len%2 != 0 {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
@@ -584,23 +589,24 @@ pub fn select_file_by_path(card: &mut sc_card, path_ref: &sc_path, file_out_ptr:
     let target_idx = path1.len/2 -1; // it's the max. i index in the following loop
 
     let mut path2 = sc_path { len: 2, ..sc_path::default() }; // SC_PATH_TYPE_FILE_ID
-    for (i, chunk) in path1.value[..path1.len].chunks(2).enumerate() {
+
+    for (i, chunk) in path1.value[..path1.len].chunks_exact(2).enumerate() {
         assert!(i<=target_idx);
-        path2.value[0] = chunk[0];
-        path2.value[1] = chunk[1];
+        path2.value[..2].copy_from_slice(chunk);
         let rv=
             if i<target_idx {
                 tracking_select_file(card, &path2, None, false)
             }
             else {
-                tracking_select_file(card, &path2, file_out_ptr, need_to_process_fci)
+                continue;
+                // tracking_select_file(card, &path2, file_out, force_process_fci)
             };
 
         if rv != SC_SUCCESS {
             return rv;
         }
     }
-    SC_SUCCESS
+    tracking_select_file(card, &path2, file_out, force_process_fci)
 }
 
 /* FIPS compliance dictates these values for SC_CARD_TYPE_ACOS5_64_V3 */
@@ -815,6 +821,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
             if rv < SC_SUCCESS {
                 return rv;
             }
+            debug_assert!(rv.is_multiple_of(&2));
             files_contained.truncate(usize::try_from(rv).unwrap());
             /* * /
                     println!("chunk1 files_contained: {:?}", &files_contained[  ..32]);
@@ -823,10 +830,9 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
             / * */
             assert!(rv >= 0 && rv%2 == 0);
 
-            for chunk in files_contained.chunks(2) {
+            for chunk in files_contained.chunks_exact(2) {
                 let mut tmp_path = *path_ref;
-                tmp_path.value[tmp_path.len  ] = chunk[0];
-                tmp_path.value[tmp_path.len+1] = chunk[1];
+                tmp_path.value[tmp_path.len..tmp_path.len+2].copy_from_slice(chunk);
                 tmp_path.len += 2;
 //              assert_eq!(tmp_path.len, ((depth+2)*2) as usize);
                 enum_dir(card, &tmp_path, only_se_df/*, depth + 1*/);
@@ -890,7 +896,7 @@ pub fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/
                 return rv;
             }
             files_contained.truncate(usize::try_from(rv).unwrap());
-            for chunk in files_contained.chunks(2) {
+            for chunk in files_contained.chunks_exact(2) {
                 let mut tmp_path = *path_ref;
                 tmp_path.value[tmp_path.len  ] = chunk[0];
                 tmp_path.value[tmp_path.len+1] = chunk[1];
@@ -946,7 +952,7 @@ pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Resul
     if bytes_tag_fcp_sac.is_empty() {
         return Ok(scb8);
     }
-    assert!(bytes_tag_fcp_sac.len() <= 8);
+    assert!(bytes_tag_fcp_sac.len() <= 8, "bytes_tag_fcp_sac.len() > 8");
 
     let mut idx = 0;
     let amb = bytes_tag_fcp_sac[idx];
@@ -1236,30 +1242,30 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 3]
 
 /*  ECC: Curves P-224/P-256/P-384/P-521 */
 #[must_use]
-pub /*const*/ fn acos5_supported_ec_curves() -> [acos5_ec_curve; 4]
+pub /*const*/ fn acos5_supported_ec_curves() -> [Acos5EcCurve; 4]
 {
     [
-        acos5_ec_curve {
+        Acos5EcCurve {
             curve_name: cstru!(b"nistp224\0").as_ptr(),
             curve_oid:  sc_object_id { value : [1, 3, 132, 0, 33,  -1,0,0,0,0,0,0,0,0,0,0] },
             size: 224,
         },
-        acos5_ec_curve {
+        Acos5EcCurve {
             curve_name: cstru!(b"nistp256\0").as_ptr(),
             curve_oid:  sc_object_id { value : [1, 2, 840, 10045, 3, 1, 7,  -1,0,0,0,0,0,0,0,0] },
             size: 256,
         },
-        acos5_ec_curve {
+        Acos5EcCurve {
             curve_name: cstru!(b"nistp384\0").as_ptr(),
             curve_oid:  sc_object_id { value : [1, 3, 132, 0, 34,  -1,0,0,0,0,0,0,0,0,0,0] },
             size: 384,
         },
-        acos5_ec_curve {
+        Acos5EcCurve {
             curve_name: cstru!(b"nistp521\0").as_ptr(),
             curve_oid:  sc_object_id { value : [1, 3, 132, 0, 35,  -1,0,0,0,0,0,0,0,0,0,0] },
             size: 521,
         },
-//        acos5_ec_curve::default(),
+//        Acos5EcCurve::default(),
     ]
 }
 
@@ -1376,9 +1382,10 @@ pub fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
 /// # Safety
 ///
 /// This function should not be called before the horsemen are ready.
+/* this is tailored for a special testing use case, don't use generally, SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC */
 //TODO integrate this into encrypt_asym
 #[allow(dead_code)]
-/* this is tailored for a special testing use case, don't use generally, SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC */
+#[cold]
 pub unsafe fn encrypt_public_rsa(card_ptr: *mut sc_card, signature: *const u8, siglen: usize)
 {
 /*
@@ -1393,6 +1400,7 @@ pub unsafe fn encrypt_public_rsa(card_ptr: *mut sc_card, signature: *const u8, s
     let mut path = sc_path::default();
     unsafe { sc_format_path(cstru!(b"3f0041004133\0").as_ptr(), &mut path); } // type = SC_PATH_TYPE_PATH;
     let file_ptr_address = null_mut();
+    // why this selection is done ?
     let mut rv = unsafe { sc_select_file(card, &path, file_ptr_address) };
     assert_eq!(rv, SC_SUCCESS);
     let mut apdu = build_apdu(ctx, &[0_u8, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x12, 0x81, 0x02, 0x41, 0x33, 0x95, 0x01, 0x80], SC_APDU_CASE_3_SHORT, &mut[]);
@@ -1454,7 +1462,7 @@ pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtl_generate_crypt_
         env.file_ref.value[0] = 0x41;
         env.file_ref.value[1] = 0x33;
         let mut path = sc_path::default();
-        let mut file_ptr = null_mut();
+        let mut file_ptr = null_mut::<sc_file>();
         unsafe { sc_format_path(cstru!(b"3f0041004133\0").as_ptr(), &mut path); } // path.type_ = SC_PATH_TYPE_PATH;
         rv = unsafe { sc_select_file(card, &path, &mut file_ptr) };
         assert_eq!(rv, SC_SUCCESS);
@@ -1869,7 +1877,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     let mut inDataRem = Vec::with_capacity(block_size);
     if crypt_sym.encrypt && Len1 != Len2 {
         inDataRem.extend_from_slice(unsafe { from_raw_parts(indata_ptr.add(Len0), Len1-Len0) });
-        inDataRem.extend_from_slice(trailing_blockcipher_padding_calculate(crypt_sym.block_size, crypt_sym.pad_type, u8::try_from(Len1-Len0).unwrap()).as_slice() );
+        inDataRem.extend_from_slice(&trailing_blockcipher_padding_calculate(crypt_sym.block_size, crypt_sym.pad_type, u8::try_from(Len1-Len0).unwrap()) );
         assert_eq!(inDataRem.len(), block_size);
     }
 
@@ -2069,8 +2077,8 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
         let dp_files_value_ref = &dp.files[&key];
             rbuf[ 0.. 8].copy_from_slice(&dp_files_value_ref.1);
             rbuf[ 8..24].copy_from_slice(&dp_files_value_ref.0);
-        if dp_files_value_ref.2.is_some() {
-            rbuf[24..32].copy_from_slice(&dp_files_value_ref.2.unwrap());
+        if let Some(scb8) = &dp_files_value_ref.2 {
+            rbuf[24..32].copy_from_slice(scb8);
         }
         else {
             log3if!(ctx,f,line!(), cstru!(b"### forgot to call update_hashmap first ###\0"));
@@ -2111,9 +2119,9 @@ pub fn update_hashmap(card: &mut sc_card) {
     let fmt1  = cstru!(b"key: %04X, val.1: %s\0");
     let fmt2  = cstru!(b"key: %04X, val.2: %s\0");
     for (key, val) in &dp.files {
-        if val.2.is_some() {
+        if let Some(scb8) = val.2 {
             log3if!(ctx,f,line!(), fmt1, *key, unsafe { sc_dump_hex(val.1.as_ptr(), 8) });
-            log3if!(ctx,f,line!(), fmt2, *key, unsafe { sc_dump_hex(val.2.unwrap().as_ptr(), 8) });
+            log3if!(ctx,f,line!(), fmt2, *key, unsafe { sc_dump_hex(scb8.as_ptr(), 8) });
         }
     }
     for (key, val) in &dp.files {
@@ -2255,72 +2263,83 @@ mod tests {
     use crate::constants_types::*;
 
     #[test]
-    fn test_convert_bytes_tag_fcp_sac_to_scb_array() {
+    fn test_convert_bytes_tag_fcp_sac_to_scb_array() -> Result<(), i32> {
         // the complete TLV : [0x8C, 0x07,  0x7D, 0x02, 0x03, 0x04, 0xFF, 0xFF, 0x02]
         let bytes_tag_fcp_sac = [0x7D, 0x02, 0x03, 0x04, 0xFF, 0xFF, 0x02];
-        let mut scb8 = convert_bytes_tag_fcp_sac_to_scb_array(&bytes_tag_fcp_sac).unwrap();
+        let mut scb8 = convert_bytes_tag_fcp_sac_to_scb_array(&bytes_tag_fcp_sac)?;
         assert_eq!(scb8, [0x02, 0x00, 0xFF, 0xFF, 0x04, 0x03, 0x02, 0xFF]);
 
         let bytes_tag_fcp_sac : [u8; 0] = [];
-        scb8 = convert_bytes_tag_fcp_sac_to_scb_array(&bytes_tag_fcp_sac).unwrap();
+        scb8 = convert_bytes_tag_fcp_sac_to_scb_array(&bytes_tag_fcp_sac)?;
         assert_eq!(scb8, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF]);
 
         let bytes_tag_fcp_sac = [0x00];
-        scb8 = convert_bytes_tag_fcp_sac_to_scb_array(&bytes_tag_fcp_sac).unwrap();
+        scb8 = convert_bytes_tag_fcp_sac_to_scb_array(&bytes_tag_fcp_sac)?;
         assert_eq!(scb8, [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF]);
 
         let bytes_tag_fcp_sac = [0x7F, 0xFF, 0xFF, 0x03, 0x03, 0x01, 0x03, 0x01];
-        scb8 = convert_bytes_tag_fcp_sac_to_scb_array(&bytes_tag_fcp_sac).unwrap();
+        scb8 = convert_bytes_tag_fcp_sac_to_scb_array(&bytes_tag_fcp_sac)?;
         assert_eq!(scb8, [0x01, 0x03, 0x01, 0x03, 0x03, 0xFF, 0xFF, 0xFF]);
 
         let bytes_tag_fcp_sac = [0x62, 0x06, 0x05, 0x01];
-        scb8 = convert_bytes_tag_fcp_sac_to_scb_array(&bytes_tag_fcp_sac).unwrap();
+        scb8 = convert_bytes_tag_fcp_sac_to_scb_array(&bytes_tag_fcp_sac)?;
         assert_eq!(scb8, [0x00, 0x01, 0x00, 0x00, 0x00, 0x05, 0x06, 0xFF]);
 
         let bytes_tag_fcp_sac = [0x2B, 0x05, 0x03, 0x01, 0x45];
-        scb8 = convert_bytes_tag_fcp_sac_to_scb_array(&bytes_tag_fcp_sac).unwrap();
+        scb8 = convert_bytes_tag_fcp_sac_to_scb_array(&bytes_tag_fcp_sac)?;
         assert_eq!(scb8, [0x45, 0x01, 0x00, 0x03, 0x00, 0x05, 0x00, 0xFF]);
+        Ok(())
     }
 
     #[test]
-    fn test_convert_amdo_to_cla_ins_p1_p2_array() {
+    #[should_panic(expected = "bytes_tag_fcp_sac.len() > 8")]
+    fn test_convert_bytes_tag_fcp_sac_to_scb_array_panic() {
+        // the complete TLV : [0x8C, 0x07,  0x7D, 0x02, 0x03, 0x04, 0xFF, 0xFF, 0x02]
+        let bytes_tag_fcp_sac = [0x8C, 0x07,  0x7D, 0x02, 0x03, 0x04, 0xFF, 0xFF, 0x02];
+        let scb8 = convert_bytes_tag_fcp_sac_to_scb_array(&bytes_tag_fcp_sac).unwrap();
+        assert_eq!(scb8, [0x02, 0x00, 0xFF, 0xFF, 0x04, 0x03, 0x02, 0xFF]);
+    }
+
+    #[test]
+    fn test_convert_amdo_to_cla_ins_p1_p2_array() -> Result<(), i32> {
         let amdo_bytes = [0xAA_u8];
-        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 8, &amdo_bytes[..]).unwrap();
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 8, &amdo_bytes[..])?;
         assert_eq!(cla_ins_p1_p2, [0xAA,  0,0,0]);
-        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 4, &amdo_bytes[..]).unwrap();
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 4, &amdo_bytes[..])?;
         assert_eq!(cla_ins_p1_p2, [0, 0xAA, 0,0]);
-        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 2, &amdo_bytes[..]).unwrap();
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 2, &amdo_bytes[..])?;
         assert_eq!(cla_ins_p1_p2, [0,0, 0xAA, 0]);
-        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 1, &amdo_bytes[..]).unwrap();
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 1, &amdo_bytes[..])?;
         assert_eq!(cla_ins_p1_p2, [0,0,0,  0xAA]);
 
         let amdo_bytes = [0xAA_u8, 0xBB];
-        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 9, &amdo_bytes[..]).unwrap();
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 9, &amdo_bytes[..])?;
         assert_eq!(cla_ins_p1_p2, [0xAA,  0,0,0xBB]);
-        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array(10, &amdo_bytes[..]).unwrap();
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array(10, &amdo_bytes[..])?;
         assert_eq!(cla_ins_p1_p2, [0xAA,  0,0xBB,0]);
-        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array(12, &amdo_bytes[..]).unwrap();
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array(12, &amdo_bytes[..])?;
         assert_eq!(cla_ins_p1_p2, [0xAA,  0xBB,0,0]);
-        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array(5, &amdo_bytes[..]).unwrap();
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array(5, &amdo_bytes[..])?;
         assert_eq!(cla_ins_p1_p2, [0, 0xAA, 0,0xBB]);
-        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array(6, &amdo_bytes[..]).unwrap();
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array(6, &amdo_bytes[..])?;
         assert_eq!(cla_ins_p1_p2, [0, 0xAA, 0xBB,0]);
-        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array(3, &amdo_bytes[..]).unwrap();
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array(3, &amdo_bytes[..])?;
         assert_eq!(cla_ins_p1_p2, [0,0, 0xAA, 0xBB]);
 
         let amdo_bytes = [0xAA_u8, 0xBB, 0xCC];
-        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 11, &amdo_bytes[..]).unwrap();
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 11, &amdo_bytes[..])?;
         assert_eq!(cla_ins_p1_p2, [0xAA,  0,0xBB, 0xCC]);
-        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 13, &amdo_bytes[..]).unwrap();
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 13, &amdo_bytes[..])?;
         assert_eq!(cla_ins_p1_p2, [0xAA,  0xBB, 0,0xCC]);
-        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 14, &amdo_bytes[..]).unwrap();
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 14, &amdo_bytes[..])?;
         assert_eq!(cla_ins_p1_p2, [0xAA,  0xBB, 0xCC,0]);
-        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 7, &amdo_bytes[..]).unwrap();
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 7, &amdo_bytes[..])?;
         assert_eq!(cla_ins_p1_p2, [0, 0xAA, 0xBB, 0xCC]);
 
         let amdo_bytes = [0xAA_u8, 0xBB, 0xCC, 0xDD];
-        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 15, &amdo_bytes[..]).unwrap();
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array( 15, &amdo_bytes[..])?;
         assert_eq!(cla_ins_p1_p2, [0xAA,  0xBB, 0xCC, 0xDD]);
+        Ok(())
     }
 
     #[test]
@@ -2348,26 +2367,27 @@ mod tests {
     }
 
     #[test]
-    fn test_trailing_blockcipher_padding_get_length() {
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ZEROES, &[0_u8,2,1,0,0,0,0,0]).unwrap(), 5);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ZEROES, &[0_u8,6,5,4,3,2,1,0]).unwrap(), 1);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ZEROES, &[0_u8,7,6,5,4,3,2,1]).unwrap(), 0);
+    fn test_trailing_blockcipher_padding_get_length() -> Result<(), i32> {
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ZEROES, &[0_u8,2,1,0,0,0,0,0])?, 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ZEROES, &[0_u8,6,5,4,3,2,1,0])?, 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ZEROES, &[0_u8,7,6,5,4,3,2,1])?, 0);
 
         // something similar is implemented in libopensc as well: sodium_unpad
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0_u8,0,0,0x80,0,0,0,0]).unwrap(), 5);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0_u8,0,0,0,0,0,0,0x80]).unwrap(), 1);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0x80_u8,0,0,0,0,0,0,0]).unwrap(), 8);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0_u8,0,0,0x80,0,0,0,0])?, 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0_u8,0,0,0,0,0,0,0x80])?, 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, &[0x80_u8,0,0,0,0,0,0,0])?, 8);
 
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0_u8,0,0,0x80,0,0,0,0]).unwrap(), 5);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0_u8,0,0,0,0,0,0,0x80]).unwrap(), 1);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0x80_u8,0,0,0,0,0,0,0]).unwrap(), 0);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0_u8,0,0,0x80,0,0,0,0])?, 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0_u8,0,0,0,0,0,0,0x80])?, 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0x80_u8,0,0,0,0,0,0,0])?, 0);
 
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[0_u8,5,5,5,5,5,5,5]).unwrap(), 5);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[0_u8,1,1,1,1,1,1,1]).unwrap(), 1);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[8_u8,8,8,8,8,8,8,8]).unwrap(), 8);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[0_u8,5,5,5,5,5,5,5])?, 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[0_u8,1,1,1,1,1,1,1])?, 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[8_u8,8,8,8,8,8,8,8])?, 8);
 
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0_u8,0,0,0,0,0,0,5]).unwrap(), 5);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0_u8,0,0,0,0,0,0,1]).unwrap(), 1);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0_u8,0,0,0,0,0,0,8]).unwrap(), 8);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0_u8,0,0,0,0,0,0,5])?, 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0_u8,0,0,0,0,0,0,1])?, 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0_u8,0,0,0,0,0,0,8])?, 8);
+        Ok(())
     }
 }

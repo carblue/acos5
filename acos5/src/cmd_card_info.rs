@@ -24,7 +24,7 @@ use std::convert::TryFrom;
 
 use opensc_sys::opensc::{sc_card, sc_transmit_apdu, sc_check_sw};
 use opensc_sys::types::{sc_serial_number, SC_MAX_SERIALNR, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT};
-use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_CARD_CMD_FAILED};
+use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_CARD_CMD_FAILED, SC_ERROR_INVALID_ARGUMENTS};
 
 use crate::constants_types::{build_apdu, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3};
 use crate::wrappers::{wr_do_log};
@@ -32,17 +32,32 @@ use crate::wrappers::{wr_do_log};
 //QS
 /// Get card's (hardware identifying) serial number. Copies result to card.serialnr
 ///
-/// @apiNote  `SC_CARDCTL_GET_SERIALNR`; exempt from this function, card.serialnr MUST be treated as immutable. It's not
-/// clear to me if for `SC_CARD_TYPE_ACOS5_64_V3` the last 2 bytes are meaningful if not in FIPS mode (at least they are
-/// the same for each call, thus this uncertainty doesn't matter).\
-/// @return  serial number (6 bytes for `SC_CARD_TYPE_ACOS5_64_V2`, otherwise 8 bytes) or an OpenSC error
+/// @apiNote  Exempt from this function, card.serialnr MUST be treated as immutable. It's not clear to me if for
+/// `SC_CARD_TYPE_ACOS5_64_V3` the last 2 bytes are meaningful if not in FIPS mode
+/// (at least they are the same for each call, thus this uncertainty doesn't matter).\
+/// This function is also callable via libopensc.so/dll:sc_card_ctl via `SC_CARDCTL_GET_SERIALNR`:
+///
+/// @return  Result::Ok(serial number); 6 bytes for `SC_CARD_TYPE_ACOS5_64_V2`, otherwise 8 bytes, or an OpenSC error
 ///
 /// # Errors
 ///
-/// Will return `Err` if sc_transmit_apdu or sc_check_sw fails, or apdu.resplen is wrong (for the card type)
+/// Will return `Result::Err` if sc_transmit_apdu or sc_check_sw fails, or apdu.resplen is wrong (for the card type),
+/// though this never happened so far. Thus its save to unwrap/expect the Ok variant.
+///
+/// # Examples
+///
+/// no_run
+/// // may be run only with a card connected (and thus variable `card` populated accordingly)
+/// use opensc_sys::{types::sc_serial_number, opensc::sc_card_ctl, cardctl::SC_CARDCTL_GET_SERIALNR, errors::SC_SUCCESS};
+/// use std::os::raw::c_void;
+/// let mut serial_number = sc_serial_number::default();
+/// let rv = unsafe { sc_card_ctl(card, SC_CARDCTL_GET_SERIALNR, &mut serial_number as *mut _ as *mut c_void) };
+/// assert_eq!(SC_SUCCESS, rv);
+/// println!("serial_number: {:X?}", serial_number);
+///
 pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
     let f = cstru!(b"get_serialnr\0");
     log3ifc!(ctx,f,line!());
@@ -53,7 +68,8 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
     let len_serial_num: usize = if card.type_ > SC_CARD_TYPE_ACOS5_64_V2 {8} else {6};
     debug_assert!(SC_MAX_SERIALNR >= len_serial_num);
     let mut serial = sc_serial_number::default();
-    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 0, 0, u8::try_from(len_serial_num).unwrap()], SC_APDU_CASE_2_SHORT, &mut serial.value);
+    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 0, 0, u8::try_from(len_serial_num).unwrap()], SC_APDU_CASE_2_SHORT, 
+                              &mut serial.value);
     let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen != len_serial_num {
@@ -68,18 +84,35 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
 
 
 //QS
-/// Get count of files within currently selected DF.
+/// Get count of files/dirs within currently selected DF.
 ///
-/// @apiNote  `SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF`; ATTENTION: There shouldn't be more than 255 files in a DF, but
-/// if there are more, then the function panics, because the following command get_file_info
-/// works based on byte-size indexing only !\
-/// @return  count of files or an OpenSC error
+/// @return  Result::Ok(count_files_curr_df), or an OpenSC error
+///
+/// # Panics
+/// ATTENTION: There shouldn't be more than 255 files in a DF, but if there are more, then the function panics,
+/// because the following command get_file_info works based on byte-size indexing only !\
+/// This function is also callable via libopensc.so/dll:sc_card_ctl via `SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF`:
 ///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
+///
+/// Will return `Result::Err` if sc_transmit_apdu or sc_check_sw fails, though this never happened so far.
+/// Thus its save to unwrap/expect the Ok variant.
+///
+/// # Examples
+///
+/// ```no_run
+/// // may be run only with a card connected (and thus variable `card` populated accordingly)
+/// use opensc_sys::{opensc::sc_card_ctl, errors::SC_SUCCESS};
+/// use acos5::constants_types::SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF;
+/// use std::os::raw::c_void;
+/// let mut count_files_curr_df : u16 = 0;
+/// let rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, &mut count_files_curr_df as *mut _ as *mut c_void) };
+/// assert_eq!(SC_SUCCESS, rv);
+/// println!("count_files_curr_df: {}", count_files_curr_df);
+/// ```
 pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
     let f = cstru!(b"get_count_files_curr_df\0");
     log3ifc!(ctx,f,line!());
@@ -97,7 +130,7 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
         /*
         driver's working currently depends on populating the HashMap files with all card content during card_init, but
         that would be impossible with more than 255 children in a DF: I.e. checking for duplicates would be incomplete
-        and all assertions that any file is contained in  HashMap files  would be wrong
+        and all assertions that any file is contained in  HashMap files  would be wrong !
         */
     }
     Ok(u16::try_from(apdu.sw2).unwrap())

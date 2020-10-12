@@ -20,7 +20,7 @@
  */
 
 // Binding state: tabs:    ?, header:    ? (except pub const type checks), checkAPI15-19:    ?, checkEXPORTS15-19:    ?, compareD17-18:    ?, doc:    ?, tests:    ?
-// TODO check IN, OUT etc., rename paramater names for a unified interface; #DEFINE/#UNDEF influence on struct size etc.: none: OKAY  (no direct (non-#include #define influence on struct sizes))
+// TODO check IN, OUT etc., rename parameter names for a unified interface; #DEFINE/#UNDEF influence on struct size etc.: none: OKAY  (no direct (non-#include #define influence on struct sizes))
 
 use std::os::raw::c_ulong;
 #[cfg(impl_default)]
@@ -30,20 +30,19 @@ use std::ptr::{null, null_mut};
 pub const SC_MAX_CARD_DRIVERS           : usize =    48;
 pub const SC_MAX_CARD_DRIVER_SNAME_SIZE : usize =    16;
 pub const SC_MAX_CARD_APPS              : usize =     8;
-pub const SC_MAX_APDU_BUFFER_SIZE       : usize =   261; /* takes account of: CLA INS P1 P2 Lc [255 byte of data] Le */
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_MAX_APDU_DATA_SIZE         : usize =  0xFF;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_MAX_APDU_RESP_SIZE         : usize = 0xFF+1;
-
-pub const SC_MAX_EXT_APDU_BUFFER_SIZE   : usize = 65538;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_MAX_EXT_APDU_DATA_SIZE     : usize = 0xFFFF;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_MAX_EXT_APDU_RESP_SIZE     : usize = 0xFFFF+1;
+pub const SC_MAX_APDU_BUFFER_SIZE       : usize =   0xFF+6;   /* 261 takes account of: CLA INS P1 P2 Lc [255 byte of data] Le */
+pub const SC_MAX_EXT_APDU_BUFFER_SIZE   : usize =   0xFFFF+3; /* 65538 */
+cfg_if::cfg_if! {
+    if #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))] {
+        pub const SC_MAX_APDU_DATA_SIZE         : usize = 0xFF;   // == SC_READER_SHORT_APDU_MAX_SEND_SIZE
+        pub const SC_MAX_APDU_RESP_SIZE         : usize = 0xFF+1; // == SC_READER_SHORT_APDU_MAX_RECV_SIZE
+        pub const SC_MAX_EXT_APDU_DATA_SIZE     : usize = 0xFFFF;
+        pub const SC_MAX_EXT_APDU_RESP_SIZE     : usize = 0xFFFF+1;
+    }
+}
 pub const SC_MAX_PIN_SIZE               : usize =   256; /* OpenPGP card has 254 max */
 pub const SC_MAX_ATR_SIZE               : usize =    33;
-pub const SC_MAX_UID_SIZE               : usize =    10; /* since opensc source release v0.17.0 */
+pub const SC_MAX_UID_SIZE               : usize =    10;
 pub const SC_MAX_AID_SIZE               : usize =    16;
 pub const SC_MAX_AID_STRING_SIZE        : usize = SC_MAX_AID_SIZE * 2 + 3;
 pub const SC_MAX_IIN_SIZE               : usize =    10;
@@ -60,10 +59,14 @@ pub const SC_MAX_SE_NUM                 : usize =     8;
  * src/libopensc/pkcs15-prkey.c and src/libopensc/pkcs15-skey.c
  * `grep "src/libopensc/types.h SC_MAX_SUPPORTED_ALGORITHMS  defined as"'
  */
-#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
-pub const SC_MAX_SUPPORTED_ALGORITHMS   : usize =     8;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
-pub const SC_MAX_SUPPORTED_ALGORITHMS   : usize =     16;
+cfg_if::cfg_if! {
+    if #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))] {
+        pub const SC_MAX_SUPPORTED_ALGORITHMS   : usize =  8;
+    }
+    else {
+        pub const SC_MAX_SUPPORTED_ALGORITHMS   : usize =  16; /* since opensc source release v0.21.0 */
+    }
+}
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -94,7 +97,7 @@ pub struct sc_aid {
 }
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_atr {
     pub value : [u8; SC_MAX_ATR_SIZE],
     pub len   : usize,
@@ -497,7 +500,7 @@ pub const SC_CPLC_TAG      : u32   =  0x9F7F;
 pub const SC_CPLC_DER_SIZE : usize = 45;
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_cplc {
     pub ic_fabricator : [u8; 2],
     pub ic_type : [u8; 2],
@@ -551,7 +554,7 @@ pub const SC_REMOTE_APDU_FLAG_NOT_FATAL     : u32   =  0x01;
 pub const SC_REMOTE_APDU_FLAG_RETURN_ANSWER : u32   =  0x02;
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_remote_apdu {
     pub sbuf : [u8; 2*SC_MAX_APDU_BUFFER_SIZE],
     pub rbuf : [u8; 2*SC_MAX_APDU_BUFFER_SIZE],

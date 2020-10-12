@@ -4,13 +4,13 @@ use std::convert::TryFrom;
 
 //use libc::strlen;
 
-//use opensc_sys::opensc::{sc_context, sc_card/*, sc_print_path, sc_file_free, sc_file_new*/};
+use opensc_sys::opensc::{SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES};
 
 use opensc_sys::pkcs15::{sc_pkcs15_card, SC_PKCS15_SKDF, SC_PKCS15_TYPE_SKEY, sc_pkcs15_skey_info /*, sc_pkcs15_object*/};
-use opensc_sys::errors::{SC_ERROR_INVALID_ARGUMENTS };
+use opensc_sys::errors::{SC_ERROR_INVALID_ARGUMENTS};
 use opensc_sys::log::{sc_dump_hex};
 
-//use crate::constants_types::*;
+use crate::constants_types::{SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4};
 use crate::wrappers::{wr_do_log, wr_do_log_t};
 use crate::missing_exports::{find_df_by_type};
 
@@ -106,12 +106,105 @@ pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mu
         obj_list_ptr = obj_list.next;
     }
     let mut index_possible_min = 256_u16;
-    for elem in &index_possible {
-        if  index_possible_min > u16::from(*elem) {
-            index_possible_min = u16::from(*elem);
+    for &elem in &index_possible {
+        if  index_possible_min > u16::from(elem) {
+            index_possible_min = u16::from(elem);
         }
     }
     i32::from(u8::try_from(index_possible_min).unwrap())
+}
+
+/* creates the first part of a sym key record entry; only 'key_len_bytes' key bytes need to be appended */
+pub fn prefix_sym_key(card_type: i32, rec_nr: u8, algorithm_type: u32, key_len_bytes: u8,
+                      ext_auth: bool, count_err_ext_auth: u8,
+                      int_auth: bool, count_use_int_auth: u16) -> Result<Vec<u8>, i32> {
+    let mut res = Vec::with_capacity(38);
+    if ![SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4].contains(&card_type) {
+        return Err(SC_ERROR_INVALID_ARGUMENTS);
+    }
+    if rec_nr==0 || rec_nr>30 {
+        return Err(SC_ERROR_INVALID_ARGUMENTS);
+    }
+    if ![SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES].contains(&algorithm_type) {
+        return Err(SC_ERROR_INVALID_ARGUMENTS);
+    }
+    if ![8_u8, 16, 24, 32].contains(&key_len_bytes) {
+        return Err(SC_ERROR_INVALID_ARGUMENTS);
+    }
+
+    res.push(0x80 | rec_nr);
+    let mut key_type = 0;
+    if [SC_ALGORITHM_3DES, SC_ALGORITHM_DES].contains(&algorithm_type) || card_type==SC_CARD_TYPE_ACOS5_EVO_V4 {
+        if int_auth { key_type += 2; }
+        if ext_auth { key_type += 1; }
+    }
+    res.push(key_type);
+    if key_type > 0 {
+        // TODO Was this order of "key info" data tested to work as intended ? acos5_gui implements this order !
+        if int_auth { res.extend_from_slice(&count_use_int_auth.to_be_bytes()); }
+        if ext_auth { res.push(count_err_ext_auth); }
+    }
+
+    match algorithm_type {
+        SC_ALGORITHM_AES => {
+            if ![16, 24, 32].contains(&key_len_bytes) { return Err(-1); }
+            match key_len_bytes {
+                16 => res.push(if card_type==SC_CARD_TYPE_ACOS5_EVO_V4 {0x22} else {0x02}),
+                24 => res.push(if card_type==SC_CARD_TYPE_ACOS5_EVO_V4 {0x24} else {0x12}),
+                32 => res.push(if card_type==SC_CARD_TYPE_ACOS5_EVO_V4 {0x28} else {0x22}),
+                _  => unreachable!(),
+            }
+        },
+        SC_ALGORITHM_3DES => {
+            if ![16, 24].contains(&key_len_bytes) { return Err(-1); }
+            match key_len_bytes {
+                16 => res.push(if card_type==SC_CARD_TYPE_ACOS5_EVO_V4 {0x12} else {0x04}),
+                24 => res.push(0x14),
+                _  => unreachable!(),
+            }
+        },
+        SC_ALGORITHM_DES => {
+            if 8 != key_len_bytes { return Err(-1); }
+            res.push(if card_type==SC_CARD_TYPE_ACOS5_EVO_V4 {0x11} else {0x05});
+        },
+        _ => unreachable!(),
+    }
+    Ok(res)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*; /*{prefix_sym_key, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4}*/
+
+    # [test]
+    fn test_prefix_sym_key() -> Result<(), i32> {
+        assert_eq!(&[0x81_u8, 0, 0x22], prefix_sym_key(SC_CARD_TYPE_ACOS5_64_V2, 1,
+            SC_ALGORITHM_AES, 32, false, 0, false, 0)?.as_slice() );
+        assert_eq!(&[0x83_u8, 0, 0x12], prefix_sym_key(SC_CARD_TYPE_ACOS5_64_V3, 3,
+            SC_ALGORITHM_AES, 24, false, 0, false, 0)?.as_slice() );
+        assert_eq!(&[0x9E_u8, 0, 0x22], prefix_sym_key(SC_CARD_TYPE_ACOS5_EVO_V4, 30,
+            SC_ALGORITHM_AES, 16, false, 0, false, 0)?.as_slice() );
+
+        assert_eq!(&[0x81_u8, 0, 0x22], prefix_sym_key(SC_CARD_TYPE_ACOS5_64_V3, 1,
+            SC_ALGORITHM_AES, 32, false, 0, true, 256)?.as_slice() );
+        assert_eq!(&[0x83_u8, 2, 0x01, 0, 0x24], prefix_sym_key(SC_CARD_TYPE_ACOS5_EVO_V4, 3,
+            SC_ALGORITHM_AES, 24, false, 0, true, 256)?.as_slice() );
+        assert_eq!(&[0x9E_u8, 0, 0x02], prefix_sym_key(SC_CARD_TYPE_ACOS5_64_V2, 30,
+            SC_ALGORITHM_AES, 16, false, 0, true, 256)?.as_slice() );
+
+        assert_eq!(&[0x81_u8, 3, 1, 0, 0x33, 0x28], prefix_sym_key(SC_CARD_TYPE_ACOS5_EVO_V4, 1,
+            SC_ALGORITHM_AES, 32, true, 0x33, true, 256)?.as_slice() );
+        assert_eq!(&[0x83_u8, 0, 0x12], prefix_sym_key(SC_CARD_TYPE_ACOS5_64_V2, 3,
+            SC_ALGORITHM_AES, 24, true, 0x33, true, 256)?.as_slice() );
+        assert_eq!(&[0x9E_u8, 0, 0x02], prefix_sym_key(SC_CARD_TYPE_ACOS5_64_V3, 30,
+            SC_ALGORITHM_AES, 16, true, 0x33, true, 256)?.as_slice() );
+
+        assert_eq!(&[0x81_u8, 2, 0x01, 0, 0x14], prefix_sym_key(SC_CARD_TYPE_ACOS5_64_V2, 1,
+            SC_ALGORITHM_3DES, 24, false, 0, true, 256)?.as_slice() );
+        assert_eq!(&[0x9E_u8, 2, 0x01, 0, 0x12], prefix_sym_key(SC_CARD_TYPE_ACOS5_EVO_V4, 30,
+            SC_ALGORITHM_3DES, 16, false, 0, true, 256)?.as_slice() );
+        Ok(())
+    }
 }
 
 /*

@@ -48,7 +48,7 @@ pub const SC_MD_CONTAINER_MAP_VALID_CONTAINER   : u8 = 0x01;
 pub const SC_MD_CONTAINER_MAP_DEFAULT_CONTAINER : u8 = 0x02;
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_md_cmap_record {
     pub guid : [u8; SC_MD_MAX_CONTAINER_NAME_LEN + 1],
     pub guid_len : usize,

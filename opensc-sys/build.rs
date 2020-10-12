@@ -48,7 +48,7 @@ fn main() {
     println!("cargo:rustc-cfg=v0_20_0"); //  <= or whatever version the installed OpenSC package is
 */
 
-    /* other conditionaĺ compilation settings, required only for testing (impl_default) and by driver acos5/acos5_pkcs15 */
+    /* other conditional compilation settings, required only for testing (impl_default) and by driver acos5/acos5_pkcs15 */
     println!("cargo:rustc-cfg=impl_default"); // enables impl Default      for many struct s, used extensively for tests
     println!("cargo:rustc-cfg=impl_display"); // enables impl fmt::Display for sc_context
     println!("cargo:rustc-cfg=acos5_impl_default"); // enables impl Default, acos5-specific for some struct s

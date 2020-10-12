@@ -250,6 +250,101 @@ pub fn _sc_asn1_encode(ctx: *mut sc_context, asn1: *const sc_asn1_entry,
 /// On error, buf may have been set to NULL, and (except on SC_ERROR_ASN1_END_OF_CONTENTS) no OUT param get's set\
 /// OUT tag_out and taglen are guaranteed to have values set on SC_SUCCESS (cla_out only, if also (buf[0] != 0xff && buf[0] != 0))\
 /// @test available
+///
+/// # Example
+///
+/// ```
+/// use opensc_sys::{asn1::sc_asn1_read_tag, errors::SC_SUCCESS, iso7816::{ISO7816_TAG_FCI, ISO7816_TAG_FCP_FID,
+///     ISO7816_TAG_FCP_LCS, ISO7816_TAG_FCP_TYPE, ISO7816_TAG_FCP_DF_NAME}};
+/// let select_response : [u8; 50] = [
+///     0x6F, 0x30, 0x83, 0x02, 0x41, 0x00, 0x88, 0x01, 0x00, 0x8A, 0x01, 0x05, 0x82, 0x02, 0x38, 0x00,
+///     0x8D, 0x02, 0x41, 0x03, 0x84, 0x10, 0x41, 0x43, 0x4F, 0x53, 0x50, 0x4B, 0x43, 0x53, 0x2D, 0x31,
+///     0x35, 0x76, 0x31, 0x2E, 0x30, 0x30, 0x8C, 0x08, 0x7F, 0x03, 0xFF, 0x00, 0x01, 0x01, 0x01, 0x01,
+///     0xAB, 0x00
+/// ];
+/// let mut buf_ptr = select_response.as_ptr();
+/// let mut buflen  = select_response.len();
+/// let mut cla_out : u32 = 0;
+/// let mut tag_out : u32 = 0;
+/// let mut taglen  : usize = 0;
+/// let mut rv = unsafe { sc_asn1_read_tag(&mut buf_ptr, buflen, &mut cla_out, &mut tag_out, &mut taglen) };
+/// assert_eq!(SC_SUCCESS, rv);
+/// assert_eq!(buf_ptr, unsafe{ select_response.as_ptr().add(2) });
+/// assert_eq!(cla_out+tag_out, ISO7816_TAG_FCI.into() /* 0x6F */);
+/// assert_eq!(taglen, 0x30);
+/// buflen -= 2;
+///
+/// rv = unsafe { sc_asn1_read_tag(&mut buf_ptr, buflen, &mut cla_out, &mut tag_out, &mut taglen) };
+/// assert_eq!(SC_SUCCESS, rv);
+/// assert_eq!(buf_ptr, unsafe{ select_response.as_ptr().add(4) });
+/// assert_eq!(cla_out+tag_out, ISO7816_TAG_FCP_FID.into() /* 0x83 */);
+/// assert_eq!(taglen, 2);
+/// assert_eq!(unsafe{ u16::from_be_bytes([*buf_ptr, *buf_ptr.add(1)]) }, 0x4100);
+/// buf_ptr = unsafe { buf_ptr.add(taglen) };
+/// buflen -= 2 + taglen;
+///
+/// rv = unsafe { sc_asn1_read_tag(&mut buf_ptr, buflen, &mut cla_out, &mut tag_out, &mut taglen) };
+/// assert_eq!(SC_SUCCESS, rv);
+/// assert_eq!(buf_ptr, unsafe{ select_response.as_ptr().add(8) });
+/// assert_eq!(cla_out+tag_out, 0x88 /* ISO7816_RFU_TAG_FCP_SFI */);
+/// assert_eq!(taglen, 1);
+/// assert_eq!(unsafe{ *buf_ptr }, 0);
+/// buf_ptr = unsafe { buf_ptr.add(taglen) };
+/// buflen -= 2 + taglen;
+///
+/// rv = unsafe { sc_asn1_read_tag(&mut buf_ptr, buflen, &mut cla_out, &mut tag_out, &mut taglen) };
+/// assert_eq!(SC_SUCCESS, rv);
+/// assert_eq!(buf_ptr, unsafe{ select_response.as_ptr().add(11) });
+/// assert_eq!(cla_out+tag_out, ISO7816_TAG_FCP_LCS.into() /* 0x8A */);
+/// assert_eq!(taglen, 1);
+/// assert_eq!(unsafe{ *buf_ptr }, 5);
+/// buf_ptr = unsafe { buf_ptr.add(taglen) };
+/// buflen -= 2 + taglen;
+///
+/// rv = unsafe { sc_asn1_read_tag(&mut buf_ptr, buflen, &mut cla_out, &mut tag_out, &mut taglen) };
+/// assert_eq!(SC_SUCCESS, rv);
+/// assert_eq!(buf_ptr, unsafe{ select_response.as_ptr().add(14) });
+/// assert_eq!(cla_out+tag_out, ISO7816_TAG_FCP_TYPE.into() /* 0x82 */);
+/// assert_eq!(taglen, 2);
+/// assert_eq!(unsafe{ *buf_ptr }, 0x38);
+/// buf_ptr = unsafe { buf_ptr.add(taglen) };
+/// buflen -= 2 + taglen;
+///
+/// rv = unsafe { sc_asn1_read_tag(&mut buf_ptr, buflen, &mut cla_out, &mut tag_out, &mut taglen) };
+/// assert_eq!(SC_SUCCESS, rv);
+/// assert_eq!(buf_ptr, unsafe{ select_response.as_ptr().add(18) });
+/// assert_eq!(cla_out+tag_out, 0x8D /* ISO7816_RFU_TAG_FCP_SEID */);
+/// assert_eq!(taglen, 2);
+/// assert_eq!(unsafe{ u16::from_be_bytes([*buf_ptr, *buf_ptr.add(1)]) }, 0x4103);
+/// buf_ptr = unsafe { buf_ptr.add(taglen) };
+/// buflen -= 2 + taglen;
+///
+/// rv = unsafe { sc_asn1_read_tag(&mut buf_ptr, buflen, &mut cla_out, &mut tag_out, &mut taglen) };
+/// assert_eq!(SC_SUCCESS, rv);
+/// assert_eq!(buf_ptr, unsafe{ select_response.as_ptr().add(22) });
+/// assert_eq!(cla_out+tag_out, ISO7816_TAG_FCP_DF_NAME.into() /* 0x84 */);
+/// assert_eq!(taglen, 0x10);
+/// assert_eq!(unsafe{ std::slice::from_raw_parts(buf_ptr, taglen) }, b"ACOSPKCS-15v1.00");
+/// buf_ptr = unsafe { buf_ptr.add(taglen) };
+/// buflen -= 2 + taglen;
+///
+/// rv = unsafe { sc_asn1_read_tag(&mut buf_ptr, buflen, &mut cla_out, &mut tag_out, &mut taglen) };
+/// assert_eq!(SC_SUCCESS, rv);
+/// assert_eq!(buf_ptr, unsafe{ select_response.as_ptr().add(40) });
+/// assert_eq!(cla_out+tag_out, 0x8C /* ISO7816_RFU_TAG_FCP_SAC */);
+/// assert_eq!(taglen, 8);
+/// assert_eq!(unsafe{ std::slice::from_raw_parts(buf_ptr, taglen) }, &[0x7F, 0x03, 0xFF, 0x00, 0x01, 0x01, 0x01, 0x01]);
+/// buf_ptr = unsafe { buf_ptr.add(taglen) };
+/// buflen -= 2 + taglen;
+///
+/// rv = unsafe { sc_asn1_read_tag(&mut buf_ptr, buflen, &mut cla_out, &mut tag_out, &mut taglen) };
+/// assert_eq!(SC_SUCCESS, rv);
+/// assert_eq!(buf_ptr, unsafe{ select_response.as_ptr().add(select_response.len()) });
+/// assert_eq!(cla_out+tag_out, 0xAB /* ISO7816_RFU_TAG_FCP_SAE */);
+/// assert_eq!(taglen, 0);
+/// buflen -= 2 + taglen;
+/// assert_eq!(buflen, 0);
+/// ```
 pub fn sc_asn1_read_tag(buf: *mut *const u8, buflen: usize, cla_out: *mut u32,
                         tag_out: *mut u32, taglen: *mut usize) -> i32;
 
@@ -680,7 +775,7 @@ mod tests {
             0x41, 0x00, 0x41, 0x13, 0xA3, 0x0A, 0x30, 0x08, 0x04, 0x06, 0x3F, 0x00, 0x41, 0x00, 0x41, 0x14,
             0xA4, 0x0A, 0x30, 0x08, 0x04, 0x06, 0x3F, 0x00, 0x41, 0x00, 0x41, 0x15
         ];
-        let mut buf : *const u8 = file5031.first().unwrap();
+        let mut buf = file5031.as_ptr();
         let mut cla_out : u32 = 0;
         let mut tag_out : u32 = 0;
         let mut taglen  : usize  = 0;
@@ -800,12 +895,18 @@ mod tests {
         assert_eq!(vec, [/*0x30, 0x31,*/ 0x30,0x0F,0x0C,0x06,0x43,0x41,0x72,0x6F,0x6F,0x74,0x03,0x02,0x06,0xC0]);
     }
 
-    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
     #[test]
     fn test_sc_asn1_decode_integer() {
         let integer_in = [0x10_u8, 0x00];
         let mut integer_out = 0_i32;
-        let rv = unsafe { sc_asn1_decode_integer(integer_in.as_ptr(), integer_in.len(), &mut integer_out) };
+        cfg_if::cfg_if! {
+            if #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))] {
+                let rv = unsafe { sc_asn1_decode_integer(integer_in.as_ptr(), integer_in.len(), &mut integer_out) };
+            }
+            else {
+                let rv = unsafe { sc_asn1_decode_integer(integer_in.as_ptr(), integer_in.len(), &mut integer_out, 1) };
+            }
+        }
         assert_eq!(rv, SC_SUCCESS);
         assert_eq!(integer_out, 4096);
     }

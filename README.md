@@ -8,7 +8,7 @@ So be careful what You get from ACS when it is called driver. Perhaps You get so
 
 [OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki") supplies i.a. a PKCS#11 implementing open-source library if it get's augmented by a hardware specific driver, which is missing currently for ACOS5 in OpenSC v0.20.0, and the one available in earlier versions was rudimentary/incomplete.
 
-With this repo's components 'acos5' and 'acos5_pkcs15' as plug-ins, OpenSC supports some ACOS5 hardware as well. (Fortunately OpenSC allows such plug-ins as - in OpenSC lingo - external modules/shared libraries).<br>
+With this repo's components 'acos5' and 'acos5_pkcs15' as plug-ins, OpenSC supports some ACOS5 hardware as well. (Fortunately OpenSC allows such plug-ins as - in OpenSC lingo - external modules/shared libraries/DLL).<br>
 They got implemented in the Rust programming language, so You will need the Rust compiler and cargo build tool from [Rust, cargo](https://www.rust-lang.org/tools/install "https://www.rust-lang.org/tools/install") to build those libraries from source code.<br>
 If there is anybody willing to transform the Rust code into a C code internal OpenSC driver 'acos5', then I'll be happy to support that undertaking.<br>
 External modules need some configuration once in opensc.conf, such that they get 'registered' and used by OpenSC software, explained below.
@@ -29,10 +29,11 @@ This repo also builds a library from the included opensc-sys binding for interna
 Driver for Advanced Card Systems  ACOS5 Smart Card V2.00 and V3.00 / CryptoMate64 (V2.00) / CryptoMate Nano (V3.00), as external modules operating within the OpenSC framework.<br>
 
 External module, in this context means: You also have to "tell opensc.conf some details", such that OpenSC can find the driver library, knows about it's name and can load it as a known driver.
-External module also has the implication, that OpenSC calls up to 3 different libraries (depending on opensc.conf configuration and functionality required): Into the mandatory driver library, into an optional pkcs15init library acos5_pkcs15 and into an optional acos5-specific 'Secure Messaging' library.<br>
-OpenSC also has the implication: If Your card got initialized by an ACS tool and is not PKCS#15 compliant (this is true for all that I've run into), then it won't work (well) with OpenSC and likely requires card's re-initialization, see [card_initialization README](https://github.com/carblue/acos5/tree/master/info/card_initialization "https://github.com/carblue/acos5/tree/master/info/card_initialization"))
+External module also has the implication, that OpenSC calls up to 2(3) different libraries (depending on opensc.conf configuration and functionality required): Into the mandatory driver library, into an optional pkcs15init library acos5_pkcs15 and into an optional acos5-specific 'Secure Messaging' (SM) library (which does not exist though for ACOS5, as the 'Secure Messaging' support is integrated into the mandatory driver library).<br>
+The driver builds are bound to one specific OpenSC version and upon loading the external modules, OpenSC will check, that this version matches the one of the installed OpenSC version, rejecting the external modules in case of mismatch.<br>
+OpenSC also has the implication: If Your card got initialized by an ACS tool and is not PKCS#15 compliant (this is true for all that I've run into), ethen it won't work (well) with OpenSC and likely requires card's re-initialization, see [card_initialization README](https://github.com/carblue/acos5/tree/master/info/card_initialization "https://github.com/carblue/acos5/tree/master/info/card_initialization"))
 The minimal OpenSC version supported is 0.17.0<br>
-The new ACOS5-EVO: Meanwhile available, but I don't have it, thus untested/unknown what works or doesn't, when serving that card by this driver.<br>
+The new ACOS5-EVO (ACOS5 V4.00, V4.10): Meanwhile available, but I don't have it, thus untested/unknown what works or doesn't, when serving that card by this driver. Therefore it's not yet supported.<br>
 The respective reference manual is available on request from: info@acs.com.hk
 
 
@@ -49,6 +50,7 @@ Same as OpenSC's libraries, also this driver will depend on OpenSSL's crypto lib
 Invoke `opensc-tool --info` in order to know Your installed OpenSC version. The driver build will be tied to that specific OpenSC version.
 
 2. Install the Rust compiler and cargo build manager (it's bundled) from [Rust, cargo](https://www.rust-lang.org/tools/install "https://www.rust-lang.org/tools/install")<br>
+   The version of Rust compiler rustc required is : 1.47.0 (released October 8th 2020) and upwards.<br>
 (If those rust tools aren't required anymore, later uninstall with: rustup self uninstall)
 
 3. Build the driver acos5: `user@host:~/path/to/acos5_root_downloaded$  cargo build --release`. The 2 shared object binaries will be built into directory target/release<br>
@@ -141,3 +143,7 @@ Note that using Secure Messaging with record-based files with record length > 23
 Windows<br>
 It's possible to build acos5.dll and acos5_pkcs15.dll on Windows with adaptions within the 3 build.rs files. But for me (Windows 10), the v0.20.0/x64 OpenSC supplied opensc.dll is unusable (missing dependencies in dependency walker), thus unable to use/test the driver on Windows.
 
+Secure Messaging<br>
+Secure Messaging SM is complicated with ACOS5, thus refer to the reference manual for details.
+The driver supports SM for many commands, but not all, and it's also hardware dependant, whether a command supports SM at all.
+Basically, during file/directory creation, decision is taken whether/what is forced to happen SM protected and the referred SE record decides upon SM mode authenticate/encrypt.

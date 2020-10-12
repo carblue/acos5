@@ -146,7 +146,7 @@ pub struct sc_pkcs15init_operations {
      * (actually this command is currently only for starcos spk 2.3
      * cards).
      */
-    pub finalize_card : Option< unsafe extern "C" fn (card: *mut sc_card) ->  i32 >,
+    pub finalize_card : Option< unsafe extern "C" fn (card: *mut sc_card) -> i32 >,
 
     /*
      * Delete object
@@ -221,7 +221,7 @@ pub struct sc_pkcs15init_initargs {
 }
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15init_pinargs {
     pub auth_id : sc_pkcs15_id,
     pub label : *const c_char,
@@ -299,7 +299,7 @@ pub struct sc_pkcs15init_pubkeyargs {
 }
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15init_dataargs {
     pub id : sc_pkcs15_id,
     pub label : *const c_char,
@@ -311,7 +311,7 @@ pub struct sc_pkcs15init_dataargs {
 }
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15init_skeyargs {
     pub id : sc_pkcs15_id,
     pub auth_id : sc_pkcs15_id,
@@ -330,7 +330,7 @@ pub struct sc_pkcs15init_skeyargs {
 }
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15init_certargs {
     pub id : sc_pkcs15_id,
     pub label : *const c_char,
@@ -452,43 +452,9 @@ pub fn sc_pkcs15init_sanity_check(arg1: *mut sc_pkcs15_card, arg2: *mut sc_profi
 
 pub fn sc_pkcs15init_finalize_profile(card: *mut sc_card, profile: *mut sc_profile, aid: *mut sc_aid) -> i32;
 /*
-since v0_20_0, no libary export
+since v0_20_0, no library export
 extern int    sc_pkcs15init_unwrap_key(struct sc_pkcs15_card *p15card, struct sc_profile *profile,
         struct sc_pkcs15_object *key, u8* wrapped_key, size_t wrapped_key_len,
         struct sc_pkcs15init_skeyargs *keyargs, struct sc_pkcs15_object **res_obj);
 */
 }
-
-/*
-#ifdef __cplusplus
-extern "C" {
-#endif
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_gpk_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_miocos_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_cryptoflex_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_cyberflex_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_cardos_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_jcop_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_starcos_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_oberthur_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_setcos_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_incrypto34_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_muscle_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_asepcos_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_rutoken_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_entersafe_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_epass2003_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_rtecp_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_westcos_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_myeid_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_authentic_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_iasecc_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_piv_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_openpgp_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_sc_hsm_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_isoApplet_ops(void);
-extern struct sc_pkcs15init_operations *sc_pkcs15init_get_gids_ops(void);
-#ifdef __cplusplus
-}
-#endif
-*/

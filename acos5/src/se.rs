@@ -286,8 +286,8 @@ SCB: 81; [80 01 01  A4 09 83 01 81 83 01 01 95 01 88]                           
 
             /* SM implicitly has the (unsupported by OpenSC) OR operator for access conditions, thus drop any references except the first */
             let loop_cnt = //if contains_sm_key { 0_usize }
-            if (scb & 0x40) != 0 || (scb & 0x80) == 0 { 1_usize }
-            else { pin_key_ref.len() };
+                if (scb & 0x40) != 0 || (scb & 0x80) == 0 { 1_usize }
+                else { pin_key_ref.len() };
             for &elem in pin_key_ref.iter().take(loop_cnt) {
                 rv = unsafe { sc_file_add_acl_entry(file, op, SC_AC_CHV, elem.into()) };
                 assert_eq!(SC_SUCCESS, rv);

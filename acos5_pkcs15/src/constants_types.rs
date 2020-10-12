@@ -324,12 +324,11 @@ pub const SC_CARDCTL_ACOS5_DECRYPT_SYM             : c_ulong =  0x0000_0029; // 
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone,  PartialEq)]
-pub struct acos5_ec_curve {
+pub struct Acos5EcCurve {
     pub curve_name : *const c_char,
     pub curve_oid  : sc_object_id,
     pub size       : u32,
 }
-
 /* more related to acos5_pkcs15 */
 /* more related to acos5_sm */
 
@@ -582,11 +581,40 @@ pub struct DataPrivate { // see settings in acos5_init
     returns false for any other fdb, which are 'real' files */
 #[allow(non_snake_case)]
 #[must_use]
+#[inline]
 pub fn is_DFMF(fdb: u8) -> bool
 {
     (fdb & FDB_DF) == FDB_DF
 }
 
+/// Wraps sc_bytes2apdu
+///
+/// Additionally it
+/// 1. Asserts SC_SUCCESS of call to sc_bytes2apdu
+/// 2. Asserts, that the provided argument `cse` actually got assigned to apdu.cse
+/// 3. If rbuf is not empty, then it assigns the provided argument `rbuf` to apdu.resp and apdu.resplen
+///
+/// # Examples
+///
+/// ```
+/// use opensc_sys::{types::SC_APDU_CASE_4_SHORT, opensc::sc_context};
+/// use acos5::constants_types::build_apdu;
+/// # // don't use this terrible hack ref. ctx in regular code; it's done just to get around the ctx dependency
+/// # let mut ctx = unsafe { &mut *std::ptr::null_mut::<sc_context>() };
+/// let mut rbuf = [0_u8; 512];
+/// let cmd = [0_u8, 0x2A, 0x84, 0x80, 0x02, 0xFF, 0xFF, 0x40];
+/// let apdu = build_apdu(ctx, &cmd, SC_APDU_CASE_4_SHORT, &mut rbuf);
+/// assert_eq!(apdu.cla, 0);
+/// assert_eq!(apdu.ins, 0x2A);
+/// assert_eq!(apdu.p1,  0x84);
+/// assert_eq!(apdu.p2,  0x80);
+/// assert_eq!(apdu.lc,  2);
+/// assert_eq!(apdu.le,  0x40);
+/// assert_eq!(apdu.data,    unsafe { cmd.as_ptr().add(5) });
+/// assert_eq!(apdu.datalen, 2);
+/// assert_eq!(apdu.resp,    rbuf.as_mut_ptr());
+/// assert_eq!(apdu.resplen, rbuf.len());
+/// ```
 pub fn build_apdu(ctx: &mut sc_context, cmd: &[u8], cse: i32, rbuf: &mut [u8]) -> sc_apdu {
     let mut apdu = sc_apdu::default();
     let rv = unsafe { sc_bytes2apdu(ctx, cmd.as_ptr(), cmd.len(), &mut apdu) };

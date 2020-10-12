@@ -44,8 +44,9 @@ pub const SC_PKCS15_MAX_ID_SIZE     : usize = 255;
  * in src/libopensc/asn1.c */
 pub const SC_PKCS15_MAX_ACCESS_RULES  : usize = 8;
 
+// Debug since rustc 1.47.0 (18bf6b4f0 2020-10-07)
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone /*,  PartialEq*/)]
+#[derive(Debug, Copy, Clone /*,  PartialEq*/)]
 pub struct sc_pkcs15_id {
     pub value : [u8; SC_PKCS15_MAX_ID_SIZE],
     pub len : usize,
@@ -118,7 +119,7 @@ pub struct sc_pkcs15_pin_attributes {
 
 /* AuthKeyAttributes of the authKey authentication object */
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_authkey_attributes {
     pub derived : i32,
     pub skey_id : sc_pkcs15_id,
@@ -395,7 +396,7 @@ pub type sc_pkcs15_prkey_t = sc_pkcs15_prkey;
 /* Enveloped objects can be used to provide additional
  * protection to non-native private keys */
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_enveloped_data {
     /* recipient info */
     pub id : sc_pkcs15_id, /* key ID */
@@ -431,7 +432,7 @@ pub type sc_pkcs15_cert_t = sc_pkcs15_cert;
 */
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_cert_info {
     pub id : sc_pkcs15_id, /* correlates to private key id */
     pub authority : i32, /* boolean */
@@ -447,7 +448,7 @@ pub type sc_pkcs15_cert_info_t = sc_pkcs15_cert_info;
 */
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_data_info {
     /* FIXME: there is no pkcs15 ID in DataType */
     pub id : sc_pkcs15_id,
@@ -513,7 +514,7 @@ pub const SC_PKCS15_ACCESS_RULE_MODE_INT_AUTH    : u32 =  0x200;
 pub const SC_PKCS15_ACCESS_RULE_MODE_EXT_AUTH    : u32 =  0x400;
 
 #[repr(C)]
-#[derive(Default, /*Debug,*/ Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct sc_pkcs15_accessrule {
     pub access_mode : u32,
     pub auth_id : sc_pkcs15_id,
@@ -577,7 +578,7 @@ impl Default for sc_pkcs15_key_params {
 }
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_prkey_info {
     pub id : sc_pkcs15_id, /* correlates to public certificate id */
     pub usage : u32,
@@ -613,7 +614,7 @@ pub struct sc_pkcs15_pubkey_info__bindgen_ty_1 {
 }
 
 #[repr(C)]
-#[derive(Default, /*Debug,*/ Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct sc_pkcs15_pubkey_info {
     pub id : sc_pkcs15_id,  /* correlates to private key id */
     pub usage : u32,
@@ -641,7 +642,7 @@ pub type sc_pkcs15_pubkey_info_t = sc_pkcs15_pubkey_info;
 */
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_skey_info {
     pub id : sc_pkcs15_id,
     pub usage : u32,
@@ -701,7 +702,7 @@ pub const SC_PKCS15_SEARCH_CLASS_DATA     : u32 =  0x0020;
 pub const SC_PKCS15_SEARCH_CLASS_AUTH     : u32 =  0x0040;
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_object {
     pub type_ : u32, /* e.g. SC_PKCS15_TYPE_PRKEY_RSA */
     /* CommonObjectAttributes */
@@ -812,7 +813,7 @@ pub type sc_pkcs15_df_t = sc_pkcs15_df;
 */
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_unusedspace {
     pub path : sc_path,
     pub auth_id : sc_pkcs15_id,

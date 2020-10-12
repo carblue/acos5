@@ -149,12 +149,14 @@ pub const SC_ERROR_CANNOT_LOAD_MODULE            : i32 =  -1414;
 pub const SC_ERROR_OFFSET_TOO_LARGE              : i32 =  -1415;
 /// "Not implemented"
 pub const SC_ERROR_NOT_IMPLEMENTED               : i32 =  -1416;
-/// "Invalid Simple TLV object",
-#[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ERROR_INVALID_TLV_OBJECT            : i32 =  -1417; // since opensc source release v0.19.0
-/// "Premature end of Simple TLV stream"
-#[cfg(not(any(v0_17_0, v0_18_0)))]
-pub const SC_ERROR_TLV_END_OF_CONTENTS           : i32 =  -1418; // since opensc source release v0.19.0
+cfg_if::cfg_if! {
+    if #[cfg(not(any(v0_17_0, v0_18_0)))] {
+        /// "Invalid Simple TLV object",
+        pub const SC_ERROR_INVALID_TLV_OBJECT            : i32 =  -1417; // since opensc source release v0.19.0
+        /// "Premature end of Simple TLV stream"
+        pub const SC_ERROR_TLV_END_OF_CONTENTS           : i32 =  -1418; // since opensc source release v0.19.0
+    }
+}
 
 /* Relating to PKCS #15 init stuff */
 /// "Generic PKCS#15 initialization error"

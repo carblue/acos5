@@ -95,7 +95,7 @@ pub const SM_GP_SECURITY_ENC  : u32 = 0x03;
  * Global Platform SM channel parameters
  */
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sm_type_params_gp {
     pub level   : u32,
     pub index   : u32,
@@ -112,7 +112,7 @@ pub struct sm_type_params_gp {
  * - keyset presented in continuous manner - raw or 'to be diversified'.
  */
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sm_gp_keyset {
     pub version : i32,
     pub index   : i32,
@@ -129,7 +129,7 @@ pub struct sm_gp_keyset {
  * Global Platform SM session data
  */
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sm_gp_session {
     pub gp_keyset : sm_gp_keyset,
 
@@ -193,7 +193,7 @@ pub struct sm_cwa_token_data {
  * - 'mutual authentication' data.
  */
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sm_cwa_session {
     pub cwa_keyset : sm_cwa_keyset,
 
@@ -302,7 +302,7 @@ pub struct sm_info {
  * data type to return card response.
  */
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sm_card_response {
     pub num : i32,
 
@@ -376,7 +376,7 @@ pub struct sm_module_operations {
 }
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct sm_module {
     pub filename : [c_char; 128],
     pub handle : *mut c_void,

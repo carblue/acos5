@@ -83,7 +83,7 @@ use std::os::raw::{c_char, c_void};
 use std::ffi::CStr;
 use std::ptr::{null_mut};
 use std::collections::HashSet;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::slice::from_raw_parts;
 
 
@@ -129,7 +129,7 @@ pub mod    wrappers; // shared file among modules acos5, acos5_pkcs15 and acos5_
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tu};
 
 pub mod    no_cdecl; // this is NOT the same as in acos5
-use crate::no_cdecl::{rsa_modulus_bits_canonical, first_of_free_indices}; /*call_dynamic_update_hashmap, call_dynamic_sm_test,*/
+use crate::no_cdecl::{rsa_modulus_bits_canonical, first_of_free_indices, prefix_sym_key}; /*call_dynamic_update_hashmap, call_dynamic_sm_test,*/
 
 
 const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
@@ -148,6 +148,7 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
     else  if cfg!(v0_19_0) { cstru!(b"0.19.0\0").as_ptr() }
     else  if cfg!(v0_20_0) { cstru!(b"0.20.0\0").as_ptr() }
     else  if cfg!(v0_21_0) { cstru!(b"0.21.0\0").as_ptr() } // experimental only: see build.rs which github commit is supported
+//  else  if cfg!(v0_21_0) { cstru!(b"0.21.0-rc1\0").as_ptr() }
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -359,8 +360,8 @@ extern "C" fn acos5_pkcs15_create_pin(profile_ptr: *mut sc_profile, p15card_ptr:
  *
  */
 extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
-                                             p15card_ptr: *mut sc_pkcs15_card,
-                                             object_ptr: *mut sc_pkcs15_object) -> i32
+                                      p15card_ptr: *mut sc_pkcs15_card,
+                                      object_ptr: *mut sc_pkcs15_object) -> i32
 {
 // TODO must handle create RSA key pair  And  generate sym. key !!!!!!
 // TODO use dp.agi.do_create_files
@@ -384,10 +385,10 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let profile = unsafe { &mut *profile_ptr };
-    let object      = unsafe { &mut *object_ptr };
+    let object = unsafe { &mut *object_ptr };
     let mut rv;
     log3if!(ctx,f,line!(), cstru!(b"object.type: %X\0"), object.type_);
-
+// println!("acos5_pkcs15_create_key, object: {:?}", *object);
     if SC_PKCS15_TYPE_SKEY == (object.type_ & SC_PKCS15_TYPE_CLASS_MASK) {
         /*
         FIXME How to distinguish, whether this is for an unwrap operation or store_key operation
@@ -408,6 +409,7 @@ P:6445; T:0x140296631560000 10:54:08.502 [opensc-pkcs11] acos5:430:acos5_pkcs15_
 P:6445; T:0x140296631560000 10:54:08.502 [opensc-pkcs11] acos5:434:acos5_pkcs15_create_key: Currently we won't create any sym. secret key, but pretend to have done that
 P:6        */
         let key_info = unsafe { &mut *(object.data as *mut sc_pkcs15_skey_info) };
+// println!("acos5_pkcs15_create_key, (before) object.data=sc_pkcs15_skey_info: {:?}", *key_info);
         log3if!(ctx,f,line!(), cstru!(b"key_info.id: %s\0"),
             unsafe { sc_dump_hex(key_info.id.value.as_ptr(), key_info.id.len) });
         log3if!(ctx,f,line!(), cstru!(b"key_info.usage: %X\0"),                key_info.usage);
@@ -422,6 +424,7 @@ P:6        */
         log3if!(ctx,f,line!(), cstru!(b"key_info.path: %s\0"),
             unsafe { sc_dump_hex(key_info.path.value.as_ptr(), key_info.path.len) });
         if !key_info.data.value.is_null() && key_info.data.len>0 {
+// println!("acos5_pkcs15_create_key, sc_pkcs15_skey_info.data: 0x{:X?}", unsafe { std::slice::from_raw_parts(key_info.data.value, key_info.data.len) });
             log3if!(ctx,f,line!(), cstru!(b"key_info.data: %s\0"),
                 unsafe { sc_dump_hex(key_info.data.value, key_info.data.len) });
         }
@@ -434,7 +437,11 @@ P:6        */
 */
             key_info.algo_refs[0..2].copy_from_slice(&[1_u32 /*AES ECB*/, 2 /*AES CBC*/]);
         }
-        key_info.access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_LOCAL;
+        key_info.access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE |
+                                SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE |
+                                SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE |
+                                SC_PKCS15_PRKEY_ACCESS_LOCAL;
+        key_info.native = 0;
         let mut file_id_sym_keys = 0_u16;
         key_info.path.index = first_of_free_indices(p15card, &mut file_id_sym_keys);
         assert!(key_info.path.index<=255);
@@ -457,6 +464,7 @@ P:6        */
         key_info.path.count = i32::from(mrl);//0x25;
         log3if!(ctx,f,line!(), cstru!(b"key_info.path.index: %d\0"), key_info.path.index);
         key_info.key_reference = 0x80 | key_info.path.index;
+// println!("acos5_pkcs15_create_key, (after ) object.data=sc_pkcs15_skey_info: {:?}", *key_info);
 
 /*
 P:13407; T:0x140114465912640 20:32:12.192 [opensc-pkcs11] acos5:500:acos5_pkcs15_create_key: called with object_ptr: 0x55d7c73a1ce0
@@ -719,7 +727,7 @@ P*/
     key_info.path.type_ = SC_PATH_TYPE_PATH;
     assert_eq!(key_info.path.value, file_priv.path.value);
 
-    let mut file_pub : *mut sc_file = null_mut();
+    let mut file_pub = null_mut::<sc_file>();
     unsafe { sc_file_dup(&mut file_pub, file_priv) };
     if file_pub.is_null() {
         return SC_ERROR_OUT_OF_MEMORY;
@@ -891,32 +899,95 @@ Key Value             okay, from opensc
 00B00000FF
 000E000000
 00B00000FF
+
+called only from pkcs15init/pkcs15-lib.c: functions
+int sc_pkcs15init_store_private_key(struct sc_pkcs15_card *p15card, struct sc_profile *profile, struct sc_pkcs15init_prkeyargs *keyargs, struct sc_pkcs15_object **res_obj)
+int sc_pkcs15init_store_secret_key (struct sc_pkcs15_card *p15card, struct sc_profile *profile, struct sc_pkcs15init_skeyargs  *keyargs, struct sc_pkcs15_object **res_obj)
+
+
+user@host:~/RustProjects/acos5_external$ pkcs15-init --store-secret-key aes_key_256.hex --secret-key-algorithm aes/256  --auth-id 01 --id 09
+Using reader with a card: ACS CryptoMate64 00 00
+acos5_pkcs15_create_key, object: sc_pkcs15_object {
+  type_: 769,
+  label: [83, 101, 99, 114, 101, 116, 32, 75, 101, 121, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], flags: 3, auth_id: sc_pkcs15_id { value: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 1 },
+  usage_counter: 0,
+  user_consent: 0,
+  access_rules: [sc_pkcs15_accessrule { access_mode: 0, auth_id: sc_pkcs15_id { value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 0 } },
+                 sc_pkcs15_accessrule { access_mode: 0, auth_id: sc_pkcs15_id { value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 0 } },
+                 sc_pkcs15_accessrule { access_mode: 0, auth_id: sc_pkcs15_id { value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 0 } },
+                 sc_pkcs15_accessrule { access_mode: 0, auth_id: sc_pkcs15_id { value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 0 } },
+                 sc_pkcs15_accessrule { access_mode: 0, auth_id: sc_pkcs15_id { value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 0 } },
+                 sc_pkcs15_accessrule { access_mode: 0, auth_id: sc_pkcs15_id { value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 0 } },
+                 sc_pkcs15_accessrule { access_mode: 0, auth_id: sc_pkcs15_id { value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 0 } },
+                 sc_pkcs15_accessrule { access_mode: 0, auth_id: sc_pkcs15_id { value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 0 } }],
+  data: 0x562fae71f910,
+  emulated: 0x0,
+  df: 0x0,
+  next: 0x0,
+  prev: 0x0,
+  content: sc_pkcs15_der { value: 0x0, len: 0 },
+  session_object: 0
+}
+acos5_pkcs15_create_key, (before) object.data=sc_pkcs15_skey_info: sc_pkcs15_skey_info {
+  id: sc_pkcs15_id { value: [9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 1 },
+  usage: 3,
+  access_flags: 1,
+  native: 1,
+  key_reference: 0,
+  value_len: 256,
+  key_type: 31,
+  algo_refs: [0, 0, 0, 0, 0, 0, 0, 0],
+  path: sc_path { value: [63, 0, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 4, index: 0, count: -1, type_: 2, aid: sc_aid { value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 0 } },
+  data: sc_pkcs15_der { value: 0x0, len: 0 }
+}
+acos5_pkcs15_create_key, (after ) object.data=sc_pkcs15_skey_info: sc_pkcs15_skey_info {
+  id: sc_pkcs15_id { value: [9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 1 },
+  usage: 3,
+  access_flags: 29,
+  native: 0,
+  key_reference: 132,
+  value_len: 256,
+  key_type: 31,
+  algo_refs: [1, 2, 0, 0, 0, 0, 0, 0],
+  path: sc_path { value: [63, 0, 65, 0, 65, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 6, index: 4, count: 37, type_: 2, aid: sc_aid { value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 0 } },
+  data: sc_pkcs15_der { value: 0x0, len: 0 }
+}
+key.algorithm: 43
+key.u.secret:  0x[1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C, D, E, F, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 1A, 1B, 1C, 1D, 1E, 1F, 20]
+sym. key record content to be stored at path: [84, 0, 22, 1, 2, 3, 4, 5, 6, 7, 8, 9, A, B, C, D, E, F, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 1A, 1B, 1C, 1D, 1E, 1F, 20]
+user@host:~/RustProjects/acos5_external$
  */
 // does something, but it's not correct
+#[allow(unreachable_code)]
 extern "C" fn acos5_pkcs15_store_key(_profile: *mut sc_profile, p15card: *mut sc_pkcs15_card,
-                                        object: *mut sc_pkcs15_object, key: *mut sc_pkcs15_prkey) -> i32
+                                     object_ptr: *mut sc_pkcs15_object, key_ptr: *mut sc_pkcs15_prkey) -> i32
 { // does nothing currently, except logging CALLED
-    if p15card.is_null() || unsafe { (*p15card).card.is_null() || (*(*p15card).card).ctx.is_null() } || object.is_null() || unsafe { (*object).data.is_null() } || key.is_null() {
+    if p15card.is_null() || unsafe { (*p15card).card.is_null() || (*(*p15card).card).ctx.is_null() } ||
+        object_ptr.is_null() || unsafe { (*object_ptr).data.is_null() } || key_ptr.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *(*p15card).card };
     let ctx = unsafe { &mut *card.ctx };
     let f  = cstru!(b"acos5_pkcs15_store_key\0");
-    let object_mr = unsafe { &mut *object };
-    let key_mr = unsafe { &mut *key };
-    let skey_mr = unsafe { &mut key_mr.u.secret };
+    let object = unsafe { &mut *object_ptr };
+    /* key: if called from sc_pkcs15init_store_secret_key, then only key.algorithm and  key.u.secret were set  */
+    let key = unsafe { &mut *key_ptr };
+    let skey_algo = key.algorithm;
+    let skey = unsafe { &mut key.u.secret };
+    assert!(!skey.data.is_null());
 
     log3ifc!(ctx,f,line!());
+// println!("key.algorithm: {:X?}", skey_algo);
+// println!("key.u.secret:  0x{:X?}", unsafe { std::slice::from_raw_parts(skey.data, skey.data_len) });
     if true /*SC_PKCS15_TYPE_SKEY == (object.type_ & SC_PKCS15_TYPE_CLASS_MASK)*/ {
         log3if!(ctx,f,line!(), cstru!(b"Currently we won't store any key, but pretend to have done that\0"));
-        return SC_SUCCESS;
     }
 
-    if ![SC_ALGORITHM_DES, SC_ALGORITHM_3DES, SC_ALGORITHM_AES].contains(&key_mr.algorithm) {
+    if ![SC_ALGORITHM_DES, SC_ALGORITHM_3DES, SC_ALGORITHM_AES].contains(&skey_algo) {
         SC_ERROR_KEYPAD_MSG_TOO_LONG
     }
     else {
-        let skey_info = unsafe { &mut *(object_mr.data as *mut sc_pkcs15_skey_info) };
+        let skey_info = unsafe { &mut *(object.data as *mut sc_pkcs15_skey_info) };
 /*
 $ pkcs15-init --store-secret-key=des192_2.hex  --secret-key-algorithm 3des/192 --auth-id 01 --id 07
 Using reader with a card: ACS CryptoMate64 00 00
@@ -943,26 +1014,36 @@ $
 0x7f24cddfef80 16:20:36.707 [pkcs15-init] pkcs15-lib.c:3187:sc_pkcs15init_add_object: returning with: 0 (Success)
 0x7f24cddfef80 16:20:36.707 [pkcs15-init] pkcs15-lib.c:1938:sc_pkcs15init_store_secret_key: returning with: 0 (Success)
 */
-        skey_info.value_len = 64;
-        skey_mr.data_len    =  8;
+        assert_eq!(skey_info.value_len/8, skey.data_len);
+        // pub fn prefix_sym_key(card_type: i32, rec_nr: u8, algorithm_type: u32, key_len_bytes: u8,
+        //                       ext_auth: bool, count_err_ext_auth: u8,
+        //                       int_auth: bool, count_use_int_auth: u16) -> Result<Vec<u8>, i32>
+        let mut key_vec =  prefix_sym_key(card.type_, skey_info.path.index.try_into().unwrap(),
+                                          skey_algo, skey.data_len.try_into().unwrap(),
+            false, 0xFF, false, 0xFFFF).unwrap();
+        key_vec.extend_from_slice(unsafe { std::slice::from_raw_parts(skey.data, skey.data_len) });
+// println!("sym. key record content to be stored at path: {:X?}", key_vec);
+        return SC_SUCCESS;
+        // skey_info.value_len = 64;
+        // skey.data_len    =  8;
 
-        assert_eq!(3, object_mr.flags);
+        assert_eq!(3, object.flags);
         assert_eq!(3, skey_info.usage);
-        assert_eq!(skey_mr.data_len, skey_info.value_len/8);
+        assert_eq!(skey.data_len, skey_info.value_len/8);
         assert_eq!(1,     skey_info.id.len);
-        match key_mr.algorithm {
+        match skey_algo {
             SC_ALGORITHM_DES => {
                 assert_eq!(/*CKM_DES_ECB*/ 0x121, skey_info.key_type);
-                assert_eq!(SC_PKCS15_TYPE_SKEY_DES, object_mr.type_);
+                assert_eq!(SC_PKCS15_TYPE_SKEY_DES, object.type_);
             },
 
             SC_ALGORITHM_3DES => {
                 assert_eq!(/*CKM_DES3_ECB*/ 0x132, skey_info.key_type);
-                assert_eq!(SC_PKCS15_TYPE_SKEY_3DES, object_mr.type_);
+                assert_eq!(SC_PKCS15_TYPE_SKEY_3DES, object.type_);
             }
             SC_ALGORITHM_AES => {
                 assert_eq!(/*CKM_AES_ECB*/ 0x1081, skey_info.key_type);
-                assert_eq!(SC_PKCS15_TYPE_SKEY_GENERIC, object_mr.type_);
+                assert_eq!(SC_PKCS15_TYPE_SKEY_GENERIC, object.type_);
             }
             _ =>  {
                 return SC_ERROR_NOT_SUPPORTED;
@@ -973,11 +1054,10 @@ $
         if key_id == 0 || key_id > 31 {
             return SC_ERROR_NON_UNIQUE_ID;
         }
-        let mut vec = Vec::with_capacity(skey_mr.data_len);
-        assert!(!skey_mr.data.is_null());
-        vec.extend_from_slice(unsafe { from_raw_parts(skey_mr.data, skey_mr.data_len) });
+        let mut vec = Vec::with_capacity(skey.data_len);
+        vec.extend_from_slice(unsafe { from_raw_parts(skey.data, skey.data_len) });
         acos5_pkcs15_store_key_secret(ctx, &skey_info.path.value[0..skey_info.path.len], key_id,
-                                                  key_mr.algorithm, vec.as_slice() )
+                                                  skey_algo, &vec)
     }
 } // acos5_pkcs15_store_key
 
@@ -1331,8 +1411,8 @@ extern "C" fn acos5_pkcs15_sanity_check(_profile: *mut sc_profile, p15card: *mut
     /* fill the hashmap: there are possibly not all scb8 retrieved so far and PKCS#15 file type yet unknown */
     let _dummy = call_dynamic_update_hashmap(card); // all scb8 are complete, same for the byte containing the PKCS#15 file type, i.e. the file really contains content acc. to that file type
 
-//    let ctx  : *mut sc_context = null_mut() as *mut sc_context;
-    let info = null_mut() as *mut sm_info;
+//    let ctx = null_mut()::<sc_context>();
+    let info = null_mut::<sm_info>();
     let mut out: c_char = 65u8 as c_char;
     let sm_available = false;
 /* */

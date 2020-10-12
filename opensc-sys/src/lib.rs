@@ -58,8 +58,10 @@
 //! `make`\
 //! `sudo checkinstall`
 //!
-//! If there is no file or symbolic link `libopensc.so` or `opensc.lib` in the library search path, then create a
+//! If there is no file or symbolic link `libopensc.so` in the library search path, then create a
 //! symbolic link pointing to the relevant library. It will be used by build.rs.\
+//! The import library `opensc.lib` (for Windows) doesn't get provided by OpenSC. It must be created from opensc.dll.
+//! For some versions they are available from the lib/ directory.
 //! The build.rs file employs a pkg_config-based-adaption to installed OpenSC library version. If You have a chance to
 //! install pkg-config, do so.
 //! Distro's or source code based OpenSC installations probably install a file
@@ -74,8 +76,8 @@
 //! change the OpenSC package to another version,
 //! remember to update the symbolic link and change opensc.pc accordingly.\
 //! The procedure without pkg-config and opensc.pc is described in build.rs.\
-//! The reason why I prefer and recommend the pkg_config-based-adaption is: Related to 'acos5' there are 2-4 build.rs
-//! to be in sync. (repos opensc-sys, acos5 + optionally acos5_pkcs15init and/or acos5_sm)
+//! The reason why I prefer and recommend the pkg_config-based-adaption is: Related to 'acos5' there are 2-3 build.rs
+//! to be in sync. (repos opensc-sys, acos5 + optionally acos5_pkcs15init)
 //! versus 1 opensc.pc to edit.
 //!
 //! Run e.g. opensc-tool -i\
@@ -94,15 +96,16 @@
 //!    of opensc-tool.
 //!    Once the test passes, the opensc-sys binding is ready to be used.
 //!
-//! Not selecting any OpenSC release versions 0.17.0 - 0.20.0, is treated as something more recent than 0.20.0 like
-//! OpenSC master branch, but that's experimental only:
+//! Not selecting any OpenSC release versions 0.17.0 - 0.20.0, is treated as unsupported, except:
+//! That's experimental only: Take OpenSC master branch, change config.h to the next/imaginary version (currently 0.21.0)
+//! and build from source.
 //! At irregular intervals only I check master's implications for the binding. E.g. there was a commit (effective since
 //! OpenSC release versions 0.18.0), that changed parsing of
 //! EF.Tokeninfo supportedAlgorithms/parameters/PKCS15ECParameters.
 //!
 //! Remark about functions returning i32:
-//! Many functions return i32, and mostly that refers to the success or some error code:
-//! Carefully read abot the exact meaning of value returned, as there are inconsistencies:
+//! Many functions return i32, and mostly that refers to SC_SUCCESS or some error code:
+//! Carefully read about the exact meaning of the value returned, as there are inconsistencies:
 //! E.g. for match_card, success is returned with value 1, while all other return success by SC_SUCCESS (value==0).
 //! Functions that get/put data, return the number of bytes received/written
 //!

@@ -7,6 +7,8 @@ edition = "2018"
 [dependencies]
 libc = "0.2"
 num-integer = "0.1"
+cfg-if = "0.1"
+#function_name = "0.2"
 opensc-sys = { path = "../opensc-sys" }
 
 [build-dependencies]
