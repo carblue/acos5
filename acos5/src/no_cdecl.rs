@@ -2369,7 +2369,7 @@ mod tests {
             0x35, 0x76, 0x31, 0x2E, 0x30, 0x30, 0x8C, 0x08, 0x7F, 0x03, 0xFF, 0x00, 0x01, 0x01, 0x01, 0x01,
             0xAB, 0x00]);
         assert_eq!(fci, FCI { fdb: 0x38, fid: 0x4100, size: 0, lcsi: 5, df_name: b"ACOSPKCS-15v1.00".to_vec(),
-            scb8: [1_u8,1,1,1,0,255,3,255], sae: vec![], seid: 0x4103 })
+            scb8: [1_u8,1,1,1,0,255,3,255], sae: vec![], seid: 0x4103, mrl: 0, nor: 0 })
     }
 
     #[test]

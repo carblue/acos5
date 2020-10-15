@@ -308,7 +308,7 @@ mod tests {
     use num_integer::Integer;
     use super::{Encrypt, Decrypt, DES_KEY_SZ, DES_cblock, des_ecb3_unpadded_8, des_ede3_cbc_pad_80,
                 des_ede3_cbc_pad_80_mac /*, des_ecb3_pad_pkcs5*/,
-                AES_BLOCK_SIZE, aes_ecb_unpadded_16, aes_cbc_pad_80};
+                AES_BLOCK_SIZE, aes_ecb_unpadded_16, aes_cbc_pad_80, DES_set_odd_parity, };
 /*
     #[test]
     fn test_des_ecb3_pad_pkcs5() {
@@ -323,9 +323,12 @@ mod tests {
     #[test]
     fn test_des_ecb3_unpadded_8() {
         let data = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38];
-        let key  = [0x32, 0x31, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38,
+        let mut key  = [0x32, 0x31, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38,
                              0x33, 0x31, 0x32, 0x34, 0x35, 0x36, 0x37, 0x38,
                              0x34, 0x31, 0x32, 0x33, 0x35, 0x36, 0x37, 0x38];
+        for i in 0..3 {
+            unsafe { DES_set_odd_parity(key.as_mut_ptr().add(i*8) as *mut DES_cblock); }
+        }
         let e = des_ecb3_unpadded_8(&data, &key, Encrypt);
         let d = des_ecb3_unpadded_8(&e, &key, Decrypt);
 //println!("{:X?}", e);
