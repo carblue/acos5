@@ -22,15 +22,11 @@ Secure Messaging is handled transparently towards OpenSC, meaning, it's done whe
 towards OpenSC (OpenSC wouldn't help anyway but just confuse if setting SC_AC_PRO is used)
 */
 
-// libc doesn't provide snprintf for windows
-#[cfg(not(windows))]
-use libc::snprintf;
-
 use libc::{free, strlen};
 use num_integer::Integer;
 
 use std::os::raw::{c_char, c_ulong};
-// use std::ffi::CStr;
+use std::ffi::CString;
 use std::ptr::{null, null_mut};
 use std::slice::from_raw_parts;
 use std::convert::TryFrom;
@@ -38,7 +34,7 @@ use std::convert::TryFrom;
 use opensc_sys::opensc::{sc_context, sc_card, sc_hex_to_bin, sc_transmit_apdu,
                          sc_check_sw, sc_pin_cmd_data, SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT,
                          SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK};
-use opensc_sys::types::{SC_APDU_CASE_4_SHORT};
+use opensc_sys::types::{SC_APDU_CASE_4_SHORT, sc_aid};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_SM_KEYSET_NOT_FOUND, SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_INVALID_DATA,
                          SC_ERROR_SM_IFD_DATA_MISSING, SC_ERROR_SM_AUTHENTICATION_FAILED,
                          SC_ERROR_SM_NOT_INITIALIZED, SC_ERROR_SM, SC_ERROR_PIN_CODE_INCORRECT, SC_ERROR_AUTH_METHOD_BLOCKED,
@@ -200,19 +196,41 @@ fn sm_incr_ssc(card: &mut sc_card) {
 }
 
 
-#[cfg(not(windows))]
 fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
 {
+    // libc doesn't provide snprintf for windows
+    fn sprintf_ref(ref_: u8, qualifier: &str) -> CString {
+        let mut vec : Vec<u8> = Vec::with_capacity(14);
+        vec.extend_from_slice(b"keyset_");
+        vec.extend_from_slice(format!("{:02}", ref_).as_bytes());
+        vec.push(b'_');
+        vec.extend_from_slice(qualifier.as_bytes());
+        unsafe { CString::from_vec_unchecked(vec) }
+    }
+
+    fn sprintf_aid_ref(aid: &sc_aid, ref_: u8, qualifier: &str) -> CString {
+        let mut vec : Vec<u8> = Vec::with_capacity(80);
+        vec.extend_from_slice(b"keyset_");
+        vec.extend_from_slice(format!("{:X?}", &aid.value[..aid.len]).as_bytes());
+        vec.retain(|&x| x != b'[' && x != b',' && x != b' ' && x != b']');
+        vec.push(b'_');
+        vec.extend_from_slice(format!("{:02}", ref_).as_bytes());
+        vec.push(b'_');
+        vec.extend_from_slice(qualifier.as_bytes());
+        unsafe { CString::from_vec_unchecked(vec) }
+    }
+
     let cwa_session = unsafe { &mut sm_info.session.cwa };
     let cwa_keyset = &mut cwa_session.cwa_keyset;
     let mut sm_conf_block = null_mut::<scconf_block>();
     let crt_at = &cwa_session.params.crt_at;
 
-    let mut name : [c_char; 128] = [0; 128];
+    let mut name : CString; // [c_char; 128] = [0; 128];
     let mut hex  : [u8; 48]      = [0; 48];
     let mut hex_len;
     let mut rv : i32;
-    let ref_ = i32::from(u8::try_from(crt_at.refs[0]).unwrap() & ACOS5_OBJECT_REF_MAX);
+    // let ref_ = i32::from(u8::try_from(crt_at.refs[0]).unwrap() & ACOS5_OBJECT_REF_MAX);
+    let ref_ = u8::try_from(crt_at.refs[0]).unwrap() & ACOS5_OBJECT_REF_MAX;
 
     let f  = cstru!(b"sm_cwa_config_get_keyset\0");
 
@@ -246,11 +264,13 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
 
     /* Keyset ENC */
     if sm_info.current_aid.len>0 && (u8::try_from(crt_at.refs[0]).unwrap() & ACOS5_OBJECT_REF_LOCAL) >0 {
-        unsafe { snprintf(name.as_mut_ptr(), name.len(), cstru!(b"keyset_%s_%02i_enc\0").as_ptr(),
-                          sc_dump_hex(sm_info.current_aid.value.as_ptr(), sm_info.current_aid.len), ref_) };
+        // unsafe { snprintf(name.as_mut_ptr(), name.len(), cstru!(b"keyset_%s_%02i_enc\0").as_ptr(),
+        //                   sc_dump_hex(sm_info.current_aid.value.as_ptr(), sm_info.current_aid.len), ref_) };
+        name = sprintf_aid_ref(&sm_info.current_aid, ref_, "enc");
     }
     else {
-        unsafe { snprintf(name.as_mut_ptr(), name.len(), cstru!(b"keyset_%02i_enc\0").as_ptr(), ref_) };
+        // unsafe { snprintf(name.as_mut_ptr(), name.len(), cstru!(b"keyset_%02i_enc\0").as_ptr(), ref_) };
+        name = sprintf_ref(ref_, "enc");
     }
     let mut value = unsafe { scconf_get_str(sm_conf_block, name.as_ptr(), null::<c_char>()) };
 
@@ -284,17 +304,19 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
         cwa_keyset.enc.copy_from_slice(&hex[..2*DES_KEY_SZ]);
         cwa_session.icc.k[..DES_KEY_SZ].copy_from_slice(&hex[2*DES_KEY_SZ..3*DES_KEY_SZ]);
     }
-////            sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "%s %s", name, sc_dump_hex(cwa_keyset->enc, 3*DES_KEY_SZ));
+////            sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "%s %s", name, sc_dump_hex(cwa_keyset->enc, 2*DES_KEY_SZ));
     log3if!(ctx,f,line!(), cstru!(b"%s %s\0"),name.as_ptr(),unsafe{sc_dump_hex(cwa_keyset.enc.as_ptr(), 2*DES_KEY_SZ)});
 
     /* Keyset MAC */
     if sm_info.current_aid.len>0 && (u8::try_from(crt_at.refs[0]).unwrap() & ACOS5_OBJECT_REF_LOCAL) >0 {
-        unsafe { snprintf(name.as_mut_ptr(), name.len(), cstru!(b"keyset_%s_%02i_mac\0").as_ptr(),
-                          sc_dump_hex(sm_info.current_aid.value.as_ptr(), sm_info.current_aid.len), ref_) };
+        // unsafe { snprintf(name.as_mut_ptr(), name.len(), cstru!(b"keyset_%s_%02i_mac\0").as_ptr(),
+        //                   sc_dump_hex(sm_info.current_aid.value.as_ptr(), sm_info.current_aid.len), ref_) };
+        name = sprintf_aid_ref(&sm_info.current_aid, ref_, "mac");
     }
     else {
 //                snprintf(name, sizeof(name), "keyset_%02i_mac", ref);
-        unsafe { snprintf(name.as_mut_ptr(), name.len(), cstru!(b"keyset_%02i_mac\0").as_ptr(), ref_) };
+//         unsafe { snprintf(name.as_mut_ptr(), name.len(), cstru!(b"keyset_%02i_mac\0").as_ptr(), ref_) };
+        name = sprintf_ref(ref_, "mac");
     }
     value = unsafe { scconf_get_str(sm_conf_block, name.as_ptr(), null::<c_char>()) };
 
@@ -330,7 +352,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
         cwa_session.ifd.k[..DES_KEY_SZ].copy_from_slice(&hex[2*DES_KEY_SZ..3*DES_KEY_SZ]);
     }
 //sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "%s %s", name, sc_dump_hex(cwa_keyset->mac, 2*DES_KEY_SZ));
-    log3if!(ctx,f,line!(), cstru!(b"%s %s\0"),name.as_ptr(), unsafe{sc_dump_hex(cwa_keyset.mac.as_ptr(),2*DES_KEY_SZ)});
+    log3if!(ctx,f,line!(), cstru!(b"%s %s\0"),name.as_ptr(),unsafe{sc_dump_hex(cwa_keyset.mac.as_ptr(), 2*DES_KEY_SZ)});
 
     cwa_keyset.sdo_reference = crt_at.refs[0];
 
@@ -395,71 +417,11 @@ fn sm_cwa_initialize(card: &mut sc_card/*, sm_info: &mut sm_info, _rdata: &mut s
     let f = cstru!(b"sm_cwa_initialize\0");
     log3ifc!(ctx,f,line!());
     /* Mutual Authentication Procedure with 2 different keys, (key card) kc and (key terminal/host) kh */
-/*
-    /* External Authentication */
-    let mut rv = unsafe {
-        sc_get_challenge(card, card.sm_ctx.info.session.cwa.card_challenge.as_mut_ptr(), SM_SMALL_CHALLENGE_LEN) };
-    if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
-    }
-    unsafe { card.sm_ctx.info.session.cwa.ssc = card.sm_ctx.info.session.cwa.card_challenge };
-    let re = des_ecb3_unpadded_8(unsafe { &card.sm_ctx.info.session.cwa.card_challenge }, &get_ck_mac_host(card),
-                                 Encrypt);
-
-    let mut cmd_ext = [0, 0x82, 0, 0x81 /*(key terminal/host) kh*/, SM_SMALL_CHALLENGE_LEN_u8, 0, 0, 0, 0, 0, 0, 0, 0];
-    cmd_ext[5..5 + SM_SMALL_CHALLENGE_LEN].copy_from_slice(&re);
-    let mut apdu = sc_apdu::default();
-    rv = sc_bytes2apdu_wrapper(ctx, &cmd_ext, &mut apdu);
-    assert_eq!(SC_SUCCESS, rv);
-    debug_assert_eq!(SC_APDU_CASE_3_SHORT, apdu.cse);
-
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
-    rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
-    if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
-    }
-*/
     match authenticate_external(card, 0x81, &get_ck_mac_host(card)) {
         Ok(val) => if !val { return SC_ERROR_SM_AUTHENTICATION_FAILED; },
         Err(_e) => { return SC_ERROR_SM_AUTHENTICATION_FAILED; },
     }
     unsafe { card.sm_ctx.info.session.cwa.ssc = card.sm_ctx.info.session.cwa.card_challenge };
-    /*
-        /* Internal Authentication */
-        let mut rv = unsafe {
-            RAND_bytes(card.sm_ctx.info.session.cwa.host_challenge.as_mut_ptr(), i32::from(SM_SMALL_CHALLENGE_LEN_u8)) };
-        if rv != 1 {
-            rv = SC_ERROR_SM_RAND_FAILED;
-            log3ifr!(ctx,f,line!(), rv);
-            return rv;
-        }
-        let mut cmd_int = [0, 0x88, 0, 0x82 /*(key card) kc*/,
-            SM_SMALL_CHALLENGE_LEN_u8, 0, 0, 0, 0, 0, 0, 0, 0, SM_SMALL_CHALLENGE_LEN_u8];
-        cmd_int[5..5 + SM_SMALL_CHALLENGE_LEN].copy_from_slice(unsafe { &card.sm_ctx.info.session.cwa.host_challenge });
-        let mut apdu = sc_apdu::default();
-        rv = sc_bytes2apdu_wrapper(ctx, &cmd_int, &mut apdu);
-        assert_eq!(SC_SUCCESS, rv);
-        debug_assert_eq!(SC_APDU_CASE_4_SHORT, apdu.cse);
-        debug_assert_eq!(SM_SMALL_CHALLENGE_LEN, apdu.le);
-        let mut challenge_encrypted_by_card = [0; SM_SMALL_CHALLENGE_LEN];
-        apdu.resplen = SM_SMALL_CHALLENGE_LEN;
-        apdu.resp = challenge_encrypted_by_card.as_mut_ptr();
-
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
-        rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
-        if rv != SC_SUCCESS {
-            log3ifr!(ctx,f,line!(), rv);
-            return rv;
-        }
-
-        let challenge_encrypted_by_host = des_ecb3_unpadded_8(unsafe { &card.sm_ctx.info.session.cwa.host_challenge },
-                                &get_ck_enc_card(card), Encrypt);
-        if  challenge_encrypted_by_host != challenge_encrypted_by_card.to_vec() {
-            return SC_ERROR_SM_AUTHENTICATION_FAILED;
-        }
-    */
     match authenticate_internal(card, 0x82, &get_ck_enc_card(card)) {
         Ok(val) => if !val { return SC_ERROR_SM_AUTHENTICATION_FAILED; },
         Err(_e) => { return SC_ERROR_SM_AUTHENTICATION_FAILED; },
@@ -530,11 +492,7 @@ fn sm_manage_keyset(card: &mut sc_card) -> i32
             unsafe { sc_dump_hex(card.sm_ctx.info.current_aid.value.as_ptr(), card.sm_ctx.info.current_aid.len) });
 
 //        case SM_TYPE_CWA14890:
-        let rv;
-        #[cfg(not(windows))]
-        { rv = sm_cwa_config_get_keyset(ctx, &mut card.sm_ctx.info); }
-        #[cfg(    windows)]
-        { rv = SC_ERROR_SM; }
+        let rv = sm_cwa_config_get_keyset(ctx, &mut card.sm_ctx.info);
         if rv < SC_SUCCESS {
             log3ifr!(ctx,f,line!(), cstru!(b"SM acos5 configuration error\0"), rv);
         }

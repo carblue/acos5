@@ -239,27 +239,28 @@ fn sc_ac_op_name_from_idx(idx: usize) -> &'static CStr
 }
 
 /* card command  External Authentication
-includes getting a challenge from the card, thus it stops continuation of an 'active' SM channel
+includes getting a challenge from the card. setting card.sm_ctx.info.session.cwa.ssc is not part of this command anymore
 key_host_reference must be enabled for External Authentication and it's Error Counter must have tries_left>0
 */
 #[allow(clippy::missing_errors_doc)]
 pub fn authenticate_external(card: &mut sc_card, key_host_reference: u8, key_host: &[u8]) -> Result<bool, i32> {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"authenticate_ext\0");
+    let f = cstru!(b"authenticate_external\0");
     log3ifc!(ctx,f,line!());
     assert_eq!(24, key_host.len());
-//    if key_host_reference==0 || (key_host_reference&0x7F)>31 {
-//        return SC_ERROR_INVALID_ARGUMENTS;
-//    }
+    if key_host_reference==0 || (key_host_reference&0x7F)>31 {
+        return Err(SC_ERROR_INVALID_ARGUMENTS);
+    }
 
     let mut rv = unsafe {
-        sc_get_challenge(card, card.sm_ctx.info.session.cwa.card_challenge.as_mut_ptr(), SM_SMALL_CHALLENGE_LEN) };
+        sc_get_challenge(card, card.sm_ctx.info.session.cwa.card_challenge.as_mut_ptr(), SM_SMALL_CHALLENGE_LEN)
+    };
     if rv != SC_SUCCESS {
         log3ifr!(ctx,f,line!(), rv);
         return Err(rv);
     }
-//    unsafe { card.sm_ctx.info.session.cwa.ssc = card.sm_ctx.info.session.cwa.card_challenge };
+    //    unsafe { card.sm_ctx.info.session.cwa.ssc = card.sm_ctx.info.session.cwa.card_challenge };
     let re = des_ecb3_unpadded_8(unsafe { &card.sm_ctx.info.session.cwa.card_challenge }, key_host,
                                  Encrypt);
     /* (key terminal/host) kh */
@@ -279,11 +280,12 @@ pub fn authenticate_external(card: &mut sc_card, key_host_reference: u8, key_hos
 pub fn authenticate_internal(card: &mut sc_card, key_card_reference: u8, key_card: &[u8]) -> Result<bool, i32> {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"authenticate_int\0");
+    let f = cstru!(b"authenticate_internal\0");
     log3ifc!(ctx,f,line!());
     assert_eq!(24, key_card.len());
     let mut rv = unsafe {
-        RAND_bytes(card.sm_ctx.info.session.cwa.host_challenge.as_mut_ptr(), i32::from(SM_SMALL_CHALLENGE_LEN_u8)) };
+        RAND_bytes(card.sm_ctx.info.session.cwa.host_challenge.as_mut_ptr(), i32::from(SM_SMALL_CHALLENGE_LEN_u8))
+    };
     if rv != 1 {
         rv = SC_ERROR_SM_RAND_FAILED;
         log3ifr!(ctx,f,line!(), rv);
