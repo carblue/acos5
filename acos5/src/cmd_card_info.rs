@@ -141,8 +141,8 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
 /// Get compact file information (8 bytes) of file referenced within currently selected DF.\
 /// The 8 bytes are: FDB, DCB, FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI
 ///
-/// @apiNote  `SC_CARDCTL_ACOS5_GET_FILE_INFO`; for clients: for all card types indexing starts from 0. This function will
-/// care for cards, that behave differently\
+/// @apiNote  `SC_CARDCTL_ACOS5_GET_FILE_INFO`; for clients: for both card types SC_CARD_TYPE_ACOS5_64_* indexing starts
+/// from 0, for EVO starts from 1.\
 /// @return  file information (8 bytes) or an OpenSC error
 ///
 /// # Errors

@@ -147,3 +147,6 @@ Secure Messaging<br>
 Secure Messaging SM is complicated with ACOS5, thus refer to the reference manual for details.
 The driver supports SM for many commands, but not all, and it's also hardware dependant, whether a command supports SM at all.
 Basically, during file/directory creation, decision is taken whether/what is forced to happen SM protected and the referred SE record decides upon SM mode authenticate/encrypt.
+
+DES parity bits (see also e.g. https://crypto.stackexchange.com/questions/70736/des-parity-bits?rq=1)<br>
+It's not mentioned/stressed in any ACOS5 reference manual but should be known: Each key byte stored by ACOS5 has odd parity (where necessary adjusted by ACOS5). Thus if a DES key entry is comprised of arbitrary/random bytes, then the key actually stored and used by ACOS5 likely is different from that one passed in.

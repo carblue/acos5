@@ -1,39 +1,41 @@
 
 #![allow(non_camel_case_types, non_upper_case_globals, non_snake_case)]
+// #![allow(dead_code)]
 
 use num_integer::Integer;
 
-use std::os::raw::{c_char, c_ulong, c_long, c_int};
+use std::os::raw::{/*c_char, c_ulong,*/ c_long, c_int};
 use std::convert::{TryFrom/*, TryInto*/};
 
 //from openssl  des.h and rand.h
 #[allow(non_upper_case_globals)]
 pub const DES_KEY_SZ_u8 : u8    = 8; // sizeof(DES_cblock)
 pub const DES_KEY_SZ    : usize = 8; // sizeof(DES_cblock)
-pub const AES_BLOCK_SIZE: usize = 16;
+#[allow(dead_code)]
+const AES_BLOCK_SIZE: usize = 16;
 
 pub const Encrypt: i32 = 1;
 pub const Decrypt: i32 = 0;
 
 pub type DES_cblock       = [u8; DES_KEY_SZ];
-pub type const_DES_cblock = [u8; DES_KEY_SZ];
-pub type DES_LONG = c_ulong;
+//pub type const_DES_cblock = [u8; DES_KEY_SZ];
+//pub type DES_LONG = c_ulong;
 
-pub const OPENSSL_VERSION:     i32 =  0;
-pub const OPENSSL_CFLAGS:      i32 =  1;
-pub const OPENSSL_BUILT_ON:    i32 =  2;
-pub const OPENSSL_PLATFORM:    i32 =  3;
-pub const OPENSSL_DIR:         i32 =  4;
-pub const OPENSSL_ENGINES_DIR: i32 =  5;
+// pub const OPENSSL_VERSION:     i32 =  0;
+// pub const OPENSSL_CFLAGS:      i32 =  1;
+// pub const OPENSSL_BUILT_ON:    i32 =  2;
+// pub const OPENSSL_PLATFORM:    i32 =  3;
+// pub const OPENSSL_DIR:         i32 =  4;
+// pub const OPENSSL_ENGINES_DIR: i32 =  5;
 
 #[repr(C)]
 #[derive(Default, Debug)]
-pub struct DES_key_schedule {
+struct DES_key_schedule {
     ks: [DES_cblock; 16],
 }
 
 #[repr(C)]
-pub struct AES_KEY {
+struct AES_KEY {
     rd_key: [u32; 60],
     rounds: c_int,
 }
@@ -48,13 +50,13 @@ impl Default for AES_KEY {
 }
 
 extern "C" {
-    pub fn OpenSSL_version_num() -> c_ulong;
-    pub fn OpenSSL_version(type_: i32) -> *const c_char;
+//    pub fn OpenSSL_version_num() -> c_ulong;
+//    pub fn OpenSSL_version(type_: i32) -> *const c_char;
     pub fn RAND_bytes(buf: *mut u8, num: i32) -> i32; // RAND_bytes() returns 1 on success, 0 otherwise
 
-    #[allow(dead_code)]
+    pub fn DES_set_odd_parity(key: *mut DES_cblock);
     fn DES_set_key_checked  (block_key: *const u8, ks: *mut DES_key_schedule) -> i32;
-    fn DES_set_key_unchecked(block_key: *const u8, ks: *mut DES_key_schedule);
+//  fn DES_set_key_unchecked(block_key: *const u8, ks: *mut DES_key_schedule);
     fn DES_ecb3_encrypt(input: *const u8, output: *mut u8,
                         ks1: *const DES_key_schedule,
                         ks2: *const DES_key_schedule,
@@ -70,12 +72,34 @@ extern "C" {
                             ivec: *mut DES_cblock,
                             enc: i32);
     // return 0 for success, -1 if userKey or key is NULL, or -2 if the number of bits is unsupported.
+    #[allow(dead_code)]
     fn AES_set_encrypt_key(userKey: *const u8, bits: i32, key: *mut AES_KEY) -> i32;
+    #[allow(dead_code)]
     fn AES_set_decrypt_key(userKey: *const u8, bits: i32, key: *mut AES_KEY) -> i32;
 
+    #[allow(dead_code)]
     fn AES_ecb_encrypt(in_: *const u8, out: *mut u8, key: *const AES_KEY, enc: i32);
+    #[allow(dead_code)]
     fn AES_cbc_encrypt(in_: *const u8, out: *mut u8, length: usize, key: *const AES_KEY, ivec: *mut u8, enc: i32);
 }
+
+/*
+from https://github.com/tkaitchuck/aHash/blob/master/src/operations.rs
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), target_feature = "aes", not(miri)))]
+#[allow(unused)]
+#[inline(always)]
+pub(crate) fn aesenc(value: u128, xor: u128) -> u128 {
+    #[cfg(target_arch = "x86")]
+    use core::arch::x86::*;
+    #[cfg(target_arch = "x86_64")]
+    use core::arch::x86_64::*;
+    use core::mem::transmute;
+    unsafe {
+        let value = transmute(value);
+        transmute(_mm_aesenc_si128(value, transmute(xor)))
+    }
+}
+*/
 
 /*
 //  from https://gist.github.com/vincascm/fda1cff664fa027937a53446ba8ef605
@@ -140,7 +164,11 @@ pub fn des_ecb3_unpadded_8(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> { // -
     let mut output = Vec::with_capacity(data.len());
     unsafe {
         for (i, item) in key.chunks_exact(DES_KEY_SZ).enumerate() {
-            DES_set_key_unchecked(item.as_ptr(), &mut ks[i]);
+            // DES_set_key_unchecked(item.as_ptr(), &mut ks[i]);
+            let rv = DES_set_key_checked(item.as_ptr(), &mut ks[i]);
+            if rv != 0 {
+                return output;
+            }
         }
 
         for chunk in data.chunks_exact(DES_KEY_SZ) {
@@ -173,7 +201,11 @@ pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode:
     let mut output = vec![0_u8; data.len()];
     unsafe {
         for (i, item) in key.chunks_exact(DES_KEY_SZ).enumerate() {
-            DES_set_key_unchecked(item.as_ptr(), &mut ks[i]);
+            // DES_set_key_unchecked(item.as_ptr(), &mut ks[i]);
+            let rv = DES_set_key_checked(item.as_ptr(), &mut ks[i]);
+            if rv != 0 {
+                return output;
+            }
         }
 
         DES_ede3_cbc_encrypt(data.as_ptr(), output.as_mut_ptr(), c_long::try_from(data.len()).unwrap(),
@@ -201,7 +233,7 @@ pub fn des_ede3_cbc_pad_80_mac(data: &[u8], key: &[u8], ivec: &mut DES_cblock) -
 /* this will be used by EVO only for Encrypt and data known to be a multiple of AES_BLOCK_SIZE */
 #[allow(dead_code)]
 #[must_use]
-pub fn aes_ecb_unpadded_16(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> {
+fn aes_ecb_unpadded_16(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> {
     assert!(data.len().is_multiple_of(&AES_BLOCK_SIZE));
     assert!([16, 24, 32].contains(&key.len()));
     // assert_eq!(Encrypt, mode); // TODO missing AES_set_decrypt_key
@@ -234,7 +266,8 @@ pi is relevant here only for Decrypt:
 if pi==01, then it's known, that  a 0x80 byte was added (padding was applied and must be stripped in mode == Decrypt)
 if pi==00, then it's known, that no 0x80 byte was added
 */
-pub fn aes_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut [u8; AES_BLOCK_SIZE], mode: i32, pi: u8) -> Vec<u8> {
+#[allow(dead_code)]
+fn aes_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut [u8; AES_BLOCK_SIZE], mode: i32, pi: u8) -> Vec<u8> {
     assert!(mode==Encrypt || data.len().is_multiple_of(&AES_BLOCK_SIZE));
     assert!([16, 24, 32].contains(&key.len()));
 

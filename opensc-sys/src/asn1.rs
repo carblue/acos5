@@ -269,14 +269,14 @@ pub fn _sc_asn1_encode(ctx: *mut sc_context, asn1: *const sc_asn1_entry,
 /// let mut taglen  : usize = 0;
 /// let mut rv = unsafe { sc_asn1_read_tag(&mut buf_ptr, buflen, &mut cla_out, &mut tag_out, &mut taglen) };
 /// assert_eq!(SC_SUCCESS, rv);
-/// assert_eq!(buf_ptr, unsafe{ select_response.as_ptr().add(2) });
+/// assert_eq!(2, unsafe { buf_ptr.offset_from(select_response.as_ptr()) });
 /// assert_eq!(cla_out+tag_out, ISO7816_TAG_FCI.into() /* 0x6F */);
 /// assert_eq!(taglen, 0x30);
 /// buflen -= 2;
 ///
 /// rv = unsafe { sc_asn1_read_tag(&mut buf_ptr, buflen, &mut cla_out, &mut tag_out, &mut taglen) };
 /// assert_eq!(SC_SUCCESS, rv);
-/// assert_eq!(buf_ptr, unsafe{ select_response.as_ptr().add(4) });
+/// assert_eq!(4, unsafe { buf_ptr.offset_from(select_response.as_ptr()) });
 /// assert_eq!(cla_out+tag_out, ISO7816_TAG_FCP_FID.into() /* 0x83 */);
 /// assert_eq!(taglen, 2);
 /// assert_eq!(unsafe{ u16::from_be_bytes([*buf_ptr, *buf_ptr.add(1)]) }, 0x4100);
@@ -285,7 +285,7 @@ pub fn _sc_asn1_encode(ctx: *mut sc_context, asn1: *const sc_asn1_entry,
 ///
 /// rv = unsafe { sc_asn1_read_tag(&mut buf_ptr, buflen, &mut cla_out, &mut tag_out, &mut taglen) };
 /// assert_eq!(SC_SUCCESS, rv);
-/// assert_eq!(buf_ptr, unsafe{ select_response.as_ptr().add(8) });
+/// assert_eq!(8, unsafe { buf_ptr.offset_from(select_response.as_ptr()) });
 /// assert_eq!(cla_out+tag_out, 0x88 /* ISO7816_RFU_TAG_FCP_SFI */);
 /// assert_eq!(taglen, 1);
 /// assert_eq!(unsafe{ *buf_ptr }, 0);

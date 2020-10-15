@@ -140,7 +140,7 @@ pub fn prefix_sym_key(card_type: i32, rec_nr: u8, algorithm_type: u32, key_len_b
     }
     res.push(key_type);
     if key_type > 0 {
-        // TODO Was this order of "key info" data tested to work as intended ? acos5_gui implements this order !
+        // This order of "key info" data was tested to work as intended !
         if int_auth { res.extend_from_slice(&count_use_int_auth.to_be_bytes()); }
         if ext_auth { res.push(count_err_ext_auth); }
     }

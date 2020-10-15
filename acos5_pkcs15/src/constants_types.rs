@@ -18,6 +18,8 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
+#![allow(dead_code)]
+
 use std::os::raw::{c_char, c_ulong, c_void};
 use std::collections::HashMap;
 
@@ -159,7 +161,7 @@ pub const _0_0_0   : &[u8; 6] = b"0.0.0\0";
 */
 
 // iso7816 ReservedFutureUse tags used by acos, that are not part of iso7816.h/rs
-//pub const ISO7816_RFU_TAG_FCP_SFI  : u8 = 0x88;  /* L:1,    V: Short File Identifier (SFI). 5 LSbs of File ID if unspecified. Applies to: Any file */
+pub const ISO7816_RFU_TAG_FCP_SFI  : u8 = 0x88;    /* L:1,    V: Short File Identifier (SFI). 5 LSbs of File ID if unspecified. Applies to: Any file */
 pub const ISO7816_RFU_TAG_FCP_SAC  : u8 = 0x8C;    /* L:0-8,  V: Security Attribute Compact (SAC). Applies to: Any file */
 pub const ISO7816_RFU_TAG_FCP_SEID : u8 = 0x8D;    /* L:2,    V: Security Environment File identifier (SE File associated with this DF). Applies to: DFs */
 pub const ISO7816_RFU_TAG_FCP_SAE  : u8 = 0xAB;    /* L:0-32, V: Security Attribute Extended (SAE). Applies to: DF s */

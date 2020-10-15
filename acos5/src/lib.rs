@@ -46,34 +46,20 @@ TODO Only set to anything other than SC_ERROR_KEYPAD_MSG_TOO_LONG, if that's the
 #![allow(non_snake_case)]
 */
 
+//#![feature(const_fn)]
+
 #![allow(unused_unsafe)]
 //#![allow(unused_macros)]
-
-//#![feature(const_fn)]
-//#![feature(ptr_offset_from)]
-
-
-#![cfg_attr(feature = "cargo-clippy", warn(clippy::all))] 
+#![cfg_attr(feature = "cargo-clippy", warn(clippy::all))]
 #![cfg_attr(feature = "cargo-clippy", warn(clippy::pedantic))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::doc_markdown))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::module_name_repetitions))]
-
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::similar_names))]
 // #![cfg_attr(feature = "cargo-clippy", allow(clippy::cognitive_complexity))]
 // #![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_lines))]
 // #![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::if_not_else))]
 
-
-extern crate libc;
-extern crate num_integer;
-extern crate opensc_sys;
-//extern crate bitintr; //no_cdecl.rs
-//extern crate ring;
-//use ring::digest::{/*Context, Digest,*/ digest, SHA256/*, Algorithm, Context*/};
-
-//extern crate data_encoding;
-//use data_encoding::HEXUPPER;
 
 use std::os::raw::{c_char, c_ulong, c_void};
 use std::ffi::{CStr/*, CString*/};
@@ -119,16 +105,14 @@ use opensc_sys::types::{sc_aid, SC_MAX_AID_SIZE, SC_AC_CHV, sc_path, sc_file, sc
                         SC_AC_OP_UPDATE, SC_AC_OP_CRYPTO, SC_AC_OP_DELETE_SELF, SC_AC_OP_CREATE, SC_AC_OP_WRITE,
                         SC_AC_OP_GENERATE,*/ SC_APDU_FLAGS_CHAINING, SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_1,
                         SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT};
-
 use opensc_sys::errors::{SC_SUCCESS/*, SC_ERROR_INTERNAL*/, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
                          SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY, SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING,
                          SC_ERROR_INCORRECT_PARAMETERS, SC_ERROR_NOT_SUPPORTED, SC_ERROR_BUFFER_TOO_SMALL, SC_ERROR_NOT_ALLOWED,
                          SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_CARD_CMD_FAILED};
 use opensc_sys::internal::{_sc_card_add_rsa_alg, _sc_card_add_ec_alg, sc_pkcs1_encode, _sc_match_atr};
-
 use opensc_sys::log::{sc_dump_hex};
 use opensc_sys::cardctl::{SC_CARDCTL_GET_SERIALNR, SC_CARDCTL_LIFECYCLE_SET};
-use opensc_sys::asn1::{sc_asn1_find_tag, sc_asn1_put_tag/*, sc_asn1_skip_tag, sc_asn1_read_tag, sc_asn1_print_tags*/};
+use opensc_sys::asn1::{sc_asn1_put_tag/*, sc_asn1_skip_tag, sc_asn1_read_tag, sc_asn1_print_tags, sc_asn1_find_tag*/};
 use opensc_sys::iso7816::{ISO7816_TAG_FCP_TYPE, ISO7816_TAG_FCP_LCS,  ISO7816_TAG_FCP, ISO7816_TAG_FCP_SIZE,
                           ISO7816_TAG_FCP_FID, ISO7816_TAG_FCP_DF_NAME};
 use opensc_sys::pkcs15::{sc_pkcs15_pubkey_rsa, sc_pkcs15_bignum, sc_pkcs15_encode_pubkey_rsa, sc_pkcs15_bind,
@@ -139,53 +123,49 @@ use opensc_sys::sm::{SM_TYPE_CWA14890, SM_CMD_PIN, SM_CMD_PIN_VERIFY, SM_CMD_PIN
 
 
 #[macro_use]
-pub mod    macros;
+mod macros;
 
-//#[allow(dead_code)]
-pub mod    cmd_card_info;
-use crate::cmd_card_info::{get_cos_version, get_count_files_curr_df, get_file_info, get_free_space, get_is_fips_compliant,
-                           get_is_ident_self_okay, get_is_key_authenticated, get_is_pin_authenticated, get_manufacture_date,
-                           get_op_mode_byte, get_rom_sha1, get_serialnr};
+mod cmd_card_info;
+use cmd_card_info::{get_cos_version, get_count_files_curr_df, get_file_info, get_free_space, get_is_fips_compliant,
+                    get_is_ident_self_okay, get_is_key_authenticated, get_is_pin_authenticated, get_manufacture_date,
+                    get_op_mode_byte, get_rom_sha1, get_serialnr};
 
-pub mod    constants_types;
-// use crate::constants_types::*;
-use crate::constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES,
-                             BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, BLOCKCIPHER_PAD_TYPE_PKCS5,
-                             BLOCKCIPHER_PAD_TYPE_ZEROES, CARD_DRV_NAME, CARD_DRV_SHORT_NAME,
-                             CardCtlArray32, CardCtlArray8, CardCtlAuthState, CardCtl_crypt_sym,
-                             CardCtl_generate_crypt_asym, CardCtl_generate_inject_asym, DataPrivate,
-                             FDB_CHV_EF, FDB_CYCLIC_EF, FDB_DF, FDB_ECC_KEY_EF, FDB_LINEAR_FIXED_EF,
-                             FDB_LINEAR_VARIABLE_EF, FDB_MF, FDB_PURSE_EF, FDB_RSA_KEY_EF, FDB_SE_FILE,
-                             FDB_SYMMETRIC_KEY_EF, FDB_TRANSPARENT_EF, ISO7816_RFU_TAG_FCP_SAC, ISO7816_RFU_TAG_FCP_SAE,
-                             ISO7816_RFU_TAG_FCP_SEID, KeyTypeFiles, PKCS15_FILE_TYPE_NONE, PKCS15_FILE_TYPE_PIN,
-                             PKCS15_FILE_TYPE_RSAPRIVATEKEY, PKCS15_FILE_TYPE_RSAPUBLICKEY, PKCS15_FILE_TYPE_SECRETKEY,
-                             RSAPUB_MAX_LEN, SC_CARDCTL_ACOS5_DECRYPT_SYM, SC_CARDCTL_ACOS5_ENCRYPT_ASYM,
-                             SC_CARDCTL_ACOS5_ENCRYPT_SYM, SC_CARDCTL_ACOS5_GET_COS_VERSION,
-                             SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO,
-                             SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE, SC_CARDCTL_ACOS5_GET_FREE_SPACE,
-                             SC_CARDCTL_ACOS5_GET_IDENT_SELF, SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE,
-                             SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE, SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE,
-                             SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE, SC_CARDCTL_ACOS5_GET_ROM_SHA1,
-                             SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO, SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO,
-                             SC_CARDCTL_ACOS5_SDO_CREATE, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES,
-                             SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET,
-                             SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET, SC_CARD_TYPE_ACOS5_64_V2,
-                             SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_BASE, SC_CARD_TYPE_ACOS5_EVO_V4,
-                             SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
-                             SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
-                             SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
-                             ValueTypeFiles, build_apdu, is_DFMF, p_void};
+mod constants_types;
+use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES,
+                      BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, BLOCKCIPHER_PAD_TYPE_PKCS5,
+                      BLOCKCIPHER_PAD_TYPE_ZEROES, CARD_DRV_NAME, CARD_DRV_SHORT_NAME,
+                      CardCtlArray32, CardCtlArray8, CardCtlAuthState, CardCtl_crypt_sym,
+                      CardCtl_generate_crypt_asym, CardCtl_generate_inject_asym, DataPrivate,
+                      FDB_CHV_EF, FDB_CYCLIC_EF, FDB_DF, FDB_ECC_KEY_EF, FDB_LINEAR_FIXED_EF,
+                      FDB_LINEAR_VARIABLE_EF, FDB_MF, FDB_PURSE_EF, FDB_RSA_KEY_EF, FDB_SE_FILE,
+                      FDB_SYMMETRIC_KEY_EF, FDB_TRANSPARENT_EF, ISO7816_RFU_TAG_FCP_SAC,
+                      ISO7816_RFU_TAG_FCP_SEID, KeyTypeFiles, PKCS15_FILE_TYPE_NONE, PKCS15_FILE_TYPE_PIN,
+                      PKCS15_FILE_TYPE_RSAPRIVATEKEY, PKCS15_FILE_TYPE_RSAPUBLICKEY, PKCS15_FILE_TYPE_SECRETKEY,
+                      RSAPUB_MAX_LEN, SC_CARDCTL_ACOS5_DECRYPT_SYM, SC_CARDCTL_ACOS5_ENCRYPT_ASYM,
+                      SC_CARDCTL_ACOS5_ENCRYPT_SYM, SC_CARDCTL_ACOS5_GET_COS_VERSION,
+                      SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO,
+                      SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE, SC_CARDCTL_ACOS5_GET_FREE_SPACE,
+                      SC_CARDCTL_ACOS5_GET_IDENT_SELF, SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE,
+                      SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE, SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE,
+                      SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE, SC_CARDCTL_ACOS5_GET_ROM_SHA1,
+                      SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO, SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO,
+                      SC_CARDCTL_ACOS5_SDO_CREATE, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES,
+                      SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET,
+                      SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET, SC_CARD_TYPE_ACOS5_64_V2,
+                      SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_BASE, SC_CARD_TYPE_ACOS5_EVO_V4,
+                      SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
+                      SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
+                      SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
+                      ValueTypeFiles, build_apdu, is_DFMF, p_void};
 
-pub mod    crypto;
+mod crypto;
 
-pub mod    missing_exports;
-use crate::missing_exports::{me_card_add_symmetric_alg, me_card_find_alg, me_get_max_recv_size,
+mod missing_exports;
+use missing_exports::{me_card_add_symmetric_alg, me_card_find_alg, me_get_max_recv_size,
                              me_pkcs1_strip_01_padding, me_pkcs1_strip_02_padding};//, me_get_encoding_flags
 
-// choose new name ? denoting, that there are rust-mangled, non-externC functions, that don't relate to se
-// (security environment) nor relate to sm (secure messaging) nor relate to pkcs15/pkcs15-init
-pub mod    no_cdecl;
-use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_array, enum_dir,
+mod no_cdecl;
+use no_cdecl::{select_file_by_path, enum_dir,
     pin_get_policy, tracking_select_file, acos5_supported_atrs,
                       /*encrypt_public_rsa,*/ get_sec_env, set_sec_env,// get_rsa_caps,
     get_is_running_cmd_long_response, set_is_running_cmd_long_response, is_any_known_digestAlgorithm,
@@ -194,21 +174,20 @@ use crate::no_cdecl::{select_file_by_path, convert_bytes_tag_fcp_sac_to_scb_arra
     /*, create_mf_file_system*/ convert_acl_array_to_bytes_tag_fcp_sac, get_sec_env_mod_len,
     ACL_CATEGORY_DF_MF, ACL_CATEGORY_EF_CHV, ACL_CATEGORY_KEY, ACL_CATEGORY_SE,
     get_is_running_compute_signature, set_is_running_compute_signature,
-    common_read, common_update, acos5_supported_ec_curves, logout_pin//, sc_ac_op_name_from_idx
+    common_read, common_update, acos5_supported_ec_curves, logout_pin, FCI//, sc_ac_op_name_from_idx
 };
 
-pub mod    path;
-use crate::path::{file_id_from_cache_current_path, file_id_from_path_value, current_path_df};
+mod path;
+use path::{file_id_from_cache_current_path, file_id_from_path_value, current_path_df};
 
-pub mod    se;
-use crate::se::{map_scb8_to_acl, se_get_is_scb_suitable_for_sm_has_ct, se_parse_sae,
-                se_get_sae_scb};
+mod se;
+use se::{map_scb8_to_acl, se_get_is_scb_suitable_for_sm_has_ct, se_parse_sae, se_get_sae_scb};
 
-pub mod    sm;
-use crate::sm::{sm_erase_binary, sm_delete_file, sm_pin_cmd, sm_pin_cmd_get_policy};
+mod sm;
+use sm::{sm_erase_binary, sm_delete_file, sm_pin_cmd, sm_pin_cmd_get_policy};
 
-pub mod    wrappers;
-use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tt, wr_do_log_tu, wr_do_log_tuv};
+mod wrappers;
+use wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tt, wr_do_log_tu, wr_do_log_tuv};
 
 /*
 #[cfg(test)]
@@ -262,9 +241,9 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 /// # Safety
 ///
 /// This function should not be called before the horsemen are ready.
-#[allow(clippy::missing_safety_doc)]
+//#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> p_void {
+pub extern "C" fn sc_module_init(name: *const c_char) -> p_void {
     if !name.is_null() && unsafe {CStr::from_ptr(name)} == cstru!(CARD_DRV_SHORT_NAME) {
         acos5_get_card_driver as p_void
     }
@@ -274,7 +253,7 @@ pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> p_void {
 }
 
 
-/*
+/**
  * What it does
  * @apiNote
  * @return
@@ -437,7 +416,7 @@ TODO how to set opensc.conf, such that a minimum of trials to match atr is done
  */
 /*
  * Implements sc_card_operations function 'match_card'
- * @see opensc_sys::opensc pub struct sc_card_operations
+ * @see opensc_sys::opensc struct sc_card_operations
  * @apiNote
  * @param
  * @return 1 on success (this driver will serve the card), 0 otherwise
@@ -551,7 +530,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
 
     // Only now, on success, set card.type
     card.type_ = type_out;
-    log3if!(ctx,f,line!(), cstru!(b"'%s' card matched\0"), acos5_atrs[usize::try_from(idx_acos5_atrs).unwrap()].name);
+    log3if!(ctx,f,line!(), cstru!(b"'%s'  ##### card matched ! #####\0"), acos5_atrs[usize::try_from(idx_acos5_atrs).unwrap()].name);
     1
 }
 
@@ -1070,7 +1049,6 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
         else {
             let mut end_offset = [0_u8; 2];
             // end_offset (not included; i.e. byte at that address doesn't get erased)
-//            unsafe{ copy_nonoverlapping((idx + count).to_be_bytes().as_ptr(), end_offset.as_mut_ptr(), 2);}
             end_offset.copy_from_slice(&(idx + count).to_be_bytes());
             apdu.data = end_offset.as_ptr();
         }
@@ -1537,10 +1515,7 @@ extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) 
         let current_path_df_slice = current_path_df(card);
         let len = current_path_df_slice.len();
         let mut path = sc_path { type_: SC_PATH_TYPE_PATH, len: len+2, ..sc_path::default() };
-//        unsafe { copy_nonoverlapping(current_path_df_slice.as_ptr(),  path.value.as_mut_ptr(), len); }
         path.value[..len].copy_from_slice(current_path_df_slice);
-//        unsafe { copy_nonoverlapping(u16::try_from(file.id).unwrap().to_be_bytes().as_ptr(),
-//                                     path.value.as_mut_ptr().add(len), 2); }
         path.value[len..len+2].copy_from_slice(&u16::try_from(file.id).unwrap().to_be_bytes());
         file.path = path;
     }
@@ -1568,13 +1543,9 @@ extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) 
             x.1[5] =  u8::try_from(file_ref.record_count).unwrap();
         }
         else if [FDB_TRANSPARENT_EF, FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&x.1[0]) {
-//            unsafe { copy_nonoverlapping(u16::try_from(file_ref.size).unwrap().to_be_bytes().as_ptr(),
-//                                         x.1.as_mut_ptr().add(4), 2); }
             x.1[4..6].copy_from_slice(&u16::try_from(file_ref.size).unwrap().to_be_bytes());
         }
         else { // MF/DF
-//            unsafe { copy_nonoverlapping(u16::try_from(file_ref.id+3).unwrap().to_be_bytes().as_ptr(),
-//                                         x.1.as_mut_ptr().add(4), 2); }
             x.1[4..6].copy_from_slice(&u16::try_from(file_ref.id+3).unwrap().to_be_bytes());
         }
         card.drv_data = Box::into_raw(dp) as p_void;
@@ -1652,8 +1623,6 @@ println!("file_id: {:X} is not a key of hashmap dp.files", file_id);
     else {
         let mut path = sc_path { type_: SC_PATH_TYPE_FILE_ID, len: std::cmp::min(path_ref.len, 2), ..*path_ref };
         if path.len == 2 {
-//            unsafe { copy_nonoverlapping(path_ref.value.as_ptr().add(path_ref.len-2),
-//                                         path.value.as_mut_ptr(), 2) };
             path.value[..2].copy_from_slice(&path_ref.value[path_ref.len-2..path_ref.len]);
         }
         let func_ptr = unsafe { (*(*sc_get_iso7816_driver()).ops).delete_file.unwrap() };
@@ -1759,210 +1728,90 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
  *  @param  buflen  IN    L of FCI's first TLV
  *  @return         SC_SUCCESS or error code from errors.rs
  */
-/*
- * What it does
- * @apiNote
- * @param
- * @return
- */
-#[allow(clippy::too_many_lines)]
-// #[must_use]
 extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
                                 buf_ref_ptr: *const u8, buflen: usize) -> i32
 {
-/*
-  Many tags are detected by iso7816_process_fci, but it misses to search for
-  0x8C  ISO7816_RFU_TAG_FCP_SAC
-  0x8D  ISO7816_RFU_TAG_FCP_SEID
-  0xAB  ISO7816_RFU_TAG_FCP_SAE
-
-//  0x82  ISO7816_TAG_FCP_TYPE must be evaluated once more for proprietary EF: SE file : mark it as internal EF: opensc-tool prints only for
-//  SC_FILE_TYPE_WORKING_EF, SC_FILE_TYPE_INTERNAL_EF, SC_FILE_TYPE_DF
-//  file sizes are missing for structure: linear-fixed and linear-variable
-*/
-    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || file_ptr.is_null() {
+    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || file_ptr.is_null() || buflen==0 {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     let file = unsafe { &mut *file_ptr };
-
     log3ifc!(ctx, cstru!(b"acos5_process_fci\0"), line!());
-
-    let mut vec_bytes_tag_fcp_sac : Vec<u8> = Vec::with_capacity(8);
-    let mut len_bytes_tag_fcp_sac = 0_usize;
-    let     ptr_bytes_tag_fcp_sac = unsafe { sc_asn1_find_tag(ctx, buf_ref_ptr, buflen,
-        u32::from(ISO7816_RFU_TAG_FCP_SAC), &mut len_bytes_tag_fcp_sac) };
-    assert!(!ptr_bytes_tag_fcp_sac.is_null());
-    vec_bytes_tag_fcp_sac.extend_from_slice(unsafe { from_raw_parts(ptr_bytes_tag_fcp_sac, len_bytes_tag_fcp_sac) });
-    let scb8 = match convert_bytes_tag_fcp_sac_to_scb_array(&vec_bytes_tag_fcp_sac) {
-        Ok(scb8)  => scb8,
-        Err(e)      => return e,
-    };
 /*
     let mut buf_vec : Vec<u8> = Vec::with_capacity(90);
     buf_vec.extend_from_slice(unsafe { from_raw_parts(buf_ref_ptr, buflen) });
-    println!("buf_vec: {:X?}, scb8: {:X?}", buf_vec, scb8);
+    println!("buf_vec: {:X?}", buf_vec);
 */
-    let mut rv = unsafe { (*(*sc_get_iso7816_driver()).ops).process_fci.unwrap()(card, file, buf_ref_ptr, buflen) };
-    assert_eq!(rv, SC_SUCCESS);
-/* */
     /* save all the FCI data for future use */
-    rv = unsafe { sc_file_set_prop_attr(file, buf_ref_ptr, buflen) };
+    let mut rv = unsafe { sc_file_set_prop_attr(file, buf_ref_ptr, buflen) };
     assert_eq!(rv, SC_SUCCESS);
-    assert!(file.prop_attr_len>0);
+    assert!(file.prop_attr_len > 0);
     assert!(!file.prop_attr.is_null());
-/* */
-    // retrieve FDB FileDescriptorByte and perform some corrective actions
-    // if file.type_== 0 || (file.type_!= SC_FILE_TYPE_DF && file.ef_structure != SC_FILE_EF_TRANSPARENT)
-    let mut  len_bytes_tag_fcp_type = 0_usize;
-    let      ptr_bytes_tag_fcp_type = unsafe { sc_asn1_find_tag(ctx, buf_ref_ptr, buflen, u32::from(ISO7816_TAG_FCP_TYPE), &mut len_bytes_tag_fcp_type) };
-    assert!(!ptr_bytes_tag_fcp_type.is_null()); // It's a mandatory tag
-    assert!( len_bytes_tag_fcp_type >=2 );
-    let fdb = unsafe { *ptr_bytes_tag_fcp_type };
-    if  file.type_ == 0 && fdb == FDB_SE_FILE {
+    rv = unsafe { (*(*sc_get_iso7816_driver()).ops).process_fci.unwrap()(card, file, buf_ref_ptr, buflen) };
+    assert_eq!(rv, SC_SUCCESS);
+
+    let fci = FCI::new_parsed(unsafe { from_raw_parts(buf_ref_ptr, buflen) });
+
+    // perform some corrective actions
+    if  file.type_ == 0 && fci.fdb == FDB_SE_FILE {
         file.type_ = SC_FILE_TYPE_INTERNAL_EF;
     }
-    if file.type_ != SC_FILE_TYPE_DF && file.ef_structure != SC_FILE_EF_TRANSPARENT { // for non-transparent EF multiply MaxRecordLen and NumberOfRecords as a file size hint
-//        82, 6, 1C, 0, 0, 30, 0, 1
-        assert!(len_bytes_tag_fcp_type >= 5 && len_bytes_tag_fcp_type <= 6);
-        #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-        { file.record_length = i32::try_from( unsafe { *ptr_bytes_tag_fcp_type.add(3) }).unwrap(); }
-        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-        { file.record_length = unsafe { usize::from(*ptr_bytes_tag_fcp_type.add(3)) }; }
-
-        #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-        { file.record_count  = i32::try_from(unsafe { *ptr_bytes_tag_fcp_type.add(len_bytes_tag_fcp_type-1) }).unwrap(); }
-        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-        { file.record_count  = unsafe { usize::from(*ptr_bytes_tag_fcp_type.add(len_bytes_tag_fcp_type-1)) }; }
-
-        #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-        { file.size = usize::try_from (file.record_length * file.record_count).unwrap(); }
-        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-        { file.size =  file.record_length * file.record_count; }
+    debug_assert_ne!(0, file.type_);
+    if file.type_ != SC_FILE_TYPE_DF && file.ef_structure != SC_FILE_EF_TRANSPARENT {
+        file.record_length = fci.mrl.into();
+        file.record_count  = fci.nor.into();
+        file.size          = fci.size.into();
     }
-
-    let mut sefile_id = [0; 2];
-    let mut vec_bytes_tag_fcp_sae : Vec<u8> = Vec::with_capacity(32);
-    if is_DFMF(fdb) {
-        let mut len_bytes_tag_fcp_seid = 0_usize;
-        let     ptr_bytes_tag_fcp_seid = unsafe { sc_asn1_find_tag(ctx, buf_ref_ptr, buflen,
-                                                  u32::from(ISO7816_RFU_TAG_FCP_SEID), &mut len_bytes_tag_fcp_seid) };
-        assert!(  !ptr_bytes_tag_fcp_seid.is_null());
-        assert_eq!(len_bytes_tag_fcp_seid, 2);
-        sefile_id = unsafe { [*ptr_bytes_tag_fcp_seid, *ptr_bytes_tag_fcp_seid.offset(1)] };
-//        println!("sefile_id: {:?}", sefile_id);
-        let mut len_bytes_tag_fcp_sae = 0_usize;
-        let ptr_bytes_tag_fcp_sae = unsafe { sc_asn1_find_tag(ctx, buf_ref_ptr, buflen, u32::from(ISO7816_RFU_TAG_FCP_SAE),
-                                                              &mut len_bytes_tag_fcp_sae) };
-        if !ptr_bytes_tag_fcp_sae.is_null() && len_bytes_tag_fcp_sae>0 {
-            vec_bytes_tag_fcp_sae.extend_from_slice(unsafe { from_raw_parts(ptr_bytes_tag_fcp_sae, len_bytes_tag_fcp_sae) });
-/*
-vec_bytes_tag_fcp_sae: [84, 1, 2C, 97, 0,        // never allow Unblock Pin
-                        84, 1, 24, 9E, 1, 42]    // Change Code only via Secure Messaging SCB: 0x42
-file_id: 4300
-*/
-        }
-    }
-
-    let mut len_bytes_tag_fcp_lcs = 0;
-    let     ptr_bytes_tag_fcp_lcs = unsafe { sc_asn1_find_tag(ctx, buf_ref_ptr, buflen,
-                                             u32::from(ISO7816_TAG_FCP_LCS), &mut len_bytes_tag_fcp_lcs) };
-    assert!(  !ptr_bytes_tag_fcp_lcs.is_null());
-    assert_eq!(len_bytes_tag_fcp_lcs, 1);
-    let lcsi = unsafe { *ptr_bytes_tag_fcp_lcs };
 
     /* Map from scb8 to file.acl array */
-    map_scb8_to_acl(card, file, scb8, fdb);
-    /*
-        /* select_file is always allowed */
-        assert_eq!(    SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, SC_AC_OP_SELECT,     SC_AC_NONE, SC_AC_KEY_REF_NONE) } );
-        if is_DFMF(fdb) {
-            /* list_files is always allowed for MF/DF */
-            assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, SC_AC_OP_LIST_FILES, SC_AC_NONE, SC_AC_KEY_REF_NONE) } );
-            /* for opensc-tool also add the general SC_AC_OP_CREATE, which shall comprise both, SC_AC_OP_CREATE_EF and SC_AC_OP_CREATE_DF (added below later)  */
-            se_file_add_acl_entry(card, file, scb8[1], SC_AC_OP_CREATE); // Create EF
-            se_file_add_acl_entry(card, file, scb8[2], SC_AC_OP_CREATE); // Create DF
-        }
-        else {
-            /* for an EF, acos doesn't distinguish access right update <-> write, thus add SC_AC_OP_WRITE as a synonym to SC_AC_OP_UPDATE */
-            se_file_add_acl_entry(card, file, scb8[1], SC_AC_OP_WRITE);
-            /* usage of SC_AC_OP_DELETE_SELF <-> SC_AC_OP_DELETE seems to be in confusion in opensc, thus for opensc-tool and EF add SC_AC_OP_DELETE to SC_AC_OP_DELETE_SELF
-               My understanding is:
-               SC_AC_OP_DELETE_SELF designates the right to delete the EF/DF that contains this right in it's SCB
-               SC_AC_OP_DELETE      designates the right of a directory, that a contained file may be deleted; acos calls that Delete Child
-            */
-            se_file_add_acl_entry(card, file, scb8[6], SC_AC_OP_DELETE);
-        }
-        /* for RSA key file add SC_AC_OP_GENERATE to SC_AC_OP_CRYPTO */
-        if fdb == FDB_RSA_KEY_EF {
-            se_file_add_acl_entry(card, file, scb8[2], SC_AC_OP_GENERATE); // MSE/PSO Commands
-        }
+    map_scb8_to_acl(card, file, fci.scb8, fci.fdb);
 
-        let ops_df_mf  = [ SC_AC_OP_DELETE/*_CHILD*/, SC_AC_OP_CREATE_EF, SC_AC_OP_CREATE_DF, SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE_SELF ];
-        let ops_ef_chv = [ SC_AC_OP_READ,             SC_AC_OP_UPDATE,    0xFF,               SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE_SELF ];
-        let ops_key    = [ SC_AC_OP_READ,             SC_AC_OP_UPDATE,    SC_AC_OP_CRYPTO,    SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE_SELF ];
-        let ops_se     = [ SC_AC_OP_READ,             SC_AC_OP_UPDATE,    SC_AC_OP_CRYPTO,    SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE_SELF ];
-
-        for idx_scb8 in 0..7 {
-            let op =
-                if       is_DFMF(fdb)                                         { ops_df_mf [idx_scb8] }
-                else if  fdb == FDB_SE_FILE                                   { ops_se    [idx_scb8] }
-                else if  fdb == FDB_RSA_KEY_EF || fdb == FDB_SYMMETRIC_KEY_EF { ops_key   [idx_scb8] }
-                else                                                          { ops_ef_chv[idx_scb8] };
-            se_file_add_acl_entry(card, file, scb8[idx_scb8], op);
-        }
-    */
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-    let file_id = u16::try_from(file.id).unwrap();
-//println!("file_id: {:X}", file_id);
-    assert!(dp.files.contains_key(&file_id));
-    /*if dp.files.contains_key(&file_id)*/
-    let dp_files_value = dp.files.get_mut(&file_id).unwrap();
+    assert!(dp.files.contains_key(&fci.fid));
+    let dp_files_value = dp.files.get_mut(&fci.fid).unwrap();
+//println!("on entry; dp_files_value: {:X?}", dp_files_value);
+    /* if dp_files_value.1[0] == FDB_MF && dp_files_value.1[4..] == [0u8, 0, 0xFF, 0xFF] */  // correct the initially unknown/incorrect lcsi setting
+    dp_files_value.1[7] = fci.lcsi;
+    dp_files_value.2.get_or_insert(fci.scb8);
+
     if  dp_files_value.1[2] == 0 && dp_files_value.1[3] == 0 { // assume dp_files_value.1 wasn't provided by list_files, i.e. insert by acos5_create_file
-        dp_files_value.1[0] = fdb;
-//      dp_files_value.1[1] = dcb;
-//        unsafe { copy_nonoverlapping(file_id.to_be_bytes().as_ptr(), dp_files_value.1.as_mut_ptr().add(2), 2); }
-        dp_files_value.1[2..4].copy_from_slice(&file_id.to_be_bytes());
+        dp_files_value.1[0] = fci.fdb;
+        dp_files_value.1[2..4].copy_from_slice(&fci.fid.to_be_bytes());
         if  file.type_!= SC_FILE_TYPE_DF && file.ef_structure != SC_FILE_EF_TRANSPARENT {
-            dp_files_value.1[4] = unsafe { *ptr_bytes_tag_fcp_type.offset(3) };
-            dp_files_value.1[5] = unsafe { *ptr_bytes_tag_fcp_type.add(len_bytes_tag_fcp_type-1) };
+            dp_files_value.1[4..6].copy_from_slice( &[fci.mrl, fci.nor] );
         }
         else {
-//            unsafe { copy_nonoverlapping(u16::try_from(file.size).unwrap().to_be_bytes().as_ptr(), dp_files_value.1.as_mut_ptr().add(4), 2); }
             dp_files_value.1[4..6].copy_from_slice(&u16::try_from(file.size).unwrap().to_be_bytes());
         }
 //      dp_files_value.1[6] = sfi;
-//      dp_files_value.1[7] = lcsi;
     }
-    dp_files_value.2.get_or_insert(scb8);
     if  dp_files_value.1[0] == FDB_RSA_KEY_EF && dp_files_value.1[6] == 0xFF {
         /* a better, more sophisticated distinction requires more info. Here, readable or not. Possibly read first byte from file */
-        dp_files_value.1[6] = if scb8[0] != 0xFF {PKCS15_FILE_TYPE_RSAPUBLICKEY} else {PKCS15_FILE_TYPE_RSAPRIVATEKEY};
+        dp_files_value.1[6] = if fci.scb8[0] != 0xFF {PKCS15_FILE_TYPE_RSAPUBLICKEY} else {PKCS15_FILE_TYPE_RSAPRIVATEKEY};
     }
         /*
-                    if rbuf[0]==FDB_RSA_KEY_EF && dp.files[&file_id].2.is_some() && dp.files[&file_id].2.unwrap()[0]==0 {
-                        if let Some(x) = dp.files.get_mut(&file_id) {
+                    if rbuf[0]==FDB_RSA_KEY_EF && dp.files[&fci.fid].2.is_some() && dp.files[&fci.fid].2.unwrap()[0]==0 {
+                        if let Some(x) = dp.files.get_mut(&fci.fid) {
                             (*x).1[6] = PKCS15_FILE_TYPE_RSAPUBLICKEY;
                         }
                     }
         */
-    /* if dp_files_value.1[0] == FDB_MF && dp_files_value.1[4..] == [0u8, 0, 0xFF, 0xFF] */  // correct the initially unknown/incorrect lcsi setting
-    dp_files_value.1[7] = lcsi;
-    if is_DFMF(fdb) {
+    if is_DFMF(fci.fdb) {
         if  dp_files_value.1[4..6] == [0_u8; 2] {
-            dp_files_value.1[4..6].copy_from_slice(&sefile_id);
+            dp_files_value.1[4..6].copy_from_slice(&fci.seid.to_be_bytes());
         }
 
-        if  dp_files_value.4.is_none() && !vec_bytes_tag_fcp_sae.is_empty() {
-//            println!("file_id: {:X}, vec_bytes_tag_fcp_sae: {:X?}", file_id, vec_bytes_tag_fcp_sae);
-            dp_files_value.4 = match se_parse_sae(&mut dp_files_value.3, &vec_bytes_tag_fcp_sae) {
+        if  dp_files_value.4.is_none() && !fci.sae.is_empty() {
+//            println!("fci.fid: {:X}, fci.sae: {:X?}", fci.fid, fci.sae);
+            dp_files_value.4 = match se_parse_sae(&mut dp_files_value.3, &fci.sae) {
                 Ok(val) => Some(val),
                 Err(e) => { card.drv_data = Box::into_raw(dp) as p_void; return e},
             }
         }
     }
 
+//println!("on exit;  dp_files_value: {:X?}", dp_files_value);
     card.drv_data = Box::into_raw(dp) as p_void;
     SC_SUCCESS
 } // acos5_process_fci
@@ -2092,7 +1941,6 @@ println!("Non-match in let acl_category. file_ref.type_: {}", file_ref.type_);
     ptr_diff_sum += 2;
 
     /* 4 bytes will be written for tag ISO7816_TAG_FCP_FID (0x83)  MANDATORY */
-//    unsafe { copy_nonoverlapping(u16::try_from(file_ref.id).unwrap().to_be_bytes().as_ptr(), buf2.as_mut_ptr(), 2); }
     buf2.copy_from_slice(&u16::try_from(file_ref.id).unwrap().to_be_bytes());
     unsafe { sc_asn1_put_tag(u32::from(ISO7816_TAG_FCP_FID), buf2.as_ptr(), 2, p, *outlen-ptr_diff_sum, &mut p) };
     ptr_diff_sum += 4;
@@ -2126,7 +1974,6 @@ println!("Non-match in let acl_category. file_ref.type_: {}", file_ref.type_);
     if [FDB_TRANSPARENT_EF, FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&fdb) { // any non-record-based, non-DF/MF fdb
         /* 4 bytes will be written for tag ISO7816_TAG_FCP_SIZE (0x80) */
         assert!(file_ref.size > 0);
-//        unsafe { copy_nonoverlapping(u16::try_from(file_ref.size).unwrap().to_be_bytes().as_ptr(), buf2.as_mut_ptr(), 2); }
         buf2.copy_from_slice(&u16::try_from(file_ref.size).unwrap().to_be_bytes());
         unsafe { sc_asn1_put_tag(u32::from(ISO7816_TAG_FCP_SIZE), buf2.as_ptr(), 2, p, *outlen-ptr_diff_sum, &mut p) };
         ptr_diff_sum += 4;
@@ -2139,7 +1986,6 @@ println!("Non-match in let acl_category. file_ref.type_: {}", file_ref.type_);
 
     if is_DFMF(fdb) {
         /* 4 bytes will be written for tag ISO7816_RFU_TAG_FCP_SEID (0x8D) */
-//        unsafe { copy_nonoverlapping(u16::try_from(file_ref.id+3).unwrap().to_be_bytes().as_ptr(), buf2.as_mut_ptr(), 2); }
         buf2.copy_from_slice(&u16::try_from(file_ref.id+3).unwrap().to_be_bytes());
         unsafe { sc_asn1_put_tag(u32::from(ISO7816_RFU_TAG_FCP_SEID), buf2.as_ptr(), 2, p, *outlen-ptr_diff_sum, &mut p) };
         ptr_diff_sum += 4;
@@ -2723,7 +2569,6 @@ extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const
                         assert_eq!(u32::from(vec[15]), sec_env_param.value_len);
                         let len = usize::try_from(sec_env_param.value_len).unwrap();
                         assert_eq!(vec.len(), 16+ len);
-//                        unsafe { copy_nonoverlapping(sec_env_param.value as *const u8, vec.as_mut_ptr().add(16), len) };
                         vec[16..].copy_from_slice(unsafe { from_raw_parts(sec_env_param.value as *const u8, len) });
                     },
                     SC_SEC_ENV_PARAM_TARGET_FILE => { continue; }
@@ -3140,17 +2985,17 @@ Trick: cache last security env setting, retrieve file id (priv) and deduce key l
 //println!("is_any_known_digestAlgorithm(digest_info): {}", is_any_known_digestAlgorithm(digest_info));
         if (SC_ALGORITHM_RSA_PAD_PKCS1 & sec_env_algo_flags) > 0 && is_any_known_digestAlgorithm(digest_info)
         {
-/* calling me_get_encoding_flags is not necessary, it's done within sc_pkcs1_encode anyway.
-   Here just for curiosity/inspection * /
+            /* calling me_get_encoding_flags is not necessary, it's done within sc_pkcs1_encode anyway.
+               Here just for curiosity/inspection  * /
             let mut pflags = 0;
             let mut sflags = 0;
             rv = me_get_encoding_flags(ctx, sec_env_algo_flags | SC_ALGORITHM_RSA_HASH_NONE,
                                        get_rsa_caps(card), &mut pflags, &mut sflags);
-println!("pflags: {}, sflags: {}", pflags, sflags);
+            println!("pflags: {}, sflags: {}", pflags, sflags);
             if rv != SC_SUCCESS {
                 return rv;
             }
-/ * */
+            */
             let mut vec_len = std::cmp::min(outlen, get_sec_env_mod_len(card));
             let mut vec = vec![0_u8; vec_len];
             rv = unsafe { sc_pkcs1_encode(ctx, c_ulong::from(sec_env_algo_flags | SC_ALGORITHM_RSA_HASH_NONE), digest_info.as_ptr(),
@@ -3250,7 +3095,6 @@ extern "C" fn acos5_unwrap(card_ptr: *mut sc_card, crgram: *const u8, crgram_len
         vec.insert(2, if klen==32 {0x22} else if klen==24 {0x12} else {2});
         while vec.len() < usize::from(dp.sym_key_rec_cnt) { vec.push(0); }
         let mut path = sc_path { len: 2, ..sc_path::default() };
-//        unsafe { copy_nonoverlapping(dp.sym_key_file_id.to_be_bytes().as_ptr(), path.value.as_mut_ptr(), 2) };
         path.value[..2].copy_from_slice(&dp.sym_key_file_id.to_be_bytes());
         unsafe { sc_select_file(card, &path, null_mut()) };
         /* TODO This only works if Login-PIN is the same as required for SC_AC_OP_UPDATE of file dp.sym_key_file_id */
@@ -3265,7 +3109,7 @@ extern "C" fn acos5_unwrap(card_ptr: *mut sc_card, crgram: *const u8, crgram_len
 
 /*
  * Implements sc_card_operations function 'delete_record'
- * @see opensc_sys::opensc pub struct sc_card_operations
+ * @see opensc_sys::opensc struct sc_card_operations
  * In the narrower sense, deleting a record is impossible: It's part of a file that may be deleted.
  * In the broader sense, cos5 considers any record with first byte==00 as empty (see cos5 command 'append_record'),
  * thus this command will zeroize all record content

@@ -74,7 +74,8 @@ SC_ERROR_SM_RAND_FAILED
 };
 use opensc_sys::internal::{sc_atr_table};
 use opensc_sys::asn1::{sc_asn1_read_tag};
-use opensc_sys::iso7816::{ISO7816_TAG_FCI, ISO7816_TAG_FCP};
+use opensc_sys::iso7816::{ISO7816_TAG_FCI, ISO7816_TAG_FCP, ISO7816_TAG_FCP_SIZE, ISO7816_TAG_FCP_TYPE,
+                          ISO7816_TAG_FCP_FID, ISO7816_TAG_FCP_DF_NAME, ISO7816_TAG_FCP_LCS};
 use opensc_sys::sm::{SM_SMALL_CHALLENGE_LEN, SM_CMD_FILE_READ, SM_CMD_FILE_UPDATE};
 
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tt, wr_do_log_ttt, wr_do_log_tu,
@@ -89,7 +90,8 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
                              SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
                              SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                              SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
-                             Acos5EcCurve, build_apdu, is_DFMF, p_void};
+                             Acos5EcCurve, build_apdu, is_DFMF, p_void, TLV,
+                             ISO7816_RFU_TAG_FCP_SFI, ISO7816_RFU_TAG_FCP_SAC, ISO7816_RFU_TAG_FCP_SEID, ISO7816_RFU_TAG_FCP_SAE};
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, file_id_from_path_value, current_path_df,
                   is_impossible_file_match};
@@ -101,8 +103,104 @@ use crate::crypto::{RAND_bytes, des_ecb3_unpadded_8, Encrypt};
 
 use super::{acos5_process_fci/*, acos5_list_files, acos5_select_file, acos5_set_security_env*/};
 
+/* Represents the FCI content, */
+#[derive(Debug, Clone, PartialEq)]
+pub struct FCI {
+    pub fdb : u8,
+    pub fid : u16,
+    pub size : u16,
+    pub lcsi : u8,
+
+    pub df_name : Vec<u8>,
+    pub scb8 : [u8; 8],
+    pub sae : Vec<u8>,
+    pub seid : u16,
+
+    pub mrl : u8,
+    pub nor : u8,
+}
+
+impl Default for FCI {
+    fn default() -> Self {
+        Self {
+            fdb: 0,
+            fid: 0,
+            size: 0,
+            lcsi: 0,
+            df_name: Vec::with_capacity(16),
+            scb8: [0; 8],
+            sae: Vec::with_capacity(32),
+            seid: 0,
+            mrl: 0,
+            nor: 0
+        }
+    }
+}
+
+impl FCI {
+/*
+    pub fn new(fdb: u8, fid : u16, size: u16, lcsi: u8, df_name: Vec<u8>, scb8: [u8; 8], sae: Vec<u8>, seid : u16, mrl: u8, nor: u8) -> Self {
+        FCI { fdb, fid, size, lcsi, df_name, scb8, sae, seid, mrl, nor }
+    }
+*/
+    pub fn new_parsed(fci_bytes_sequence_body: &[u8]) -> Self {
+        let mut result = FCI::default();
+        // let tlv_iter = TLV::new(fci_bytes_sequence_body);
+        for tlv in TLV::new(fci_bytes_sequence_body) {
+            match tlv.tag() {
+                ISO7816_TAG_FCP_TYPE => {
+                    result.fdb = tlv.value()[0];
+                    let len = tlv.length();
+                    assert!([1,2,5,6].contains(&len));
+                    if len > 2 {
+                        result.mrl = tlv.value()[3];
+                        result.nor = tlv.value()[usize::from(len)-1];
+                        result.size = u16::from(result.mrl) * u16::from(result.nor);
+                    }
+                },
+                ISO7816_TAG_FCP_FID => {
+                    assert_eq!(2, tlv.length());
+                    result.fid = u16::from_be_bytes( [ tlv.value()[0], tlv.value()[1] ]);
+                },
+                ISO7816_TAG_FCP_SIZE => {
+                    assert_eq!(2, tlv.length());
+                    result.size = u16::from_be_bytes( [ tlv.value()[0], tlv.value()[1] ]);
+                },
+                ISO7816_TAG_FCP_LCS => {
+                    assert_eq!(1, tlv.length());
+                    result.lcsi = tlv.value()[0];
+                },
+                ISO7816_TAG_FCP_DF_NAME => {
+                    result.df_name.extend_from_slice(tlv.value());
+                },
+                ISO7816_RFU_TAG_FCP_SFI => {
+                    assert_eq!(1, tlv.length());
+                    // result.sfi = tlv.value()[0];
+                },
+                ISO7816_RFU_TAG_FCP_SAC => {
+                    result.scb8 = match convert_bytes_tag_fcp_sac_to_scb_array(tlv.value()) {
+                        Ok(val)  => val,
+                        Err(_e)     => panic!(),
+                    };
+                },
+                ISO7816_RFU_TAG_FCP_SAE => {
+                    result.sae.extend_from_slice(tlv.value());
+                },
+                ISO7816_RFU_TAG_FCP_SEID => {
+                    assert_eq!(2, tlv.length());
+                    result.seid = u16::from_be_bytes( [ tlv.value()[0], tlv.value()[1] ]);
+                },
+                _ => unreachable!()
+            }
+        }
+        result
+    }
+}
+
+#[allow(dead_code)]
+#[cold]
 #[must_use]
-pub fn sc_ac_op_name_from_idx(idx: usize) -> &'static CStr
+fn sc_ac_op_name_from_idx(idx: usize) -> &'static CStr
 {
     match idx {
          0  => cstru!(b"SC_AC_OP_SELECT\0"),
@@ -231,7 +329,9 @@ pub fn logout_pin(card: &mut sc_card, reference: u8) -> i32 {
 
 // reference: 1..=31
 // TODO adapt for EVO and potentially collapse with logout_pin
-pub fn logout_key(card: &mut sc_card, reference: u8) -> i32 {
+#[allow(dead_code)]
+#[cold]
+fn logout_key(card: &mut sc_card, reference: u8) -> i32 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
     let f = cstru!(b"logout_key\0");
@@ -291,14 +391,12 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
         }
     */
 
-//    unsafe { copy_nonoverlapping(in_path_ref.value.as_ptr(), pathvalue_ptr, in_path_ref.len) }; // memcpy(pathvalue_ptr, in_path_ref->value, in_path_ref->len);
     pathvalue[..in_path_ref.len].copy_from_slice(&in_path_ref.value[..in_path_ref.len]);
     let mut pathlen = in_path_ref.len;
     let mut pathtype = in_path_ref.type_;
 
     if in_path_ref.aid.len > 0 {
         if pathlen == 0 {
-//            unsafe { copy_nonoverlapping(in_path_ref.aid.value.as_ptr(), pathvalue_ptr, in_path_ref.aid.len) }; // memcpy(pathvalue_ptr, in_path_ref->aid.value, in_path_ref->aid.len);
             pathvalue[..in_path_ref.aid.len].copy_from_slice(&in_path_ref.aid.value[..in_path_ref.aid.len]);
             pathlen = in_path_ref.aid.len;
             pathtype = SC_PATH_TYPE_DF_NAME;
@@ -459,6 +557,7 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
             let mut buffer : *const u8 = apdu.resp;
             r = unsafe { sc_asn1_read_tag(&mut buffer, apdu.resplen, &mut cla, &mut tag, &mut buffer_len) };
             if r == SC_SUCCESS {
+                debug_assert_eq!(cla+tag, ISO7816_TAG_FCI.into() /* 0x6F */);
                 acos5_process_fci(card, file, buffer, buffer_len); // card->ops->process_fci(card, file, buffer, buffer_len);
             }
             assert!(file.prop_attr_len>0);
@@ -863,7 +962,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
     SC_SUCCESS
 } // enum_dir
 
-pub fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*, depth: i32*/) -> i32
+fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*, depth: i32*/) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -944,7 +1043,7 @@ pub fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/
 ///
 /// # Errors
 #[allow(clippy::missing_errors_doc)]
-pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Result<[u8; 8], i32>
+fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Result<[u8; 8], i32>
 {
     let mut scb8 = [0_u8; 8]; // if AM has no 1 bit for a command/operation, then it's : always allowed
     scb8[7] = 0xFF; // though not expected to be accidentally set, it get's overridden to NEVER: it's not used by ACOS
@@ -1308,7 +1407,10 @@ pub fn set_rsa_caps(card: &mut sc_card, value: u32)
 }
 */
 
-pub fn get_rsa_caps(card: &mut sc_card) -> u32
+#[allow(dead_code)]
+#[cold]
+#[must_use]
+fn get_rsa_caps(card: &mut sc_card) -> u32
 {
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let result = dp.rsa_caps;
@@ -1342,7 +1444,7 @@ pub fn get_sec_env_mod_len(card: &mut sc_card) -> usize
     result
 }
 
-pub fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
+fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
 {
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     dp.sec_env_mod_len = 0;
@@ -1386,7 +1488,7 @@ pub fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
 //TODO integrate this into encrypt_asym
 #[allow(dead_code)]
 #[cold]
-pub unsafe fn encrypt_public_rsa(card_ptr: *mut sc_card, signature: *const u8, siglen: usize)
+fn encrypt_public_rsa(card_ptr: *mut sc_card, signature: *const u8, siglen: usize)
 {
 /*
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
@@ -1454,7 +1556,6 @@ pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtl_generate_crypt_
         ..sc_security_env::default()
     };
     if crypt_data.perform_mse {
-//        unsafe { copy_nonoverlapping(crypt_data.file_id_pub.to_be_bytes().as_ptr(), env.file_ref.value.as_mut_ptr(), 2); }
         env.file_ref.value[..2].copy_from_slice(&crypt_data.file_id_pub.to_be_bytes());
 //        command = [0_u8, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x12, 0x81, 0x02, (crypt_data.file_id_pub >> 8) as u8, (crypt_data.file_id_pub & 0xFF) as u8, 0x95, 0x01, 0x80];
     }
@@ -1538,7 +1639,6 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
             file_ref: sc_path { len: 2, ..sc_path::default() }, // file_ref.value[0..2] = fidRSAprivate.getub2;
             ..sc_security_env::default()
         };
-//        unsafe { copy_nonoverlapping(data.file_id_priv.to_be_bytes().as_ptr(), env.file_ref.value.as_mut_ptr(), 2); }
         env.file_ref.value[..2].copy_from_slice(&data.file_id_priv.to_be_bytes());
         rv = /*acos5_set_security_env*/ unsafe { sc_set_security_env(card, &env, 0) };
         if rv < 0 {
@@ -1553,7 +1653,6 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
             file_ref: sc_path { len: 2, ..sc_path::default() }, // file_ref.value[0..2] = fidRSApublic.getub2;
             ..sc_security_env::default()
         };
-//        unsafe { copy_nonoverlapping(data.file_id_pub.to_be_bytes().as_ptr(), env.file_ref.value.as_mut_ptr(), 2); }
         env.file_ref.value[..2].copy_from_slice(&data.file_id_pub.to_be_bytes());
         rv = /*acos5_set_security_env*/ unsafe { sc_set_security_env(card, &env, 0) };
         if rv < 0 {
@@ -1647,7 +1746,7 @@ RFC 8017                      PKCS #1 v2.2                 November 2016
 }
 
 #[must_use]
-pub fn trailing_blockcipher_padding_calculate(
+fn trailing_blockcipher_padding_calculate(
     block_size   : u8, // 16 or 8
     padding_type : u8, // any of BLOCKCIPHER_PAD_TYPE_*
     rem          : u8  // == len (input len to blockcipher encrypt, may be != block_size) % block_size; 0 <= rem < block_size
@@ -1696,7 +1795,7 @@ pub fn trailing_blockcipher_padding_calculate(
 ///
 /// # Errors
 #[allow(clippy::missing_errors_doc)]
-pub fn trailing_blockcipher_padding_get_length(
+fn trailing_blockcipher_padding_get_length(
     block_size   : u8, // 16 or 8
     padding_type : u8, // any of BLOCKCIPHER_PAD_TYPE_*
     last_block_values: &[u8]
@@ -2259,8 +2358,19 @@ pub fn common_update(card: &mut sc_card,
 #[cfg(test)]
 mod tests {
     use super::{convert_bytes_tag_fcp_sac_to_scb_array, convert_amdo_to_cla_ins_p1_p2_array,
-                trailing_blockcipher_padding_calculate, trailing_blockcipher_padding_get_length};
+                trailing_blockcipher_padding_calculate, trailing_blockcipher_padding_get_length, FCI};
     use crate::constants_types::*;
+
+    #[test]
+    fn test_fci() {
+        let fci = FCI::new_parsed(&[
+            /*0x6F, 0x30,*/ 0x83, 0x02, 0x41, 0x00, 0x88, 0x01, 0x00, 0x8A, 0x01, 0x05, 0x82, 0x02, 0x38, 0x00,
+            0x8D, 0x02, 0x41, 0x03, 0x84, 0x10, 0x41, 0x43, 0x4F, 0x53, 0x50, 0x4B, 0x43, 0x53, 0x2D, 0x31,
+            0x35, 0x76, 0x31, 0x2E, 0x30, 0x30, 0x8C, 0x08, 0x7F, 0x03, 0xFF, 0x00, 0x01, 0x01, 0x01, 0x01,
+            0xAB, 0x00]);
+        assert_eq!(fci, FCI { fdb: 0x38, fid: 0x4100, size: 0, lcsi: 5, df_name: b"ACOSPKCS-15v1.00".to_vec(),
+            scb8: [1_u8,1,1,1,0,255,3,255], sae: vec![], seid: 0x4103 })
+    }
 
     #[test]
     fn test_convert_bytes_tag_fcp_sac_to_scb_array() -> Result<(), i32> {

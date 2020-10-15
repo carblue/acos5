@@ -22,10 +22,6 @@ Secure Messaging is handled transparently towards OpenSC, meaning, it's done whe
 towards OpenSC (OpenSC wouldn't help anyway but just confuse if setting SC_AC_PRO is used)
 */
 
-extern crate libc;
-extern crate num_integer;
-extern crate opensc_sys;
-
 // libc doesn't provide snprintf for windows
 #[cfg(not(windows))]
 use libc::snprintf;
@@ -55,7 +51,8 @@ use opensc_sys::scconf::{scconf_block, scconf_find_blocks, scconf_get_str};
 
 use crate::constants_types::{ACOS5_OBJECT_REF_LOCAL, ACOS5_OBJECT_REF_MAX, CARD_DRV_SHORT_NAME, DataPrivate, build_apdu,
                              p_void, SC_CARD_TYPE_ACOS5_EVO_V4};
-use crate::crypto::{DES_KEY_SZ, DES_KEY_SZ_u8, des_ecb3_unpadded_8, des_ede3_cbc_pad_80_mac, des_ede3_cbc_pad_80, Encrypt, Decrypt};
+use crate::crypto::{DES_KEY_SZ, DES_KEY_SZ_u8, des_ecb3_unpadded_8, des_ede3_cbc_pad_80_mac, des_ede3_cbc_pad_80,
+                    DES_set_odd_parity, DES_cblock, Encrypt, Decrypt};
 use crate::no_cdecl::{authenticate_external, authenticate_internal};
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tttt, wr_do_log_tu, wr_do_log_tuv,
                       wr_do_log_tuvw};
@@ -489,10 +486,16 @@ fn sm_cwa_initialize(card: &mut sc_card/*, sm_info: &mut sm_info, _rdata: &mut s
     }
 //        writefln("deriv_data_plain:     0x [ %(%x %) ]", deriv_data);
 
-    let sess_enc_buf = des_ecb3_unpadded_8(&deriv_data, &get_ck_enc_card(card), Encrypt);
-    let sess_mac_buf = des_ecb3_unpadded_8(&deriv_data, &get_ck_mac_host(card), Encrypt);
+    let mut sess_enc_buf = des_ecb3_unpadded_8(&deriv_data, &get_ck_enc_card(card), Encrypt);
+    let mut sess_mac_buf = des_ecb3_unpadded_8(&deriv_data, &get_ck_mac_host(card), Encrypt);
     assert_eq!(3 * DES_KEY_SZ, sess_enc_buf.len());
     assert_eq!(3 * DES_KEY_SZ, sess_mac_buf.len());
+    for i in 0..3 {
+        unsafe {
+            DES_set_odd_parity(sess_enc_buf.as_mut_ptr().add(i*8) as *mut DES_cblock);
+            DES_set_odd_parity(sess_mac_buf.as_mut_ptr().add(i*8) as *mut DES_cblock);
+        }
+    }
     unsafe {
         card.sm_ctx.info.session.cwa.session_enc.copy_from_slice(&sess_enc_buf[..2*DES_KEY_SZ]);
         card.sm_ctx.info.session.cwa.icc.k[DES_KEY_SZ..2*DES_KEY_SZ].copy_from_slice(&sess_enc_buf[2*DES_KEY_SZ..]);
@@ -985,9 +988,10 @@ pub fn sm_delete_file(card: &mut sc_card) -> i32
 
 
 //TODO this doesn't work for SM Confidentiality (has_ct==true)
-pub fn sm_create_file(card: &mut sc_card,
-                        buf: &[u8], // starting with 0x62
-                        has_ct: bool) -> i32
+#[allow(dead_code)]
+fn sm_create_file(card: &mut sc_card,
+                  buf: &[u8], // starting with 0x62
+                  has_ct: bool) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
