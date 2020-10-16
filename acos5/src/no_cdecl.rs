@@ -562,8 +562,6 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
                 debug_assert_eq!(cla+tag, ISO7816_TAG_FCI.into() /* 0x6F */);
                 acos5_process_fci(card, file, buffer, buffer_len); // card->ops->process_fci(card, file, buffer, buffer_len);
             }
-            assert!(file.prop_attr_len>0);
-            assert!(!file.prop_attr.is_null());
             assert!(file_out.is_some());
             if let Some(file_out_ptr) = file_out {
                 **file_out_ptr = file;
@@ -1034,7 +1032,7 @@ fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*,
  *                               (6)'SC_AC_OP_DELETE_SELF', (7)'unused'
  *
  * The reference manual contains a table indicating the possible combinations of bits allowed for a scb:
- * For any violation, None will be returned
+ * For any violation, Err will be returned
  */
 /*
  * What it does

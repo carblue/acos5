@@ -585,32 +585,28 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     card.cla  = 0x00;                                        // int      default APDU class (interindustry)
     /* max_send_size  IS  treated as a constant (won't change) */
     card.max_send_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE; // 0x0FF; // 0x0FFFF for usb-reader, 0x0FF for chip/card;  Max Lc supported by the card
-    /* max_recv_size  IS NOT  treated as a constant (it will be set temporarily to SC_READER_SHORT_APDU_MAX_RECV_SIZE where commands do support interpreting le byte 0 as 256 (le is 1 byte only!), like e.g. acos5_compute_signature) */
+    /* max_recv_size  IS NOT  treated as a constant (it will be set temporarily to SC_READER_SHORT_APDU_MAX_RECV_SIZE
+    where commands do support interpreting le byte 0 as 256 (le is 1 byte only!), like e.g. acos5_compute_signature) */
     /* some commands return 0x6100, meaning, there are 256==SC_READER_SHORT_APDU_MAX_RECV_SIZE  bytes (or more) to fetch */
-    card.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE; //reduced as long as iso7816_read_binary is used: 0==0x100 is not understood // 0x100; // 0x10000 for usb-reader, 0x100 for chip/card;  Max Le supported by the card, decipher (in chaining mode) with a 4096-bit key returns 2 chunks of 256 bytes each !!
+    card.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE;
 
     /* possibly more SC_CARD_CAP_* apply, TODO clarify */
     card.caps    = SC_CARD_CAP_RNG | SC_CARD_CAP_USE_FCI_AC | SC_CARD_CAP_ISO7816_PIN_INFO;
     /* card.caps |= SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH   what exactly is this? */
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     { card.caps |=  /*SC_CARD_CAP_WRAP_KEY | */ SC_CARD_CAP_UNWRAP_KEY; }
-    /* The reader of USB CryptoMate64/CryptoMate Nano supports extended APDU, but the ACOS5-64 cards don't: Thus SC_CARD_CAP_APDU_EXT only for ACOS5-EVO TODO */
+    /* The reader of USB CryptoMate64/CryptoMate Nano supports extended APDU, but the ACOS5-64 cards don't:
+       Thus SC_CARD_CAP_APDU_EXT only for ACOS5-EVO TODO */
 
-    /* it's possible to add SC_ALGORITHM_RSA_RAW, but then pkcs11-tool -t needs insecure cfg=dev_relax_signature_constraints_for_raw */
+    /* it's possible to add SC_ALGORITHM_RSA_RAW, but then pkcs11-tool -t needs insecure
+       cfg=dev_relax_signature_constraints_for_raw */
     let rsa_algo_flags = SC_ALGORITHM_ONBOARD_KEY_GEN | SC_ALGORITHM_RSA_PAD_PKCS1 /* | SC_ALGORITHM_RSA_RAW*/;
 //    rsa_algo_flags   |= SC_ALGORITHM_RSA_RAW; // PSS works with that only currently via acos5_decipher; declaring SC_ALGORITHM_RSA_PAD_PSS seems superfluous
-//    rsa_algo_flags   |= SC_ALGORITHM_RSA_PAD_PKCS1;
 //    #[cfg(not(any(v0_17_0, v0_18_0)))]
 //    { rsa_algo_flags |= SC_ALGORITHM_RSA_PAD_PSS; }
 //    rsa_algo_flags   |= SC_ALGORITHM_RSA_PAD_ISO9796; // cos5 supports ISO9796, but don't use this, see https://www.iacr.org/archive/eurocrypt2000/1807/18070070-new.pdf
-//    rsa_algo_flags   |= SC_ALGORITHM_RSA_PAD_NONE; // for cfg!(any(v0_17_0, v0_18_0, v0_19_0)) this is a NOOP, as SC_ALGORITHM_RSA_PAD_NONE is zero then
 
     /* SC_ALGORITHM_NEED_USAGE : Don't use that: the driver will handle that for sign internally ! */
-    /* Though there is now some more hash related info in opensc.h, still it's not clear to me whether to apply any of
-         SC_ALGORITHM_RSA_HASH_NONE or SC_ALGORITHM_RSA_HASH_SHA256 etc. */
-//    rsa_algo_flags |= SC_ALGORITHM_RSA_HASH_NONE;
-//    rsa_algo_flags |= SC_ALGORITHM_RSA_HASH_SHA256;
-//    rsa_algo_flags |= SC_ALGORITHM_MGF1_SHA256;
 
     let is_fips_compliant = match card.type_ {
         SC_CARD_TYPE_ACOS5_64_V3 |
@@ -2745,32 +2741,23 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
         assert!(rv<0);
         return rv;
     }
-    let vec_len = std::cmp::min(crgram_len, apdu.resplen);
-    vec.truncate(vec_len);
+    vec.truncate(std::cmp::min(crgram_len, apdu.resplen));
 
     if get_is_running_compute_signature(card) {
         set_is_running_compute_signature(card, false);
-        rv = 0;
     }
     else { // assuming plaintext was EME-PKCS1-v1_5 encoded before encipher: Now remove the padding
-        let sec_env_algo_flags : u32 = get_sec_env(card).algorithm_flags;
+//let sec_env_algo_flags = get_sec_env(card).algorithm_flags;
 //println!("\nacos5_decipher:             in_len: {}, out_len: {}, sec_env_algo_flags: 0x{:X}, input data: {:X?}", crgram_len, outlen, sec_env_algo_flags,  unsafe {from_raw_parts(crgram_ref_ptr, crgram_len)});
 //println!("\nacos5_decipher:             in_len: {}, out_len: {}, sec_env_algo_flags: 0x{:X},output data: {:X?}", crgram_len, outlen, sec_env_algo_flags,  vec);
         rv = me_pkcs1_strip_02_padding(&mut vec); // returns length of padding to be removed from vec such that net message/plain text remains
-        if rv < SC_SUCCESS {
-            if (SC_ALGORITHM_RSA_RAW & sec_env_algo_flags) == SC_ALGORITHM_RSA_RAW {
-                rv = 0;
-            }
-            else {
-                log3ifr!(ctx,f,line!(), cstru!(b"returning with: Failed strip_02_padding !\0"), rv);
-                return rv;
-            }
+        if rv < 0 && (SC_ALGORITHM_RSA_RAW & get_sec_env(card).algorithm_flags) == 0 {
+            log3ifr!(ctx,f,line!(), cstru!(b"returning with: Failed strip_02_padding !\0"), rv);
+            return rv;
         }
     }
-    assert!(rv >= 0);
-    assert!(i32::try_from(vec_len).unwrap() >= rv);
-    unsafe { copy_nonoverlapping(vec.as_ptr(), out_ptr, vec_len - usize::try_from(rv).unwrap()) };
-    rv = i32::try_from(vec_len).unwrap() - rv;
+    rv = i32::try_from(vec.len()).unwrap();
+    unsafe { copy_nonoverlapping(vec.as_ptr(), out_ptr, vec.len()) };
     log3ifr!(ctx,f,line!(), rv);
     rv
 }
@@ -2813,8 +2800,7 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
    RSASSA-PSS : Only works with SC_ALGORITHM_RSA_RAW declared in acos5_init()
 
  * What it does
- Ideally this function should be adaptive, meaning it works for SC_ALGORITHM_RSA_RAW (SC_ALGORITHM_RSA_PAD_NONE)
- as well as for e.g. SC_ALGORITHM_RSA_PAD_PKCS1
+ Ideally this function should be adaptive, meaning it works for SC_ALGORITHM_RSA_RAW as well as for e.g. SC_ALGORITHM_RSA_PAD_PKCS1
 
  The function currently relies on, that data_len==keylen_bytes i.o. to control amount of bytes to expect from get_response (if keylen_bytes>256)
  It's not safe to use outlen as indicator for  keylen_bytes, e.g.: pkcs15-crypt --sign --key=5 --input=test_in_sha1.hex --output=test_out_sig_pkcs1.hex --sha-1 --pkcs1 --pin=12345678
@@ -2882,8 +2868,8 @@ extern "C" fn acos5_compute_signature(card_ptr: *mut sc_card, data_ref_ptr: *con
 //println!("\nacos5_compute_signature:             in_len: {}, out_len: {}, sec_env_algo_flags: 0x{:X}, input data: {:X?}", vec_in.len(), outlen, sec_env_algo_flags,  vec_in);
     let digest_info =
         if (SC_ALGORITHM_RSA_RAW & sec_env_algo_flags) == 0 { vec_in.as_slice() } // then vec_in IS digest_info
-        else { // (SC_ALGORITHM_RSA_RAW & sec_env_algo_flags) == SC_ALGORITHM_RSA_RAW (in v0.20.0 that's the same as sec_env_algo_flags == SC_ALGORITHM_RSA_PAD_NONE)
-//println!("acos5_compute_signature: (SC_ALGORITHM_RSA_RAW & sec_env_algo_flags) == SC_ALGORITHM_RSA_RAW");
+        else {
+//println!("acos5_compute_signature: (SC_ALGORITHM_RSA_RAW & sec_env_algo_flags) > 0");
             match me_pkcs1_strip_01_padding(&vec_in) { // TODO possibly also try pkcs1_strip_PSS_padding
                 Ok(digest_info) => digest_info,
                 Err(e) => {
@@ -2977,7 +2963,7 @@ Trick: cache last security env setting, retrieve file id (priv) and deduce key l
         let fmt = cstru!(b"### Switch to acos5_decipher, because \
                 acos5_compute_signature can't handle the hash algo ###\0");
         log3if!(ctx,f,line!(), fmt);
-        /* digest_info.len() is from SC_ALGORITHM_RSA_RAW/SC_ALGORITHM_RSA_PAD_NONE or SC_ALGORITHM_RSA_PAD_PKCS1 */
+        /* digest_info.len() is from SC_ALGORITHM_RSA_RAW or SC_ALGORITHM_RSA_PAD_PKCS1 */
         /* is_any_known_digestAlgorithm or ? could go further and compare digestAlgorithm to known ones as well
            With that done, a possible attacker can control nothing but the hash value (and signature scheme to be used)
            TODO implement delaying, if consecutive trials to sign are detected, revoke PIN verification etc.
@@ -2998,6 +2984,15 @@ Trick: cache last security env setting, retrieve file id (priv) and deduce key l
             */
             let mut vec_len = std::cmp::min(outlen, get_sec_env_mod_len(card));
             let mut vec = vec![0_u8; vec_len];
+            /*
+              in the following,   | SC_ALGORITHM_RSA_HASH_NONE   is required for ssh for version:
+              v0_17_0  (sec_env_algo_flags: 0x2, even if rsa_algo_flags |= SC_ALGORITHM_RSA_HASH_NONE;)
+              v0_18_0  (sec_env_algo_flags: 0x2, even if ditto.)
+              v0_19_0  (sec_env_algo_flags: 0x2, even if ditto.)
+
+              | SC_ALGORITHM_RSA_HASH_NONE   is *NOT* required for ssh for version:
+              v0_20_0  (sec_env_algo_flags: 0x102, even if there is no rsa_algo_flags |= SC_ALGORITHM_RSA_HASH_NONE;)
+            */
             rv = unsafe { sc_pkcs1_encode(ctx, c_ulong::from(sec_env_algo_flags | SC_ALGORITHM_RSA_HASH_NONE), digest_info.as_ptr(),
                                           digest_info.len(), vec.as_mut_ptr(), &mut vec_len, vec_len *
                                           if cfg!(any(v0_17_0, v0_18_0, v0_19_0)) {1} else {8}) };
