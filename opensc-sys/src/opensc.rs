@@ -154,10 +154,9 @@ cfg_if::cfg_if! {
  * must support at least one of them, and exactly one of them must be selected
  * for a given operation. */
 /** Use SC_ALGORITHM_RSA_RAW, if card/driver expects an in_len to card.ops.compute_signature == RSA_modulus_length bytes,
-    i.e. won't pad itself before signing; (acos5_64: SHOULD  be used, because it's the safest way to communicate the
-    key_len to compute_signature; out_len often BUT NOT ALWAYS is == RSA_modulus_length bytes as well)\
-    TODO find the code locations where in_len!=outlen\
-    for versions since 0.20.0, switch to using SC_ALGORITHM_RSA_PAD_NONE for that purpose */
+    i.e. won't pad itself before signing; for versions since 0.20.0, switch to using SC_ALGORITHM_RSA_PAD_NONE for that purpose\
+    TODO find the code locations where in_len!=outlen
+*/
 pub const SC_ALGORITHM_RSA_RAW         : u32 = 0x0000_0001;
 
 cfg_if::cfg_if! {
@@ -175,7 +174,7 @@ cfg_if::cfg_if! {
     }
 }
 
-/* Use SC_ALGORITHM_RSA_PAD_NONE, if card/driver expects an in_len to card.ops.compute_signature of RSA_modulus_length bytes,
+/* Use SC_ALGORITHM_RSA_PAD_NONE, if card/driver expects an in_len to card.ops.compute_signature == RSA_modulus_length bytes,
     i.e. card/driver won't pad before signing */
 cfg_if::cfg_if! {
     if #[cfg(any(v0_17_0, v0_18_0, v0_19_0))] {

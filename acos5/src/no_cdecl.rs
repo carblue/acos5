@@ -149,9 +149,9 @@ impl FCI {
         for tlv in TLV::new(fci_bytes_sequence_body) {
             match tlv.tag() {
                 ISO7816_TAG_FCP_TYPE => {
-                    result.fdb = tlv.value()[0];
                     let len = tlv.length();
                     assert!([1,2,5,6].contains(&len));
+                    result.fdb = tlv.value()[0];
                     if len > 2 {
                         result.mrl = tlv.value()[3];
                         result.nor = tlv.value()[usize::from(len)-1];

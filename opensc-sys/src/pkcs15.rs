@@ -707,7 +707,7 @@ pub struct sc_pkcs15_object {
     pub type_ : u32, /* e.g. SC_PKCS15_TYPE_PRKEY_RSA */
     /* CommonObjectAttributes */
     pub label : [c_char; SC_PKCS15_MAX_LABEL_SIZE],    /* zero terminated */
-    pub flags : u32,
+    pub flags : u32, /* SC_PKCS15_CO_FLAG_PRIVATE, SC_PKCS15_CO_FLAG_MODIFIABLE */
     pub auth_id : sc_pkcs15_id,
 
     pub usage_counter : i32,

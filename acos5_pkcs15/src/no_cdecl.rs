@@ -7,7 +7,7 @@ use std::convert::TryFrom;
 use opensc_sys::opensc::{SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES};
 
 use opensc_sys::pkcs15::{sc_pkcs15_card, SC_PKCS15_SKDF, SC_PKCS15_TYPE_SKEY, sc_pkcs15_skey_info /*, sc_pkcs15_object*/};
-use opensc_sys::errors::{SC_ERROR_INVALID_ARGUMENTS};
+use opensc_sys::errors::{SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_CARD_CMD_FAILED};
 use opensc_sys::log::{sc_dump_hex};
 
 use crate::constants_types::{SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4};
@@ -115,7 +115,7 @@ pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mu
 }
 
 /* creates the first part of a sym key record entry; only 'key_len_bytes' key bytes need to be appended */
-pub fn prefix_sym_key(card_type: i32, rec_nr: u8, algorithm_type: u32, key_len_bytes: u8,
+fn prefix_sym_key(card_type: i32, rec_nr: u8, algorithm_type: u32, key_len_bytes: u8,
                       ext_auth: bool, count_err_ext_auth: u8,
                       int_auth: bool, count_use_int_auth: u16) -> Result<Vec<u8>, i32> {
     let mut res = Vec::with_capacity(38);
@@ -170,6 +170,19 @@ pub fn prefix_sym_key(card_type: i32, rec_nr: u8, algorithm_type: u32, key_len_b
         _ => unreachable!(),
     }
     Ok(res)
+}
+
+pub fn construct_sym_key_entry(card_type: i32, rec_nr: u8, algorithm_type: u32, key_len_bytes: u8,
+                      ext_auth: bool, count_err_ext_auth: u8,
+                      int_auth: bool, count_use_int_auth: u16,
+                      mrl: usize, key_bytes: &[u8]) -> Result<Vec<u8>, i32> {
+    let mut vec = prefix_sym_key(card_type, rec_nr, algorithm_type, key_len_bytes,
+                   ext_auth, count_err_ext_auth,
+                   int_auth, count_use_int_auth)?;
+    vec.extend_from_slice(key_bytes);
+    if      mrl < vec.len() { return Err(SC_ERROR_CARD_CMD_FAILED); }
+    else if mrl > vec.len() { vec.resize_with(mrl, Default::default); }
+    Ok(vec)
 }
 
 #[cfg(test)]
