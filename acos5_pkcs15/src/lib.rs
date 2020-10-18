@@ -811,8 +811,11 @@ extern "C" fn acos5_pkcs15_store_key(profile_ptr: *mut sc_profile, p15card_ptr: 
     let skey = unsafe { &mut key.u.secret };
     let skey_info = unsafe { &mut *(object.data as *mut sc_pkcs15_skey_info) };
     log3ifc!(ctx,f,line!());
-    if skey.data.is_null() || skey.data_len == 0 || object.session_object != 0 ||
-        skey_info.value_len/8 != skey.data_len {
+    if skey.data.is_null() || skey.data_len == 0 || skey_info.value_len/8 != skey.data_len {
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+    if object.session_object != 0 {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     match skey_algo {
