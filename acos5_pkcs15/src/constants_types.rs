@@ -633,127 +633,117 @@ pub fn build_apdu(ctx: &mut sc_context, cmd: &[u8], cse: i32, rbuf: &mut [u8]) -
 ////////////////
 ////////////////
 
-
-#[cfg(enable_acos5_ui)]
-use libc::{free};
-#[cfg(enable_acos5_ui)]
-use std::ffi::{CStr};
-#[cfg(enable_acos5_ui)]
-use opensc_sys::opensc::{sc_card/*, SC_CTX_FLAG_DISABLE_POPUPS*/};
-#[cfg(enable_acos5_ui)]
-use opensc_sys::errors::{SC_ERROR_KEYPAD_MSG_TOO_LONG, SC_ERROR_NOT_ALLOWED};
-#[cfg(enable_acos5_ui)]
-use opensc_sys::scconf::{scconf_find_blocks, scconf_get_bool/*, scconf_get_str*/};
+cfg_if::cfg_if! {
+    if #[cfg(enable_acos5_ui)] {
+        use libc::{free};
+        use opensc_sys::opensc::{sc_card/*, SC_CTX_FLAG_DISABLE_POPUPS*/};
+        use opensc_sys::errors::{SC_ERROR_KEYPAD_MSG_TOO_LONG, SC_ERROR_NOT_ALLOWED};
+        use opensc_sys::scconf::{scconf_find_blocks, scconf_get_bool/*, scconf_get_str*/};
 
 
-#[cfg(enable_acos5_ui)]
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct ui_context {
-    //    pub user_consent_app : *const c_char,
-    pub user_consent_enabled : i32,
-}
-
-
-#[cfg(enable_acos5_ui)]
-impl Default for ui_context {
-    fn default() -> Self {
-        Self {
-//            user_consent_app: std::ptr::null(),
-            user_consent_enabled: 0
+        #[repr(C)]
+        #[derive(Debug, Copy, Clone)]
+        pub struct ui_context {
+            //    pub user_consent_app : *const c_char,
+            pub user_consent_enabled : i32,
         }
-    }
-}
 
 
-#[cfg(enable_acos5_ui)]
-pub fn get_ui_ctx(card: &mut sc_card) -> ui_context
-{
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-    let ui_ctx = dp.ui_ctx;
-    card.drv_data = Box::into_raw(dp) as p_void;
-    ui_ctx
-}
+        impl Default for ui_context {
+            fn default() -> Self {
+                Self {
+        //            user_consent_app: std::ptr::null(),
+                    user_consent_enabled: 0
+                }
+            }
+        }
 
 
-/* IUP Interface */
-#[cfg(enable_acos5_ui)]
-pub enum Ihandle {}
-#[cfg(enable_acos5_ui)]
-extern {
-    pub fn IupOpen(argc: *const i32, argv: *const *const *const c_char) -> i32;
-    pub fn IupClose();
-    pub fn IupMessageDlg() -> *mut Ihandle; // https://webserver2.tecgraf.puc-rio.br/iup/en/dlg/iupmessagedlg.html
-    pub fn IupDestroy(ih: *mut Ihandle);
-    pub fn IupPopup(ih: *mut Ihandle, x: i32, y: i32) -> i32;
-    //    pub fn IupSetAttributes(ih: *mut Ihandle, str: *const c_char) -> *mut Ihandle;
-    pub fn IupSetAttribute(ih: *mut Ihandle, name: *const c_char, value: *const c_char);
-    pub fn IupGetAttribute(ih: *mut Ihandle, name: *const c_char) -> *mut c_char;
-}
+        pub fn get_ui_ctx(card: &mut sc_card) -> ui_context
+        {
+            let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+            let ui_ctx = dp.ui_ctx;
+            card.drv_data = Box::into_raw(dp) as p_void;
+            ui_ctx
+        }
 
-/* called once only from acos5_init */
-#[cfg(enable_acos5_ui)]
-pub fn set_ui_ctx(card: &mut sc_card, ui_ctx: &mut ui_context) -> i32
-{
-    if card.ctx.is_null() {
-        return SC_ERROR_KEYPAD_MSG_TOO_LONG;
-    }
-    /* set default values */
-//    ui_ctx.user_consent_app = cstru!(USER_CONSENT_CMD_NIX).as_ptr();
-    ui_ctx.user_consent_enabled = 1;
 
-    /* look for sc block in opensc.conf */
-    let ctx = unsafe { &mut *card.ctx };
-    for elem in ctx.conf_blocks.iter() {
-        if elem.is_null() { break; }
+        /* IUP Interface */
+        pub enum Ihandle {}
+        extern {
+            pub fn IupOpen(argc: *const i32, argv: *const *const *const c_char) -> i32;
+            pub fn IupClose();
+            pub fn IupMessageDlg() -> *mut Ihandle; // https://webserver2.tecgraf.puc-rio.br/iup/en/dlg/iupmessagedlg.html
+            pub fn IupDestroy(ih: *mut Ihandle);
+            pub fn IupPopup(ih: *mut Ihandle, x: i32, y: i32) -> i32;
+            //    pub fn IupSetAttributes(ih: *mut Ihandle, str: *const c_char) -> *mut Ihandle;
+            pub fn IupSetAttribute(ih: *mut Ihandle, name: *const c_char, value: *const c_char);
+            pub fn IupGetAttribute(ih: *mut Ihandle, name: *const c_char) -> *mut c_char;
+        }
 
-        let blocks_ptr = unsafe { scconf_find_blocks(ctx.conf, *elem,
-                                                     cstru!(b"card_driver\0").as_ptr(),
-                                                     cstru!(CARD_DRV_SHORT_NAME).as_ptr()) };
-        if blocks_ptr.is_null() { continue; }
-        let blk_ptr = unsafe { *blocks_ptr };
+        /* called once only from acos5_init */
+        pub fn set_ui_ctx(card: &mut sc_card, ui_ctx: &mut ui_context) -> i32
+        {
+            if card.ctx.is_null() {
+                return SC_ERROR_KEYPAD_MSG_TOO_LONG;
+            }
+            /* set default values */
+//            ui_ctx.user_consent_app = cstru!(USER_CONSENT_CMD_NIX).as_ptr();
+            ui_ctx.user_consent_enabled = 1;
 
-        unsafe { free(blocks_ptr as p_void) };
-        if blk_ptr.is_null() { continue; }
-        /* fill private data with configuration parameters */
-//        ui_ctx.user_consent_app =    /* def user consent app is "pinentry" */
-//            /*(char *)*/ unsafe { scconf_get_str(blk_ptr, cstru!(b"user_consent_app\0").as_ptr(), cstru!(USER_CONSENT_CMD_NIX).as_ptr()) };
-        ui_ctx.user_consent_enabled =    /* user consent is enabled by default */
-            unsafe { scconf_get_bool(blk_ptr, cstru!(b"user_consent_enabled\0").as_ptr(), 1) };
-    }
-    /* possibly read disable_popups; this then may disable as well */
-    if ui_ctx.user_consent_enabled == 1 { unsafe { IupOpen(std::ptr::null(), std::ptr::null()) }; }
-    SC_SUCCESS
-}
+            /* look for sc block in opensc.conf */
+            let ctx = unsafe { &mut *card.ctx };
+            for elem in ctx.conf_blocks.iter() {
+                if elem.is_null() { break; }
 
-/**
- * Ask for user consent.
- *
- * Check for user consent configuration,
- * Invoke proper gui app and check result
- *
- * @param card pointer to sc_card structure
- * @param title Text to appear in the window header
- * @param text Message to show to the user
- * @return SC_SUCCESS on user consent OK , else error code
- */
-#[cfg(enable_acos5_ui)]
-pub fn acos5_ask_user_consent() -> i32
-{
-    unsafe {
-        let dlg_ptr = IupMessageDlg();
-        assert!(!dlg_ptr.is_null());
-        IupSetAttribute(dlg_ptr, cstru!(b"DIALOGTYPE\0").as_ptr(), cstru!(b"QUESTION\0").as_ptr());
-        IupSetAttribute(dlg_ptr, cstru!(b"TITLE\0").as_ptr(), cstru!(b"RSA private key usage\0").as_ptr());
-        IupSetAttribute(dlg_ptr, cstru!(b"BUTTONS\0").as_ptr(), cstru!(b"YESNO\0").as_ptr());
-        IupSetAttribute(dlg_ptr, cstru!(b"VALUE\0").as_ptr(), cstru!(b"Got a request to use an RSA private key (e.g. for a sign operation).\nDo You accept ?\n(Use 'Yes' only if this makes sense at this point)\0").as_ptr());
-        IupPopup(dlg_ptr, 0xFFFF, 0xFFFF);
-        let b_response_ptr = IupGetAttribute(dlg_ptr, cstru!(b"BUTTONRESPONSE\0").as_ptr()); // BUTTONRESPONSE: Number of the pressed button. Can be "1", "2" or "3". Default: "1".
-        assert!(!b_response_ptr.is_null());
-        let result_ok = *b_response_ptr == 49;
-        IupDestroy(dlg_ptr);
-        /* IupClose();  can't be used here, otherwise - using acos5_gui - this would close the acos5_gui application and crash that */
-        if !result_ok { SC_ERROR_NOT_ALLOWED }
-        else          { SC_SUCCESS }
+                let blocks_ptr = unsafe { scconf_find_blocks(ctx.conf, *elem,
+                                                             cstru!(b"card_driver\0").as_ptr(),
+                                                             cstru!(CARD_DRV_SHORT_NAME).as_ptr()) };
+                if blocks_ptr.is_null() { continue; }
+                let blk_ptr = unsafe { *blocks_ptr };
+
+                unsafe { free(blocks_ptr as p_void) };
+                if blk_ptr.is_null() { continue; }
+                /* fill private data with configuration parameters */
+//                ui_ctx.user_consent_app =    /* def user consent app is "pinentry" */
+//              /*(char *)*/ unsafe { scconf_get_str(blk_ptr, cstru!(b"user_consent_app\0").as_ptr(), cstru!(USER_CONSENT_CMD_NIX).as_ptr()) };
+                ui_ctx.user_consent_enabled =    /* user consent is enabled by default */
+                    unsafe { scconf_get_bool(blk_ptr, cstru!(b"user_consent_enabled\0").as_ptr(), 1) };
+            }
+            /* possibly read disable_popups; this then may disable as well */
+            if ui_ctx.user_consent_enabled == 1 { unsafe { IupOpen(std::ptr::null(), std::ptr::null()) }; }
+            SC_SUCCESS
+        }
+
+        /**
+         * Ask for user consent.
+         *
+         * Check for user consent configuration,
+         * Invoke proper gui app and check result
+         *
+         * @param card pointer to sc_card structure
+         * @param title Text to appear in the window header
+         * @param text Message to show to the user
+         * @return SC_SUCCESS on user consent OK , else error code
+         */
+        pub fn acos5_ask_user_consent() -> i32
+        {
+            unsafe {
+                let dlg_ptr = IupMessageDlg();
+                assert!(!dlg_ptr.is_null());
+                IupSetAttribute(dlg_ptr, cstru!(b"DIALOGTYPE\0").as_ptr(), cstru!(b"QUESTION\0").as_ptr());
+                IupSetAttribute(dlg_ptr, cstru!(b"TITLE\0").as_ptr(), cstru!(b"RSA private key usage\0").as_ptr());
+                IupSetAttribute(dlg_ptr, cstru!(b"BUTTONS\0").as_ptr(), cstru!(b"YESNO\0").as_ptr());
+                IupSetAttribute(dlg_ptr, cstru!(b"VALUE\0").as_ptr(), cstru!(b"Got a request to use an RSA private key (e.g. for a sign operation).\nDo You accept ?\n(Use 'Yes' only if this makes sense at this point)\0").as_ptr());
+                IupPopup(dlg_ptr, 0xFFFF, 0xFFFF);
+                let b_response_ptr = IupGetAttribute(dlg_ptr, cstru!(b"BUTTONRESPONSE\0").as_ptr()); // BUTTONRESPONSE: Number of the pressed button. Can be "1", "2" or "3". Default: "1".
+                assert!(!b_response_ptr.is_null());
+                let result_ok = *b_response_ptr == 49;
+                IupDestroy(dlg_ptr);
+                /* IupClose();  can't be used here, otherwise - using acos5_gui - this would close the acos5_gui application and crash that */
+                if !result_ok { SC_ERROR_NOT_ALLOWED }
+                else          { SC_SUCCESS }
+            }
+        }
     }
 }

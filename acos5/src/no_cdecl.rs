@@ -26,6 +26,7 @@ use std::ffi::{/*CString,*/ CStr};
 use std::fs;//::{read/*, write*/};
 use std::ptr::{null_mut};
 use std::convert::{TryFrom, TryInto};
+use std::ops::{Deref, DerefMut};
 use std::slice::from_raw_parts;
 
 use num_integer::Integer;
@@ -194,6 +195,51 @@ impl FCI {
             }
         }
         result
+    }
+}
+
+// #[derive(Debug, Eq, PartialEq)]
+pub struct GuardFile(*mut *mut sc_file);
+
+impl GuardFile {
+    /// Creates a guard for the specified element.
+    pub fn new(inner: *mut *mut sc_file) -> Self {
+// println!("GuardFile");
+        GuardFile(inner)
+    }
+/*
+    /// Forgets this guard and unwraps out the contained element.
+    pub fn unwrap(self) -> E {
+        let inner = self.0;
+        forget(self);   // Don't drop me or I'll destroy `inner`!
+        inner
+    }
+*/
+}
+
+impl Drop for GuardFile {
+    fn drop(&mut self) {
+        if !self.0.is_null() && unsafe { !(*self.0).is_null() } {
+//println!("Drop for file path: {:X?}", unsafe { (*(*self.0)).path.value });
+            unsafe { sc_file_free(*self.0) }
+        }
+    }
+}
+
+/// Be careful on deferecing so you don't store another copy of the element somewhere.
+impl Deref for GuardFile {
+    type Target = *mut *mut sc_file;
+ // fn deref(&self) -> &Self::Target;
+    fn deref(&self) -> & *mut *mut sc_file {
+        &self.0
+    }
+}
+
+/// Be careful on deferecing so you don't store another copy of the element somewhere.
+impl DerefMut for GuardFile {
+ // fn deref_mut(&mut self) -> &mut Self::Target;
+    fn deref_mut(&mut self) -> &mut *mut *mut sc_file {
+        &mut self.0
     }
 }
 
@@ -607,9 +653,10 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Op
     log3if!(ctx,f,line!(), fmt_1, card.cache.current_path.type_,
         unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, force_process_fci);
     log3if!(ctx,f,line!(), fmt_2, path_ref.type_, unsafe {sc_dump_hex(path_ref.value.as_ptr(), path_ref.len)});
-    // let force_process_fci = file_out.is_none() && need_to_process_fci;
-    let mut file_tmp_ptr = null_mut::<sc_file>();
-    let mut file_tmp : Option<&mut *mut sc_file> = if force_process_fci {Some(&mut file_tmp_ptr)} else {file_out};
+    let mut file = null_mut();
+    let guard_file = GuardFile::new(&mut file);
+//println!("file_out.is_null: {}", file_out.is_none());
+    let mut file_tmp : Option<&mut *mut sc_file> = if force_process_fci {unsafe{guard_file.as_mut()}} else {file_out};
 
 //    let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).select_file.unwrap()(card, path_ref, file_out) };
     let rv = iso7816_select_file_replica(card, path_ref, &mut file_tmp);
@@ -618,10 +665,6 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Op
             u16::try_from(unsafe { (*(*file_tmp.unwrap())).id } ).unwrap()
         }
         else {0};
-    if force_process_fci && !file_tmp_ptr.is_null() {
-        unsafe { sc_file_free(file_tmp_ptr) };
-    }
-
     /*
     0x6283, SC_ERROR_CARD_CMD_FAILED, "Selected file invalidated" //// Target file has been blocked but selected
     0x6982, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, "Security status not satisfied" //// Target file has wrong checksum in its header or file is corrupted; probably selected, but inaccessible: test that
@@ -785,13 +828,13 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
     /* needs to be done once only */
     if is_se_file_only && mrl>0 && nor>0
     {
-        /* file_out_ptr_mut has the only purpose to invoke scb8 retrieval */
-        let mut file_out_ptr_mut = null_mut();
-        let mut rv = /*acos5_select_file*/ unsafe { sc_select_file(card, path_ref, &mut file_out_ptr_mut) };
+        /* file has the only purpose to invoke scb8 retrieval */
+        let mut file = null_mut();
+        let guard_file = GuardFile::new(&mut file);
+        let mut rv = /*acos5_select_file*/ unsafe { sc_select_file(card, path_ref, *guard_file) };
         assert_eq!(rv, SC_SUCCESS);
-        assert!(!file_out_ptr_mut.is_null());
-        let acl_entry_read_method = unsafe { (*sc_file_get_acl_entry(file_out_ptr_mut, SC_AC_OP_READ)).method };
-        unsafe { sc_file_free(file_out_ptr_mut) };
+        assert!(!file.is_null());
+        let acl_entry_read_method = unsafe { (*sc_file_get_acl_entry(file, SC_AC_OP_READ)).method };
 
         let is_local =  path_ref.len>=6;
 //      let len /*_card_serial_number*/ = if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 {6_u8} else {8_u8};
@@ -875,12 +918,10 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
     else if is_DFMF(fdb)
     {
         assert!(path_ref.len <= SC_MAX_PATH_SIZE);
-        /* file_out_ptr_mut has the only purpose to invoke scb8 retrieval */
-        let mut file_out_ptr_mut = null_mut();
-        let mut rv = /*acos5_select_file*/unsafe { sc_select_file(card, path_ref, &mut file_out_ptr_mut) };
-        if !file_out_ptr_mut.is_null() {
-            unsafe { sc_file_free(file_out_ptr_mut) };
-        }
+        /* file has the only purpose to invoke scb8 retrieval */
+        let mut file = null_mut();
+        let guard_file = GuardFile::new(&mut file);
+        let mut rv = unsafe { sc_select_file(card, path_ref, *guard_file) };
         if rv < 0 && path_ref.len==2 && path_ref.value[0]==0x3F && path_ref.value[1]==0 {
             let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
             dp.does_mf_exist = false;
@@ -939,12 +980,10 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
         }
     }
     else if [FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&fdb) {
-        /* file_out_ptr_mut has the only purpose to invoke scb8 retrieval */
-        let mut file_out_ptr_mut = null_mut();
-        let rv = /*acos5_select_file*/ unsafe { sc_select_file(card, path_ref, &mut file_out_ptr_mut) };
-        if !file_out_ptr_mut.is_null() {
-            unsafe { sc_file_free(file_out_ptr_mut) };
-        }
+        /* file has the only purpose to invoke scb8 retrieval */
+        let mut file = null_mut();
+        let guard_file = GuardFile::new(&mut file);
+        let rv = unsafe { sc_select_file(card, path_ref, *guard_file) };
         assert_eq!(rv, SC_SUCCESS);
 
         let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
@@ -981,7 +1020,7 @@ fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*,
     if is_DFMF(fdb)
     {
         assert!(path_ref.len <= SC_MAX_PATH_SIZE);
-        let mut rv = /*acos5_select_file*/unsafe { sc_select_file(card, path_ref, null_mut()) };
+        let mut rv = unsafe { sc_select_file(card, path_ref, null_mut()) };
         assert_eq!(rv, SC_SUCCESS);
         if path_ref.len == 16 {
             fmt  = cstru!(b"### enum_dir: couldn't visit all files due to OpenSC path.len limit.\
@@ -1501,9 +1540,10 @@ fn encrypt_public_rsa(card_ptr: *mut sc_card, signature: *const u8, siglen: usiz
     let ctx = unsafe { &mut *card.ctx };
     let mut path = sc_path::default();
     unsafe { sc_format_path(cstru!(b"3f0041004133\0").as_ptr(), &mut path); } // type = SC_PATH_TYPE_PATH;
-    let file_ptr_address = null_mut();
+    let mut file = null_mut();
+    let guard_file = GuardFile::new(&mut file);
     // why this selection is done ?
-    let mut rv = unsafe { sc_select_file(card, &path, file_ptr_address) };
+    let mut rv = unsafe { sc_select_file(card, &path, *guard_file) };
     assert_eq!(rv, SC_SUCCESS);
     let mut apdu = build_apdu(ctx, &[0_u8, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x12, 0x81, 0x02, 0x41, 0x33, 0x95, 0x01, 0x80], SC_APDU_CASE_3_SHORT, &mut[]);
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
@@ -1563,9 +1603,10 @@ pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtl_generate_crypt_
         env.file_ref.value[0] = 0x41;
         env.file_ref.value[1] = 0x33;
         let mut path = sc_path::default();
-        let mut file_ptr = null_mut::<sc_file>();
+        let mut file = null_mut();
+        let guard_file = GuardFile::new(&mut file);
         unsafe { sc_format_path(cstru!(b"3f0041004133\0").as_ptr(), &mut path); } // path.type_ = SC_PATH_TYPE_PATH;
-        rv = unsafe { sc_select_file(card, &path, &mut file_ptr) };
+        rv = unsafe { sc_select_file(card, &path, *guard_file) };
         assert_eq!(rv, SC_SUCCESS);
 //        command = [0_u8, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x12, 0x81, 0x02, 0x41, 0x33, 0x95, 0x01, 0x80];
     }
@@ -2354,6 +2395,46 @@ pub fn common_update(card: &mut sc_card,
     }
 }
 
+
+#[cfg(sanity)]
+#[cold]
+pub fn sanity_check(card: &mut sc_card) {
+    assert!(!card.ctx.is_null());
+    let ctx = unsafe { &mut *card.ctx };
+    log3ifc!(ctx,cstru!(b"sanity_check\0"),line!());
+println!("The following sanity checks are implemented [X] or planned []. Some or all may depemd on prior check(s)");
+println!("to be successful. Indentation will indicate such dependency.");
+println!();
+println!("[] Does MF exist? If no, then the following (indented) checks are possible but nothing else remains to be done.");
+println!("   [] TODO : all what is meaningful to check with access to card's header block bytes");
+println!();
+println!("File system, Security Access Conditions (SAC) and Security Attributes Expanded (SAE) etc.");
+println!("[] Does each DF/MF specify the mandatory security environment (SE) file and it does exist and is accessible?");
+println!("[] PIN files are required for at least MF and each appDF, with max. 1 such file existing there. Is that okay?");
+println!("[] Sym. key file(s) are required only if Secure Messaging (SM) is involved in a DF/MF, with max. 1 such file existing there. Is that okay?");
+println!("[] Are the PIN files and Sym. key file(s) constrained to: Never readable, and files activated such that the constraint will be upheld by the cos (card operating system?");
+println!("[] List all SE file record entries, that are unused (and might be deleted), and list all that refer to SM");
+println!("[] Are the SE file record entries (if used) meaningful, i.e. don't refer to something that doesn't exist?");
+println!("[] TODO check other recommended access rights, e.g. for RSA key pair files");
+println!("  [] List all DF/MF that specify SAE and try a plain explanation of constraints");
+println!("[] Warn about non-security-activated files");
+println!("TODO more to test here");
+println!();
+println!("Issues, that can't be checked, i.e. just be careful or ?");
+println!("PIN record entries: TODO check whether all ACOS5 options can be used/set by opensc tools, or whether the first time they should be written with APDU command for Update Record; be careful here; see how it's done in info/card_initialization.scriptor");
+println!("Sym. key file record entries: TODO check whether all ACOS5 options can be used/set by opensc tools, or whether the first time they should be written with APDU command for Update Record; be careful here; see how it's done in info/card_initialization.scriptor");
+println!("If a sym. key file record is to be used for SM and its Usage or Error Counter is not set to unlimited, then it will/may become invalid in the future, and when it happens, Y'll probably have forgotten this limit");
+println!("There is no way to unblock an invalid key: The complete record must be updated, which may be impossible, if the command for Update Record is forced to use SM for this file, thus SM won't work any more, until You re-initialize the card.");
+println!("It's inadvisable to block Your emergency exit door: Make sure - by all means -, that Access Control always allows to issue command 'Zeroize Card' (part of re-initialization)");
+println!();
+println!("PKCS#15 related checks");
+println!("[] Does EF.DIR 3F002F00 exist, is accessible and has appropriate content, specifying at least 1 appDF and it's aid?");
+println!("   [] List for all appDF(s) the information encoded in EF.DIR");
+println!("   [] Do appDF's path exist in file system and are accessible?");
+println!("      [] Does EF.ODF exist in each appDF and is accessible?");
+println!("[TODO more to test here]");
+// $ grep -rni sanity
+}
 
 #[cfg(test)]
 mod tests {

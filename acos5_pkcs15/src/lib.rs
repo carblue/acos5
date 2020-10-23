@@ -1127,7 +1127,9 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
     SC_SUCCESS
 }
 
-/* Not yet ready
+/* Not yet ready; possibly better to be implemented in the driver and call that via sc_card_ctl
+   I didn't yet check the Opensc functionality for that, but the driver probably will use libtasn1 anyway !
+
  * Diagnostics of card's file system; invoked by acos5_gui and $ pkcs15-init --sanity-check
    @return always SUCCESS ?, but useful only with debug log enabled; search for  sanity_check  there
    Everything in debug_file between lines containing

@@ -1,7 +1,19 @@
 The procedure of card initialization
 ====================================
-OpenSC in general has provisions for this task, but I didn't implemement this (so far, and havn't made up my mind if I
-ever will do).<br>
+
+To be explicit: Card initialization removes all user data from the card such that it will be virgin afterwards, 
+and then installs the basic file structure required by PKCS#15. Many file ids are inspired by what the ACS tool does,
+also some file content, e.g. content of EF.DIR.
+
+If Your card was initialized already by other means, then that was done probably by an ACS tool. I don't recall all 
+reasons for a need to re-initialization, but instead will provide a sanity-check (accessible via 
+pkcs15-init --sanity-check). This will print to stdout everything notable about Your card's content.
+
+Note, that the philosophy of OpenSC is to have free access (reading always allowed or SM constrains satisfiable) 
+to all PKCS#15 directory file EF.DIR and EF.ODF and what they point to. Also to EF.TokenInfo.
+
+OpenSC in general has provisions for card initialization, but I didn't implement this (so far, and havn't made up my 
+mind if I ever will do).<br>
 Instead I provide this way based on scripts to initialize Your ACOS5-64 V2.00 or ACOS5-64 V3.00 card/token: It allows
 the ultimate control over what will be done.<br>
 With knowledge from the reference manual You can adapt everything to Your heart's content, but I recommend to start with

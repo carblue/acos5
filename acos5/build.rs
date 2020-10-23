@@ -54,9 +54,9 @@ fn main() {
     println!("cargo:rustc-cfg=v0_20_0"); //  <= or whatever version the installed OpenSC package is
 */
     #[cfg(not(target_os = "windows"))]
-    println!("cargo:rustc-link-lib=crypto");
+    println!("cargo:rustc-link-lib=dylib=crypto");
     #[cfg(    target_os = "windows")]
-    println!("cargo:rustc-link-lib=libcrypto"); // libeay32.lib -> libcrypto.lib; Since version 1.1.0 OpenSSL have changed their library names from: libeay32.dll -> libcrypto.dll etc.
+    println!("cargo:rustc-link-lib=dylib=libcrypto"); // libeay32.lib -> libcrypto.lib; Since version 1.1.0 OpenSSL have changed their library names from: libeay32.dll -> libcrypto.dll etc.
 
     /* other conditionaĺ compilation settings */
     println!("cargo:rustc-cfg=log"); // enables driver log output to file debug_file, set in opensc.conf (e.g. debug_file = "/tmp/opensc-debug.log";). Otherwise the driver will be almost quiet referring that
@@ -65,6 +65,11 @@ fn main() {
 //    println!("cargo:rustc-cdylib-link-arg=-Wl,-soname,libacos5.so.6"); //doesn't work currently
 
 //    println!("cargo:rustc-cfg=enable_acos5_ui"); // enables driver to ask for user consent prior to using RSA private keys (for sign, decrypt); DO ENABLE ONLY together with the 2 following lines relating to IUP
-//    println!("cargo:rustc-link-lib=iup"); // specifies linking libiup.so/dylib or compiling on Windows with import library iup.lib
+//    println!("cargo:rustc-link-lib=dylib=iup"); // specifies linking libiup.so/dylib or compiling on Windows with import library iup.lib
 //    println!("cargo:rustc-link-search=native=/usr/lib"); // specifies where libiup.so/dylib/dll is located
+
+//    println!("cargo:rustc-cfg=gui"); // unused currently: enables compile additional functionality, that is required only by acos5_gui; see repo carblue/acos5_gui
+//    println!("cargo:rustc-link-lib=dylib=tasn1");
+
+//    println!("cargo:rustc-cfg=sanity"); // enables driver's sanity_check function. It's assumed that this will remarkably increase code size. Test whether it's advisable to have that compiled in only behind this "gate"
 }
