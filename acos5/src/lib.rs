@@ -70,7 +70,7 @@ use std::convert::TryFrom;
 // use ::function_name::named;
 
 use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_security_env, sc_pin_cmd_data,
-                         sc_get_iso7816_driver, sc_format_path, sc_file_set_prop_attr,
+                         sc_get_iso7816_driver, sc_get_mf_path, sc_file_set_prop_attr,
                          sc_transmit_apdu, sc_check_sw, SC_CARD_CAP_RNG, SC_CARD_CAP_USE_FCI_AC,
                          SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_ALGORITHM_RSA,
                          SC_ALGORITHM_ONBOARD_KEY_GEN, SC_ALGORITHM_RSA_RAW, SC_SEC_OPERATION_SIGN,
@@ -108,9 +108,9 @@ use opensc_sys::types::{sc_aid, SC_MAX_AID_SIZE, SC_AC_CHV, sc_path, sc_file, sc
 use opensc_sys::errors::{SC_SUCCESS/*, SC_ERROR_INTERNAL*/, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
                          SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY, SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING,
                          SC_ERROR_INCORRECT_PARAMETERS, SC_ERROR_NOT_SUPPORTED, SC_ERROR_BUFFER_TOO_SMALL, SC_ERROR_NOT_ALLOWED,
-                         SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_CARD_CMD_FAILED};
+                         SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_CARD_CMD_FAILED/*, SC_ERROR_FILE_NOT_FOUND*/};
 
-#[cfg(sanity)]
+// #[cfg(sanity)]
 use opensc_sys::errors::{SC_ERROR_INVALID_CARD};
 use opensc_sys::internal::{_sc_card_add_rsa_alg, _sc_card_add_ec_alg, sc_pkcs1_encode, _sc_match_atr};
 use opensc_sys::log::{sc_dump_hex};
@@ -181,11 +181,14 @@ use no_cdecl::{select_file_by_path, enum_dir,
     get_is_running_compute_signature, set_is_running_compute_signature,
     common_read, common_update, acos5_supported_ec_curves, logout_pin, FCI, GuardFile//, sc_ac_op_name_from_idx
 };
-#[cfg(sanity)]
-use no_cdecl::{sanity_check};
 
 mod path;
 use path::{file_id_from_cache_current_path, file_id_from_path_value, current_path_df};
+
+// #[cfg(sanity)]
+mod sanity;
+// #[cfg(sanity)]
+use sanity::{sanity_check};
 
 mod se;
 use se::{map_scb8_to_acl, se_get_is_scb_suitable_for_sm_has_ct, se_parse_sae, se_get_sae_scb};
@@ -258,7 +261,7 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 //#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub extern "C" fn sc_module_init(name: *const c_char) -> p_void {
-    if !name.is_null() && unsafe {CStr::from_ptr(name)} == cstru!(CARD_DRV_SHORT_NAME) {
+    if !name.is_null() && unsafe { CStr::from_ptr(name) } == cstru!(CARD_DRV_SHORT_NAME) {
         acos5_get_card_driver as p_void
     }
     else {
@@ -446,7 +449,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
     // let f_cstring = CString::new(function_name!()).expect("CString::new failed");
     let f = cstru!(b"acos5_match_card\0"); // = f_cstring.as_c_str();
     log3if!(ctx,f,line!(), cstru!(b"called. Try to match card with ATR %s\0"),
-        unsafe{sc_dump_hex(card.atr.value.as_ptr(), card.atr.len)} );
+        unsafe { sc_dump_hex(card.atr.value.as_ptr(), card.atr.len) } );
 
     /* check whether card.atr can be found in acos5_supported_atrs[i].atr, iff yes, then
        card.type_ will be set accordingly, but not before the successful return of match_card */
@@ -514,7 +517,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
                 let fmt = cstru!(b"ACOS5-64 v3.00 'Operation mode==Non-FIPS (64K)'-check failed. Trying to change the mode of operation to Non-FIPS/64K mode (no other mode is supported currently)....\0");
                 log3if!(ctx,f,line!(), fmt);
                 // FIXME try to change the operation mode byte if there is no MF
-                let mf_path_ref: &sc_path = unsafe { &*sc_get_mf_path() };
+                let mf_path_ref: &sc_path = unsafe { & *sc_get_mf_path() };
                 let mut file = null_mut();
                 let guard_file = GuardFile::new(&mut file);
                 let mut rv = unsafe { sc_select_file(card, mf_path_ref, *guard_file) };
@@ -577,8 +580,9 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     let f = cstru!(b"acos5_init\0");
     log3if!(ctx,f,line!(), cstru!(b"called with card.type: %d, card.atr.value: %s\0"), card.type_,
         unsafe {sc_dump_hex(card.atr.value.as_ptr(), card.atr.len) });
+    let mut app_name = f;
     if !ctx.app_name.is_null() {
-        let app_name = unsafe { CStr::from_ptr(ctx.app_name) }; // app_name: e.g. "pkcs15-init"
+        app_name = unsafe { CStr::from_ptr(ctx.app_name) }; // app_name: e.g. "pkcs15-init"
         log3if!(ctx,f,line!(), cstru!(b"The driver was loaded for application: %s\0"), app_name.as_ptr());
 //        println!("{}", String::from("The driver was loaded for application: ") + app_name.to_str().unwrap());
     }
@@ -770,19 +774,17 @@ offset_of sym_key_rec_cnt:               1779, Δnext:    5, size_of:    1, alig
 DataPrivate:                                                size_of: 1784, align_of: 8
 */
 
-    let mut path_mf = sc_path::default();
-    unsafe { sc_format_path(cstru!(b"3F00\0").as_ptr(), &mut path_mf); } // type = SC_PATH_TYPE_PATH;
+    let path_mf = unsafe { *sc_get_mf_path() };
     card.cache.current_path = path_mf;
     rv = enum_dir(card, &path_mf, true/*, 0*/); /* FIXME Doing to much here degrades performance, possibly for no value */
     if rv != SC_SUCCESS { return rv; } // enum_dir returns SC_SUCCESS also for does_mf_exist==false
-    #[cfg(sanity)]
+    // #[cfg(sanity)]
     {
         let dp= unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
         let does_mf_exist = dp.does_mf_exist;
         card.drv_data = Box::into_raw(dp) as p_void;
         if !does_mf_exist {
-            sanity_check(card); // TODO move the checks done in function enum_dir after dp.does_mf_exist = false;  to sanity_check
-            return SC_ERROR_INVALID_CARD;
+            let _rv = sanity_check(card, app_name);            return SC_ERROR_INVALID_CARD;
         }
     }
     unsafe { sc_select_file(card, &path_mf, null_mut()) }; // acos5_select_file: if !does_mf_exist { return SC_ERROR_NOT_ALLOWED; }
@@ -837,6 +839,7 @@ extern "C" fn acos5_finish(card_ptr: *mut sc_card) -> i32
     let ctx = unsafe { &mut *card.ctx };
     log3ifc!(ctx,cstru!(b"acos5_finish\0"),line!());
 ////////////////////
+//     let _rv = sanity_check(card, unsafe { CStr::from_ptr(ctx.app_name) });
 /* * /
     // let req_version = unsafe { CStr::from_bytes_with_nul_unchecked(b"4.16\0") };
     let tasn1_version = unsafe { asn1_check_version(null() /*req_version.as_ptr()*/) };
@@ -1312,21 +1315,17 @@ extern "C" fn acos5_select_file(card_ptr: *mut sc_card, path_ptr: *const sc_path
         !(path_ref.len>=2 && path_ref.len<=16 && (path_ref.len%2==0 || path_ref.type_==SC_PATH_TYPE_DF_NAME)) {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
+    let target_file_id = file_id_from_path_value(&path_ref.value[..path_ref.len]); // wrong result for SC_PATH_TYPE_DF_NAME, but doesn't matter
 
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     dp.sm_cmd = 0;
     let does_mf_exist = dp.does_mf_exist;
-    let target_file_id = file_id_from_path_value(&path_ref.value[..path_ref.len]); // wrong result for SC_PATH_TYPE_DF_NAME, but doesn't matter
-    /* if we are not called from within "is_running_init==true", then we must be sure that dp.files.2 is Some, i.e. we know the scb8 of target file when returning from select_file
-       We don't know what comes next after select_file: it may be a cmd that enforces using SM (retrievable from scb8) */
-    /* if !file_out_ptr.is_null(), then process_fci will be called anyway, thus we must ensure, that process_fci will also be called
-       for:  file_out_ptr.is_null() && need_to_process_fci */
+    let does_file_exist = dp.files.contains_key(&target_file_id);
     let force_process_fci = !dp.is_running_init && file_out_ptr.is_null() &&
-        ( path_ref.type_==SC_PATH_TYPE_DF_NAME ||
-          (dp.files.contains_key(&target_file_id) && dp.files[&target_file_id].2.is_none()) );
+        ( path_ref.type_==SC_PATH_TYPE_DF_NAME || (does_file_exist && dp.files[&target_file_id].2.is_none()) );
     card.drv_data = Box::into_raw(dp) as p_void;
     if !does_mf_exist { return SC_ERROR_NOT_ALLOWED; }
-    // let file_opt =  if file_out_ptr.is_null() {None} else {Some(file_out_ptr)};
+    // if !does_file_exist { return SC_ERROR_FILE_NOT_FOUND; }
     let file_opt = unsafe { file_out_ptr.as_mut() };
 
     match path_ref.type_ {
@@ -2727,7 +2726,7 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
     log3if!(ctx,f,line!(), cstru!(b"called with: in_len: %zu, out_len: %zu\0"), crgram_len, outlen);
     assert!(outlen >= crgram_len);
     assert_eq!(crgram_len, get_sec_env_mod_len(card));
-//println!("acos5_decipher          called with: in_len: {}, out_len: {}", crgram_len, outlen);
+//println!("acos5_decipher          called with: in_len: {}, out_len: {}, {}, crgram: {:?}", crgram_len, outlen, get_is_running_compute_signature(card), unsafe {from_raw_parts(crgram_ref_ptr, crgram_len)});
 
     #[cfg(enable_acos5_ui)]
     {

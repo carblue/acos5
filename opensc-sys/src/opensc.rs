@@ -2344,6 +2344,19 @@ pub fn iso7816_update_binary_sfid(card: *mut sc_card, sfid: u8,
 #[cfg(not(v0_17_0))]
 fn iso7816_logout(card: *mut sc_card, pin_reference: u8) -> i32;
 
+/*
+ * @brief Format PIN APDU for modification by card driver
+ *
+ * @param[in] card           card
+ * @param[in] apdu           apdu structure to update with PIN APDU
+ * @param[in] data           pin command data to set into the APDU
+ * @param[in] buf            buffer for APDU data field
+ * @param[in] buf_len        maximum buffer length
+ */
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+fn iso7816_build_pin_apdu(card: *mut sc_card, apdu: *mut sc_apdu,
+                          data: *mut sc_pin_cmd_data, buf: *mut u8, buf_len: usize) -> i32;
+
 /**
  * Free a buffer returned by OpenSC.
  * Use this instead your C libraries free() to free memory allocated by OpenSC.

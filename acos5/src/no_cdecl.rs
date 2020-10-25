@@ -37,7 +37,7 @@ use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_
                          SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA, SC_SEC_ENV_KEY_REF_PRESENT,
                          SC_SEC_ENV_ALG_REF_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_get_iso7816_driver,
                          sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_check_apdu, sc_list_files,
-                         sc_set_security_env, sc_get_challenge, //sc_verify,
+                         sc_set_security_env, sc_get_challenge, sc_get_mf_path, //sc_verify,
                          SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_ALGORITHM_AES,
                          SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT, SC_PIN_STATE_UNKNOWN};
 #[cfg(not(v0_17_0))]
@@ -52,7 +52,7 @@ use opensc_sys::types::{sc_object_id,sc_apdu, /*sc_aid, sc_path, SC_MAX_AID_SIZE
                         SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT,
                         SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
                         SC_AC_CHV, SC_AC_AUT, SC_AC_NONE, SC_AC_SCB, /*, SC_AC_UNKNOWN*/
-                        sc_acl_entry, SC_MAX_AC_OPS
+                        sc_acl_entry, SC_AC_UNKNOWN, SC_MAX_AC_OPS
                         ,SC_AC_OP_READ
                         ,SC_AC_OP_UPDATE
                         ,SC_AC_OP_CRYPTO
@@ -79,7 +79,7 @@ use opensc_sys::iso7816::{ISO7816_TAG_FCI, ISO7816_TAG_FCP, ISO7816_TAG_FCP_SIZE
                           ISO7816_TAG_FCP_FID, ISO7816_TAG_FCP_DF_NAME, ISO7816_TAG_FCP_LCS};
 use opensc_sys::sm::{SM_SMALL_CHALLENGE_LEN, SM_CMD_FILE_READ, SM_CMD_FILE_UPDATE};
 
-use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tt, wr_do_log_ttt, wr_do_log_tu,
+use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tt/*, wr_do_log_ttt*/, wr_do_log_tu,
                       wr_do_log_tuv};
 use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES,
                              BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, BLOCKCIPHER_PAD_TYPE_PKCS5,
@@ -97,8 +97,7 @@ use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, file_id_from_path_value, current_path_df,
                   is_impossible_file_match};
 use crate::missing_exports::me_get_max_recv_size;
-use crate::cmd_card_info::{get_card_life_cycle_byte_eeprom, get_op_mode_byte_eeprom, get_zeroize_card_disable_byte_eeprom,
-                           get_is_pin_authenticated};
+use crate::cmd_card_info::{get_is_pin_authenticated};
 use crate::sm::{SM_SMALL_CHALLENGE_LEN_u8, sm_common_read, sm_common_update};
 use crate::crypto::{RAND_bytes, des_ecb3_unpadded_8, Encrypt};
 
@@ -831,10 +830,14 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
         /* file has the only purpose to invoke scb8 retrieval */
         let mut file = null_mut();
         let guard_file = GuardFile::new(&mut file);
-        let mut rv = /*acos5_select_file*/ unsafe { sc_select_file(card, path_ref, *guard_file) };
+        let mut rv = unsafe { sc_select_file(card, path_ref, *guard_file) };
         assert_eq!(rv, SC_SUCCESS);
         assert!(!file.is_null());
-        let acl_entry_read_method = unsafe { (*sc_file_get_acl_entry(file, SC_AC_OP_READ)).method };
+        let mut acl_entry_read_method: u32 = SC_AC_UNKNOWN;
+        let entry = unsafe { sc_file_get_acl_entry(file, SC_AC_OP_READ) };
+        if !entry.is_null() {
+            acl_entry_read_method = unsafe { (*entry).method };
+        }
 
         let is_local =  path_ref.len>=6;
 //      let len /*_card_serial_number*/ = if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 {6_u8} else {8_u8};
@@ -926,25 +929,6 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
             let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
             dp.does_mf_exist = false;
             card.drv_data = Box::into_raw(dp) as p_void;
-
-            /* Try to read EEPROM addresses: If successful, card is uninitialized */
-            let card_life_cycle_byte = match get_card_life_cycle_byte_eeprom(card) {
-                Ok(val) => val,
-                Err(error) => { return error; },
-            };
-            let operation_mode_byte = match get_op_mode_byte_eeprom(card) {
-                Ok(val) => val,
-                Err(error) => { return error; },
-            };
-            let zeroize_card_disable_byte =  match get_zeroize_card_disable_byte_eeprom(card) {
-                Ok(val) => val,
-                Err(error) => { return error; },
-            };
-
-            println!("### There is no MF: The card is uninitialized/virgin/in factory state ### (Card Life Cycle Byte is 0x{:X}, Operation Mode Byte is 0x{:X}, Zeroize Card Disable Byte is 0x{:X})", card_life_cycle_byte, operation_mode_byte, zeroize_card_disable_byte);
-            log3ift!(ctx,f,line!(), cstru!(
-                b"### There is no MF: The card is uninitialized/virgin/in factory state ### (Card Life Cycle Byte is 0x%02X, Operation Mode Byte is 0x%02X, Zeroize Card Disable Byte is 0x%02X)\0"),
-                card_life_cycle_byte, operation_mode_byte, zeroize_card_disable_byte);
             return SC_SUCCESS;
         }
         else {
@@ -961,7 +945,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
             if rv < SC_SUCCESS {
                 return rv;
             }
-            debug_assert!(rv.is_multiple_of(&2));
+            // debug_assert!(rv.is_multiple_of(&2));
             files_contained.truncate(usize::try_from(rv).unwrap());
             /* * /
                     println!("chunk1 files_contained: {:?}", &files_contained[  ..32]);
@@ -998,6 +982,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
         }
         card.drv_data = Box::into_raw(dp) as p_void;
     }
+    // log3ifr!(ctx,f,line!(), SC_SUCCESS);
     SC_SUCCESS
 } // enum_dir
 
@@ -2250,9 +2235,9 @@ pub fn update_hashmap(card: &mut sc_card) {
     let f = cstru!(b"update_hashmap\0");
     log3ifc!(ctx,f,line!());
 
-    let mut path = sc_path::default();
-    unsafe { sc_format_path(cstru!(b"3F00\0").as_ptr(), &mut path); } // type = SC_PATH_TYPE_PATH;
-    let rv = enum_dir_gui(card, &path);
+    // let mut path = sc_path::default();
+    // unsafe { sc_format_path(cstru!(b"3F00\0").as_ptr(), &mut path); } // type = SC_PATH_TYPE_PATH;
+    let rv = enum_dir_gui(card, unsafe { &*sc_get_mf_path() });
     assert_eq!(rv, SC_SUCCESS);
 
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
@@ -2395,46 +2380,6 @@ pub fn common_update(card: &mut sc_card,
     }
 }
 
-
-#[cfg(sanity)]
-#[cold]
-pub fn sanity_check(card: &mut sc_card) {
-    assert!(!card.ctx.is_null());
-    let ctx = unsafe { &mut *card.ctx };
-    log3ifc!(ctx,cstru!(b"sanity_check\0"),line!());
-println!("The following sanity checks are implemented [X] or planned []. Some or all may depemd on prior check(s)");
-println!("to be successful. Indentation will indicate such dependency.");
-println!();
-println!("[] Does MF exist? If no, then the following (indented) checks are possible but nothing else remains to be done.");
-println!("   [] TODO : all what is meaningful to check with access to card's header block bytes");
-println!();
-println!("File system, Security Access Conditions (SAC) and Security Attributes Expanded (SAE) etc.");
-println!("[] Does each DF/MF specify the mandatory security environment (SE) file and it does exist and is accessible?");
-println!("[] PIN files are required for at least MF and each appDF, with max. 1 such file existing there. Is that okay?");
-println!("[] Sym. key file(s) are required only if Secure Messaging (SM) is involved in a DF/MF, with max. 1 such file existing there. Is that okay?");
-println!("[] Are the PIN files and Sym. key file(s) constrained to: Never readable, and files activated such that the constraint will be upheld by the cos (card operating system?");
-println!("[] List all SE file record entries, that are unused (and might be deleted), and list all that refer to SM");
-println!("[] Are the SE file record entries (if used) meaningful, i.e. don't refer to something that doesn't exist?");
-println!("[] TODO check other recommended access rights, e.g. for RSA key pair files");
-println!("  [] List all DF/MF that specify SAE and try a plain explanation of constraints");
-println!("[] Warn about non-security-activated files");
-println!("TODO more to test here");
-println!();
-println!("Issues, that can't be checked, i.e. just be careful or ?");
-println!("PIN record entries: TODO check whether all ACOS5 options can be used/set by opensc tools, or whether the first time they should be written with APDU command for Update Record; be careful here; see how it's done in info/card_initialization.scriptor");
-println!("Sym. key file record entries: TODO check whether all ACOS5 options can be used/set by opensc tools, or whether the first time they should be written with APDU command for Update Record; be careful here; see how it's done in info/card_initialization.scriptor");
-println!("If a sym. key file record is to be used for SM and its Usage or Error Counter is not set to unlimited, then it will/may become invalid in the future, and when it happens, Y'll probably have forgotten this limit");
-println!("There is no way to unblock an invalid key: The complete record must be updated, which may be impossible, if the command for Update Record is forced to use SM for this file, thus SM won't work any more, until You re-initialize the card.");
-println!("It's inadvisable to block Your emergency exit door: Make sure - by all means -, that Access Control always allows to issue command 'Zeroize Card' (part of re-initialization)");
-println!();
-println!("PKCS#15 related checks");
-println!("[] Does EF.DIR 3F002F00 exist, is accessible and has appropriate content, specifying at least 1 appDF and it's aid?");
-println!("   [] List for all appDF(s) the information encoded in EF.DIR");
-println!("   [] Do appDF's path exist in file system and are accessible?");
-println!("      [] Does EF.ODF exist in each appDF and is accessible?");
-println!("[TODO more to test here]");
-// $ grep -rni sanity
-}
 
 #[cfg(test)]
 mod tests {

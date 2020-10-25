@@ -38,7 +38,7 @@ fn main() {
                 "0.18.0" => println!("cargo:rustc-cfg=v0_18_0"),
                 "0.19.0" => println!("cargo:rustc-cfg=v0_19_0"),
                 "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"),
-                "0.21.0" => println!("cargo:rustc-cfg=v0_21_0"), // experimental only: it's git-master, Latest commit 57a391f, defined as version 0.21.0 in config.h
+                "0.21.0" => println!("cargo:rustc-cfg=v0_21_0"), // experimental only: it's git-master, Latest commit 704afd0, defined as version 0.21.0 in config.h
 //                "0.22.0" => println!("cargo:rustc-cfg=v0_22_0"), // experimental only: it's git-master, Latest commit       ?, defined as version 0.22.0 in config.h
                 _ => panic!("No matching version found for opensc library"),
             }
@@ -58,7 +58,7 @@ fn main() {
     #[cfg(    target_os = "windows")]
     println!("cargo:rustc-link-lib=dylib=libcrypto"); // libeay32.lib -> libcrypto.lib; Since version 1.1.0 OpenSSL have changed their library names from: libeay32.dll -> libcrypto.dll etc.
 
-    /* other conditionaĺ compilation settings */
+    /* other conditional compilation settings */
     println!("cargo:rustc-cfg=log"); // enables driver log output to file debug_file, set in opensc.conf (e.g. debug_file = "/tmp/opensc-debug.log";). Otherwise the driver will be almost quiet referring that
 //    println!("cargo:rustc-cfg=test_v2_v3_token");
 //    println!("cargo:rustc-cfg=dev_relax_signature_constraints_for_raw"); // this is an insecure setting, meant to be used only temporarily for pkcs11-tool -t with  SC_ALGORITHM_RSA_RAW added to rsa_algo_flags in acos5_init
