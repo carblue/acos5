@@ -31,6 +31,20 @@ to the card for commands 'pin verify', 'pin change' and 'pin unblock'.
 Note that the keys written to file 0x3F0041004102 Local Symmetric Key file and within opensc.conf under
 keyset_41434F53504B43532D313576312E3030_02_* MUST MATCH. Any mistake with that entails impossibility to verify pins.
 
+Note, that current card_initialization.scriptor *DOES NOT* force anything to happen protected by SM, though there are
+records #5 and #6 in file 0x3F0041004103 that may be used for SM inside PKCS#15 Application DF 0x3F004100.
+I recommend to use SM gradually and get used to it, e.g. by removing comment characters from lines 183-186 in
+card_initialization.scriptor.
+This will then create a test file sized 16 bytes, that i.a. forces read_binary to use SM as specified in record #6,
+i.e. transmit response encrypted, the driver will then decrypt and e.g. opensc-tool -f will display that plain text.
+If opensc-tool -f doesn't display any content, then SM is not setup correctly (keys in file 0x4102 and/or keyset* in
+opensc.conf; see details in opensc-debug.log).
+
+But, don't rely too much on 'Secure' Messaging if Your crypto card/token is plugged into a hostile environment: An
+attacker, that controls the computer can eavedrop the card <-> terminal communication and can read the opensc.conf
+file and hence reconstruct the generated session keys. Well, I can think of ways to enhance SM's security for ACOS5,
+but thats not disclosable publicly.
+
 scriptor from package pcsc-tools (see http://ludovic.rousseau.free.fr/softwares/pcsc-tools/) or some equivalent tool
 that can send APDUs to a smart card in batch mode will be required.
 
@@ -57,12 +71,14 @@ Some adjustion will be done for file 0x3F0041005031 PKCS#15 EF.ODF by ODF_file_c
 Set new PINs (e.g. with opensc-explorer)
 
 Add new content, e.g. RSA key pair (either with tool acos5_gui or the following command) and<br>
-read public RSA file content for e.g. placing that in Your GitHub settings:<br>
+read public RSA file content for e.g. placing that in Your GitHub settings and then test the ssh connection:<br>
 ```
-pkcs15-init --generate-key rsa/3072 --auth-id 01 --id 01 --label testkey --key-usage sign,decrypt
-pkcs15-tool --read-ssh-key 01
+pkcs15-init --generate-key rsa/3072 --auth-id 01 --id 09 --label testkey --key-usage sign,decrypt
+pkcs15-tool --read-ssh-key 09
 -- GitHub settings --
-ssh -T git@github.com
+ssh -T -I /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so git@github.com
+
+Response on success: Hi your_github_name! You've successfully authenticated, but GitHub does not provide shell access.
 ```
 
 Add new content, e.g. sym. key (either with tool acos5_gui or the following command).Invoke<br>

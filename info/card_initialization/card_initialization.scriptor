@@ -45,6 +45,7 @@ reset
 # file 0x3F0041005033 PKCS#15 EF.Unused file             -> will be omitted
 # file 0x3F0041004129 File to retain compatibility with ACS tool/driver
 # file 0x3F0041005155 File to retain compatibility with ACS tool/driver
+# file 0x3F0041004104 test file for SM                   -> will be omitted if not manually changed
 # file space from 0x3F00410041A0 to 0x3F00410041FF is reserved for driver placing max. 48 new RSA key pairs there !
 
 ## File creation followed by population and activation
@@ -176,6 +177,14 @@ reset
 00 DC 01 04 3D 30 3B 30 08 0C 02 30 31 03 02 07 80 30 03 03 01 81 A1 2A 30 28 03 03 07 CB 80 0A 01 01 02 01 04 02 01 08 02 01 08 A0 03 02 01 08 04 01 00 18 0D 31 32 33 34 35 36 37 38 39 30 31 32 33
 00 DC 02 04 3D 30 3B 30 08 0C 02 30 32 03 02 07 80 30 03 03 01 82 A1 2A 30 28 03 03 07 CB 80 0A 01 01 02 01 04 02 01 08 02 01 08 A0 03 02 01 08 04 01 00 18 0D 31 32 33 34 35 36 37 38 39 30 31 32 33
 00 44 00 00 02 51 55
+
+
+## file 0x3F0041004104 test file for SM                   -> will be omitted if not manually changed
+#00 E0 00 00 1B 62 19 83 02 41 04 8A 01 01 82 02 01 00 80 02 00 10 8C 08 7F 00 FF 00 03 FF 45 46
+#00 A4 00 00 02 41 04
+#00 D6 00 00 10 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10
+#00 44 00 00 02 41 04
+
 
 00 A4 00 00 02 41 00
 00 44 00 00 02 41 00

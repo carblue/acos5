@@ -91,7 +91,7 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
                              SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
                              SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                              SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
-                             Acos5EcCurve, build_apdu, is_DFMF, p_void, TLV,
+                             Acos5EcCurve, build_apdu, is_DFMF, p_void, TLV, ATR_V3_1C, ATR_MASK_TCK,
                              ISO7816_RFU_TAG_FCP_SFI, ISO7816_RFU_TAG_FCP_SAC, ISO7816_RFU_TAG_FCP_SEID, ISO7816_RFU_TAG_FCP_SAE};
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, file_id_from_path_value, current_path_df,
@@ -1330,7 +1330,7 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
 }
 
 #[must_use]
-pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 3]
+pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 4]
 {
     [
         sc_atr_table {
@@ -1344,6 +1344,14 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 3]
         sc_atr_table {
             atr:     cstru!(ATR_V3).as_ptr(),
             atrmask: cstru!(ATR_MASK).as_ptr(),
+            name:    cstru!(NAME_V3).as_ptr(),
+            type_: SC_CARD_TYPE_ACOS5_64_V3,
+            flags: 0,
+            card_atr: null_mut(),
+        },
+        sc_atr_table {
+            atr:     cstru!(ATR_V3_1C).as_ptr(),
+            atrmask: cstru!(ATR_MASK_TCK).as_ptr(),
             name:    cstru!(NAME_V3).as_ptr(),
             type_: SC_CARD_TYPE_ACOS5_64_V3,
             flags: 0,
