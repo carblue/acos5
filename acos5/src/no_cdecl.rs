@@ -95,7 +95,7 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
                              ISO7816_RFU_TAG_FCP_SFI, ISO7816_RFU_TAG_FCP_SAC, ISO7816_RFU_TAG_FCP_SEID, ISO7816_RFU_TAG_FCP_SAE};
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, file_id_from_path_value, current_path_df,
-                  is_impossible_file_match};
+                  is_impossible_file_match, file_id_se};
 use crate::missing_exports::me_get_max_recv_size;
 use crate::cmd_card_info::{get_is_pin_authenticated};
 use crate::sm::{SM_SMALL_CHALLENGE_LEN_u8, sm_common_read, sm_common_update};
@@ -1476,7 +1476,7 @@ fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
         assert!(env_ref.file_ref.len >= 2);
         let path_idx = env_ref.file_ref.len - 2;
         let file_id = u16::from_be_bytes([env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1]]);
-        let file_size = u16::from_be_bytes([dp.files[&file_id].1[4], dp.files[&file_id].1[5]]);
+        let file_size = file_id_se(&dp.files[&file_id].1);
         if [SC_SEC_OPERATION_SIGN,
             SC_SEC_OPERATION_DECIPHER,
             SC_SEC_OPERATION_DECIPHER_RSAPRIVATE].contains(&env_ref.operation) { //priv

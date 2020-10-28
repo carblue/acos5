@@ -1,34 +1,38 @@
 The procedure of card initialization
 ====================================
 
-To be explicit: Card initialization removes all user data from the card such that it will be virgin afterwards, 
+To be explicit: Card initialization removes all user data from the card such that it will be virgin afterwards,
 and then installs the basic file structure required by PKCS#15. Many file ids are inspired by what the ACS tool does,
 also some file content, e.g. content of EF.DIR.
 
-If Your card was initialized already by other means, then that was done probably by an ACS tool. I don't recall all 
-reasons for a need to re-initialization, but instead will provide a sanity-check (accessible via 
+If Your card was initialized already by other means, then that was probably done by an ACS tool. I don't recall all
+reasons for a need to re-initialization (except i.a. a catch-22), but instead will provide a sanity-check (accessible via
 pkcs15-init --sanity-check). This will print to stdout everything notable about Your card's content.
+The catch-22 with ACS tool card initialization is, that any SE-file (which provides information i.a. about how to do PIN
+verification) is readable only after PIN verification has been completed.
 
-Note, that the philosophy of OpenSC is to have free access (reading always allowed or SM constrains satisfiable) 
-to all PKCS#15 directory file EF.DIR and EF.ODF and what they point to. Also to EF.TokenInfo.
+Note, that the philosophy of OpenSC is to have free access (reading always allowed or SM constrains satisfiable without
+any PIN entry) to PKCS#15 directory file EF.DIR and PKCS#15 object directory file EF.ODF and to all what they point to.
+Also to EF.TokenInfo. The driver requires free access to all SE-files.
 
-OpenSC in general has provisions for card initialization, but I didn't implement this (so far, and havn't made up my 
+OpenSC in general has provisions for card initialization, but I didn't implement this (so far, and havn't made up my
 mind if I ever will do).<br>
-Instead I provide this way based on scripts to initialize Your ACOS5-64 V2.00 or ACOS5-64 V3.00 card/token: It allows
-the ultimate control over what will be done.<br>
-With knowledge from the reference manual You can adapt everything to Your heart's content, but I recommend to start with
-what is provided: With incorrect commands it's easy to render Your card unusable, in the worst case exclude Yourself
-from the card.
+Instead I provide script card_initialization.scriptor to initialize Your ACOS5-64 V2.00 or ACOS5-64 V3.00 card/token:
+It allows the ultimate control over what will be done. (Or, if You want to do card initialization manually, invoke
+pkcs15-init --erase-card  and continue on Your own).<br>
+With knowledge from the reference manual You can adapt everything in the script to Your heart's content, but I recommend
+to start with what is provided: With incorrect commands it's easy to render Your card unusable, in the worst case
+exclude Yourself from the card.
 
 In order to enable secured pin entry with ACOS5-64 V3.00 card/token: There is a special
 V3_00_card_initialization_secured_pin.scriptor. It differs from card_initialization.scriptor only in that it uses the
 SAE tag 0xAB for directories in which pin commands are forced to use Secure Messaging in order to send pins encrypted
 to the card for commands 'pin verify', 'pin change' and 'pin unblock'.
-Note that the keys written to file 0x3F0041004102 Local Symmetric Key file and within opensc.conf under 
+Note that the keys written to file 0x3F0041004102 Local Symmetric Key file and within opensc.conf under
 keyset_41434F53504B43532D313576312E3030_02_* MUST MATCH. Any mistake with that entails impossibility to verify pins.
 
 scriptor from package pcsc-tools (see http://ludovic.rousseau.free.fr/softwares/pcsc-tools/) or some equivalent tool
-that can send APDUs to a smart card will be required.
+that can send APDUs to a smart card in batch mode will be required.
 
 The bulk of initialization will be done by script card_initialization.scriptor:
 1. Adapt the script referring to old SOPIN and whether the line for V2.00 or for V3.00 has to be executed (see

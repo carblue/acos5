@@ -88,9 +88,8 @@ use opensc_sys::errors::{SC_SUCCESS};
 use opensc_sys::asn1::{sc_asn1_read_tag, SC_ASN1_TAG_EOC};
 
 use crate::constants_types::{DataPrivate, FDB_RSA_KEY_EF, FDB_SE_FILE, FDB_SYMMETRIC_KEY_EF, SACinfo, SAEinfo, TLV,
-                             is_DFMF, p_void};
+                             is_DFMF, p_void, FDB_ECC_KEY_EF, UPDATE, CRYPTO, DELETE_SELF, CREATE_EF, CREATE_DF};
 use crate::path::{current_path_df, file_id_from_path_value};
-//use crate::wrappers::*;
 
 /*
 It's not possible to map file access conditions from ACOS5 (scb8) to OpenSC exactly:
@@ -117,22 +116,22 @@ pub fn map_scb8_to_acl(card: &mut sc_card, file: &mut sc_file, scb8: [u8; 8], fd
         /* list_files is always allowed for MF/DF */
         assert_eq!(SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, SC_AC_OP_LIST_FILES, SC_AC_NONE, SC_AC_KEY_REF_NONE) } );
         /* for opensc-tool also add the general SC_AC_OP_CREATE, which shall comprise both, SC_AC_OP_CREATE_EF and SC_AC_OP_CREATE_DF (added below later)  */
-        se_file_add_acl_entry(card, file, scb8[1], SC_AC_OP_CREATE); // Create EF
-        se_file_add_acl_entry(card, file, scb8[2], SC_AC_OP_CREATE); // Create DF
+        se_file_add_acl_entry(card, file, scb8[CREATE_EF], SC_AC_OP_CREATE);
+        se_file_add_acl_entry(card, file, scb8[CREATE_DF], SC_AC_OP_CREATE);
     }
     else {
         /* for an EF, acos doesn't distinguish access right update <-> write, thus add SC_AC_OP_WRITE as a synonym to SC_AC_OP_UPDATE */
-        se_file_add_acl_entry(card, file, scb8[1], SC_AC_OP_WRITE);
+        se_file_add_acl_entry(card, file, scb8[UPDATE], SC_AC_OP_WRITE);
         /* usage of SC_AC_OP_DELETE_SELF <-> SC_AC_OP_DELETE seems to be in confusion in opensc, thus for opensc-tool and EF add SC_AC_OP_DELETE to SC_AC_OP_DELETE_SELF
            My understanding is:
            SC_AC_OP_DELETE_SELF designates the right to delete the EF/DF that contains this right in it's SCB
            SC_AC_OP_DELETE      designates the right of a directory, that a contained file may be deleted; acos calls that Delete Child
         */
-        se_file_add_acl_entry(card, file, scb8[6], SC_AC_OP_DELETE);
+        se_file_add_acl_entry(card, file, scb8[DELETE_SELF], SC_AC_OP_DELETE);
     }
     /* for RSA key file add SC_AC_OP_GENERATE to SC_AC_OP_CRYPTO */
-    if fdb == FDB_RSA_KEY_EF {
-        se_file_add_acl_entry(card, file, scb8[2], SC_AC_OP_GENERATE); // MSE/PSO Commands
+    if [FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&fdb) {
+        se_file_add_acl_entry(card, file, scb8[CRYPTO], SC_AC_OP_GENERATE); // MSE/PSO Commands
     }
 
     let ops_df_mf  = [ SC_AC_OP_DELETE/*_CHILD*/, SC_AC_OP_CREATE_EF, SC_AC_OP_CREATE_DF, SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_DELETE_SELF ];
@@ -185,7 +184,7 @@ fn se_file_add_acl_entry(card: &mut sc_card, file: &mut sc_file, scb: u8, op: u3
         let file_id = u16::try_from(file.id).unwrap();
         let res_se_sm = if (scb & 0x40) == 0 {(false,false)}
                                     else {se_get_is_scb_suitable_for_sm_has_ct(card, file_id, scb & 0x0F)};
-        let pin_ref = se_get_references(card, file_id, scb & 0x0F, &sc_crt::new_AT(0x08));
+        let pin_ref = se_get_references(card, file_id, scb & 0x0F, &sc_crt::new_AT(0x08), false);
         if !pin_ref.is_empty() {
 /*
 SCB: 01; [80 01 01  A4 09 83 01 81 83 01 01 95 01 08]                                => CHV129 (CHV1 as OR alternative get's dropped)
@@ -219,7 +218,7 @@ SCB: 81; [80 01 01  A4 09 83 01 81 83 01 01 95 01 08]                           
         }
 /* */
         let mut contains_sm_key : bool = false;
-        let key_ref = se_get_references(card, file_id, scb & 0x0F, &sc_crt::new_AT(0x80));
+        let key_ref = se_get_references(card, file_id, scb & 0x0F, &sc_crt::new_AT(0x80), false);
         if !key_ref.is_empty() {
 /*
 key 0x81 by CONVENTION is the one that get's authenticated in SM mode, thus itself and alternatives get stripped
@@ -261,7 +260,7 @@ SCB: 81; [80 01 01  A4 09 83 01 01 83 01 81 95 01 80  B4 08 84 00 95 01 30 80 01
 
         }
 /* */
-        let pin_key_ref = se_get_references(card, file_id, scb & 0x0F, &sc_crt::new_AT(0x88));
+        let pin_key_ref = se_get_references(card, file_id, scb & 0x0F, &sc_crt::new_AT(0x88), false);
         if !pin_key_ref.is_empty() {
 /*
 key 0x81 by CONVENTION is the one that get's authenticated in SM mode, thus itself and alternatives get stripped
@@ -319,7 +318,7 @@ SCB: 81; [80 01 01  A4 09 83 01 81 83 01 01 95 01 88]                           
  * @param   search_template  IN    usually searching for CRT_TAG_AT, CRT_TAG_CCT or CRT_TAG_CT_SYM
  * @return  pin/sym. key reference ==  pin/sym. key id (global)  or  pin/sym. key id | 0x80 (local)
  */
-fn se_get_references(card: &mut sc_card, file_id: u16, se_reference: u8, search_template: &sc_crt) -> Vec<u32>
+pub fn se_get_references(card: &mut sc_card, file_id: u16, se_reference: u8, search_template: &sc_crt, skip_usage: bool) -> Vec<u32>
 {
     let mut result : Vec<u32> = Vec::with_capacity(8); //SC_AC_KEY_REF_NONE;
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
@@ -355,8 +354,8 @@ fn se_get_references(card: &mut sc_card, file_id: u16, se_reference: u8, search_
             for sac_info in vec_sac_info {
                 if sac_info.reference == u32::from(se_reference) {
                     for crt in &sac_info.crts[..sac_info.crts_len] {
-                        if crt.tag   != search_template.tag   { continue; }
-                        if crt.usage != search_template.usage { continue; }
+                        if crt.tag   != search_template.tag                  { continue; }
+                        if crt.usage != search_template.usage && !skip_usage { continue; }
                         for &elem in &crt.refs {
                             if elem != 0 { result.push(elem); }
                             else         { break; /*for elem*/ }

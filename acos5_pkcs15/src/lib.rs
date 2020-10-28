@@ -79,7 +79,7 @@ extern crate opensc_sys;
 use libc::{free}; // strlen
 //use pkcs11::types::{CKM_DES_ECB, CKM_DES3_ECB, CKM_AES_ECB};
 
-use std::os::raw::{c_char, c_void};
+use std::os::raw::{c_char};
 use std::ffi::CStr;
 use std::ptr::{null_mut};
 use std::collections::HashSet;
@@ -124,7 +124,8 @@ use crate::missing_exports::{me_profile_get_file, me_pkcs15_dup_bignum};
 
 pub mod    constants_types; // shared file among modules acos5, acos5_pkcs15 and acos5_sm
 use crate::constants_types::{CARD_DRV_SHORT_NAME, CardCtl_generate_crypt_asym, DataPrivate, SC_CARDCTL_ACOS5_SDO_CREATE,
-                             SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, SC_CARD_TYPE_ACOS5_64_V3, build_apdu, p_void};
+                             SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, SC_CARD_TYPE_ACOS5_64_V3, build_apdu, p_void,
+                             SC_CARDCTL_ACOS5_SANITY_CHECK};
 
 pub mod    wrappers; // shared file among modules acos5, acos5_pkcs15 and acos5_sm
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tu};
@@ -155,12 +156,12 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> p_void {
-    if !name.is_null() && CStr::from_ptr(name) == cstru!(CARD_DRV_SHORT_NAME) {
+pub extern "C" fn sc_module_init(name: *const c_char) -> p_void {
+    if !name.is_null() && unsafe { CStr::from_ptr(name) } == cstru!(CARD_DRV_SHORT_NAME) {
         acos5_get_pkcs15init_ops as p_void
     }
     else {
-        null_mut::<c_void>()
+        null_mut()
     }
 }
 
@@ -201,7 +202,7 @@ extern "C" fn acos5_get_pkcs15init_ops() -> *mut sc_pkcs15init_operations {
         emu_write_info : None,
         emu_store_data : Some(acos5_pkcs15_emu_store_data), // interceptor to correct/set data for SC_PKCS15_TYPE_PUBKEY_RSA
         /* there are rare OpenSC uses currently */
-        sanity_check : None,// : Some(acos5_pkcs15_sanity_check),
+        sanity_check : Some(acos5_pkcs15_sanity_check),
     } );
 
     Box::into_raw(b_sc_pkcs15init_operations)
@@ -389,7 +390,7 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     let object = unsafe { &mut *object_ptr };
     let mut rv;
     log3if!(ctx,f,line!(), cstru!(b"object.type: %X\0"), object.type_);
-// println!("acos5_pkcs15_create_key, object: {:?}", *object);
+// println!("acos5_pkcs15_create_key, object: {:X?}", *object);
     if SC_PKCS15_TYPE_SKEY == (object.type_ & SC_PKCS15_TYPE_CLASS_MASK) {
         log3if!(ctx,f,line!(),cstru!(b"Currently we won't create any sym. secret key file, but presume that it exists already\0"));
         return SC_SUCCESS;
@@ -400,6 +401,11 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         log3if!(ctx,f,line!(), cstru!(b"Failed: Only RSA is supported\0"));
         return SC_ERROR_NOT_SUPPORTED;
     }
+    key_info.access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE |
+                            SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE |
+                            SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE |
+                            SC_PKCS15_PRKEY_ACCESS_LOCAL;
+
     key_info.modulus_length = rsa_modulus_bits_canonical(key_info.modulus_length);
     let keybits = key_info.modulus_length;
     if keybits < 512 || keybits > 4096 || (keybits % 256) > 0 {
@@ -931,17 +937,17 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     log3if!(ctx,f,line!(), cstru!(b"key_info_priv.access_flags: 0x%X\0"), key_info_priv.access_flags);
     log3if!(ctx,f,line!(), cstru!(b"key_info_priv.native: %d\0"), key_info_priv.native);
     log3if!(ctx,f,line!(), cstru!(b"key_info_priv.modulus_length: 0x%X\0"), key_info_priv.modulus_length);
-    log3if!(ctx,f,line!(), cstru!(b"keybits: %zu\0"), keybits);
+    //log3if!(ctx,f,line!(), cstru!(b"keybits: %zu\0"), keybits);
     log3if!(ctx,f,line!(), cstru!(b"key_info_priv.path: %s\0"),
         unsafe { sc_dump_hex(key_info_priv.path.value.as_ptr(), key_info_priv.path.len) });
 
-    log3if!(ctx,f,line!(), cstru!(b"dp.file_id_key_pair_priv: 0x%X\0"), dp.file_id_key_pair_priv);
-    log3if!(ctx,f,line!(), cstru!(b"dp.file_id_key_pair_pub:  0x%X\0"), dp.file_id_key_pair_pub);
+    //log3if!(ctx,f,line!(), cstru!(b"dp.file_id_key_pair_priv: 0x%X\0"), dp.file_id_key_pair_priv);
+    //log3if!(ctx,f,line!(), cstru!(b"dp.file_id_key_pair_pub:  0x%X\0"), dp.file_id_key_pair_pub);
 //    log3if!(ctx,f,line!(), cstru!(b"is_key_pair_created_and_valid_for_generation: %d\0"), is_key_pair_created_and_valid_for_generation);
 
     log3if!(ctx,f,line!(), cstru!(b"dp.agc.do_generate_rsa_crt: %d\0"), dp.agc.do_generate_rsa_crt);
-    log3if!(ctx,f,line!(), cstru!(b"dp.do_generate_rsa_add_decrypt: %d\0"), dp.do_generate_rsa_add_decrypt);
-    log3if!(ctx,f,line!(), cstru!(b"dp.do_generate_rsa_standard_pub_exponent: %d\0"), dp.do_generate_rsa_standard_pub_exponent);
+    //log3if!(ctx,f,line!(), cstru!(b"dp.do_generate_rsa_add_decrypt: %d\0"), dp.do_generate_rsa_add_decrypt);
+    //log3if!(ctx,f,line!(), cstru!(b"dp.do_generate_rsa_standard_pub_exponent: %d\0"), dp.do_generate_rsa_standard_pub_exponent);
 
     log3if!(ctx,f,line!(), cstru!(b"p15pubkey.algorithm: 0x%X\0"), p15pubkey.algorithm);
     log3if!(ctx,f,line!(), cstru!(b"p15pubkey.alg_id:    %p\0"), p15pubkey.alg_id);
@@ -1086,9 +1092,9 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
             unsafe { sc_dump_hex(key_info.path.value.as_ptr(), key_info.path.len) }); // empty
     log3if!(ctx,f,line!(), cstru!(b"key_info.direct.raw.len: %zu\0"),  key_info.direct.raw.len);  //398
     log3if!(ctx,f,line!(), cstru!(b"key_info.direct.spki.len: %zu\0"), key_info.direct.spki.len); //422
-    if !arg4.is_null() {
+    if !_der_data.is_null() {
         unsafe {
-            log3if!(ctx,f,line!(), cstru!(b"der_length: %zu\0"), (*arg4).len); // 398
+            log3if!(ctx,f,line!(), cstru!(b"der_length: %zu\0"), (*_der_data).len); // 398
             (*_der_data).len = 0;
         }
     }
@@ -1125,6 +1131,22 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
         }
     }
     SC_SUCCESS
+}
+
+extern "C" fn acos5_pkcs15_sanity_check(_profile: *mut sc_profile, p15card: *mut sc_pkcs15_card) -> i32
+{
+    if p15card.is_null() || unsafe { (*p15card).card.is_null() } {
+        return SC_ERROR_KEYPAD_MSG_TOO_LONG;
+    }
+    // let card_ref: &sc_card = unsafe { &*(*p15card).card };
+    let card = unsafe { &mut *(*p15card).card };
+    if card.ctx.is_null() {
+        return SC_ERROR_KEYPAD_MSG_TOO_LONG;
+    }
+    let ctx = unsafe { &mut *card.ctx };
+    let f = cstru!(b"acos5_pkcs15_sanity_check\0");
+    log3ifc!(ctx,f,line!());
+    unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SANITY_CHECK, null_mut()) }
 }
 
 /* Not yet ready; possibly better to be implemented in the driver and call that via sc_card_ctl

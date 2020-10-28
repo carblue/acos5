@@ -1,8 +1,9 @@
 use std::ptr::null_mut;
 use std::ffi::CStr;
+use std::collections::HashSet;
 
 use opensc_sys::opensc::{sc_card, sc_get_mf_path/*, sc_format_path*/, sc_select_file};
-// use opensc_sys::types::{sc_path,/* sc_file*/};
+use opensc_sys::types::{sc_crt};
 use opensc_sys::errors::{/*SC_SUCCESS,*/ SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT_FOUND};
 // /*, SC_ERROR_INTERNAL*/, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
 //                          SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY, SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING,
@@ -12,7 +13,10 @@ use opensc_sys::errors::{/*SC_SUCCESS,*/ SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT
 
 use crate::wrappers::{wr_do_log, wr_do_log_ttt};
 use crate::cmd_card_info::{get_card_life_cycle_byte_eeprom, get_op_mode_byte_eeprom, get_zeroize_card_disable_byte_eeprom};
-// use crate::no_cdecl::{update_hashmap};
+use crate::no_cdecl::{update_hashmap};
+use crate::constants_types::{DataPrivate, p_void, is_DFMF, FDB_SE_FILE, READ};
+use crate::path::{/*file_id,*/ file_id_se, is_child_of};
+use crate::se::se_get_references;
 
 /* route onlY MF doesn't exist to Err ! */
 fn select_mf(card: &mut sc_card) -> Result<i32, i32> {
@@ -39,7 +43,8 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
         println!("   [] TODO : all what is meaningful to check with access to card's header block bytes");
         println!();
         println!("File system, Security Access Conditions (SAC) and Security Attributes Expanded (SAE) etc.");
-        println!("[] Does each DF/MF specify the mandatory security environment (SE) file and it does exist and is accessible?");
+        println!("[X] Does each DF/MF specify the mandatory security environment (SE) file and it does exist and is accessible?");
+        println!("[X] Check whether all references to SE file are satisfied; list unused SE file record(s)");
         println!("[] PIN files are required for at least MF and each appDF, with max. 1 such file existing there. Is that okay?");
         println!("[] Sym. key file(s) are required only if Secure Messaging (SM) is involved in a DF/MF, with max. 1 such file existing there. Is that okay?");
         println!("[] Are the PIN files and Sym. key file(s) constrained to: Never readable, and files activated such that the constraint will be upheld by the cos (card operating system?");
@@ -91,9 +96,82 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
         return Ok(());
     }
     if printable { println!("[X] Does MF exist?  Yes") }
-    // update_hashmap(card);
+    update_hashmap(card);
+    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    for (&key_dfmf, val) in &dp.files {
+        if is_DFMF(val.1[0]) {
+            let child_id = file_id_se(&val.1);
+            assert!(dp.files.contains_key(&child_id)); // or it doesn't exist
+            let dpfv_child = &dp.files[&child_id];
+            if  dpfv_child.1[0] != FDB_SE_FILE || !is_child_of(dpfv_child, val) {
+                println!("DF {:04X} does declare SE file id {:04X}, but either this is no SE-file or is not a child", key_dfmf, child_id);
+            }
+            else if dpfv_child.2.is_none() || dpfv_child.2.unwrap()[READ] != 0 {
+                println!("WARNING: Security Access Condition of SE file id {:04X} is different from 'ALWAYS READABLE'. \
+                Hence, OpenSC and this driver won't know any file related Security Access Constraint in directory \
+                {:04X} and You may run into all sorts of errors related to Access Control", child_id, key_dfmf);
+            }
+            else {
+                println!("\n[X] DF/MF {:04X} mandatory security environment (SE) file {:04X} seems to be okay (content checked next).", key_dfmf, child_id);
+                let mut index_used : HashSet<u8> = HashSet::with_capacity(14);
+                for &b in val.2.unwrap().iter() {
+                    if ![0, 255].contains(&b) {
+                        index_used.insert(b & 0x4F);
+                    }
+                }
+                for (_key_child, val_child) in &dp.files {
+                    if is_DFMF(val_child.1[0]) || val_child.1[1] != val.1[1]+2  {
+                        continue;
+                    }
+                    if is_child_of(val_child, val) {
+                        for &b in val_child.2.unwrap().iter() {
+                            if ![0, 255].contains(&b) {
+                                index_used.insert(b & 0x4F);
+                            }
+                        }
+                    }
+                }
+println!("[X] DF/MF {:04X} references found: {:X?} ", key_dfmf, index_used);
+                let mut once = false;
+                for &index in &index_used {
+                    if index & 0x40 > 0 {
+                        if se_get_references(card, key_dfmf, index & 0x0F, &sc_crt::new_CCT(0x30), false).is_empty() &&
+                           se_get_references(card, key_dfmf, index & 0x0F, &sc_crt::new_CCT(0x70), false).is_empty()    {
+                            once = true;
+                            println!("[X] ERROR: The record #{} in SE-file {} shall be used for SM, but it has no suitable CCT template", index & 0x0F, child_id);
+                        }
+                    }
+                    if se_get_references(card, key_dfmf, index & 0x0F, &sc_crt::new_AT(0x88), true).is_empty() {
+                        once = true;
+                        println!("[X] ERROR: There is no record #{} in SE-file {}, but it gets referenced for Access Control", index & 0x0F, child_id);
+                    }
+                }
+                if !once {
+                    println!("[X] DF/MF {:04X} mandatory security environment (SE) file {:04X} content satisfies all references).", key_dfmf, child_id);
+                }
+
+// if val.3.is_some() {
+// println!("[X] DF/MF {:04X}    {:X?} ", key_dfmf, val.3.as_ref().unwrap());
+// }
+
+                /*
+                for key_dfmf and all its children, collect the SE-records used
+                x references to SE-record 1 (PIN verification)
+                x references to SE-record 2 (KEY authorization)
+                x references to SE-record 3 (SM authenticate)
+                x references to SE-record 4 (SM encrypt)
+                x references to SE-record 5 (empty)
+                */
+            }
+        }
+    }
+    // for (_key, val) in &dp.files {
+    //     if FDB_SE_FILE == val.1[0] {
+    //         println!("val is_SE  : {:X?}", *val);
+    //     }
+    // }
+    card.drv_data = Box::into_raw(dp) as p_void;
     Ok(())
-// $ grep -rni sanity
 }
 
 #[allow(dead_code)]

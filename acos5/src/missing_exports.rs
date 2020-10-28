@@ -404,8 +404,7 @@ pub fn me_pkcs1_strip_02_padding(vec: &mut Vec<u8>) -> i32 //-> Result<Vec<u8>, 
 {
 //0  1  2  3  4  5  6  7  8  9  10  11
 //00 02 1  2  3  4  5  6  7  8  00          PS_Len==8 is the minimum length of PS
-    let len_orig = vec.len();
-    if len_orig < 11 {
+    if vec.len() < 11 {
         return SC_ERROR_INTERNAL;
     }
     if vec[0] != 0 || vec[1] != 2 {

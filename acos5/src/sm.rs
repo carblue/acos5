@@ -381,6 +381,13 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
     }
 
 //            memcpy(cwa_session->ifd.sn, hex, hex_len);
+    cwa_session.ifd.sn.copy_from_slice(&hex[..hex_len]);
+// println!("cwa_session.ifd.sn: {:X?}", cwa_session.ifd.sn);
+// println!("sm_info.serialnr:   {:X?}", sm_info.serialnr);
+    if cwa_session.ifd.sn != sm_info.serialnr.value[..sm_info.serialnr.len] {
+        return SC_ERROR_SM;
+    }
+
     /*
                 rv = RAND_bytes(cwa_session->ifd.rnd, DES_KEY_SZ_u8 as i32);
                 if (!rv)   {

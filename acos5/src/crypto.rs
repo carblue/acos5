@@ -153,27 +153,24 @@ pub fn des_ecb3_pad_pkcs5(data: &[u8], key: &str, mode: i32) -> Vec<u8> {
 }
 */
 
-/* this gets used currently only for Encrypt and data known to be multiple of DES_KEY_SZ */
+/* this gets used currently only for Encrypt and data.len() known to be multiple of DES_KEY_SZ */
 #[must_use]
 pub fn des_ecb3_unpadded_8(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> { // -> [u8; DES_KEY_SZ] {
     assert!(data.len().is_multiple_of(&DES_KEY_SZ));
     assert_eq!(24, key.len());
 
     let mut ks = [DES_key_schedule::default(), DES_key_schedule::default(), DES_key_schedule::default()];
-    let mut out_block = [0_u8; DES_KEY_SZ];
-    let mut output = Vec::with_capacity(data.len());
+    let mut output = vec![0_u8; data.len()];
     unsafe {
         for (i, item) in key.chunks_exact(DES_KEY_SZ).enumerate() {
-            // DES_set_key_unchecked(item.as_ptr(), &mut ks[i]);
             let rv = DES_set_key_checked(item.as_ptr(), &mut ks[i]);
             if rv != 0 {
                 return output;
             }
         }
 
-        for chunk in data.chunks_exact(DES_KEY_SZ) {
-            DES_ecb3_encrypt(chunk.as_ptr(), out_block.as_mut_ptr(), &ks[0], &ks[1], &ks[2], mode);
-            output.extend_from_slice(&out_block[..]);
+        for (i, chunk) in data.chunks_exact(DES_KEY_SZ).enumerate() {
+            DES_ecb3_encrypt(chunk.as_ptr(), output.as_mut_ptr().add(i*DES_KEY_SZ), &ks[0], &ks[1], &ks[2], mode);
         }
     }
     output

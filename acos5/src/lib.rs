@@ -159,7 +159,7 @@ use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEAN
                       SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
-                      ValueTypeFiles, build_apdu, is_DFMF, p_void};
+                      ValueTypeFiles, build_apdu, is_DFMF, p_void, SC_CARDCTL_ACOS5_SANITY_CHECK};
 #[cfg(enable_acos5_ui)]
 use constants_types::{ui_context, set_ui_ctx, get_ui_ctx, acos5_ask_user_consent};
 
@@ -183,7 +183,7 @@ use no_cdecl::{select_file_by_path, enum_dir,
 };
 
 mod path;
-use path::{file_id_from_cache_current_path, file_id_from_path_value, current_path_df};
+use path::{file_id_from_cache_current_path, file_id_from_path_value, current_path_df, file_id, file_id_se};
 
 // #[cfg(sanity)]
 mod sanity;
@@ -784,24 +784,31 @@ DataPrivate:                                                size_of: 1784, align
         let does_mf_exist = dp.does_mf_exist;
         card.drv_data = Box::into_raw(dp) as p_void;
         if !does_mf_exist {
-            let _rv = sanity_check(card, app_name);            return SC_ERROR_INVALID_CARD;
+            let _rv = sanity_check(card, app_name);
+            return SC_ERROR_INVALID_CARD;
         }
     }
     unsafe { sc_select_file(card, &path_mf, null_mut()) }; // acos5_select_file: if !does_mf_exist { return SC_ERROR_NOT_ALLOWED; }
 
     let sm_info = &mut card.sm_ctx.info;
-//  char[64]  config_section;  will be set from opensc.conf later by sc_card_sm_check
-//  uint      sm_mode;         will be set from opensc.conf later by sc_card_sm_check only for SM_MODE_TRANSMIT
-    sm_info.serialnr  = card.serialnr;
-//    unsafe { copy_nonoverlapping(cstru!(b"acos5_sm\0").as_ptr(), sm_info.config_section.as_mut_ptr(), 9); } // used to look-up the block; only iasecc/authentic populate this field
+/*
+card.sm_ctx.module.ops  : handled by card.c:sc_card_sm_check/sc_card_sm_load
+       if (card.cache.current_df)
+       current_path_df                 = card.cache.current_df.path;
+char[64]  config_section;  will be set from opensc.conf later by sc_card_sm_check
+unsafe { copy_nonoverlapping(cstru!(b"acos5_sm\0").as_ptr(), sm_info.config_section.as_mut_ptr(), 9); } // used to look-up the block; only iasecc/authentic populate this field
+uint      sm_mode;         will be set from opensc.conf later by sc_card_sm_check only for SM_MODE_TRANSMIT
+sm_info.serialnr = card.serialnr; // enabling this instead of the following 2 lines would allow to constrain SM to a specific hardware, set in opensc.conf as ifd_serial = "byte_1:byte_2:byte_3:byte_4:byte_5:byte_6:byte_7:byte_8"; ifd_serial of SC_CARD_TYPE_ACOS5_64_V2 has 6 bytes only !
+ */
+    sm_info.serialnr.len   = 8;
+    sm_info.serialnr.value = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0];
     sm_info.card_type = u32::try_from(card.type_).unwrap();
     sm_info.sm_type   = SM_TYPE_CWA14890;
-    unsafe { sm_info.session.cwa.params.crt_at.refs[0] = 0x82 }; // this is the selection of keyset_... ...02_... to be used !!! Currently 24 byte keys (generate 24 byte session keys)
-//       assert(0);//session.cwa.params.crt_at.refs[0] = 0x81;   // this is the selection of keyset_... ...01_... to be used !!!           16 byte keys (generate 16 byte session keys)
-//        if (card.cache.current_df)
-//        current_path_df                 = card.cache.current_df.path;
     sm_info.current_aid = sc_aid { len: SC_MAX_AID_SIZE, value: [0x41, 0x43, 0x4F, 0x53, 0x50, 0x4B, 0x43, 0x53, 0x2D, 0x31, 0x35, 0x76, 0x31, 0x2E, 0x30, 0x30]}; //"ACOSPKCS-15v1.00", see PKCS#15 EF.DIR file
-//  card.sm_ctx.module.ops  : handled by card.c:sc_card_sm_check/sc_card_sm_load
+    unsafe {
+        sm_info.session.cwa.params.crt_at.refs[0] = 0x82; // this is the selection of keyset_... ...02_... to be used !!! Currently 24 byte keys (generate 24 byte session keys)
+//      sm_info.session.cwa.params.crt_at.refs[0] = 0x81; // this is the selection of keyset_... ...01_... to be used !!!           16 byte keys (generate 16 byte session keys)
+    }
 
     let mut dp= unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     dp.files.shrink_to_fit();
@@ -1036,7 +1043,7 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let dp_files_value = &dp.files[&file_id];
     let fdb = dp_files_value.1[0];
-    let size = u16::from_be_bytes([dp_files_value.1[4], dp_files_value.1[5]]);
+    let size = file_id_se(&dp_files_value.1);
     let scb_erase = dp_files_value.2.unwrap()[1];
     card.drv_data = Box::into_raw(dp) as p_void;
 ////println!("idx: {}, count: {}, flags: {}, fdb: {}, size: {}, scb_erase: {}", idx, count, flags, fdb, size, scb_erase);
@@ -1110,9 +1117,10 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *card_ptr };
-    log3ifc!(unsafe { &mut *card.ctx }, cstru!(b"acos5_card_ctl\0"), line!());
+    let ctx = unsafe { &mut *card.ctx };
+    log3ifc!(ctx, cstru!(b"acos5_card_ctl\0"), line!());
 
-    if data_ptr.is_null() && ![SC_CARDCTL_LIFECYCLE_SET, SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO].contains(&command)
+    if data_ptr.is_null() && ![SC_CARDCTL_LIFECYCLE_SET, SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO, SC_CARDCTL_ACOS5_SANITY_CHECK].contains(&command)
     { return SC_ERROR_INVALID_ARGUMENTS; }
 
     match command {
@@ -1292,6 +1300,16 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
                 { return SC_ERROR_INVALID_ARGUMENTS; }
 
                 if sym_en_decrypt(card, crypt_sym_data) > 0 {SC_SUCCESS} else {SC_ERROR_KEYPAD_MSG_TOO_LONG}
+            },
+        // #[cfg(sanity)]
+        SC_CARDCTL_ACOS5_SANITY_CHECK =>
+            {
+                match sanity_check(card, unsafe {
+                    if !ctx.app_name.is_null() { CStr::from_ptr(ctx.app_name) }
+                    else { CStr::from_bytes_with_nul_unchecked(b"\0") } } )  {
+                    Ok(()) => SC_SUCCESS,
+                    Err(e) => e,
+                }
             },
         _   => SC_ERROR_NO_CARD_SUPPORT
     } // match command
@@ -1729,7 +1747,7 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
 
             if is_running_init {
                 let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-                let predecessor = dp.files.insert(u16::from_be_bytes([rbuf[2], rbuf[3]]),
+                let predecessor = dp.files.insert(file_id(&rbuf),
                                                   ([0; SC_MAX_PATH_SIZE], rbuf, None, None, None));
                 card.drv_data = Box::into_raw(dp) as p_void;
                 if predecessor.is_some() {
@@ -1803,7 +1821,7 @@ extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
     dp_files_value.1[7] = fci.lcsi;
     dp_files_value.2.get_or_insert(fci.scb8);
 
-    if  dp_files_value.1[2] == 0 && dp_files_value.1[3] == 0 { // assume dp_files_value.1 wasn't provided by list_files, i.e. insert by acos5_create_file
+    if  file_id(&dp_files_value.1) == 0 { // assume dp_files_value.1 wasn't provided by list_files, i.e. insert by acos5_create_file
         dp_files_value.1[0] = fci.fdb;
         dp_files_value.1[2..4].copy_from_slice(&fci.fid.to_be_bytes());
         if  file.type_!= SC_FILE_TYPE_DF && file.ef_structure != SC_FILE_EF_TRANSPARENT {

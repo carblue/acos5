@@ -123,9 +123,9 @@ pub const ACOS5_OBJECT_REF_MAX    : u8 = 0x1F;
 
 // for an internal driver these 3 will move to cards.h
 pub const SC_CARD_TYPE_ACOS5_BASE   : i32 = 16001;
-pub const SC_CARD_TYPE_ACOS5_64_V2  : i32 = 16003;
-pub const SC_CARD_TYPE_ACOS5_64_V3  : i32 = 16004;
-pub const SC_CARD_TYPE_ACOS5_EVO_V4 : i32 = 16005;
+pub const SC_CARD_TYPE_ACOS5_64_V2  : i32 = 16003; // = SC_CARD_TYPE_ACOS5_BASE + 2;
+pub const SC_CARD_TYPE_ACOS5_64_V3  : i32 = 16004; // = SC_CARD_TYPE_ACOS5_BASE + 3;
+pub const SC_CARD_TYPE_ACOS5_EVO_V4 : i32 = 16005; // = SC_CARD_TYPE_ACOS5_BASE + 4;
 
 pub const ATR_V2   : &[u8; 57] = b"3b:be:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00\0"; // Using reader with a card: ACS CryptoMate64 00 00
 pub const ATR_V3   : &[u8; 57] = b"3b:be:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00\0"; // Using reader with a card: ACS CryptoMate (T2) 00 00  ; this is CryptoMate Nano
@@ -292,6 +292,8 @@ pub const SC_CARDCTL_PKCS11_INIT_PIN         : c_ulong =  0x0000_0009;
  *
  * for an internal driver these will move to cardctl.h
 */
+pub const SC_CARDCTL_ACOS5_SANITY_CHECK            : c_ulong =  0x0000_0010; // data: null
+
 pub const SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF : c_ulong =  0x0000_0011; // data: *mut u16,  get_count_files_curr_df
 pub const SC_CARDCTL_ACOS5_GET_FILE_INFO           : c_ulong =  0x0000_0012; // data: *mut CardCtlArray8,  get_file_info
 pub const SC_CARDCTL_ACOS5_GET_FREE_SPACE          : c_ulong =  0x0000_0014; // data: *mut u32,  get_free_space
@@ -323,6 +325,16 @@ pub const SC_CARDCTL_ACOS5_ENCRYPT_SYM             : c_ulong =  0x0000_0027; // 
 pub const SC_CARDCTL_ACOS5_ENCRYPT_ASYM            : c_ulong =  0x0000_0028; // data: *mut CardCtl_crypt_asym, do_encrypt_asym; Signature verification with public key
 pub const SC_CARDCTL_ACOS5_DECRYPT_SYM             : c_ulong =  0x0000_0029; // data: *mut CardCtl_crypt_sym,  do_decrypt_sym
 ////pub const SC_CARDCTL_ACOS5_DECRYPT_ASYM        : c_ulong =  0x0000_002A; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
+
+// array indices of some file related commands in scb8:
+pub const READ         : usize =  0;
+pub const DELETE_CHILD : usize =  0;
+pub const UPDATE       : usize =  1;
+pub const CREATE_EF    : usize =  1;
+pub const CRYPTO       : usize =  2;
+pub const CREATE_DF    : usize =  2;
+pub const DELETE_SELF  : usize =  6;
+
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone,  PartialEq)]

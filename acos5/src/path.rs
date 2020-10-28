@@ -25,7 +25,8 @@ use opensc_sys::types::{sc_path/*, SC_MAX_PATH_SIZE*/};
 
 use crate::constants_types::{DataPrivate, FDB_CHV_EF, FDB_CYCLIC_EF, FDB_DF, FDB_ECC_KEY_EF, FDB_LINEAR_FIXED_EF,
                              FDB_LINEAR_VARIABLE_EF, FDB_MF, FDB_PURSE_EF, FDB_RSA_KEY_EF, FDB_SE_FILE,
-                             FDB_SYMMETRIC_KEY_EF, FDB_TRANSPARENT_EF, is_DFMF, p_void};
+                             FDB_SYMMETRIC_KEY_EF, FDB_TRANSPARENT_EF, is_DFMF, p_void, ValueTypeFiles};
+
 use crate::wrappers::wr_do_log_t;
 
 /* The following 2 functions take the file id from the last valid path component */
@@ -41,6 +42,29 @@ pub fn file_id_from_path_value(path_value: &[u8]) -> u16
 pub fn file_id_from_cache_current_path(card: &sc_card) -> u16
 {
     file_id_from_path_value(&card.cache.current_path.value[..card.cache.current_path.len])
+}
+
+pub fn file_id(file_info_bytes: &[u8; 8]) ->u16 {
+    // debug_assert_eq!(8, file_info_bytes.len());
+    u16::from_be_bytes([file_info_bytes[2], file_info_bytes[3]])
+}
+
+/*
+ a 2-byte slot [4..6] gets used only by some file types:
+ for DF/MF its the id of an SE file
+ for non-record based file types its the file size
+*/
+pub fn file_id_se(file_info_bytes: &[u8; 8]) ->u16 {
+    // debug_assert_eq!(8, file_info_bytes.len());
+    u16::from_be_bytes([file_info_bytes[4], file_info_bytes[5]])
+}
+
+pub fn is_child_of(child: &ValueTypeFiles, parent: &ValueTypeFiles) -> bool {
+    let pos = usize::from(parent.1[1]);
+    assert!(pos < 16);
+    let mut path = parent.0;
+    path[pos..pos+2].copy_from_slice(&child.1[2..4]);
+    path == child.0  &&  pos+2 == child.1[1].into()
 }
 
 /*

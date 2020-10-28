@@ -38,7 +38,7 @@ fn main() {
                 "0.18.0" => println!("cargo:rustc-cfg=v0_18_0"),
                 "0.19.0" => println!("cargo:rustc-cfg=v0_19_0"),
                 "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"),
-                "0.21.0" => println!("cargo:rustc-cfg=v0_21_0"), // experimental only: it's git-master, Latest commit 704afd0, defined as version 0.21.0 in config.h
+                "0.21.0" => println!("cargo:rustc-cfg=v0_21_0"), // experimental only: it's git-master, Latest commit 8098b7d, defined as version 0.21.0 in config.h
 //                "0.22.0" => println!("cargo:rustc-cfg=v0_22_0"), // experimental only: it's git-master, Latest commit       ?, defined as version 0.22.0 in config.h
                 _ => panic!("No matching version found for opensc library"),
             }
@@ -60,16 +60,17 @@ fn main() {
 
     /* other conditional compilation settings */
     println!("cargo:rustc-cfg=log"); // enables driver log output to file debug_file, set in opensc.conf (e.g. debug_file = "/tmp/opensc-debug.log";). Otherwise the driver will be almost quiet referring that
-//    println!("cargo:rustc-cfg=test_v2_v3_token");
+    { // in the following lines of this block ({...}), remove either all leading // if You want that feature compiled in, or none to keep that inactive
+//        println!("cargo:rustc-cfg=enable_acos5_ui"); // enables driver to ask for user consent prior to using RSA private keys (for sign, decrypt); DO ENABLE ONLY together with the 2 following lines relating to IUP
+//        println!("cargo:rustc-link-lib=dylib=iup"); // specifies linking libiup.so/dylib or compiling on Windows with import library iup.lib
+//        println!("cargo:rustc-link-search=native=/usr/lib"); // specifies where libiup.so/dylib/dll is located
+    }
 //    println!("cargo:rustc-cfg=dev_relax_signature_constraints_for_raw"); // this is an insecure setting, meant to be used only temporarily for pkcs11-tool -t with  SC_ALGORITHM_RSA_RAW added to rsa_algo_flags in acos5_init
+
+//    The remaining lines are for my/DEVELOPMENT USE ONLY
+//    println!("cargo:rustc-cfg=test_v2_v3_token");
 //    println!("cargo:rustc-cdylib-link-arg=-Wl,-soname,libacos5.so.6"); //doesn't work currently
-
-//    println!("cargo:rustc-cfg=enable_acos5_ui"); // enables driver to ask for user consent prior to using RSA private keys (for sign, decrypt); DO ENABLE ONLY together with the 2 following lines relating to IUP
-//    println!("cargo:rustc-link-lib=dylib=iup"); // specifies linking libiup.so/dylib or compiling on Windows with import library iup.lib
-//    println!("cargo:rustc-link-search=native=/usr/lib"); // specifies where libiup.so/dylib/dll is located
-
 //    println!("cargo:rustc-cfg=gui"); // unused currently: enables compile additional functionality, that is required only by acos5_gui; see repo carblue/acos5_gui
-//    println!("cargo:rustc-link-lib=dylib=tasn1");
-
+//    println!("cargo:rustc-link-lib=dylib=tasn1"); // see also https://gnutls.gitlab.io/libtasn1/libtasn1.html
 //    println!("cargo:rustc-cfg=sanity"); // enables driver's sanity_check function. It's assumed that this will remarkably increase code size. Test whether it's advisable to have that compiled in only behind this "gate"
 }
