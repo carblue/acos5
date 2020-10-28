@@ -26,12 +26,11 @@ use std::ffi::{/*CString,*/ CStr};
 use std::fs;//::{read/*, write*/};
 use std::ptr::{null_mut};
 use std::convert::{TryFrom, TryInto};
-use std::ops::{Deref, DerefMut};
 use std::slice::from_raw_parts;
 
 use num_integer::Integer;
 
-use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_apdu, sc_file_free,
+use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_apdu,
                          sc_read_record, sc_format_path, sc_select_file, sc_check_sw, //SC_ALGORITHM_RSA_PAD_PKCS1,
                          SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
                          SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA, SC_SEC_ENV_KEY_REF_PRESENT,
@@ -92,7 +91,8 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
                              SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                              SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
                              Acos5EcCurve, build_apdu, is_DFMF, p_void, TLV, ATR_V3_1C, ATR_MASK_TCK,
-                             ISO7816_RFU_TAG_FCP_SFI, ISO7816_RFU_TAG_FCP_SAC, ISO7816_RFU_TAG_FCP_SEID, ISO7816_RFU_TAG_FCP_SAE};
+                             ISO7816_RFU_TAG_FCP_SFI, ISO7816_RFU_TAG_FCP_SAC, ISO7816_RFU_TAG_FCP_SEID,
+                             ISO7816_RFU_TAG_FCP_SAE, GuardFile};
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, file_id_from_path_value, current_path_df,
                   is_impossible_file_match, file_id_se};
@@ -194,51 +194,6 @@ impl FCI {
             }
         }
         result
-    }
-}
-
-// #[derive(Debug, Eq, PartialEq)]
-pub struct GuardFile(*mut *mut sc_file);
-
-impl GuardFile {
-    /// Creates a guard for the specified element.
-    pub fn new(inner: *mut *mut sc_file) -> Self {
-// println!("GuardFile");
-        GuardFile(inner)
-    }
-/*
-    /// Forgets this guard and unwraps out the contained element.
-    pub fn unwrap(self) -> E {
-        let inner = self.0;
-        forget(self);   // Don't drop me or I'll destroy `inner`!
-        inner
-    }
-*/
-}
-
-impl Drop for GuardFile {
-    fn drop(&mut self) {
-        if !self.0.is_null() && unsafe { !(*self.0).is_null() } {
-//println!("Drop for file path: {:X?}", unsafe { (*(*self.0)).path.value });
-            unsafe { sc_file_free(*self.0) }
-        }
-    }
-}
-
-/// Be careful on deferecing so you don't store another copy of the element somewhere.
-impl Deref for GuardFile {
-    type Target = *mut *mut sc_file;
- // fn deref(&self) -> &Self::Target;
-    fn deref(&self) -> & *mut *mut sc_file {
-        &self.0
-    }
-}
-
-/// Be careful on deferecing so you don't store another copy of the element somewhere.
-impl DerefMut for GuardFile {
- // fn deref_mut(&mut self) -> &mut Self::Target;
-    fn deref_mut(&mut self) -> &mut *mut *mut sc_file {
-        &mut self.0
     }
 }
 

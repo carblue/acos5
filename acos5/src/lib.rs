@@ -159,7 +159,7 @@ use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEAN
                       SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
-                      ValueTypeFiles, build_apdu, is_DFMF, p_void, SC_CARDCTL_ACOS5_SANITY_CHECK};
+                      ValueTypeFiles, build_apdu, is_DFMF, p_void, SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile};
 #[cfg(enable_acos5_ui)]
 use constants_types::{ui_context, set_ui_ctx, get_ui_ctx, acos5_ask_user_consent};
 
@@ -179,7 +179,7 @@ use no_cdecl::{select_file_by_path, enum_dir,
     /*, create_mf_file_system*/ convert_acl_array_to_bytes_tag_fcp_sac, get_sec_env_mod_len,
     ACL_CATEGORY_DF_MF, ACL_CATEGORY_EF_CHV, ACL_CATEGORY_KEY, ACL_CATEGORY_SE,
     get_is_running_compute_signature, set_is_running_compute_signature,
-    common_read, common_update, acos5_supported_ec_curves, logout_pin, FCI, GuardFile//, sc_ac_op_name_from_idx
+    common_read, common_update, acos5_supported_ec_curves, logout_pin, FCI//, sc_ac_op_name_from_idx
 };
 
 mod path;

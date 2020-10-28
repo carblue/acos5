@@ -21,10 +21,11 @@
 #![allow(dead_code)]
 
 use std::os::raw::{c_char, c_ulong, c_void};
+use std::ops::{Deref, DerefMut};
 use std::collections::HashMap;
 
-use opensc_sys::opensc::{sc_context, sc_security_env, sc_bytes2apdu};
-use opensc_sys::types::{sc_apdu, sc_crt, sc_object_id, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
+use opensc_sys::opensc::{sc_context, sc_security_env, sc_file_free, sc_bytes2apdu};
+use opensc_sys::types::{sc_file, sc_apdu, sc_crt, sc_object_id, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
 use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUSTED,
                          SC_PKCS15_SKDF, SC_PKCS15_CDF, SC_PKCS15_CDF_TRUSTED, SC_PKCS15_CDF_USEFUL,
                          SC_PKCS15_DODF, SC_PKCS15_AODF};
@@ -81,6 +82,51 @@ impl<'a> Iterator for TLV<'a> {
             self.rem    = &self.rem[  len..];
             Some(self.clone())
         }
+    }
+}
+
+// #[derive(Debug, Eq, PartialEq)]
+pub struct GuardFile(*mut *mut sc_file);
+
+impl GuardFile {
+    /// Creates a guard for the specified element.
+    pub fn new(inner: *mut *mut sc_file) -> Self {
+// println!("GuardFile");
+        GuardFile(inner)
+    }
+    /*
+        /// Forgets this guard and unwraps out the contained element.
+        pub fn unwrap(self) -> E {
+            let inner = self.0;
+            forget(self);   // Don't drop me or I'll destroy `inner`!
+            inner
+        }
+    */
+}
+
+impl Drop for GuardFile {
+    fn drop(&mut self) {
+        if !self.0.is_null() && unsafe { !(*self.0).is_null() } {
+//println!("Drop for file path: {:X?}", unsafe { (*(*self.0)).path.value });
+            unsafe { sc_file_free(*self.0) }
+        }
+    }
+}
+
+/// Be careful on deferecing so you don't store another copy of the element somewhere.
+impl Deref for GuardFile {
+    type Target = *mut *mut sc_file;
+    // fn deref(&self) -> &Self::Target;
+    fn deref(&self) -> & *mut *mut sc_file {
+        &self.0
+    }
+}
+
+/// Be careful on deferecing so you don't store another copy of the element somewhere.
+impl DerefMut for GuardFile {
+    // fn deref_mut(&mut self) -> &mut Self::Target;
+    fn deref_mut(&mut self) -> &mut *mut *mut sc_file {
+        &mut self.0
     }
 }
 

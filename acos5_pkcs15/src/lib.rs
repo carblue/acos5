@@ -86,8 +86,9 @@ use std::collections::HashSet;
 use std::convert::{TryFrom, TryInto};
 use std::slice::from_raw_parts;
 
-
-use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_select_file, sc_file_free, sc_card_ctl, SC_ALGORITHM_DES, SC_ALGORITHM_3DES, SC_ALGORITHM_AES, sc_card_find_rsa_alg, sc_file_new, sc_transmit_apdu, sc_file_dup, sc_delete_file, sc_check_sw, sc_update_record, SC_RECORD_BY_REC_NR};
+use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_select_file, sc_card_ctl, SC_ALGORITHM_DES,
+                         SC_ALGORITHM_3DES, SC_ALGORITHM_AES, sc_card_find_rsa_alg, sc_file_new, sc_transmit_apdu,
+                         sc_file_dup, sc_delete_file, sc_check_sw, sc_update_record, SC_RECORD_BY_REC_NR};
 
 use opensc_sys::profile::{sc_profile};
 use opensc_sys::pkcs15::{sc_pkcs15_card, sc_pkcs15_object, sc_pkcs15_prkey, sc_pkcs15_pubkey, sc_pkcs15_skey_info,
@@ -125,7 +126,7 @@ use crate::missing_exports::{me_profile_get_file, me_pkcs15_dup_bignum};
 pub mod    constants_types; // shared file among modules acos5, acos5_pkcs15 and acos5_sm
 use crate::constants_types::{CARD_DRV_SHORT_NAME, CardCtl_generate_crypt_asym, DataPrivate, SC_CARDCTL_ACOS5_SDO_CREATE,
                              SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, SC_CARD_TYPE_ACOS5_64_V3, build_apdu, p_void,
-                             SC_CARDCTL_ACOS5_SANITY_CHECK};
+                             SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile};
 
 pub mod    wrappers; // shared file among modules acos5, acos5_pkcs15 and acos5_sm
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tu};
@@ -233,11 +234,11 @@ extern "C" fn acos5_pkcs15_erase_card(profile_ptr: *mut sc_profile, p15card_ptr:
     log3ifc!(ctx,f,line!());
     let mut rv;
     {
-        let mut file_out = unsafe { &mut *sc_file_new() };
-        file_out.path = sc_path { value: [0x3F,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], len: 2, ..sc_path::default() };
+        let mut file = unsafe { sc_file_new() };
+        let guard_file = GuardFile::new(&mut file);
+        unsafe { (*file).path = sc_path { value: [0x3F,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], len: 2, ..sc_path::default() } };
         /* Authenticate arbitrary op that's protected by SOPIN */
-        rv = unsafe { sc_pkcs15init_authenticate(profile_ptr, p15card_ptr, file_out, i32::try_from(SC_AC_OP_DELETE).unwrap()) };
-        unsafe { sc_file_free(file_out) };
+        rv = unsafe { sc_pkcs15init_authenticate(profile_ptr, p15card_ptr, **guard_file, i32::try_from(SC_AC_OP_DELETE).unwrap()) };
     }
     if rv < 0 {
         log3ifr!(ctx,f,line!(), cstru!(b"SOPIN verification failed\0"), rv);
@@ -278,19 +279,19 @@ extern "C" fn acos5_pkcs15_create_dir(profile_ptr: *mut sc_profile, p15card_ptr:
     log3if!(ctx,f,line!(), cstru!(b"called  with df.id %X\0"), df.id);
 
     let create_dfs = [(SC_PKCS15_PRKDF, cstru!(b"PKCS15-PrKDF\0")), (SC_PKCS15_PUKDF, cstru!(b"PKCS15-PuKDF\0")),
-                                  (SC_PKCS15_SKDF, cstru!(b"PKCS15-SKDF\0")),   (SC_PKCS15_DODF, cstru!(b"PKCS15-DODF\0")),
-                                  (SC_PKCS15_CDF, cstru!(b"PKCS15-CDF\0")),     (SC_PKCS15_CDF_TRUSTED, cstru!(b"PKCS15-CDF-TRUSTED\0"))];
-    let mut file : *mut sc_file;
+                      (SC_PKCS15_SKDF, cstru!(b"PKCS15-SKDF\0")),   (SC_PKCS15_DODF, cstru!(b"PKCS15-DODF\0")),
+                      (SC_PKCS15_CDF, cstru!(b"PKCS15-CDF\0")),     (SC_PKCS15_CDF_TRUSTED, cstru!(b"PKCS15-CDF-TRUSTED\0"))];
+
     if df.id == /* 0x4100 0x5015*/ 0x4100 as i32 {
         log3if!(ctx,f,line!(), cstru!(b"Select (%X)\0"), df.id);
         /*let mut rv =*/ unsafe { sc_select_file(card, &df.path, null_mut()) };
 
-        for (_key,value) in &create_dfs { //for (ii = 0; create_dfs[ii]; ii++)
+        for (_key,value) in &create_dfs {
             log3if!(ctx,f,line!(), cstru!(b"Create '%s'\0"), value.as_ptr());
 
-            file = null_mut();
-            let rv = me_profile_get_file(profile, value.as_ptr(), &mut file);
-            unsafe { sc_file_free(file) };
+            let mut file = null_mut();
+            let guard_file = GuardFile::new(&mut file);
+            let rv = me_profile_get_file(profile, value.as_ptr(), *guard_file);
             if rv != SC_SUCCESS {
                 log3if!(ctx,f,line!(), cstru!(b"Inconsistent profile: cannot find %s\0"), value.as_ptr());
                 return SC_ERROR_INCONSISTENT_PROFILE;//LOG_FUNC_RETURN(ctx, SC_ERROR_INCONSISTENT_PROFILE);
@@ -498,7 +499,8 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         unsafe { sc_dump_hex(key_info.path.value.as_ptr(), key_info.path.len) }); // 3F00410041F5
 / * */
     let mut file_priv = null_mut();
-    rv = me_profile_get_file(profile, cstru!(b"template-private-key\0").as_ptr(), &mut file_priv);
+    let guard_file_priv = GuardFile::new(&mut file_priv);
+    rv = me_profile_get_file(profile, cstru!(b"template-private-key\0").as_ptr(), *guard_file_priv);
     if rv != SC_SUCCESS {
         log3if!(ctx,f,line!(), cstru!(b"Inconsistent profile: cannot find %s\0"), cstru!(b"private-key\0").as_ptr());
         return SC_ERROR_INCONSISTENT_PROFILE;//LOG_FUNC_RETURN(ctx, SC_ERROR_INCONSISTENT_PROFILE);
@@ -630,8 +632,9 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     key_info.path.type_ = SC_PATH_TYPE_PATH;
     assert_eq!(key_info.path.value, file_priv.path.value);
 
-    let mut file_pub = null_mut::<sc_file>();
-    unsafe { sc_file_dup(&mut file_pub, file_priv) };
+    let mut file_pub = null_mut();
+    let guard_file_pub = GuardFile::new(&mut file_pub);
+    unsafe { sc_file_dup(*guard_file_pub, file_priv) };
     if file_pub.is_null() {
         return SC_ERROR_OUT_OF_MEMORY;
     }
@@ -656,15 +659,12 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     #[allow(non_snake_case)]
     let pathDFparent = sc_path { len: file_priv.path.len-2, ..file_priv.path };
     #[allow(non_snake_case)]
-    let mut fileDFparent: *mut sc_file = null_mut();
-    rv = unsafe { sc_select_file(card, &pathDFparent, &mut fileDFparent) };
+    let mut fileDFparent = null_mut();
+    #[allow(non_snake_case)]
+    let guard_fileDFparent = GuardFile::new(&mut fileDFparent);
+    rv = unsafe { sc_select_file(card, &pathDFparent, *guard_fileDFparent) };
     if rv < 0 {
         log3ifr!(ctx,f,line!(), cstru!(b"DF for the private objects not defined\0"), rv);
-        if !fileDFparent.is_null() {
-            unsafe { sc_file_free(fileDFparent) };
-        }
-        unsafe { sc_file_free(file_priv) };
-        unsafe { sc_file_free(file_pub) };
         return rv;
     }
 
@@ -672,18 +672,12 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, fileDFparent, i32::try_from(SC_AC_OP_CREATE_EF).unwrap()) };
         if rv < 0 {
             log3ifr!(ctx,f,line!(), cstru!(b"SC_AC_OP_CREATE_EF authentication failed for parent DF\0"), rv);
-            unsafe { sc_file_free(fileDFparent) };
-            unsafe { sc_file_free(file_priv) };
-            unsafe { sc_file_free(file_pub) };
             return rv;
         }
         if file_priv_has_to_be_deleted || file_pub_has_to_be_deleted {
             rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, fileDFparent, i32::try_from(SC_AC_OP_DELETE).unwrap()) };
             if rv < 0 {
                 log3ifr!(ctx,f,line!(), cstru!(b"SC_AC_OP_CREATE_EF authentication failed for parent DF\0"), rv);
-                unsafe { sc_file_free(fileDFparent) };
-                unsafe { sc_file_free(file_priv) };
-                unsafe { sc_file_free(file_pub) };
                 return rv;
             }
         }
@@ -700,12 +694,11 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
             if rv != SC_SUCCESS { return rv; }
         }
     }
-    unsafe { sc_file_free(fileDFparent) };
 
     /* actual file creation on card */
 /* */
     if do_create_files {
-        rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_CREATE, file_priv as *mut sc_file as p_void) };
+        rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_CREATE, file_priv as *mut _ as p_void) };
         if rv < 0 {
             log3ifr!(ctx,f,line!(), cstru!(b"create file_priv failed\0"), rv);
             return rv;
@@ -748,9 +741,7 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     }
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     dp.agc.file_id_priv = u16::try_from(file_priv.id).unwrap();
-    unsafe { sc_file_free(file_priv) };
     dp.agc.file_id_pub  = u16::try_from(file_pub.id).unwrap();
-    unsafe { sc_file_free(file_pub) };
     dp.agc.key_len_code = u8::try_from(keybits / 128).unwrap();
 
     dp.agc.key_priv_type_code = match key_info.usage & BOTH {
@@ -876,18 +867,17 @@ extern "C" fn acos5_pkcs15_store_key(profile_ptr: *mut sc_profile, p15card_ptr: 
             false, 0xFF, false, 0xFFFF,
              mrl.into(), unsafe { from_raw_parts(skey.data, skey.data_len) }).unwrap();
 // println!("sym. key record content to be stored at path: {:X?}", key_vec);
-        let mut file_out = null_mut::<sc_file>();
-        let mut rv = unsafe { sc_select_file(card, &skey_info.path, &mut file_out) };
-        if rv != SC_SUCCESS {
-            return SC_ERROR_FILE_NOT_FOUND;
-        }
-        rv = unsafe { sc_pkcs15init_authenticate(profile_ptr, p15card, file_out, i32::try_from(SC_AC_OP_UPDATE).unwrap()) };
-        if rv != SC_SUCCESS {
-            return SC_ERROR_SECURITY_STATUS_NOT_SATISFIED;
-        }
-        unsafe { sc_file_free(file_out) };
-        rv = unsafe { sc_update_record(card, skey_info.path.index.try_into().unwrap(), key_vec.as_ptr(), key_vec.len(), SC_RECORD_BY_REC_NR) };
-        rv
+    let mut file = null_mut();
+    let guard_file = GuardFile::new(&mut file);
+    let mut rv = unsafe { sc_select_file(card, &skey_info.path, *guard_file) };
+    if rv != SC_SUCCESS {
+        return SC_ERROR_FILE_NOT_FOUND;
+    }
+    rv = unsafe { sc_pkcs15init_authenticate(profile_ptr, p15card, file, i32::try_from(SC_AC_OP_UPDATE).unwrap()) };
+    if rv != SC_SUCCESS {
+        return SC_ERROR_SECURITY_STATUS_NOT_SATISFIED;
+    }
+    unsafe { sc_update_record(card, skey_info.path.index.try_into().unwrap(), key_vec.as_ptr(), key_vec.len(), SC_RECORD_BY_REC_NR) }
 } // acos5_pkcs15_store_key
 
 

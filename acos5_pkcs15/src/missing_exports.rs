@@ -72,7 +72,7 @@ fn me_profile_find_file(profile: &mut sc_profile, _path: *const sc_path, name: *
 }
 
 
-pub fn me_profile_get_file(profile: &mut sc_profile, name: *const c_char, ret: &mut *mut sc_file) -> i32
+pub fn me_profile_get_file(profile: &mut sc_profile, name: *const c_char, ret: *mut *mut sc_file) -> i32
 {
     if name.is_null() { return SC_ERROR_INVALID_ARGUMENTS; }
     let fi = me_profile_find_file(profile, std::ptr::null(), name);
@@ -82,7 +82,7 @@ pub fn me_profile_get_file(profile: &mut sc_profile, name: *const c_char, ret: &
     let fi = unsafe { & *fi};
     assert!(!fi.file.is_null());
     unsafe { sc_file_dup(ret, fi.file) };
-    if (*ret).is_null() {
+    if unsafe { (*ret).is_null() } {
         return SC_ERROR_OUT_OF_MEMORY;
     }
     SC_SUCCESS
