@@ -74,7 +74,7 @@ fn me_profile_find_file(profile: &mut sc_profile, _path: *const sc_path, name: *
 
 pub fn me_profile_get_file(profile: &mut sc_profile, name: *const c_char, ret: *mut *mut sc_file) -> i32
 {
-    if name.is_null() { return SC_ERROR_INVALID_ARGUMENTS; }
+    if name.is_null() || ret.is_null() { return SC_ERROR_INVALID_ARGUMENTS; }
     let fi = me_profile_find_file(profile, std::ptr::null(), name);
     if fi.is_null() {
         return SC_ERROR_FILE_NOT_FOUND;

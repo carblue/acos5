@@ -122,7 +122,7 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Card Info: Number of files \
-            under the currently selected DF' failed\0"));
+                under the currently selected DF' failed\0"));
         return Err(SC_ERROR_CARD_CMD_FAILED);
     }
     if apdu.sw2 > 255 {
@@ -156,7 +156,7 @@ pub fn get_file_info(card: &mut sc_card, reference: u8) -> Result<[u8; 8], i32>
 
     let mut rbuf = [0; 8];
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 2, reference+ if card.type_>SC_CARD_TYPE_ACOS5_64_V3 {1} else {0}, 8],
-        SC_APDU_CASE_2_SHORT, &mut rbuf);
+                              SC_APDU_CASE_2_SHORT, &mut rbuf);
     let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.resplen == rbuf.len() {
@@ -186,7 +186,7 @@ pub fn get_free_space(card: &mut sc_card) -> Result<u32, i32>
 
     let mut rbuf = [0; 4];
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 4, 0, if card.type_> SC_CARD_TYPE_ACOS5_64_V3 {3} else {2}],
-         SC_APDU_CASE_2_SHORT, &mut rbuf);
+                              SC_APDU_CASE_2_SHORT, &mut rbuf);
     let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && (card.type_>  SC_CARD_TYPE_ACOS5_64_V3 && apdu.resplen == 3 ||
@@ -296,6 +296,7 @@ pub fn get_rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
 }
 
 //  V2.00 *DOES NOT* supports this command
+//  V4 EVO calls this Configuration Mode Byte now
 ///
 /// # Errors
 #[allow(clippy::missing_errors_doc)]
@@ -309,6 +310,7 @@ pub fn get_op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 9, 0], SC_APDU_CASE_1, &mut[]);
     let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+    /* the reference manuals say: the response status word is 0x95NN, but actually it's 0x90NN for V3.00 */
     if rv == SC_SUCCESS && (apdu.sw2 == 0 || apdu.sw2 == 1 || apdu.sw2 == 2 || apdu.sw2 == 16) {
         /*  for SC_CARD_TYPE_ACOS5_64_V3: apdu.sw2:
              0: FIPS 140-2 Level 3–Compliant Mode
@@ -368,12 +370,12 @@ pub fn get_is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_FIPS
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.sw2==0 {
         log3if!(ctx,f,line!(), cstru!(b"'Get Card Info: Verify FIPS Compliance' returned: Card's \
-            file system **does** comply with FIPS requirements and Operation Mode is FIPS\0"));
+                file system **does** comply with FIPS requirements and Operation Mode is FIPS\0"));
         Ok(true)
     }
     else {
-        log3if!(ctx,f,line!(), cstru!(b"'Get Card Info: Verify FIPS Compliance' returned: Card's \
-            file system **does not** comply with FIPS requirements or Operation Mode is other than FIPS\0"));
+        log3if!(ctx,f,line!(), cstru!(b"'Get Card Info: Verify FIPS Compliance' returned: Card's file \
+                system **does not** comply with FIPS requirements or Operation Mode is other than FIPS\0"));
         Ok(false)
     }
 }

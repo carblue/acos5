@@ -9,9 +9,6 @@ libc = "0.2"
 cfg-if = "1.0"
 opensc-sys = { path = "../opensc-sys" }
 
-[build-dependencies]
-pkg-config = "0.3"
-
 [lib]
 name = "acos5_pkcs15"
 crate-type = ["cdylib"]

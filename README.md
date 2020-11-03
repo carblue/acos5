@@ -1,17 +1,42 @@
-This repository now embraces all "driver-related" referring to ACOS5, an ACS family of smart cards / USB cryptographic tokens, which "are specifically designed to enhance the security and performance of RSA Public-key cryptographic operations".
+# Build state
 
-Motivation:
-For platform-independent, serious use of a cryptographic token from software like Firefox, Thunderbird, ssh etc., a PKCS#11 implementing library is required.<br>
-There is none known to me for ACOS5 that is open-source, nothing in this regard downloadable from ACS for free, instead, You'll have to pay a lot more for a proprietary ACS PKCS#11 library (bundled with some other software) than for a single hardware token.<br>
-The only open-source software downloadable from ACS is [acsccid](https://github.com/acshk/acsccid "https://github.com/acshk/acsccid"), a PC/SC driver for Linux/Mac OS X. But I never installed that for production use of my CryptoMate64 and CryptoMate Nano, so the debian/Ubuntu-supplied [ccid](https://ccid.apdu.fr/ "https://ccid.apdu.fr/") seems to be sufficient (if it's new enough to list those as supported ones).<br>
-So be careful what You get from ACS when it is called driver. Perhaps You get something that is behind the "File Upon Request" barrier.
+[![Build Status](https://travis-ci.org/carblue/acos5.svg?branch=master)](https://travis-ci.org/carblue/acos5)
+
+# acos5
+
+Driver for Advanced Card Systems (ACS)  ACOS5 Smart Card V2.00 and V3.00 / CryptoMate64 (V2.00) / CryptoMate Nano (V3.00), as external modules operating within the OpenSC framework.<br>
+Platforns supported: Those that the Rust compiler targets (https://doc.rust-lang.org/nightly/rustc/platform-support.html).
+
+Motivation:<br>
+For platform-independent, serious use of a cryptographic token from software like Firefox, Thunderbird, ssh etc., a [PKCS#11](https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11 "https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11") implementing library is required.<br>
+There is none known to me for ACOS5 that is open-source, nothing in this regard downloadable from ACS for free, instead, one has to pay a lot more for a proprietary ACS PKCS#11 library (bundled with some other software) than for a single hardware token.<br>
+The only open-source software downloadable from ACS is [acsccid](https://github.com/acshk/acsccid "https://github.com/acshk/acsccid"), a PC/SC driver for Linux/Mac OS X. PC/SC or WinSCard (Windows) is just the basic layer on which a PKCS#11 library can build upon. I never installed acsccid for production use of my CryptoMate64 and CryptoMate Nano, hence the debian/Ubuntu-supplied [ccid](https://ccid.apdu.fr/ "https://ccid.apdu.fr/") seems to be sufficient (if it's new enough to list those cards as supported ones).<br>
+So be careful what You get from ACS when it's called driver. Perhaps You get something that is behind the "File Upon Request" barrier.
 
 [OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki") supplies i.a. a PKCS#11 implementing open-source library if it get's augmented by a hardware specific driver, which is missing currently for ACOS5 in OpenSC v0.20.0, and the one available in earlier versions was rudimentary/incomplete.
 
 With this repo's components 'acos5' and 'acos5_pkcs15' as plug-ins, OpenSC supports some ACOS5 hardware as well. (Fortunately OpenSC allows such plug-ins as - in OpenSC lingo - external modules/shared libraries/DLL).<br>
-They got implemented in the Rust programming language, so You will need the Rust compiler and cargo build tool from [Rust, cargo](https://www.rust-lang.org/tools/install "https://www.rust-lang.org/tools/install") to build those libraries from source code.<br>
-If there is anybody willing to transform the Rust code into a C code internal OpenSC driver 'acos5', then I'll be happy to support that undertaking.<br>
 External modules need some configuration once in opensc.conf, such that they get 'registered' and used by OpenSC software, explained below.
+
+Prerequisite installations<br>
+There are mandatory and an optional one:<br>
+Mandatory:<br>
+- Rust compiler rustc and cargo build manager (it's bundled) from [Rust, cargo](https://www.rust-lang.org/tools/install "https://www.rust-lang.org/tools/install") <br>
+- OpenSC  (requires OpenSSL, the driver will use that as well; *nix: requires libpcsclite1) <br>
+- Libtasn1 https://www.gnu.org/software/libtasn1/
+
+Recommended:<br>
+- pcsc-tools from http://ludovic.rousseau.free.fr/softwares/pcsc-tools/, provides scriptor for card initialization, see info/
+```
+sudo apt-get update
+sudo apt-get upgrade
+sudo apt-get install opensc opensc-pkcs11 libtasn1-6-dev pcsc-tools
+```
+If that doesn't install a symbolic link libopensc.so, then this must be done manually
+
+Optional:<br>
+- IUP from https://webserver2.tecgraf.puc-rio.br/iup/en/download.html <br>
+The driver may be "configured" to include code for:
 
 This repo builds 2 dll/shared object libraries:<br>
 - libacos5.so/dylib/dll, which is a mandatory one, the driver in the narrow sense, and
@@ -20,40 +45,47 @@ In the following I won't make any distinction anymore and call both 'the driver'
 
 This repo also builds a library from the included opensc-sys binding for internal use. It's the basic building block for the driver components such that they are able to call into the libopensc library.
 
-# Build state
+All these builds will be tied to the OpenSC version installed, so this must be done first. Then, for all 3 builds there are files build.rs which get processed prior to the remaining build and control how that will be done. It's the location, where 
 
-[![Build Status](https://travis-ci.org/carblue/acos5.svg?branch=master)](https://travis-ci.org/carblue/acos5)
-
-# acos5
-
-Driver for Advanced Card Systems  ACOS5 Smart Card V2.00 and V3.00 / CryptoMate64 (V2.00) / CryptoMate Nano (V3.00), as external modules operating within the OpenSC framework.<br>
 
 External module, in this context means: You also have to "tell opensc.conf some details", such that OpenSC can find the driver library, knows about it's name and can load it as a known driver.
 External module also has the implication, that OpenSC calls up to 2(3) different libraries (depending on opensc.conf configuration and functionality required): Into the mandatory driver library, into an optional pkcs15init library acos5_pkcs15 and into an optional acos5-specific 'Secure Messaging' (SM) library (which does not exist though for ACOS5, as the 'Secure Messaging' support is integrated into the mandatory driver library).<br>
 The driver builds are bound to one specific OpenSC version and upon loading the external modules, OpenSC will check, that this version matches the one of the installed OpenSC version, rejecting the external modules in case of mismatch.<br>
-OpenSC also has the implication: If Your card got initialized by an ACS tool and is not PKCS#15 compliant (this is true for all that I've run into), ethen it won't work (well) with OpenSC and likely requires card's re-initialization, see [card_initialization README](https://github.com/carblue/acos5/tree/master/info/card_initialization "https://github.com/carblue/acos5/tree/master/info/card_initialization"))
+OpenSC also has the implication: If Your card got initialized by an ACS tool and is not [PKCS#15](https://stackoverflow.com/questions/33792095/what-does-it-mean-for-a-smart-card-to-be-pkcs15-compatible "https://stackoverflow.com/questions/33792095/what-does-it-mean-for-a-smart-card-to-be-pkcs15-compatible") compliant (this is true for all that I've run into), then it won't work (well) with OpenSC and likely requires card's re-initialization, see [card_initialization README](https://github.com/carblue/acos5/tree/master/info/card_initialization "https://github.com/carblue/acos5/tree/master/info/card_initialization"))
 The minimal OpenSC version supported is 0.17.0<br>
-The new ACOS5-EVO (ACOS5 V4.00, V4.10): Meanwhile available, but I don't have it, thus untested/unknown what works or doesn't, when serving that card by this driver. Therefore it's not yet supported.<br>
-The respective reference manual is available on request from: info@acs.com.hk
+The new ACOS5-EVO (ACOS5 V4.00, V4.10, V4.20?): Meanwhile available, but I don't have it, thus untested/unknown what works or doesn't, when serving that card by this driver. Therefore, as matching those cards got activated, please file any issues/problems.<br>
+
+The respective reference manual for Your hardware is available on request from: info@acs.com.hk
 
 
 IMPORTANT renaming<br>
 Since release 0.0.28 the driver starts to cover (some, work in progress; UPDATE: no more work on EVO until I received an ACOS5-EVO USB crypto token to test with) support for ACOS5-EVO, which has a 192 kB EEPROM, thus the former "_64" suffix for 64 kB EEPROM is inappropriate now.<br>
 This repo's name changed from acos5_64 to acos5, as well as the driver's name and binary names and required entries in opensc.conf
 
+IMPORTANT behavior<br>
+There is a huge number of "limits" and "rules" that apply, many originate from OpenSC, others from this driver, far more than I'm willing to declare expressly other than in code (and I hope having covered all by checks).
+Common usage won't exceed these limits and the driver will "just work". E.g. probably You won't have a file in Your file system that will be addressed with such a long path, e.g.
+0x3F00_4100_4200_4300_4400_4500_4600_4700_4710<br>
+An 18-byte path length won't work, as OpenSC data structures are limited to a path length of 16 bytes.<br>
+So this is the point: It would be graceful reacting upon such limits/rules violations with error returns and respective error messages in opensc-debug.log, but often the driver isn't yet that polite and just deliberately aborts ("panic" in Rust lingo, due to an assert violation).
+So, if anybody wants to contribute, removing these rough edges is an easy way to start.
+And if the driver is "impolite" currently, it's most likely something about card content, that is different from expected according to PKCS#15/ISO/IEC 7816-15.
+ 
 
 Steps towards driver binary builds libacos5.so/dll/dylib and libacos5_pkcs15.so/dll/dylib
 =========================================================================================
-1. Install OpenSC (if it's not there already). The driver will call into libopensc.so (opensc.dll/libopensc.dylib), will need the configuration file opensc.conf to be adapted, and the build process will need an installed package pkgconfig in order to read from opensc.pc (You have to create that: see how the script .travis.yml constructs/adapts it from opensc-pkcs11.pc (if that is available), or copys a basic version, that must be adapted).
-For details read on in opensc-sys binding.<br>
+1. Install OpenSC (if it's not there already; with debian and derivatives, it comprises packages opensc and opensc-pkcs11). The driver will call into libopensc.so (opensc.dll/libopensc.dylib), will need the configuration file opensc.conf to be adapted, and the build process will need an installed package pkgconfig in order to read from opensc.pc (You have to create the opensc.pc file: see how the script .travis.yml constructs/adapts it from opensc-pkcs11.pc (if that is available), or copies a basic version, that must be adapted). The build dependency may be removed by editing all 3 build.rs files accordingly:
+For details about OpenSC read on in the opensc-sys binding.<br>
 Same as OpenSC's libraries, also this driver will depend on OpenSSL's crypto library.<br>
 Invoke `opensc-tool --info` in order to know Your installed OpenSC version. The driver build will be tied to that specific OpenSC version.
+By default, the following installations are not required, but may be, depending on conditional compilation attributes (cfg):<br>
+cargo:rustc-cfg=enable_acos5_ui requires an installation of [IUP](https://webserver2.tecgraf.puc-rio.br/iup "https://webserver2.tecgraf.puc-rio.br/iup"), [Download IUP sources/binaries](https://sourceforge.net/projects/iup/files/, "https://sourceforge.net/projects/iup/files/")
 
 2. Install the Rust compiler and cargo build manager (it's bundled) from [Rust, cargo](https://www.rust-lang.org/tools/install "https://www.rust-lang.org/tools/install")<br>
    The version of Rust compiler rustc required is : 1.47.0 (released October 8th 2020) and upwards.<br>
 (If those rust tools aren't required anymore, later uninstall with: rustup self uninstall)
 
-3. Build the driver acos5: `user@host:~/path/to/acos5_root_downloaded$  cargo build --release`. The 2 shared object binaries will be built into directory target/release<br>
+3. Optionally read conditional_compile_options.md and then build the driver acos5: `user@host:~/path/to/acos5_root_downloaded$  cargo build --release`. The 2 shared object binaries will be built into directory target/release<br>
    `optionally user@host:~/path/to/acos5_root_downloaded$  strip --strip-unneeded target/release/libacos5.so`<br>
    `optionally user@host:~/path/to/acos5_root_downloaded$  strip --strip-unneeded target/release/libacos5_pkcs15.so`<br><br>
    Towards OpenSC, the driver's name is acos5_external, in order to make it distinguishable from a quite useless acos5 internal driver, that existed in OpenSC throughout until version 0.19.0
@@ -133,20 +165,3 @@ app default {
 	}
 }
 ```
-File access rigths of opensc.conf: Linux distros typically install it with: rw-r--r--, i.e. 'other' will have read access.<br>
-The driver requires read-access for opensc.conf if it got compiled with "cargo:rustc-cfg=enable_acos5_ui" or if it executes commands in Secure Messaging mode, thus with those typical file access rigths, the driver binaries don't need to run as root/admin.<br>
-File access rigths of acos5_external.profile: Linux distros typically install .profile files with: rw-r--r--, i.e. 'other' will have read access.<br>
-The driver component libacos5_pkcs15 (if that is executing) requires read-access for acos5_external.profile, thus with those typical file access rigths for acos5_external.profile, libacos5_pkcs15 doesn't need to run as root/admin.<br>
-
-Note that using Secure Messaging with record-based files with record length > 232 bytes may not work as expected: In this case the accessible record lenght is 232-240 bytes, depending on command and SM mode (see ref. manual). E.g. a 255 byte record to be erased by sc_delete_record with SM mode Confidentiality can access/zeroize the first 232 bytes only.
-
-Windows<br>
-It's possible to build acos5.dll and acos5_pkcs15.dll on Windows with adaptions within the 3 build.rs files. But for me (Windows 10), the v0.20.0/x64 OpenSC supplied opensc.dll is unusable (missing dependencies in dependency walker), thus unable to use/test the driver on Windows.
-
-Secure Messaging<br>
-Secure Messaging SM is complicated with ACOS5, thus refer to the reference manual for details.
-The driver supports SM for many commands, but not all, and it's also hardware dependant, whether a command supports SM at all.
-Basically, during file/directory creation, decision is taken whether/what is forced to happen SM protected and the referred SE record decides upon SM mode authenticate/encrypt.
-
-DES parity bits (see also e.g. https://crypto.stackexchange.com/questions/70736/des-parity-bits?rq=1)<br>
-It's not mentioned/stressed in any ACOS5 reference manual but should be known: Each key byte stored by ACOS5 has odd parity (where necessary adjusted by ACOS5). Thus if a DES key entry is comprised of arbitrary/random bytes, then the key actually stored and used by ACOS5 likely is different from that one passed in.

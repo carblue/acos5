@@ -1,64 +1,54 @@
 /* build.rs */
+extern crate libloading;
 
-extern crate pkg_config;
+use libloading::{Library, Symbol, Error};
+use std::{os::raw::c_char, ffi::CStr};
 
-fn main() {
-/*
-   General note for Linux/(macOS?) :
-   The path /usr/lib/x86_64-linux-gnu used here is exemplary only: It's where my Kubuntu distro places OpenSC library files, and relative to that path other stuff as well.
-   That path may be different for other distros/or following OpenSC's ./configure --prefix=/usr option, it will be /usr/lib or possibly /usr/local/lib  or whatever
-
-   If not existing in the standard library search path, create a symbolic link there, named libopensc.so
-   (Windows: opensc.lib), targeting the relevant object: With Linux, that's (depending on OpenSC version)
-   something like libopensc.so.5 or libopensc.so.6 or ...
- */
-
-/* pkg_config-based-adaption to installed OpenSC release version
-   with file /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc in place:
-   This will print to stdout (the path is correct for (K)ubuntu, installed from package) some required arguments for the linker/compiler:
-   cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu
-   cargo:rustc-link-lib=opensc
-   cargo:rustc-cfg=v0_20_0   <= or whatever version the installed OpenSC package is. The relevant version info is taken from /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc
-
-   Whenever the installed OpenSC package changes, be reminded of these actions required:
-   1. Check that a file or symbolic link libopensc.so/opensc.lib exists in OS library search path (and points to the correct library)
-   2. Adapt Version: in /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc
-   3. Delete file Cargo.lock and delete directory target (/path/to/opensc-sys/target)
-   4. If the following fails (used by cargo test), remove directory target, deactivate the following match pkg_config... {...} code block and activate the required lines println!("cargo:rustc-...=... manually in this build.rs.
-*/
-    match pkg_config::Config::new().atleast_version("0.17.0").probe("opensc") {
-        Ok(lib) => {
-            match lib.version.as_str() {
-                "0.17.0" => println!("cargo:rustc-cfg=v0_17_0"),
-                "0.18.0" => println!("cargo:rustc-cfg=v0_18_0"),
-                "0.19.0" => println!("cargo:rustc-cfg=v0_19_0"),
-                "0.20.0" => println!("cargo:rustc-cfg=v0_20_0"),
-                "0.21.0" => println!("cargo:rustc-cfg=v0_21_0"), // experimental only: it's git-master, Latest commit 8098b7d, defined as version 0.21.0 in config.h
-//                "0.22.0" => println!("cargo:rustc-cfg=v0_22_0"), // experimental only: it's git-master, Latest commit    ?, defined as version 0.22.0 in config.h
-                _ => ()
-            }
-        }
-        Err(_e) => panic!("No pkg-config found for opensc library") // "{}", e.description()
-    };
-/* in case of non-availability of pkg-config or failure of above, uncomment this block, comment-out the previous
-   (possibly adapt next line for path_to of /path_to/libopensc.so|dylib|lib; for Windows, the path to import library .lib):
-//  println!("cargo:rustc-link-search=native=/path/to/opensc-sys/windows-x86_64/lib/v0_20_0"); // Windows, the directory that contains opensc.lib
-    println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");                      // Posix,   the directory that contains libopensc.so/libopensc.dylib
-    println!("cargo:rustc-link-lib=opensc");
-    println!("cargo:rustc-cfg=v0_20_0"); //  <= or whatever version the installed OpenSC package is
-*/
-
-    /* other conditional compilation settings, required only for testing (impl_default) and by driver acos5/acos5_pkcs15 */
-    println!("cargo:rustc-cfg=impl_default"); // enables impl Default      for many struct s, used extensively for tests
-    println!("cargo:rustc-cfg=impl_display"); // enables impl fmt::Display for sc_context
-    println!("cargo:rustc-cfg=acos5_impl_default"); // enables impl Default, acos5-specific for some struct s
-    println!("cargo:rustc-cfg=impl_newAT_newCCT_newCT"); // enables some acos5-specific ? assoc. new func. for struct sc_crt
+fn parse_version_string(r#in: &str) -> String {
+    let mut result = String::from("cargo:rustc-cfg=");
+    let v: Vec<&str> = r#in.splitn(3, '.').collect();
+    assert_eq!(3, v.len());
+    for (i, elem) in v.iter().enumerate() {
+        if i==0 { result.push_str("v"); }
+        else    { result.push('_'); }
+        result.push_str(*elem);
+    }
+    println!("{}", result);
+    result
 }
 
-/*
-  Save build.rs (if build.rs was edited)  and run:
+fn main() {
+    /* OpenSC version detection */
+    match Library::new(if cfg!(unix) {"libopensc.so"}
+                       else if cfg!(macos) {"libopensc.dylib"}
+                       else if cfg!(windows) {"opensc"}
+                       else {"unknown_library_opensc"} )
+    {
+        Ok(lib_dyn) =>
+            unsafe {
+                let func_dyn: Symbol<unsafe fn() -> *const c_char> = lib_dyn.get(b"sc_get_version").unwrap();
+                let cargo_string = parse_version_string(CStr::from_ptr(func_dyn()).to_str().unwrap());
+                println!("cargo:OPENSCVERSION={}", &cargo_string.as_str()[16..]);
+            },
+        Err(e) => {
+            match &e {
+                Error::DlOpen { desc: _ } => { println!("libloading DlOpen opensc: {}", e); },
+                Error::DlOpenUnknown => { println!("libloading DlOpenUnknown opensc: {}", e); },
+                Error::LoadLibraryW { source: _ } => { println!("libloading LoadLibraryW opensc: {}", e); },
+                Error::LoadLibraryWUnknown => { println!("libloading LoadLibraryWUnknown opensc: {}", e); },
+                _ => { println!("libloading opensc: {}", e); },
+            }
+            unreachable!(); // intentionally panic if OpenSC is not installed or detectable this way
+        }
+    }
 
-  user@host:~/path/to/opensc-sys$ cargo test test_struct_sizeof -- --nocapture
+    println!("cargo:rustc-link-lib=dylib=opensc");
+    // println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");
+    println!("cargo:rerun-if-changed=/usr/lib/x86_64-linux-gnu/libopensc.so");
 
-  The opensc-sys binding is usable only, if the test does pass with SUCCESS   (test tests::test_struct_sizeof ... ok)
-*/
+    /* other conditional compilation settings, required only for testing (impl_default) and by driver acos5/acos5_pkcs15 */
+    println!("cargo:rustc-cfg=impl_default"); // enables impl Default      for many structs, used extensively for tests
+    println!("cargo:rustc-cfg=impl_display"); // enables impl fmt::Display for sc_context
+    println!("cargo:rustc-cfg=acos5_impl_default"); // enables impl Default, acos5-specific for some structs
+    println!("cargo:rustc-cfg=impl_newAT_newCCT_newCT"); // enables some acos5-specific ? assoc. new func. for struct sc_crt
+}

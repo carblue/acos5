@@ -45,7 +45,6 @@ pub fn file_id_from_cache_current_path(card: &sc_card) -> u16
 }
 
 pub fn file_id(file_info_bytes: &[u8; 8]) ->u16 {
-    // debug_assert_eq!(8, file_info_bytes.len());
     u16::from_be_bytes([file_info_bytes[2], file_info_bytes[3]])
 }
 
@@ -55,7 +54,6 @@ pub fn file_id(file_info_bytes: &[u8; 8]) ->u16 {
  for non-record based file types its the file size
 */
 pub fn file_id_se(file_info_bytes: &[u8; 8]) ->u16 {
-    // debug_assert_eq!(8, file_info_bytes.len());
     u16::from_be_bytes([file_info_bytes[4], file_info_bytes[5]])
 }
 

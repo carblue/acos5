@@ -4,3 +4,5 @@ members = [
     "acos5",
     "acos5_pkcs15",
 ]
+
+exclude = ["project_pkcs11_example_apps"]

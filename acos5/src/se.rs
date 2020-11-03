@@ -82,7 +82,7 @@ SC_AC_CHV, SC_AC_AUT, SC_AC_PRO,
 SC_AC_OP_LIST_FILES, SC_AC_OP_SELECT, SC_AC_OP_DELETE, SC_AC_OP_CREATE_EF,
 SC_AC_OP_CREATE_DF, SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_READ,
 SC_AC_OP_UPDATE, SC_AC_OP_CRYPTO, SC_AC_OP_DELETE_SELF, SC_AC_OP_CREATE, SC_AC_OP_WRITE,
-SC_AC_OP_GENERATE};
+SC_AC_OP_GENERATE, SC_MAX_CRTS_IN_SE};
 
 use opensc_sys::errors::{SC_SUCCESS};
 use opensc_sys::asn1::{sc_asn1_read_tag, SC_ASN1_TAG_EOC};
@@ -527,6 +527,7 @@ pub fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], se_info
         buflen_remaining -= 2;
 
         se_info_node.crts_len += 1;
+        assert!(se_info_node.crts_len <= SC_MAX_CRTS_IN_SE);
         se_info_node.crts[idx_crts].tag = cla_out | tag_out;
 
         let mut idx_refs = 0_usize;

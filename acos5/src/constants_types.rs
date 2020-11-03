@@ -91,7 +91,7 @@ pub struct GuardFile(*mut *mut sc_file);
 impl GuardFile {
     /// Creates a guard for the specified element.
     pub fn new(inner: *mut *mut sc_file) -> Self {
-// println!("GuardFile");
+//println!("GuardFile");
         GuardFile(inner)
     }
     /*
@@ -169,21 +169,22 @@ pub const ACOS5_OBJECT_REF_MAX    : u8 = 0x1F;
 
 // for an internal driver these 3 will move to cards.h
 pub const SC_CARD_TYPE_ACOS5_BASE   : i32 = 16001;
+//  const SC_CARD_TYPE_ACOS5_32_V1  : i32 = 16002; // = SC_CARD_TYPE_ACOS5_BASE + 1;
 pub const SC_CARD_TYPE_ACOS5_64_V2  : i32 = 16003; // = SC_CARD_TYPE_ACOS5_BASE + 2;
 pub const SC_CARD_TYPE_ACOS5_64_V3  : i32 = 16004; // = SC_CARD_TYPE_ACOS5_BASE + 3;
 pub const SC_CARD_TYPE_ACOS5_EVO_V4 : i32 = 16005; // = SC_CARD_TYPE_ACOS5_BASE + 4;
 
+//  const ATR_V1      : &[u8; 57] = b"3b:be:18:00:00:41:05:01:00:00:00:00:00:00:00:00:00:90:00\0"; // *NOT* supported: ACOS5 Card (ACOS5-32 V1.00)
 pub const ATR_V2      : &[u8; 57] = b"3b:be:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00\0"; // Using reader with a card: ACS CryptoMate64 00 00
-pub const ATR_V3      : &[u8; 57] = b"3b:be:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00\0"; // Using reader with a card: ACS CryptoMate (T2) 00 00  ; this is CryptoMate Nano
-pub const ATR_V3_1C   : &[u8; 60] = b"3b:9e:96:80:01:41:05:41:00:00:00:00:00:00:00:00:00:90:00:1C\0"; // unverified currently
+pub const ATR_V3      : &[u8; 57] = b"3b:be:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00\0"; // Using reader with a card: ACS CryptoMate (T2) 00 00 ; reported by my CryptoMate Nano
 pub const ATR_V4      : &[u8; 57] = b"3b:9e:96:80:01:41:05:40:00:00:00:00:00:00:00:00:00:90:00\0";    // unverified currently
-pub const ATR_V4_1F   : &[u8; 60] = b"3b:9e:96:80:01:41:05:42:00:00:00:00:00:00:00:00:00:90:00:1F\0"; // ACOS5 EVO 192KB PKI combined (PKI)  from http://ludovic.rousseau.free.fr/softwares/pcsc-tools/smartcard_list.txt
-
-pub const ATR_MASK    : &[u8; 57] = b"FF:FF:FF:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF\0";
-pub const ATR_MASK_TCK: &[u8; 60] = b"FF:FF:FF:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF:00\0";
+pub const ATR_V4_1C   : &[u8; 60] = b"3b:9e:96:80:01:41:05:41:00:00:00:00:00:00:00:00:00:90:00:1C\0"; // unverified currently
+pub const ATR_V4_1F   : &[u8; 60] = b"3b:9e:96:80:01:41:05:42:00:00:00:00:00:00:00:00:00:90:00:1F\0"; // unverified currently
+pub const ATR_MASK    : &[u8; 57] = b"FF:FF:00:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF\0";
+pub const ATR_MASK_TCK: &[u8; 60] = b"FF:FF:00:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF:00\0";
 pub const NAME_V2  : &[u8; 43] = b"ACOS5-64 V2.00: Smart Card or CryptoMate64\0";
 pub const NAME_V3  : &[u8; 46] = b"ACOS5-64 V3.00: Smart Card or CryptoMate Nano\0";
-pub const NAME_V4  : &[u8; 50] = b"ACOS5-EVO V4.00: Smart Card EVO or CryptoMate EVO\0";
+pub const NAME_V4  : &[u8; 49] = b"ACOS5-EVO V4.X: Smart Card EVO or CryptoMate EVO\0";
 
 pub const CARD_DRV_NAME       : &[u8; 92] = b"'acos5_external', supporting ACOS5 Smart Card V2.00 (CryptoMate64), V3.00 (CryptoMate Nano)\0";
 pub const CARD_DRV_SHORT_NAME : &[u8; 15] =  b"acos5_external\0";
@@ -366,8 +367,8 @@ pub const SC_CARDCTL_ACOS5_SDO_STORE               : c_ulong =  0x0000_0022; // 
 
 pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES  : c_ulong =  0x0000_0023; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting excluded
 //b const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE : c_ulong =  0x0000_0024; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting excluded
-pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET : c_ulong =  0x0000_0024; // data: *mut CardCtl_generate_asym_inject,do_generate_inject
-pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET : c_ulong =  0x0000_0025; // data: *mut CardCtl_generate_asym_inject,do_generate_inject
+pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET : c_ulong =  0x0000_0024; // data: *mut CardCtl_generate_inject_asym,do_generate_inject
+pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET : c_ulong =  0x0000_0025; // data: *mut CardCtl_generate_inject_asym,do_generate_inject
 //pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST_MSE  : c_ulong =  0x0000_0025; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting included
 //pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE_MSE : c_ulong =  0x0000_0026; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting included
 
