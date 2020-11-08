@@ -4,9 +4,21 @@ extern crate libloading;
 use libloading::{Library, Symbol, Error};
 use std::{os::raw::c_char, ffi::CStr};
 
-fn parse_version_string(r#in: &str) -> String {
+fn parse_version_string(input: &str) -> String {
+    /*  What a mess/inconsistency on Windows: for OpenSC 0.20.0, sc_get_version reports 0.20.0-0.20.0 // opensc-tool -i ; OpenSC 0.20.0-0.20.0 [Microsoft 1800]
+        thus strip all beginning with hyphen */
     let mut result = String::from("cargo:rustc-cfg=");
-    let v: Vec<&str> = r#in.splitn(3, '.').collect();
+    let v: Vec<&str>;
+    #[cfg(not(target_os = "windows"))]
+    {
+        v = input.splitn(3, '.').collect();
+    }
+    #[cfg(    target_os = "windows")]
+    {
+        let pos = input.find('-').or(Some(input.as_bytes().len())).unwrap();
+        let input = std::str::from_utf8(&input.as_bytes()[..pos]).unwrap();
+        v = input.splitn(3, '.').collect();
+    }
     assert_eq!(3, v.len());
     for (i, elem) in v.iter().enumerate() {
         if i==0 { result.push_str("v"); }
@@ -18,6 +30,8 @@ fn parse_version_string(r#in: &str) -> String {
 }
 
 fn main() {
+    #[cfg(target_os = "windows")]
+    let version;
     /* OpenSC version detection */
     match Library::new(if cfg!(unix) {"libopensc.so"}
                        else if cfg!(macos) {"libopensc.dylib"}
@@ -28,6 +42,8 @@ fn main() {
             unsafe {
                 let func_dyn: Symbol<unsafe fn() -> *const c_char> = lib_dyn.get(b"sc_get_version").unwrap();
                 let cargo_string = parse_version_string(CStr::from_ptr(func_dyn()).to_str().unwrap());
+                #[cfg(target_os = "windows")]
+                { version = String::from(&cargo_string.as_str()[16..]); }
                 println!("cargo:OPENSCVERSION={}", &cargo_string.as_str()[16..]);
             },
         Err(e) => {
@@ -43,8 +59,17 @@ fn main() {
     }
 
     println!("cargo:rustc-link-lib=dylib=opensc");
-    // println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");
-    println!("cargo:rerun-if-changed=/usr/lib/x86_64-linux-gnu/libopensc.so");
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");
+        println!("cargo:rerun-if-changed=/usr/lib/x86_64-linux-gnu/libopensc.so");
+    }
+    #[cfg(    target_os = "windows")]
+    {
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        println!("cargo:rustc-link-search={}/windows-x86_64/lib/{}", manifest_dir, version);
+    }
 
     /* other conditional compilation settings, required only for testing (impl_default) and by driver acos5/acos5_pkcs15 */
     println!("cargo:rustc-cfg=impl_default"); // enables impl Default      for many structs, used extensively for tests

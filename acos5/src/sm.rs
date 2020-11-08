@@ -22,6 +22,11 @@ Secure Messaging is handled transparently towards OpenSC, meaning, it's done whe
 towards OpenSC (OpenSC wouldn't help anyway but just confuse if setting SC_AC_PRO is used)
 */
 
+/*
+TODO There is a lot of code duplication here: Abstract as much as possible for the 4 APDU cases, but first test
+  thoroughly that all is working as expected
+*/
+
 use libc::{free, strlen};
 use num_integer::Integer;
 
@@ -29,11 +34,13 @@ use std::os::raw::{c_char, c_ulong};
 use std::ffi::CString;
 use std::ptr::{null, null_mut};
 use std::slice::from_raw_parts;
-use std::convert::TryFrom;
+use std::convert::{TryFrom/*, TryInto*/};
 
 use opensc_sys::opensc::{sc_context, sc_card, sc_hex_to_bin, sc_transmit_apdu,
                          sc_check_sw, sc_pin_cmd_data, SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT,
                          SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK};
+#[cfg(not(target_os = "windows"))]
+use opensc_sys::opensc::{sc_select_file};
 use opensc_sys::types::{SC_APDU_CASE_4_SHORT, sc_aid};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_SM_KEYSET_NOT_FOUND, SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_INVALID_DATA,
                          SC_ERROR_SM_IFD_DATA_MISSING, SC_ERROR_SM_AUTHENTICATION_FAILED,
@@ -57,108 +64,6 @@ use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do
 #[allow(clippy::cast_possible_truncation)]
 #[allow(non_upper_case_globals)]
 pub const SM_SMALL_CHALLENGE_LEN_u8 : u8 = SM_SMALL_CHALLENGE_LEN as u8;
-
-/*
-TODO There is a lot of code duplication here: Abstract as much as possible for the 4 APDU cases, but first test
-  thoroughly that all is working as expected
-*/
-
-/*
-/*
- * @struct sm_module_operations
- *    API to use external SM modules:
- *    - 'initialize' - get APDU(s) to initialize SM session;                                 // mandatory function
- *    - 'get apdus' - get secured APDUs to execute particular command;
- *    - 'finalize' - get APDU(s) to finalize SM session;
- *    - 'module init' - initialize external module (allocate data, read configuration, ...);
- *    - 'module cleanup' - free resources allocated by external module.
- */
-
-// mandatory func
-/**
- * Initialize
- *
- * Read keyset from the OpenSC configuration file,
- * get and return the APDU(s) to initialize SM session.
- */
-#[no_mangle]
-pub extern "C" fn initialize(_ctx: *mut sc_context, _sm_info: *mut sm_info, _rdata: *mut sc_remote_data) -> i32
-{
-    SC_SUCCESS
-}
-
-// mandatory func
-#[no_mangle]
-pub extern "C" fn get_apdus(_ctx: *mut sc_context, _sm_info: *mut sm_info, _init_data: *mut u8,
-                            _init_len: usize, _rdata: *mut sc_remote_data) -> i32
-{
-    SC_SUCCESS
-}
-
-
-/*
-// non-mandatory func
-#[no_mangle]
-pub extern "C" fn finalize(_ctx: *mut sc_context, _sm_info: *mut sm_info, _rdata: *mut sc_remote_data,
-                           _out: *mut u8, _out_len: usize) -> i32
-{
-    SC_SUCCESS
-}
-*/
-
-/*
-// non-mandatory func
-#[no_mangle]
-pub extern "C" fn module_init(ctx_ptr: *mut sc_context, data_ptr: *const c_char) -> i32
-{
-    if ctx_ptr.is_null() {
-        return SC_ERROR_INVALID_ARGUMENTS;
-    }
-
-    let ctx = unsafe { &mut *ctx_ptr };
-    let f = cstru!(b"SM module: module_init\0");
-    log3if!(ctx,f,line!(), cstru!(b"called with data_ptr: %p\0"), data_ptr);
-    for elem in ctx.card_drivers.iter_mut() {
-        if (*elem).is_null() { break; }
-        unsafe {
-            let drv = &mut *(*elem);
-            if !drv.short_name.is_null() {
-                println!("Driver supported: {:?}", CStr::from_ptr(drv.short_name));
-            }
-            if CStr::from_ptr(drv.short_name) == cstru!(b"acos5_64\0") &&
-                !ctx.forced_driver.is_null() {
-//                unsafe { ctx.forced_driver = acos5_64_get_card_driver(); }
-                let mut drv2  = &mut *ctx.forced_driver;
-                (*drv2.ops).read_binary = Some(acos5_64_read_binary);
-                println!("Driver supported: {:?}", CStr::from_ptr(drv.short_name));
-                break;
-            }
-        }
-    }
-    SC_SUCCESS
-}
-*/
-
-/*
-// non-mandatory func
-#[no_mangle]
-pub extern "C" fn module_cleanup(_ctx: *mut sc_context) -> i32
-{
-    SC_SUCCESS
-}
-*/
-
-
-/* This is an optional function, yet if it's not exported, the sanity_check will treat SM as unavailable, no matter what */
-// non-mandatory func
-#[allow(dead_code)]
-//#[no_mangle] pub extern "C"
-fn test(_ctx: *mut sc_context, _sm_info: *mut sm_info, out: *mut c_char) -> i32
-{
-    unsafe { *out = 66u8 as c_char };
-    SC_SUCCESS
-}
-*/
 
 fn get_ck_enc_card(card: &sc_card) -> [u8; 3*DES_KEY_SZ] { // get_cwa_keyset_enc_card
     let mut result = [0; 3*DES_KEY_SZ];
@@ -260,7 +165,10 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
         }
     */
     log3if!(ctx,f,line!(), cstru!(b"CRT(algo:%X,ref:%X)\0"), crt_at.algo, crt_at.refs[0]);
-
+    /*  FIXME strange behavior on Windows : line 290 will never be logged, thus the driver seems to starve in between, maybe some privilege issue accessing opensc.conf ?
+    P:9344; T:9348 2020-11-07 03:36:27.174 [opensc-tool] acos5:263:sm_cwa_config_get_keyset: CRT(algo:0,ref:82)
+    P:4268; T:4384 2020-11-07 03:36:37.559 [opensc-notify] reader-pcsc.c:1707:pcsc_wait_for_event: returning with: -1112 (Timeout while waiting for event from card reader)
+    */
 
     /* Keyset ENC */
     if sm_info.current_aid.len>0 && (u8::try_from(crt_at.refs[0]).unwrap() & ACOS5_OBJECT_REF_LOCAL) >0 {
@@ -495,6 +403,20 @@ fn sm_manage_keyset(card: &mut sc_card) -> i32
         SC_SUCCESS
     }
     else {
+/* */
+        #[cfg(not(target_os = "windows"))]
+        if card.sm_ctx.info.current_aid.len == 0 {
+            let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+            assert!(!dp.pkcs15_definitions.is_null());
+            card.drv_data = Box::into_raw(dp) as p_void;
+            let curr_path = card.cache.current_path;
+            let mut aid = sc_aid::default();
+            crate::tasn1_pkcs15_util::analyze_PKCS15_DIRRecord_2F00(card, &mut aid);
+            //println!("AID: {:X?}", &aid.value[..aid.len]);
+            card.sm_ctx.info.current_aid = aid;
+            unsafe { sc_select_file(card, &curr_path, null_mut()) };
+        }
+/* */
         log3if!(ctx,f,line!(), cstru!(b"Current AID: %s\0"),
             unsafe { sc_dump_hex(card.sm_ctx.info.current_aid.value.as_ptr(), card.sm_ctx.info.current_aid.len) });
 
@@ -593,13 +515,6 @@ pub fn sm_common_read(card: &mut sc_card,
 
     /* sc_read_binary has a loop to chunk input into max. sc_get_max_recv_size(card) bytes,
        i.e. count<=255; it's okay to read less*/
-//println!("sm_common_read          get_cs_enc:  {:X?}\n", get_cs_enc(card));
-//println!("sm_common_update        get_cs_enc:  {:X?}\n", get_cs_enc(card));
-//println!("sm_erase_binary         get_cs_enc:  {:X?}\n", get_cs_enc(card));
-//println!("sm_delete_file          get_cs_enc:  {:X?}\n", get_cs_enc(card));
-//println!("sm_create               get_cs_enc:  {:X?}\n", get_cs_enc(card));
-//println!("sm_pin_cmd  verify      get_cs_enc:  {:X?}\n", get_cs_enc(card));
-//println!("sm_pin_cmd_get_policy   get_cs_enc:  {:X?}\n", get_cs_enc(card));
 
 //println!("sm_common_read          get_cs_mac:  {:X?}\n", get_cs_mac(card));
     assert!(buf.len()<256);

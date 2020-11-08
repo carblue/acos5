@@ -17,7 +17,7 @@ Either change Your card's User PIN temporarily to "12345678" are change the sour
 The src/ directory contains several main_* files, each for a different application, some don't change card content,
 while others do so. Currently:
 
-main_RO_inspect_keys.rs
+maub,rs == main_RO_inspect_keys.rs
 main_RW_create_key_pair.rs
 
 Rename the main_* file You are interested in (only 1 at a time) to main.rs and run it via

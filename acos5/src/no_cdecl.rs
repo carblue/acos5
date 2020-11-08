@@ -20,6 +20,7 @@
 
 //use super::bitintr::Popcnt;
 //#![feature(const_fn)]
+#![allow(clippy::match_wild_err_arm)]
 
 use std::os::raw::{c_char, c_ulong};
 use std::ffi::{/*CString,*/ CStr};
@@ -83,9 +84,9 @@ use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do
 use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES,
                              BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, BLOCKCIPHER_PAD_TYPE_PKCS5,
                              BLOCKCIPHER_PAD_TYPE_ZEROES, CardCtl_crypt_sym, CardCtl_generate_crypt_asym, DataPrivate,
-                             FDB_CYCLIC_EF, FDB_ECC_KEY_EF, FDB_LINEAR_VARIABLE_EF, FDB_RSA_KEY_EF, FDB_SE_FILE,
-                             FDB_SYMMETRIC_KEY_EF, NAME_V2, NAME_V3, PKCS15_FILE_TYPE_ECCPRIVATEKEY,
-                             PKCS15_FILE_TYPE_ECCPUBLICKEY, PKCS15_FILE_TYPE_RSAPRIVATEKEY, PKCS15_FILE_TYPE_RSAPUBLICKEY,
+                             FDB_CYCLIC_EF, FDB_LINEAR_VARIABLE_EF, FDB_RSA_KEY_EF, FDB_SE_FILE,
+                             FDB_SYMMETRIC_KEY_EF, NAME_V2, NAME_V3, //PKCS15_FILE_TYPE_ECCPRIVATEKEY, FDB_ECC_KEY_EF,
+                             // PKCS15_FILE_TYPE_ECCPUBLICKEY, PKCS15_FILE_TYPE_RSAPRIVATEKEY, PKCS15_FILE_TYPE_RSAPUBLICKEY,
                              SACinfo, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3,
                              SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
                              SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
@@ -766,9 +767,8 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
     let mut fmt   = cstru!(b"called for path: %s\0");
     log3if!(ctx,f,line!(), fmt, unsafe {sc_dump_hex(path_ref.value.as_ptr(), path_ref.len)});
 
+    let file_id = file_id_from_path_value(&path_ref.value[..path_ref.len]);
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-    assert!(path_ref.len >= 2);
-    let file_id = u16::from_be_bytes([path_ref.value[path_ref.len-2], path_ref.value[path_ref.len-1]]);
     let mut dp_files_value = dp.files.get_mut(&file_id).unwrap();
     let fdb = dp_files_value.1[0];
     dp_files_value.0    = path_ref.value;
@@ -779,6 +779,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
     card.drv_data = Box::into_raw(dp) as p_void;
 
     let is_se_file_only =  fdb == FDB_SE_FILE && only_se_df;
+    let is_ef_dir =  file_id == 0x2F00  &&  path_ref.len == 4;
 
     /* needs to be done once only */
     if is_se_file_only && mrl>0 && nor>0
@@ -919,13 +920,13 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
             }
         }
     }
-    else if [FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&fdb) {
+    else if is_ef_dir /* || [FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&fdb)*/ {
         /* file has the only purpose to invoke scb8 retrieval */
         let mut file = null_mut();
         let guard_file = GuardFile::new(&mut file);
         let rv = unsafe { sc_select_file(card, path_ref, *guard_file) };
         assert_eq!(rv, SC_SUCCESS);
-
+/*
         let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
         if let Some(x) = dp.files.get_mut(&file_id) {
             /* how to distinguish RSAPUB from RSAPRIV without reading ? Assume unconditionally allowed to read: RSAPUB*/
@@ -937,6 +938,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
             }
         }
         card.drv_data = Box::into_raw(dp) as p_void;
+*/
     }
     // log3ifr!(ctx,f,line!(), SC_SUCCESS);
     SC_SUCCESS
@@ -1446,7 +1448,7 @@ fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
         assert!(env_ref.file_ref.len >= 2);
         let path_idx = env_ref.file_ref.len - 2;
         let file_id = u16::from_be_bytes([env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1]]);
-        let file_size = file_id_se(&dp.files[&file_id].1);
+        let file_size = file_id_se(dp.files[&file_id].1);
         if [SC_SEC_OPERATION_SIGN,
             SC_SEC_OPERATION_DECIPHER,
             SC_SEC_OPERATION_DECIPHER_RSAPRIVATE].contains(&env_ref.operation) { //priv

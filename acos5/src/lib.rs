@@ -68,6 +68,9 @@ use std::ptr::{copy_nonoverlapping, null_mut, null};
 use std::collections::HashMap;
 use std::slice::{from_raw_parts, from_raw_parts_mut};
 use std::convert::TryFrom;
+#[cfg(not(target_os = "windows"))]
+use std::convert::TryInto;
+
 // use ::function_name::named;
 
 use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_security_env, sc_pin_cmd_data,
@@ -80,7 +83,7 @@ use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_securit
                          SC_ALGORITHM_RSA_PAD_PKCS1, SC_ALGORITHM_RSA_PAD_ISO9796, SC_ALGORITHM_RSA_HASH_NONE,
                          SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT, SC_SEC_ENV_ALG_PRESENT,
                          SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR, sc_select_file,
-                         SC_CARD_CAP_ISO7816_PIN_INFO, SC_ALGORITHM_AES, sc_read_binary,
+                         SC_CARD_CAP_ISO7816_PIN_INFO, SC_ALGORITHM_AES, sc_read_binary, sc_get_version,
                          SC_ALGORITHM_ECDSA_RAW, SC_ALGORITHM_EXT_EC_NAMEDCURVE //, sc_path_set, sc_verify
 //                         SC_ALGORITHM_ECDH_CDH_RAW, SC_ALGORITHM_ECDSA_HASH_NONE, SC_ALGORITHM_ECDSA_HASH_SHA1,
 //                         SC_ALGORITHM_EXT_EC_UNCOMPRESES,
@@ -97,7 +100,7 @@ use opensc_sys::opensc::{sc_update_record, SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM
 //                         , SC_SEC_OPERATION_WRAP
 };
 
-use opensc_sys::types::{sc_aid, SC_MAX_AID_SIZE, SC_AC_CHV, sc_path, sc_file, sc_serial_number, SC_MAX_PATH_SIZE,
+use opensc_sys::types::{SC_AC_CHV, sc_path, sc_file, sc_serial_number, SC_MAX_PATH_SIZE,
                         SC_PATH_TYPE_FILE_ID, SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH,
 //                        SC_PATH_TYPE_PATH_PROT, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
                         SC_FILE_TYPE_DF, SC_FILE_TYPE_INTERNAL_EF, SC_FILE_EF_TRANSPARENT,/* SC_AC_NONE,
@@ -106,6 +109,8 @@ use opensc_sys::types::{sc_aid, SC_MAX_AID_SIZE, SC_AC_CHV, sc_path, sc_file, sc
                         SC_AC_OP_UPDATE, SC_AC_OP_CRYPTO, SC_AC_OP_DELETE_SELF, SC_AC_OP_CREATE, SC_AC_OP_WRITE,
                         SC_AC_OP_GENERATE,*/ SC_APDU_FLAGS_CHAINING, SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_1,
                         SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT};
+#[cfg(target_os = "windows")]
+use opensc_sys::types::{sc_aid, SC_MAX_AID_SIZE};
 use opensc_sys::errors::{SC_SUCCESS/*, SC_ERROR_INTERNAL*/, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
                          SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY, SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING,
                          SC_ERROR_INCORRECT_PARAMETERS, SC_ERROR_NOT_SUPPORTED, SC_ERROR_BUFFER_TOO_SMALL, SC_ERROR_NOT_ALLOWED,
@@ -160,7 +165,8 @@ use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEAN
                       SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
-                      ValueTypeFiles, build_apdu, is_DFMF, p_void, SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile};
+                      ValueTypeFiles, build_apdu, is_DFMF, p_void, SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile,
+                      PKCS15_FILE_TYPE_ECCPRIVATEKEY, PKCS15_FILE_TYPE_ECCPUBLICKEY};
 #[cfg(enable_acos5_ui)]
 use constants_types::{ui_context, set_ui_ctx, get_ui_ctx, acos5_ask_user_consent};
 
@@ -197,14 +203,22 @@ use se::{map_scb8_to_acl, se_get_is_scb_suitable_for_sm_has_ct, se_parse_sae, se
 mod sm;
 use sm::{sm_erase_binary, sm_delete_file, sm_pin_cmd, sm_pin_cmd_get_policy};
 
+cfg_if::cfg_if! {
+    if #[cfg(not(target_os = "windows"))] {
+        mod tasn1_pkcs15_array;
+        use tasn1_pkcs15_array::tasn1_pkcs15_definitions;
+
+        mod tasn1_pkcs15_util;
+
+        mod tasn1_sys;
+        use tasn1_sys::{ASN1_SUCCESS, asn1_node, asn1_array2tree, asn1_delete_structure};
+        // mod tasn1_wrap;
+    }
+}
+
 mod wrappers;
 use wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tt, wr_do_log_tu, wr_do_log_tuv};
 
-// mod tasn1_sys;
-// mod tasn1_wrap;
-
-// mod tasn1_pkcs15_util;
-// mod tasn1_pkcs15_array;
 /*
 #[cfg(test)]
 #[cfg(test_v2_v3_token)]
@@ -240,12 +254,8 @@ mod   test_v2_v3;
 #[allow(clippy::same_functions_in_if_condition)]
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
-    if       cfg!(v0_17_0) { cstru!(b"0.17.0\0").as_ptr() }
-    else  if cfg!(v0_18_0) { cstru!(b"0.18.0\0").as_ptr() }
-    else  if cfg!(v0_19_0) { cstru!(b"0.19.0\0").as_ptr() }
-    else  if cfg!(v0_20_0) { cstru!(b"0.20.0\0").as_ptr() }
-    else  if cfg!(v0_21_0) { cstru!(b"0.21.0\0").as_ptr() } // experimental only: see build.rs which github commit is supported
-//  else  if cfg!(v0_21_0) { cstru!(b"0.21.0-rc1\0").as_ptr() }
+    if cfg!(v0_17_0) || cfg!(v0_18_0) || cfg!(v0_19_0) || cfg!(v0_20_0) { unsafe { sc_get_version() } }
+    else if cfg!(v0_21_0)  { unsafe { sc_get_version() } } // experimental only: see build.rs which github commit is supported
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -673,12 +683,21 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     me_card_add_symmetric_alg(card, SC_ALGORITHM_AES, 256, aes_algo_flags);
     assert!( me_card_find_alg(card, SC_ALGORITHM_AES, 256, None).is_some());
 ////////////////////////////////////////
-    /* stores serialnr in card.serialnr, required for enum_dir */
-    match get_serialnr(card) {
-        Ok(_val) => (),
-        Err(e) => return e,
-    };
-////////////////////////////////////////
+cfg_if::cfg_if! {
+    if #[cfg(not(target_os = "windows"))] {
+        let mut pkcs15_definitions : asn1_node = null_mut();
+        let mut error_description = [0x00 as c_char; 129];
+        // let asn1_result = unsafe { crate::tasn1_sys::asn1_parser2tree(cstru!(b"acos5_gui/source/PKCS15.asn\0").as_ptr(),
+        //     &mut pkcs15_definitions, error_description.as_mut_ptr()) };
+        let asn1_result = unsafe { asn1_array2tree(tasn1_pkcs15_definitions().as_ptr(), &mut pkcs15_definitions,
+                                                   error_description.as_mut_ptr()) };
+        if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
+            let c_str = unsafe { CStr::from_ptr(error_description.as_ptr()) };
+            println!("asn1_result (definitions): {}, error_description: {:?}", asn1_result, c_str);
+        }
+        assert!(!pkcs15_definitions.is_null());
+    }
+}
     let mut files : HashMap<KeyTypeFiles, ValueTypeFiles> = HashMap::with_capacity(50);
     files.insert(0x3F00, (
         [0; SC_MAX_PATH_SIZE],
@@ -689,15 +708,17 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     ));
 
     let dp = Box::new( DataPrivate {
+        #[cfg(not(target_os = "windows"))]
+        pkcs15_definitions,
         files,
         sec_env: sc_security_env::default(),
         agc: CardCtl_generate_crypt_asym::default(),
         agi: CardCtl_generate_inject_asym::default(),
         time_stamp: std::time::Instant::now(),
         sm_cmd: 0,
+        rsa_caps: rsa_algo_flags,
         sec_env_mod_len: 0,
         rfu_align_pad1: 0,
-        rsa_caps: rsa_algo_flags,
         does_mf_exist: true,       // just an assumption; will be set in enum_dir
         is_fips_mode: false,       // just an assumption; will be set in
         is_fips_compliant : false, // just an assumption; will be set in
@@ -714,30 +735,34 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     } );
 
 /*
-println!("address of dp:         {:p}",  dp);
-println!("address of dp.files:   {:p}", &dp.files);
-println!("address of dp.sec_env: {:p}", &dp.sec_env);
-address of dp:         0x5580a78edbb0
-address of dp.files:   0x5580a78edbb0
-address of dp.sec_env: 0x5580a78edbe8
+println!("address of dp:                    {:p}",  dp);
+println!("address of dp.pkcs15_definitions: {:p}", &dp.pkcs15_definitions);
+println!("address of dp.files:              {:p}", &dp.files);
+println!("address of dp.sec_env:            {:p}", &dp.sec_env);
+//address of dp:                    0x55cb0bebc510
+//address of dp.pkcs15_definitions: 0x55cb0bebc510
+//address of dp.files:              0x55cb0bebc518
+//address of dp.sec_env:            0x55cb0bebc548
 */
 
     card.drv_data = Box::into_raw(dp) as p_void;
 
 /*
+println!("offset_of pkcs15_definitions:               {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, pkcs15_definitions),   offset_of!(DataPrivate, files)-offset_of!(DataPrivate, pkcs15_definitions), std::mem::size_of::<asn1_node>(), std::mem::align_of::<asn1_node>());
+
 println!("offset_of files:                            {}, Δnext:   {}, size_of:   {}, align_of: {}", offset_of!(DataPrivate, files),   offset_of!(DataPrivate, sec_env)-offset_of!(DataPrivate, files), std::mem::size_of::<HashMap<KeyTypeFiles,ValueTypeFiles>>(), std::mem::align_of::<HashMap<KeyTypeFiles,ValueTypeFiles>>());
 println!("offset_of sec_env:                         {}, Δnext: {}, size_of: {}, align_of: {}", offset_of!(DataPrivate, sec_env),      offset_of!(DataPrivate, agc)-offset_of!(DataPrivate, sec_env), std::mem::size_of::<sc_security_env>(), std::mem::align_of::<sc_security_env>());
 println!("offset_of agc:                           {}, Δnext:  {}, size_of:  {}, align_of: {}", offset_of!(DataPrivate, agc),          offset_of!(DataPrivate, agi)-offset_of!(DataPrivate, agc), std::mem::size_of::<CardCtl_generate_crypt_asym>(), std::mem::align_of::<CardCtl_generate_crypt_asym>());
 println!("offset_of agi:                           {}, Δnext:   {}, size_of:   {}, align_of: {}", offset_of!(DataPrivate, agi),        offset_of!(DataPrivate, time_stamp)-offset_of!(DataPrivate, agi), std::mem::size_of::<CardCtl_generate_inject_asym>(), std::mem::align_of::<CardCtl_generate_inject_asym>());
-println!("offset_of time_stamp:                    {}, Δnext:   {}, size_of:   {}, align_of: {}", offset_of!(DataPrivate, time_stamp), offset_of!(DataPrivate, sec_env_mod_len)-offset_of!(DataPrivate, time_stamp), std::mem::size_of::<std::time::Instant>(), std::mem::align_of::<std::time::Instant>());
+println!("offset_of time_stamp:                    {}, Δnext:   {}, size_of:   {}, align_of: {}", offset_of!(DataPrivate, time_stamp), offset_of!(DataPrivate, sm_cmd)-offset_of!(DataPrivate, time_stamp), std::mem::size_of::<std::time::Instant>(), std::mem::align_of::<std::time::Instant>());
+println!("offset_of sm_cmd:                        {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, sm_cmd),     offset_of!(DataPrivate, rsa_caps)-offset_of!(DataPrivate, sm_cmd), std::mem::size_of::<u32>(), std::mem::align_of::<u32>());
+println!("offset_of rsa_caps:                      {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, rsa_caps),   offset_of!(DataPrivate, sec_env_mod_len)-offset_of!(DataPrivate, rsa_caps), std::mem::size_of::<u32>(), std::mem::align_of::<u32>());
 
 println!("offset_of sec_env_mod_len:               {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, sec_env_mod_len), offset_of!(DataPrivate, rfu_align_pad1)-offset_of!(DataPrivate, sec_env_mod_len), std::mem::size_of::<u16>(), std::mem::align_of::<u16>());
-println!("offset_of rfu_align_pad1:                {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, rfu_align_pad1),  offset_of!(DataPrivate, rsa_caps)-offset_of!(DataPrivate, rfu_align_pad1), std::mem::size_of::<u16>(), std::mem::align_of::<u16>());
+println!("offset_of rfu_align_pad1:                {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, rfu_align_pad1),  offset_of!(DataPrivate, does_mf_exist)-offset_of!(DataPrivate, rfu_align_pad1), std::mem::size_of::<u16>(), std::mem::align_of::<u16>());
 
-println!("offset_of rsa_caps:                      {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, rsa_caps),        offset_of!(DataPrivate, does_mf_exist)-offset_of!(DataPrivate, rsa_caps), std::mem::size_of::<u32>(), std::mem::align_of::<u32>());
 println!("offset_of does_mf_exist:                 {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, does_mf_exist),   offset_of!(DataPrivate, is_fips_mode)-offset_of!(DataPrivate, does_mf_exist), std::mem::size_of::<bool>(), std::mem::align_of::<bool>());
 println!("offset_of is_fips_mode:                  {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, is_fips_mode),    offset_of!(DataPrivate, is_fips_compliant)-offset_of!(DataPrivate, is_fips_mode), std::mem::size_of::<bool>(), std::mem::align_of::<bool>());
-
 println!("offset_of is_fips_compliant:             {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, is_fips_compliant),            offset_of!(DataPrivate, is_running_init)-offset_of!(DataPrivate, is_fips_compliant), std::mem::size_of::<bool>(), std::mem::align_of::<bool>());
 println!("offset_of is_running_init:               {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, is_running_init),              offset_of!(DataPrivate, is_running_compute_signature)-offset_of!(DataPrivate, is_running_init), std::mem::size_of::<bool>(), std::mem::align_of::<bool>());
 println!("offset_of is_running_compute_signature:  {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, is_running_compute_signature), offset_of!(DataPrivate, is_running_cmd_long_response)-offset_of!(DataPrivate, is_running_compute_signature), std::mem::size_of::<bool>(), std::mem::align_of::<bool>());
@@ -748,32 +773,42 @@ println!("offset_of rfu_align_pad2:                {}, Δnext:    {}, size_of:  
 println!("offset_of sym_key_file_id:               {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, sym_key_file_id), offset_of!(DataPrivate, sym_key_rec_idx)-offset_of!(DataPrivate, sym_key_file_id), std::mem::size_of::<u16>(), std::mem::align_of::<u16>());
 println!("offset_of sym_key_rec_idx:               {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, sym_key_rec_idx), offset_of!(DataPrivate, sym_key_rec_cnt)-offset_of!(DataPrivate, sym_key_rec_idx), std::mem::size_of::<u8>(), std::mem::align_of::<u8>());
 println!("offset_of sym_key_rec_cnt:               {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, sym_key_rec_cnt), std::mem::size_of::<DataPrivate>()-offset_of!(DataPrivate, sym_key_rec_cnt), std::mem::size_of::<u8>(), std::mem::align_of::<u8>());
+#[cfg(enable_acos5_ui)]
+println!("offset_of ui_ctx:                        {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, ui_ctx), std::mem::size_of::<DataPrivate>()-offset_of!(DataPrivate, ui_ctx), std::mem::size_of::<ui_context>(), std::mem::align_of::<ui_context>());
 
 println!("DataPrivate:                                                size_of: {}, align_of: {}", std::mem::size_of::<DataPrivate>(), std::mem::align_of::<DataPrivate>()); // DataPrivate: size_of: 1784, align_of: 8
 
 
-offset_of files:                            0, Δnext:   56, size_of:   56, align_of: 8
+offset_of pkcs15_definitions:               0, Δnext:    8, size_of:    8, align_of: 8
+offset_of files:                            8, Δnext:   48, size_of:   48, align_of: 8
 offset_of sec_env:                         56, Δnext: 1112, size_of: 1112, align_of: 8
 offset_of agc:                           1168, Δnext:  552, size_of:  552, align_of: 8
 offset_of agi:                           1720, Δnext:   24, size_of:   24, align_of: 2
 offset_of time_stamp:                    1744, Δnext:   16, size_of:   16, align_of: 8
-offset_of sec_env_mod_len:               1760, Δnext:    2, size_of:    2, align_of: 2
-offset_of rfu_align_pad1:                1762, Δnext:    2, size_of:    2, align_of: 2
+offset_of sm_cmd:                        1760, Δnext:    4, size_of:    4, align_of: 4
 offset_of rsa_caps:                      1764, Δnext:    4, size_of:    4, align_of: 4
-offset_of does_mf_exist:                 1768, Δnext:    1, size_of:    1, align_of: 1
-offset_of is_fips_mode:                  1769, Δnext:    1, size_of:    1, align_of: 1
-offset_of is_fips_compliant:             1770, Δnext:    1, size_of:    1, align_of: 1
-offset_of is_running_init:               1771, Δnext:    1, size_of:    1, align_of: 1
-offset_of is_running_compute_signature:  1772, Δnext:    1, size_of:    1, align_of: 1
-offset_of is_running_cmd_long_response:  1773, Δnext:    1, size_of:    1, align_of: 1
-offset_of is_unwrap_op_in_progress:      1774, Δnext:    1, size_of:    1, align_of: 1
-offset_of rfu_align_pad2:                1775, Δnext:    1, size_of:    1, align_of: 1
-offset_of sym_key_file_id:               1776, Δnext:    2, size_of:    2, align_of: 2
-offset_of sym_key_rec_idx:               1778, Δnext:    1, size_of:    1, align_of: 1
-offset_of sym_key_rec_cnt:               1779, Δnext:    5, size_of:    1, align_of: 1
+offset_of sec_env_mod_len:               1768, Δnext:    2, size_of:    2, align_of: 2
+offset_of rfu_align_pad1:                1770, Δnext:    2, size_of:    2, align_of: 2
+offset_of does_mf_exist:                 1772, Δnext:    1, size_of:    1, align_of: 1
+offset_of is_fips_mode:                  1773, Δnext:    1, size_of:    1, align_of: 1
+offset_of is_fips_compliant:             1774, Δnext:    1, size_of:    1, align_of: 1
+offset_of is_running_init:               1775, Δnext:    1, size_of:    1, align_of: 1
+offset_of is_running_compute_signature:  1776, Δnext:    1, size_of:    1, align_of: 1
+offset_of is_running_cmd_long_response:  1777, Δnext:    1, size_of:    1, align_of: 1
+offset_of is_unwrap_op_in_progress:      1778, Δnext:    1, size_of:    1, align_of: 1
+offset_of rfu_align_pad2:                1779, Δnext:    1, size_of:    1, align_of: 1
+offset_of sym_key_file_id:               1780, Δnext:    2, size_of:    2, align_of: 2
+offset_of sym_key_rec_idx:               1782, Δnext:    1, size_of:    1, align_of: 1
+offset_of sym_key_rec_cnt:               1783, Δnext:    1, size_of:    1, align_of: 1
 DataPrivate:                                                size_of: 1784, align_of: 8
+
+offset_of sym_key_rec_cnt:               1783, Δnext:    9, size_of:    1, align_of: 1
+offset_of ui_ctx:                        1784, Δnext:    8, size_of:    4, align_of: 4
+DataPrivate:                                                size_of: 1792, align_of: 8
 */
 
+////////////////////////////////////////
+    /* store serialnr in card.serialnr; enum_dir currently doesn't require that */
     let path_mf = unsafe { *sc_get_mf_path() };
     card.cache.current_path = path_mf;
     rv = enum_dir(card, &path_mf, true/*, 0*/); /* FIXME Doing to much here degrades performance, possibly for no value */
@@ -788,8 +823,8 @@ DataPrivate:                                                size_of: 1784, align
             return SC_ERROR_INVALID_CARD;
         }
     }
+    // final selection in acos5_init
     unsafe { sc_select_file(card, &path_mf, null_mut()) }; // acos5_select_file: if !does_mf_exist { return SC_ERROR_NOT_ALLOWED; }
-
     let sm_info = &mut card.sm_ctx.info;
 /*
 card.sm_ctx.module.ops  : handled by card.c:sc_card_sm_check/sc_card_sm_load
@@ -798,17 +833,31 @@ card.sm_ctx.module.ops  : handled by card.c:sc_card_sm_check/sc_card_sm_load
 char[64]  config_section;  will be set from opensc.conf later by sc_card_sm_check
 unsafe { copy_nonoverlapping(cstru!(b"acos5_sm\0").as_ptr(), sm_info.config_section.as_mut_ptr(), 9); } // used to look-up the block; only iasecc/authentic populate this field
 uint      sm_mode;         will be set from opensc.conf later by sc_card_sm_check only for SM_MODE_TRANSMIT
-sm_info.serialnr = card.serialnr; // enabling this instead of the following 2 lines would allow to constrain SM to a specific hardware, set in opensc.conf as ifd_serial = "byte_1:byte_2:byte_3:byte_4:byte_5:byte_6:byte_7:byte_8"; ifd_serial of SC_CARD_TYPE_ACOS5_64_V2 has 6 bytes only !
  */
-    sm_info.serialnr.len   = 8;
-    sm_info.serialnr.value = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0];
     sm_info.card_type = u32::try_from(card.type_).unwrap();
     sm_info.sm_type   = SM_TYPE_CWA14890;
-    sm_info.current_aid = sc_aid { len: SC_MAX_AID_SIZE, value: [0x41, 0x43, 0x4F, 0x53, 0x50, 0x4B, 0x43, 0x53, 0x2D, 0x31, 0x35, 0x76, 0x31, 0x2E, 0x30, 0x30]}; //"ACOSPKCS-15v1.00", see PKCS#15 EF.DIR file
+    // sm_info.current_aid : on non-Windows (*nix) now set when required only in sm_manage_keyset, with aid read from EF.DIR, hence for SM EF.DIR must exist and be populated/correct
+    #[cfg(target_os = "windows")]
+    { sm_info.current_aid = sc_aid { len: SC_MAX_AID_SIZE, value: [0x41, 0x43, 0x4F, 0x53, 0x50, 0x4B, 0x43, 0x53, 0x2D, 0x31, 0x35, 0x76, 0x31, 0x2E, 0x30, 0x30] }; } //"ACOSPKCS-15v1.00", see PKCS#15 EF.DIR file
     unsafe {
         sm_info.session.cwa.params.crt_at.refs[0] = 0x82; // this is the selection of keyset_... ...02_... to be used !!! Currently 24 byte keys (generate 24 byte session keys)
 //      sm_info.session.cwa.params.crt_at.refs[0] = 0x81; // this is the selection of keyset_... ...01_... to be used !!!           16 byte keys (generate 16 byte session keys)
     }
+
+cfg_if::cfg_if! {
+    if #[cfg(SM_constraint_ifd_serial)] {
+        /* stores serialnr in card.serialnr, required for   sm_info.serialnr = card.serialnr; */
+        match get_serialnr(card) {
+            Ok(_val) => (),
+            Err(e) => return e,
+        }
+        sm_info.serialnr = card.serialnr; // enabling this instead of the following 2 lines would allow to constrain SM to a specific hardware, set in opensc.conf as ifd_serial = "byte_1:byte_2:byte_3:byte_4:byte_5:byte_6:byte_7:byte_8"; ifd_serial of SC_CARD_TYPE_ACOS5_64_V2 has 6 bytes only !
+    }
+    else {
+        sm_info.serialnr.len   = 8;
+        sm_info.serialnr.value = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0];
+    }
+}
 
     let mut dp= unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     dp.files.shrink_to_fit();
@@ -993,7 +1042,17 @@ println!("sc_update_binary: rv: {}", rv);
     */
 ////////////////////
     assert!(!card.drv_data.is_null(), "drv_data is null");
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+cfg_if::cfg_if! {
+    if #[cfg(target_os = "windows")] {
+        let     dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    }
+    else {
+        let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        if !dp.pkcs15_definitions.is_null() {
+            unsafe { asn1_delete_structure(&mut dp.pkcs15_definitions) };
+        }
+    }
+}
 //println!("Hashmap: {:X?}", dp.files);
 //    there may be other Boxes that might need to be taken over again
     drop(dp);
@@ -1035,7 +1094,7 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let dp_files_value = &dp.files[&file_id];
     let fdb = dp_files_value.1[0];
-    let size = file_id_se(&dp_files_value.1);
+    let size = file_id_se(dp_files_value.1);
     let scb_erase = dp_files_value.2.unwrap()[1];
     card.drv_data = Box::into_raw(dp) as p_void;
 ////println!("idx: {}, count: {}, flags: {}, fdb: {}, size: {}, scb_erase: {}", idx, count, flags, fdb, size, scb_erase);
@@ -1733,13 +1792,14 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
             rbuf[6] = match rbuf[0] { // replaces the unused ISO7816_RFU_TAG_FCP_SFI
                 FDB_CHV_EF           => PKCS15_FILE_TYPE_PIN,
                 FDB_SYMMETRIC_KEY_EF => PKCS15_FILE_TYPE_SECRETKEY,
-//                FDB_RSA_KEY_EF       => PKCS15_FILE_TYPE_RSAPRIVATEKEY, // must be corrected for public key files later on
-                _                         => PKCS15_FILE_TYPE_NONE, // the default: not relevant for PKCS#15; will be changed for some files later on
+                //FDB_RSA_KEY_EF     => PKCS15_FILE_TYPE_RSAPRIVATEKEY, // must be corrected for public key files later on
+                //FDB_ECC_KEY_EF     => PKCS15_FILE_TYPE_ECCPRIVATEKEY, // must be corrected for public key files later on
+                _                    => PKCS15_FILE_TYPE_NONE, // the default: not relevant for PKCS#15; will be changed for some files later on
             };
 
             if is_running_init {
                 let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-                let predecessor = dp.files.insert(file_id(&rbuf),
+                let predecessor = dp.files.insert(file_id(rbuf),
                                                   ([0; SC_MAX_PATH_SIZE], rbuf, None, None, None));
                 card.drv_data = Box::into_raw(dp) as p_void;
                 if predecessor.is_some() {
@@ -1813,7 +1873,7 @@ extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
     dp_files_value.1[7] = fci.lcsi;
     dp_files_value.2.get_or_insert(fci.scb8);
 
-    if  file_id(&dp_files_value.1) == 0 { // assume dp_files_value.1 wasn't provided by list_files, i.e. insert by acos5_create_file
+    if  file_id(dp_files_value.1) == 0 { // assume dp_files_value.1 wasn't provided by list_files, i.e. insert by acos5_create_file
         dp_files_value.1[0] = fci.fdb;
         dp_files_value.1[2..4].copy_from_slice(&fci.fid.to_be_bytes());
         if  file.type_!= SC_FILE_TYPE_DF && file.ef_structure != SC_FILE_EF_TRANSPARENT {
@@ -1824,17 +1884,16 @@ extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
         }
 //      dp_files_value.1[6] = sfi;
     }
-    if  dp_files_value.1[0] == FDB_RSA_KEY_EF && dp_files_value.1[6] == 0xFF {
-        /* a better, more sophisticated distinction requires more info. Here, readable or not. Possibly read first byte from file */
-        dp_files_value.1[6] = if fci.scb8[0] != 0xFF {PKCS15_FILE_TYPE_RSAPUBLICKEY} else {PKCS15_FILE_TYPE_RSAPRIVATEKEY};
+    if [FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&dp_files_value.1[0]) && dp_files_value.1[6] == 0xFF {
+        if  dp_files_value.1[0] == FDB_RSA_KEY_EF {
+            /* a better, more sophisticated distinction requires more info. Here, readable or not. Possibly read first byte from file */
+            dp_files_value.1[6] = if fci.scb8[0] != 0xFF {PKCS15_FILE_TYPE_RSAPUBLICKEY} else {PKCS15_FILE_TYPE_RSAPRIVATEKEY};
+        }
+        else {
+            /* a better, more sophisticated distinction requires more info. Here, readable or not. Possibly read first byte from file */
+            dp_files_value.1[6] = if fci.scb8[0] != 0xFF {PKCS15_FILE_TYPE_ECCPUBLICKEY} else {PKCS15_FILE_TYPE_ECCPRIVATEKEY};
+        }
     }
-        /*
-                    if rbuf[0]==FDB_RSA_KEY_EF && dp.files[&fci.fid].2.is_some() && dp.files[&fci.fid].2.unwrap()[0]==0 {
-                        if let Some(x) = dp.files.get_mut(&fci.fid) {
-                            (*x).1[6] = PKCS15_FILE_TYPE_RSAPUBLICKEY;
-                        }
-                    }
-        */
     if is_DFMF(fci.fdb) {
         if  dp_files_value.1[4..6] == [0_u8; 2] {
             dp_files_value.1[4..6].copy_from_slice(&fci.seid.to_be_bytes());

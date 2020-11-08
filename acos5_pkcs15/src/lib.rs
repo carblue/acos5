@@ -88,7 +88,7 @@ use std::slice::from_raw_parts;
 
 use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_select_file, sc_card_ctl, SC_ALGORITHM_DES,
                          SC_ALGORITHM_3DES, SC_ALGORITHM_AES, sc_card_find_rsa_alg, sc_file_new, sc_transmit_apdu,
-                         sc_file_dup, sc_delete_file, sc_check_sw, sc_update_record, SC_RECORD_BY_REC_NR};
+                         sc_file_dup, sc_delete_file, sc_check_sw, sc_update_record, SC_RECORD_BY_REC_NR, sc_get_version};
 
 use opensc_sys::profile::{sc_profile};
 use opensc_sys::pkcs15::{sc_pkcs15_card, sc_pkcs15_object, sc_pkcs15_prkey, sc_pkcs15_pubkey, sc_pkcs15_skey_info,
@@ -134,24 +134,37 @@ use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do
 pub mod    no_cdecl; // this is NOT the same as in acos5
 use crate::no_cdecl::{rsa_modulus_bits_canonical, first_of_free_indices, construct_sym_key_entry}; /*call_dynamic_update_hashmap, call_dynamic_sm_test,*/
 
+mod tasn1_sys;
+
 
 const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 
-/// A mandatory library export
-/// @apiNote  If @return doesn't match the version of OpenSC binary libopensc.so/dll, this library
-///           will be unloaded immediately; depends on build.rs setup ref. "cargo:rustc-cfg=v0_??_0".
-///           Current auto-adaption to binary version in build.rs (for pkg-config supporting OS) may not be correct
-///           for OpenSC master code not yet inspected. auto-adaption for OpenSC 0.17.0 - 0.20.0-rc2 is okay
-/// @return   The OpenSC release version, that this driver implementation supports
+/// A mandatory library export  It MUST BE identical for acos5 and acos5_pkcs15
+///
+/// @apiNote
+/// If @return doesn't match the version of OpenSC binary libopensc.so/dll installed, then this library
+/// will be rejected/unloaded immediately by OpenSC; depends on build.rs setup ref. "cargo:rustc-cfg=v0_??_0".
+///
+/// Its essential, that this doesn't merely echo, what a call to `sc_get_version` reports:
+/// Its my/developers statement, that the support as reported by sc_driver_version got checked !
+/// Thus, if e.g. a new OpenSC version 0.21.0 got released and if I didn't reflect that in sc_driver_version,
+/// (updating opensc-sys binding and code of acos5 and acos5_pkcs15),
+/// then the driver won't accidentally malfunction for a not yet supported OpenSC environment/version !
+///
+/// The support of not yet released OpenSC code (i.e. github/master) is somewhat experimental:
+/// Its accuracy depends on how closely the opensc-sys binding and driver code has covered the possible
+/// differences in API and behavior (its build.rs mention the last OpenSC commit covered).
+/// master will be handled as an imaginary new version release:
+/// E.g. while currently the latest release is 0.20.0, build OpenSC from source such that it reports imaginary
+/// version 0.21.0 (change config.h after ./configure and before make, and change opensc.pc as well)
+/// In this example, cfg!(v0_21_0) will then match that
+///
+/// @return   The OpenSC release/imaginary version, that this driver implementation supports
 #[allow(clippy::same_functions_in_if_condition)]
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
-    if       cfg!(v0_17_0) { cstru!(b"0.17.0\0").as_ptr() }
-    else  if cfg!(v0_18_0) { cstru!(b"0.18.0\0").as_ptr() }
-    else  if cfg!(v0_19_0) { cstru!(b"0.19.0\0").as_ptr() }
-    else  if cfg!(v0_20_0) { cstru!(b"0.20.0\0").as_ptr() }
-    else  if cfg!(v0_21_0) { cstru!(b"0.21.0\0").as_ptr() } // experimental only: see build.rs which github commit is supported
-//  else  if cfg!(v0_21_0) { cstru!(b"0.21.0-rc1\0").as_ptr() }
+    if cfg!(v0_17_0) || cfg!(v0_18_0) || cfg!(v0_19_0) || cfg!(v0_20_0) { unsafe { sc_get_version() } }
+    else if cfg!(v0_21_0)  { unsafe { sc_get_version() } } // experimental only: see build.rs which github commit is supported
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 

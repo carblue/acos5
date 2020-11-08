@@ -31,7 +31,6 @@ use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUST
                          SC_PKCS15_DODF, SC_PKCS15_AODF};
 use opensc_sys::errors::{SC_SUCCESS};
 
-
 #[allow(non_camel_case_types)]
 pub type p_void = *mut c_void;
 
@@ -611,6 +610,8 @@ pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, Opt
 #[repr(C)]
 #[derive(/*Debug, Copy,*/ Clone)]
 pub struct DataPrivate { // see settings in acos5_init
+    #[cfg(not(target_os = "windows"))]
+    pub pkcs15_definitions : crate::tasn1_sys::asn1_node, // used only as asn1_node_const, except in asn1_delete_structure
     pub files : HashMap< KeyTypeFiles, ValueTypeFiles >,
     pub sec_env : sc_security_env, // remember the input of last call to acos5_64_set_security_env; especially algorithm_flags will be required in compute_signature
     pub agc : CardCtl_generate_crypt_asym,  // asym_generate_crypt_data
@@ -618,9 +619,9 @@ pub struct DataPrivate { // see settings in acos5_init
 //  pub sec_env_algo_flags : u32, // remember the padding scheme etc. selected for RSA; required in acos5_64_set_security_env
     pub time_stamp : std::time::Instant,
     pub sm_cmd : u32,
+    pub rsa_caps : u32, // remember how the rsa_algo_flags where set for _sc_card_add_rsa_alg
     pub sec_env_mod_len : u16, //u32,
     pub rfu_align_pad1  : u16,
-    pub rsa_caps : u32, // remember how the rsa_algo_flags where set for _sc_card_add_rsa_alg
     pub does_mf_exist : bool,
     pub is_fips_mode : bool, // the Operation Mode Byte (for V3 or V4) is set to FIPS, opposed to 64K or any other mode: Special restrictions may apply
     pub is_fips_compliant : bool, // if is_fips_mode==true and also get_fips_compliance reports true, then this is true, else false (e.g. always for V2)

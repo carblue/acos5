@@ -4,6 +4,8 @@ use std::collections::HashSet;
 
 use opensc_sys::opensc::{sc_card, sc_get_mf_path/*, sc_format_path*/, sc_select_file};
 use opensc_sys::types::{sc_crt};
+//#[cfg(not(target_os = "windows"))]
+//use opensc_sys::types::{sc_aid};
 use opensc_sys::errors::{/*SC_SUCCESS,*/ SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT_FOUND};
 // /*, SC_ERROR_INTERNAL*/, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
 //                          SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY, SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING,
@@ -17,13 +19,17 @@ use crate::no_cdecl::{update_hashmap};
 use crate::constants_types::{DataPrivate, p_void, is_DFMF, FDB_SE_FILE, READ};
 use crate::path::{/*file_id,*/ file_id_se, is_child_of};
 use crate::se::se_get_references;
-
-// use crate::tasn1_sys::{asn1_check_version};
-// use crate::tasn1_pkcs15_util::{analyze_PKCS15_DIRRecord_2F00, analyze_PKCS15_PKCS15Objects_5031, analyze_PKCS15_TokenInfo_5032};
-
+/*
+cfg_if::cfg_if! {
+    if #[cfg(not(target_os = "windows"))] {
+        use crate::tasn1_sys::{asn1_check_version};
+        use crate::tasn1_pkcs15_util::{analyze_PKCS15_DIRRecord_2F00,/* analyze_PKCS15_PKCS15Objects_5031, analyze_PKCS15_TokenInfo_5032*/};
+    }
+}
+*/
 /* route onlY MF doesn't exist to Err ! */
 fn select_mf(card: &mut sc_card) -> Result<i32, i32> {
-    let rv = unsafe { sc_select_file(card, unsafe { &*sc_get_mf_path() }, null_mut()) };
+    let rv = unsafe { sc_select_file(card, sc_get_mf_path(), null_mut()) };
     match rv {
         SC_ERROR_NOT_ALLOWED | SC_ERROR_FILE_NOT_FOUND => Err(rv),
         _ => Ok(rv),
@@ -101,19 +107,24 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
     if printable { println!("[X] Does MF exist?  Yes") }
     update_hashmap(card);
     /* * /
+    #[cfg(not(target_os = "windows"))]
+    {
         // let req_version = unsafe { CStr::from_bytes_with_nul_unchecked(b"4.16\0") };
         let tasn1_version = unsafe { asn1_check_version(std::ptr::null() /*req_version.as_ptr()*/) };
         if !tasn1_version.is_null() {
             println!("result from asn1_check_version: {:?}", unsafe { CStr::from_ptr(tasn1_version) });
         }
-        analyze_PKCS15_DIRRecord_2F00(card);
-        analyze_PKCS15_PKCS15Objects_5031(card);
-        analyze_PKCS15_TokenInfo_5032(card);
+        let mut aid = sc_aid::default();
+        analyze_PKCS15_DIRRecord_2F00(card, &mut aid);
+println!("AID: {:X?}", &aid.value[..aid.len]);
+        // analyze_PKCS15_PKCS15Objects_5031(card);
+        // analyze_PKCS15_TokenInfo_5032(card);
+    }
     / * */
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     for (&key_dfmf, val) in &dp.files {
         if is_DFMF(val.1[0]) {
-            let child_id = file_id_se(&val.1);
+            let child_id = file_id_se(val.1);
             assert!(dp.files.contains_key(&child_id)); // or it doesn't exist
             let dpfv_child = &dp.files[&child_id];
             if  dpfv_child.1[0] != FDB_SE_FILE || !is_child_of(dpfv_child, val) {
@@ -165,12 +176,12 @@ println!("[X] DF/MF {:04X} reference {:X} has MSB bit set: TODO check whether Op
 println!("[X] DF/MF {:04X} references (reduced set) found: {:X?} ", key_dfmf, index_used);
                 let mut once = false;
                 for &index in &index_used {
-                    if index & 0x40 > 0 {
-                        if se_get_references(card, key_dfmf, index & 0x0F, &sc_crt::new_CCT(0x30), false).is_empty() &&
-                           se_get_references(card, key_dfmf, index & 0x0F, &sc_crt::new_CCT(0x70), false).is_empty()    {
-                            once = true;
-                            println!("[X] ERROR: The record #{} in SE-file {} shall be used for SM, but it has no suitable CCT template", index & 0x0F, child_id);
-                        }
+                    if index & 0x40 > 0 &&
+                        se_get_references(card, key_dfmf, index & 0x0F, &sc_crt::new_CCT(0x30), false).is_empty() &&
+                        se_get_references(card, key_dfmf, index & 0x0F, &sc_crt::new_CCT(0x70), false).is_empty()
+                    {
+                        once = true;
+                        println!("[X] ERROR: The record #{} in SE-file {} shall be used for SM, but it has no suitable CCT template", index & 0x0F, child_id);
                     }
                     if se_get_references(card, key_dfmf, index & 0x0F, &sc_crt::new_AT(0x88), true).is_empty() {
                         once = true;
@@ -268,97 +279,3 @@ fn explain_the_driver() {
     println!("acos5_get_response: Short APDUS allow a 1-byte le only");
     println!("acos5_compute_signature");
 }
-/*
-3081810201010408B035005BA10A65000C1A416476616E63656420436172642053797374656D73204C74642E801643544D36345F4230333530303542413130413635303003020420A23A301B0201010202108105000302000C0609608648016503040129020104301B0201020202108205000302000C060960864801650304012A020106
-
-$ opensc-tool --serial
-Using reader with a card: ACS CryptoMate (T2) 00 00
-B0 35 00 5B A1 0A 65 00 .5.[..e.
-
-[X] Does MF exist?  Yes
-result from asn1_check_version: "4.13"
-ready to inspect
-path of application directory: 0x[3F, 0, 41, 0], fid: 0x4100
-aid of application directory: 0x[41, 43, 4F, 53, 50, 4B, 43, 53, 2D, 31, 35, 76, 31, 2E, 30, 30]
-aid of application directory: ACOSPKCS-15v1.00
-label of application directory: eCert
-1 PKCS#15 application(s) is/are specified. File ids:  [FidPath(4100, [3F, 0, 41, 0])]
-fid:  4100
-len: 4
-path_app: [3F, 0, 41, 0]
-dp.files entry with PKCS15_FILE_TYPE_ODF:  ([3F, 0, 41, 0, 50, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 50, 31, 0, 6C, B, 5], Some([0, 0, FF, 3, 0, FF, 3, FF]), None, None)
-path of 0_DF: 0x[3F, 0, 41, 0, 41, 10], fid: 0x4110
-path of 1_DF: 0x[3F, 0, 41, 0, 41, 11], fid: 0x4111
-path of 2_DF: 0x[3F, 0, 41, 0, 41, 12], fid: 0x4112
-path of 3_DF: 0x[3F, 0, 41, 0, 41, 13], fid: 0x4113
-path of 4_DF: 0x[3F, 0, 41, 0, 41, 14], fid: 0x4114
-path of 5_DF: 0x[3F, 0, 41, 0, 41, 15], fid: 0x4115
-path of 6_DF: 0x[3F, 0, 41, 0, 41, 16], fid: 0x4116
-path of 7_DF: 0x[3F, 0, 41, 0, 41, 17], fid: 0x4117
-path of 8_DF: 0x[3F, 0, 41, 0, 41, 18], fid: 0x4118
-
-1 PKCS#15 application(s) is/are specified. File ids:  [FidPath(4100, [3F, 0, 41, 0])]
-fid:  4100
-len: 4
-path_app: [3F, 0, 41, 0]
-dp.files entry with PKCS15_FILE_TYPE_TOKENINFO:  ([3F, 0, 41, 0, 50, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 50, 32, 0, C0, C, 5], Some([0, 0, FF, 3, 0, FF, 0, FF]), None, None)
-label EF(TokenInfo): CTM64_B0 35 00 5B A1 0A 65 00
-
-[X] DF/MF 4100 mandatory security environment (SE) file 4103 seems to be okay (content checked next).
-[X] DF/MF 4100 references found: {1, 3, 46, 6, 7, 4}
-[X] DF/MF 4100 mandatory security environment (SE) file 4103 content satisfies all references).
-
-[X] DF/MF 3F00 mandatory security environment (SE) file 0003 seems to be okay (content checked next).
-[X] DF/MF 3F00 references found: {1}
-[X] DF/MF 3F00 mandatory security environment (SE) file 0003 content satisfies all references).
-
-Hashmap: {
-3F00: ([3F, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [3F, 2, 3F, 0, 0, 3, FF, 5],     Some([1, 1, 1, 1, 1, FF, 1, FF]), Some(
-  [SACinfo { reference: 1, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [1, 0, 0, 0, 0, 0, 0, 0] },
-                                               sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] }]), None)}
-   1: ([3F, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [A, 4, 0, 1, 15, 1, 12, 5],      Some([FF, 1, FF, 1, 1, FF, 1, FF]), None, None),
-   3: ([3F, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1C, 4, 0, 3, 30, 1, FF, 5],     Some([0, 1, 0, 1, 1, FF, 1, FF]), None, None),
-2F00: ([3F, 0, 2F, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 4, 2F, 0, 0, 21, A, 5],     Some([0, 1, FF, 1, 1, FF, 1, FF]), None, None),
-
-4100: ([3F, 0, 41, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [38, 4, 41, 0, 41, 3, E, 5],    Some([1, 1, 1, 3, 3, FF, 3, FF]), Some(
-  [SACinfo { reference: 1, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] },
-                                               sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
-   SACinfo { reference: 2, crts_len: 3, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] },
-                                               sc_crt { tag: B4, usage: 8, algo: 2, refs: [1, 0, 0, 0, 0, 0, 0, 0] },
-                                               sc_crt { tag: B8, usage: 8, algo: 2, refs: [1, 0, 0, 0, 0, 0, 0, 0] },
-                                               sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
-   SACinfo { reference: 3, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [1, 0, 0, 0, 0, 0, 0, 0] },
-                                               sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
-   SACinfo { reference: 4, crts_len: 1, crts: [sc_crt { tag: A4, usage: 8, algo: 0, refs: [1, 81, 0, 0, 0, 0, 0, 0] },
-                                               sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
-   SACinfo { reference: 5, crts_len: 2, crts: [sc_crt { tag: A4, usage: 80, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] },
-                                               sc_crt { tag: B4, usage: 30, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] },
-                                               sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
-   SACinfo { reference: 6, crts_len: 3, crts: [sc_crt { tag: A4, usage: 80, algo: 0, refs: [81, 0, 0, 0, 0, 0, 0, 0] },
-                                               sc_crt { tag: B4, usage: 30, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] },
-                                               sc_crt { tag: B8, usage: 30, algo: 2, refs: [84, 0, 0, 0, 0, 0, 0, 0] },
-                                               sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] },
-   SACinfo { reference: 7, crts_len: 1, crts: [sc_crt { tag: A4, usage: 80, algo: 0, refs: [83, 84, 0, 0, 0, 0, 0, 0] },
-                                               sc_crt { tag: 0, usage: 0, algo: 0, refs: [0, 0, 0, 0, 0, 0, 0, 0] }] }]), None),
-4101: ([3F, 0, 41, 0, 41, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [A, 6, 41, 1, 15, 1, 12, 5],   Some([FF, 1, FF, 3, 3, FF, 3, FF]), None, None),
-4102: ([3F, 0, 41, 0, 41, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [C, 6, 41, 2, 25, C, 11, 5],   Some([FF, 1, 1, 3, 3, FF, 3, FF]), None, None),
-4103: ([3F, 0, 41, 0, 41, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1C, 6, 41, 3, 38, 8, FF, 5],  Some([0, 3, 0, 3, 3, FF, 3, FF]), None, None),
-5032: ([3F, 0, 41, 0, 50, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 50, 32, 0, C0, C, 5],  Some([0, 0, FF, 3, 0, FF, 0, FF]), None, None),
-5031: ([3F, 0, 41, 0, 50, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 50, 31, 0, 6C, B, 5],  Some([0, 0, FF, 3, 0, FF, 3, FF]), None, None),
-5155: ([3F, 0, 41, 0, 51, 55, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [4, 6, 51, 55, 82, 2, FF, 5], Some([0, 1, 1, 1, 0, FF, 1, FF]), None, None),
-4110: ([3F, 0, 41, 0, 41, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 10, 3, 0, 0, 5],   Some([0, 0, FF, 3, 0, FF, 0, FF]), None, None),
-4115: ([3F, 0, 41, 0, 41, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 15, 1, 0, 5, 5],   Some([0, 0, FF, 3, 0, FF, 0, FF]), None, None),
-4117: ([3F, 0, 41, 0, 41, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 17, 1, 0, 7, 5],   Some([0, 0, FF, 3, 0, FF, 0, FF]), None, None),
-4118: ([3F, 0, 41, 0, 41, 18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 18, 1, 0, 8, 5],   Some([0, 0, FF, 3, 0, FF, 0, FF]), None, None),
-4129: ([3F, 0, 41, 0, 41, 29, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [2, 6, 41, 29, 14, 2, FF, 5], Some([0, 0, 0, 0, 0, 0, 0, FF]), None, None),
-4116: ([3F, 0, 41, 0, 41, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 16, 1, 0, 6, 5],   Some([0, 0, FF, 3, 0, FF, 0, FF]), None, None),
-4113: ([3F, 0, 41, 0, 41, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 13, 2, 0, 3, 5],   Some([0, 0, FF, 3, 0, FF, 0, FF]), None, None),
-4111: ([3F, 0, 41, 0, 41, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 11, 3, 0, 1, 5],   Some([0, 0, FF, 3, 0, FF, 0, FF]), None, None),
-4114: ([3F, 0, 41, 0, 41, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 14, 1, 0, 4, 5],   Some([0, 0, FF, 3, 0, FF, 0, FF]), None, None),
-4112: ([3F, 0, 41, 0, 41, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 12, 1, 0, 2, 5],   Some([0, 0, FF, 3, 0, FF, 0, FF]), None, None),
-4131: ([3F, 0, 41, 0, 41, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 31, 0, 10, FF, 5],   Some([0, 4, FF, 0, 0, FF, 0, FF]), None, None),
-4132: ([3F, 0, 41, 0, 41, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 32, 0, 10, FF, 5],   Some([0, 84, FF, 0, 0, FF, 0, FF]), None, None),
-4133: ([3F, 0, 41, 0, 41, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 33, 0, 10, FF, 5],   Some([0, 7, FF, 0, 0, FF, 87, FF]), None, None),
-4134: ([3F, 0, 41, 0, 41, 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [1, 6, 41, 34, 0, 10, FF, 5],   Some([0, 46, FF, 0, 0, FF, 6, FF]), None, None),
-$
-*/

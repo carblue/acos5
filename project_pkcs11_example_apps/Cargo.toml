@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 pkcs11 = "0.5"
+cfg-if = "1.0"

@@ -212,8 +212,15 @@ fn read_keys(ctx: &Ctx, session: CK_SESSION_HANDLE, key_class: CK_OBJECT_CLASS) 
 }
 
 fn main() -> Result<(), Error> {
-    // let ctx = Ctx::new_and_initialize("/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so")?;
-    let ctx = Ctx::new_and_initialize("opensc-pkcs11.so")?;
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "windows")] {
+            let ctx = Ctx::new_and_initialize("C:/Program Files/OpenSC Project/OpenSC/pkcs11/opensc-pkcs11.dll")?;
+        }
+        else {
+            // let ctx = Ctx::new_and_initialize("/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so")?;
+            let ctx = Ctx::new_and_initialize("opensc-pkcs11.so")?;
+        }
+    }
 
     let slot_list = ctx.get_slot_list(true)?;
     if slot_list.is_empty() {
