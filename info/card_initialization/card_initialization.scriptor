@@ -1,12 +1,17 @@
 #! /usr/bin/env scriptor
 
-# IMPORTANT MUST DO: Current SO_PIN must be adapted in line 15 (Verify SO_PIN) if it's different from  38 37 36 35 34 33 32 31  (which reads in ascii as character string: 87654321) !!!
-# IMPORTANT MUST DO: Either in line 21 or line 23 the leading # must be removed
-# Lines beginning with # are comments and don't get processed as APDU commands
+# IMPORTANT MUST DO: Current SO_PIN must be adapted in line 20 (Verify SO_PIN) if it's different from  38 37 36 35 34 33 32 31  (which reads in ascii as character string: 87654321) !!!
+# IMPORTANT MUST DO: Either in line 26 or line 28 or line 30  the leading # must be removed
+# Lines beginning with # are comments and don't get processed as APDU commands; spaces between bytes (all in hexadecimal representation) get ignored, they are used here only for better readability
 
-# This script will set these new PIN bytes (change them after card initialization is done !!!):
-# new SO_PIN:   38 37 36 35 34 33 32 31 (which reads in ascii as character string: 87654321)  SO_PUK is the same as SO_PIN,     set in the end of line 57
-# new USER_PIN: 31 32 33 34 35 36 37 38 (which reads in ascii as character string: 12345678)  USER_PUK is the same as USER_PIN, set in the end of line 82
+# This script will set these new PIN bytes (change them after card initialization is done, OR NOW !!!):
+# new SO_PIN:   38 37 36 35 34 33 32 31 (which reads in ascii as character string: 87654321)  SO_PUK is the same as SO_PIN,     SO_PIN/SO_PUK set at first/second appearance in line 65
+# new USER_PIN: 31 32 33 34 35 36 37 38 (which reads in ascii as character string: 12345678)  USER_PUK is the same as USER_PIN, USER_PIN/USER_PUK set at first/second appearance in line 90
+
+# This script will set 2 3DES/192 keys for Secure Messaging (the last 24 non-zero bytes in lines 96,97) (PREFERABLY CHANGE THEM NOW AND DO THE SAME IN opensc.conf for keyset...02...):
+# Check for all of the 24 key bytes that they have odd parity == count of 1 in binary coded representation is NOT even
+# line 96: this is the host/terminal key Kt for external authentication with an unlimited error counter
+# line 97: this is the card          key Kc for internal authentication with an unlimited usage counter
 
 # If You don't have read the reference manual, then I propose to not change anything in this scrpt other than I ask You to, otherwise a single wrong charakter can break this script's succcessful running.
 
@@ -21,6 +26,8 @@ reset
 #00 D6 C1 91 01 00
 ## If it's an ACOS5-64 V3.00 (Smart card or CryptoNano) the next sets 64K mode:
 #00 D6 C1 91 01 02
+## If it's an ACOS5-64 V3.00 (Smart card or CryptoNano) the next sets FIPS 140-2 Level 3-Compliant mode:
+#00 D6 C1 91 01 00
 
 # file 0x3F00         MF
 # file 0x3F000001     Global PIN file
@@ -67,7 +74,7 @@ reset
 00 DC 01 04 0B 80 01 01 A4 06 83 01 01 95 01 08
 00 44 00 00 02 00 03
 
-## file 0x3F002F00     PKCS#15 EF.DIR file
+## file 0x3F002F00     PKCS#15 EF.DIR file (will have content: aid=41434F53504B43532D313576312E3030=ACOSPKCS-15v1.00, label=6543657274=eCert, path=3F004100  (PKCS#15 Application DF)
 00 E0 00 00 1B 62 19 83 02 2F 00 8A 01 01 82 02 01 00 80 02 00 21 8C 08 7F 01 FF 01 01 FF 01 00
 00 A4 00 00 02 2F 00
 00 D6 00 00 21 61 1F 4F 10 41 43 4F 53 50 4B 43 53 2D 31 35 76 31 2E 30 30 50 05 65 43 65 72 74 51 04 3F 00 41 00

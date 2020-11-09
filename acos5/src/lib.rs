@@ -166,8 +166,8 @@ use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEAN
                       SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
                       ValueTypeFiles, build_apdu, is_DFMF, p_void, SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile,
-                      PKCS15_FILE_TYPE_ECCPRIVATEKEY, PKCS15_FILE_TYPE_ECCPUBLICKEY};
-#[cfg(enable_acos5_ui)]
+                      PKCS15_FILE_TYPE_ECCPRIVATEKEY, PKCS15_FILE_TYPE_ECCPUBLICKEY, READ};
+#[cfg(iup_user_consent)]
 use constants_types::{ui_context, set_ui_ctx, get_ui_ctx, acos5_ask_user_consent};
 
 mod crypto;
@@ -730,7 +730,7 @@ cfg_if::cfg_if! {
         sym_key_file_id: 0,
         sym_key_rec_idx: 0,
         sym_key_rec_cnt: 0,
-        #[cfg(enable_acos5_ui)]
+        #[cfg(iup_user_consent)]
         ui_ctx: ui_context::default(),
     } );
 
@@ -773,7 +773,7 @@ println!("offset_of rfu_align_pad2:                {}, Δnext:    {}, size_of:  
 println!("offset_of sym_key_file_id:               {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, sym_key_file_id), offset_of!(DataPrivate, sym_key_rec_idx)-offset_of!(DataPrivate, sym_key_file_id), std::mem::size_of::<u16>(), std::mem::align_of::<u16>());
 println!("offset_of sym_key_rec_idx:               {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, sym_key_rec_idx), offset_of!(DataPrivate, sym_key_rec_cnt)-offset_of!(DataPrivate, sym_key_rec_idx), std::mem::size_of::<u8>(), std::mem::align_of::<u8>());
 println!("offset_of sym_key_rec_cnt:               {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, sym_key_rec_cnt), std::mem::size_of::<DataPrivate>()-offset_of!(DataPrivate, sym_key_rec_cnt), std::mem::size_of::<u8>(), std::mem::align_of::<u8>());
-#[cfg(enable_acos5_ui)]
+#[cfg(iup_user_consent)]
 println!("offset_of ui_ctx:                        {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, ui_ctx), std::mem::size_of::<DataPrivate>()-offset_of!(DataPrivate, ui_ctx), std::mem::size_of::<ui_context>(), std::mem::align_of::<ui_context>());
 
 println!("DataPrivate:                                                size_of: {}, align_of: {}", std::mem::size_of::<DataPrivate>(), std::mem::align_of::<DataPrivate>()); // DataPrivate: size_of: 1784, align_of: 8
@@ -808,7 +808,13 @@ DataPrivate:                                                size_of: 1792, align
 */
 
 ////////////////////////////////////////
-    /* store serialnr in card.serialnr; enum_dir currently doesn't require that */
+    /* stores serialnr in card.serialnr; enum_dir currently doesn't require that */
+    /* stores serialnr in card.serialnr, required for   sm_info.serialnr = card.serialnr; */
+    #[cfg(ifd_serial_constrained_for_sm)]
+    match get_serialnr(card) {
+        Ok(_val) => (),
+        Err(e) => return e,
+    }
     let path_mf = unsafe { *sc_get_mf_path() };
     card.cache.current_path = path_mf;
     rv = enum_dir(card, &path_mf, true/*, 0*/); /* FIXME Doing to much here degrades performance, possibly for no value */
@@ -845,13 +851,9 @@ uint      sm_mode;         will be set from opensc.conf later by sc_card_sm_chec
     }
 
 cfg_if::cfg_if! {
-    if #[cfg(SM_constraint_ifd_serial)] {
-        /* stores serialnr in card.serialnr, required for   sm_info.serialnr = card.serialnr; */
-        match get_serialnr(card) {
-            Ok(_val) => (),
-            Err(e) => return e,
-        }
+    if #[cfg(ifd_serial_constrained_for_sm)] {
         sm_info.serialnr = card.serialnr; // enabling this instead of the following 2 lines would allow to constrain SM to a specific hardware, set in opensc.conf as ifd_serial = "byte_1:byte_2:byte_3:byte_4:byte_5:byte_6:byte_7:byte_8"; ifd_serial of SC_CARD_TYPE_ACOS5_64_V2 has 6 bytes only !
+        sm_info.serialnr.len = 8;
     }
     else {
         sm_info.serialnr.len   = 8;
@@ -863,7 +865,7 @@ cfg_if::cfg_if! {
     dp.files.shrink_to_fit();
     dp.is_running_init = false;
 
-    #[cfg(enable_acos5_ui)]
+    #[cfg(iup_user_consent)]
     {
         /* read environment from configuration file */
 //println!("dp.ui_ctx.user_consent_enabled: {}", dp.ui_ctx.user_consent_enabled);
@@ -1885,13 +1887,12 @@ extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
 //      dp_files_value.1[6] = sfi;
     }
     if [FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&dp_files_value.1[0]) && dp_files_value.1[6] == 0xFF {
+        /* a better, more sophisticated distinction requires more info. Here, readable or not. Possibly read first byte from file */
         if  dp_files_value.1[0] == FDB_RSA_KEY_EF {
-            /* a better, more sophisticated distinction requires more info. Here, readable or not. Possibly read first byte from file */
-            dp_files_value.1[6] = if fci.scb8[0] != 0xFF {PKCS15_FILE_TYPE_RSAPUBLICKEY} else {PKCS15_FILE_TYPE_RSAPRIVATEKEY};
+            dp_files_value.1[6] = if fci.scb8[READ] != 0xFF {PKCS15_FILE_TYPE_RSAPUBLICKEY} else {PKCS15_FILE_TYPE_RSAPRIVATEKEY};
         }
         else {
-            /* a better, more sophisticated distinction requires more info. Here, readable or not. Possibly read first byte from file */
-            dp_files_value.1[6] = if fci.scb8[0] != 0xFF {PKCS15_FILE_TYPE_ECCPUBLICKEY} else {PKCS15_FILE_TYPE_ECCPRIVATEKEY};
+            dp_files_value.1[6] = if fci.scb8[READ] != 0xFF {PKCS15_FILE_TYPE_ECCPUBLICKEY} else {PKCS15_FILE_TYPE_ECCPRIVATEKEY};
         }
     }
     if is_DFMF(fci.fdb) {
@@ -2797,7 +2798,7 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
     assert_eq!(crgram_len, get_sec_env_mod_len(card));
 //println!("acos5_decipher          called with: in_len: {}, out_len: {}, {}, crgram: {:?}", crgram_len, outlen, get_is_running_compute_signature(card), unsafe {from_raw_parts(crgram_ref_ptr, crgram_len)});
 
-    #[cfg(enable_acos5_ui)]
+    #[cfg(iup_user_consent)]
     {
         if get_ui_ctx(card).user_consent_enabled == 1 {
             /* (Requested by DGP): on signature operation, ask user consent */
@@ -3033,7 +3034,7 @@ Trick: cache last security env setting, retrieve file id (priv) and deduce key l
          (digest_info.len() == 83 && digest_info[..19]==digestAlgorithm_sha512) */ )
     {
 //println!("acos5_compute_signature: digest_info.len(): {}, digest_info[..15]==digestAlgorithm_sha1[..]: {}, digest_info[..19]==digestAlgorithm_sha256[..]: {}", digest_info.len(), digest_info[..15]==digestAlgorithm_sha1[..], digest_info[..19]==digestAlgorithm_sha256[..]);
-        #[cfg(enable_acos5_ui)]
+        #[cfg(iup_user_consent)]
         {
             if get_ui_ctx(card).user_consent_enabled == 1 {
                 /* (Requested by DGP): on signature operation, ask user consent */

@@ -20,17 +20,19 @@ fn parse_version_string(input: &str) -> String {
         v = input.splitn(3, '.').collect();
     }
     assert_eq!(3, v.len());
-    for (i, elem) in v.iter().enumerate() {
+    for (i, &elem) in v.iter().enumerate() {
         if i==0 { result.push_str("v"); }
         else    { result.push('_'); }
-        result.push_str(*elem);
+        result.push_str(elem);
+        if i==1 && (elem.parse::<u32>().is_err() || elem.parse::<u32>().unwrap()<17) {
+            panic!("OpenSC version detection failed or the version is less than min. 0.17.0")
+        }
     }
     println!("{}", result);
     result
 }
 
 fn main() {
-    #[cfg(target_os = "windows")]
     let version;
     /* OpenSC version detection */
     match Library::new(if cfg!(unix) {"libopensc.so"}
@@ -42,9 +44,8 @@ fn main() {
             unsafe {
                 let func_dyn: Symbol<unsafe fn() -> *const c_char> = lib_dyn.get(b"sc_get_version").unwrap();
                 let cargo_string = parse_version_string(CStr::from_ptr(func_dyn()).to_str().unwrap());
-                #[cfg(target_os = "windows")]
-                { version = String::from(&cargo_string.as_str()[16..]); }
-                println!("cargo:OPENSCVERSION={}", &cargo_string.as_str()[16..]);
+                version = String::from(&cargo_string.as_str()[16..]); // e.g. "0.20.0"
+                println!("cargo:OPENSCVERSION={}", version);
             },
         Err(e) => {
             match &e {

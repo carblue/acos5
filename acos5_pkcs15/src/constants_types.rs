@@ -638,7 +638,7 @@ pub struct DataPrivate { // see settings in acos5_init
     pub sym_key_file_id : u16,
     pub sym_key_rec_idx : u8,
     pub sym_key_rec_cnt : u8,
-    #[cfg(enable_acos5_ui)]
+    #[cfg(iup_user_consent)]
     pub ui_ctx : ui_context,
 }
 
@@ -698,7 +698,7 @@ pub fn build_apdu(ctx: &mut sc_context, cmd: &[u8], cse: i32, rbuf: &mut [u8]) -
 ////////////////
 
 cfg_if::cfg_if! {
-    if #[cfg(enable_acos5_ui)] {
+    if #[cfg(iup_user_consent)] {
         use libc::{free};
         use opensc_sys::opensc::{sc_card/*, SC_CTX_FLAG_DISABLE_POPUPS*/};
         use opensc_sys::errors::{SC_ERROR_KEYPAD_MSG_TOO_LONG, SC_ERROR_NOT_ALLOWED};

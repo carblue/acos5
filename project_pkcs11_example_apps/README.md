@@ -17,7 +17,7 @@ Either change Your card's User PIN temporarily to "12345678" are change the sour
 The src/ directory contains several main_* files, each for a different application, some don't change card content,
 while others do so. Currently:
 
-maub,rs == main_RO_inspect_keys.rs
+main.rs == main_RO_inspect_keys.rs
 main_RW_create_key_pair.rs
 
 Rename the main_* file You are interested in (only 1 at a time) to main.rs and run it via
@@ -37,4 +37,4 @@ Therefore the driver defaults to create the private RSA key with CRT data and th
 With ACOS5 V2.00 we can generate a keypair with bitLen 4096, while ACOS5 V3.00 allows max. 3072 bit only.
 Occasionally the ACOS5 chip fails to generate the keys for large keys (I assume, its a timing issue when generation and
 trial encryption/decryption takes to much time), but in general it should work.
-The same can be achieved by invoking    pkcs15-init -G rsa/3072 -a 01 -i a1 -l mykey -u sign,decrypt,unwrap
+The same can be achieved by invoking    pkcs15-init -G rsa/1024 -a 01 -i a1 -l mykey -u sign,decrypt,unwrap
