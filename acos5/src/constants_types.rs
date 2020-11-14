@@ -278,6 +278,8 @@ pub const PKCS15_FILE_TYPE_SECRETKEY     : u8 =  17; // iEF with cos5
 pub const PKCS15_FILE_TYPE_CERT          : u8 =  15;
 pub const PKCS15_FILE_TYPE_DATA          : u8 =  19;
 pub const PKCS15_FILE_TYPE_PIN           : u8 =  18; // iEF with cos5
+pub const PKCS15_FILE_TYPE_BIOMETRIC     : u8 =  22;
+pub const PKCS15_FILE_TYPE_AUTHKEY       : u8 =  23;
 pub const PKCS15_FILE_TYPE_NONE          : u8 =  0xFF; // should not happen to extract a path for this
 
 pub const RSA_MAX_LEN_MODULUS      : usize = 512; // bytes; as bits: 512*8 = 4096
@@ -727,7 +729,8 @@ cfg_if::cfg_if! {
         {
             let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
             let ui_ctx = dp.ui_ctx;
-            card.drv_data = Box::into_raw(dp) as p_void;
+            Box::leak(dp);
+            // card.drv_data = Box::into_raw(dp) as p_void;
             ui_ctx
         }
 

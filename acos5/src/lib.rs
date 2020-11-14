@@ -100,7 +100,7 @@ use opensc_sys::opensc::{sc_update_record, SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM
 //                         , SC_SEC_OPERATION_WRAP
 };
 
-use opensc_sys::types::{SC_AC_CHV, sc_path, sc_file, sc_serial_number, SC_MAX_PATH_SIZE,
+use opensc_sys::types::{SC_AC_CHV, sc_aid, sc_path, sc_file, sc_serial_number, SC_MAX_PATH_SIZE,
                         SC_PATH_TYPE_FILE_ID, SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH,
 //                        SC_PATH_TYPE_PATH_PROT, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
                         SC_FILE_TYPE_DF, SC_FILE_TYPE_INTERNAL_EF, SC_FILE_EF_TRANSPARENT,/* SC_AC_NONE,
@@ -110,7 +110,9 @@ use opensc_sys::types::{SC_AC_CHV, sc_path, sc_file, sc_serial_number, SC_MAX_PA
                         SC_AC_OP_GENERATE,*/ SC_APDU_FLAGS_CHAINING, SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_1,
                         SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT};
 #[cfg(target_os = "windows")]
-use opensc_sys::types::{sc_aid, SC_MAX_AID_SIZE};
+use opensc_sys::types::{/*sc_aid,*/ SC_MAX_AID_SIZE};
+// #[cfg(not(target_os = "windows"))]
+// use opensc_sys::types::{sc_aid};
 use opensc_sys::errors::{SC_SUCCESS/*, SC_ERROR_INTERNAL*/, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
                          SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY, SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING,
                          SC_ERROR_INCORRECT_PARAMETERS, SC_ERROR_NOT_SUPPORTED, SC_ERROR_BUFFER_TOO_SMALL, SC_ERROR_NOT_ALLOWED,
@@ -149,7 +151,7 @@ use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEAN
                       FDB_LINEAR_VARIABLE_EF, FDB_MF, FDB_PURSE_EF, FDB_RSA_KEY_EF, FDB_SE_FILE,
                       FDB_SYMMETRIC_KEY_EF, FDB_TRANSPARENT_EF, ISO7816_RFU_TAG_FCP_SAC,
                       ISO7816_RFU_TAG_FCP_SEID, KeyTypeFiles, PKCS15_FILE_TYPE_NONE, PKCS15_FILE_TYPE_PIN,
-                      PKCS15_FILE_TYPE_RSAPRIVATEKEY, PKCS15_FILE_TYPE_RSAPUBLICKEY, PKCS15_FILE_TYPE_SECRETKEY,
+                      /*PKCS15_FILE_TYPE_RSAPRIVATEKEY, PKCS15_FILE_TYPE_RSAPUBLICKEY,*/ PKCS15_FILE_TYPE_SECRETKEY,
                       RSAPUB_MAX_LEN, SC_CARDCTL_ACOS5_DECRYPT_SYM, SC_CARDCTL_ACOS5_ENCRYPT_ASYM,
                       SC_CARDCTL_ACOS5_ENCRYPT_SYM, SC_CARDCTL_ACOS5_GET_COS_VERSION,
                       SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO,
@@ -165,8 +167,8 @@ use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEAN
                       SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
-                      ValueTypeFiles, build_apdu, is_DFMF, p_void, SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile,
-                      PKCS15_FILE_TYPE_ECCPRIVATEKEY, PKCS15_FILE_TYPE_ECCPUBLICKEY, READ};
+                      ValueTypeFiles, build_apdu, is_DFMF, p_void, SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile
+                      /*,PKCS15_FILE_TYPE_ECCPRIVATEKEY, PKCS15_FILE_TYPE_ECCPUBLICKEY, READ*/};
 #[cfg(iup_user_consent)]
 use constants_types::{ui_context, set_ui_ctx, get_ui_ctx, acos5_ask_user_consent};
 
@@ -209,6 +211,7 @@ cfg_if::cfg_if! {
         use tasn1_pkcs15_array::tasn1_pkcs15_definitions;
 
         mod tasn1_pkcs15_util;
+        use tasn1_pkcs15_util::{analyze_PKCS15_DIRRecord_2F00, analyze_PKCS15_PKCS15Objects_5031 /* , analyze_PKCS15_TokenInfo_5032*/};
 
         mod tasn1_sys;
         use tasn1_sys::{ASN1_SUCCESS, asn1_node, asn1_array2tree, asn1_delete_structure};
@@ -255,7 +258,7 @@ mod   test_v2_v3;
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     if cfg!(v0_17_0) || cfg!(v0_18_0) || cfg!(v0_19_0) || cfg!(v0_20_0) { unsafe { sc_get_version() } }
-    else if cfg!(v0_21_0)  { unsafe { sc_get_version() } } // experimental only: see build.rs which github commit is supported
+    else if cfg!(v0_21_0)  { unsafe { sc_get_version() } } // experimental only:  Latest github commit covered: c4a75eb  0.21.0-rc2
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -1044,18 +1047,18 @@ println!("sc_update_binary: rv: {}", rv);
     */
 ////////////////////
     assert!(!card.drv_data.is_null(), "drv_data is null");
-cfg_if::cfg_if! {
-    if #[cfg(target_os = "windows")] {
-        let     dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-    }
-    else {
-        let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-        if !dp.pkcs15_definitions.is_null() {
-            unsafe { asn1_delete_structure(&mut dp.pkcs15_definitions) };
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "windows")] {
+            let     dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        }
+        else {
+            let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+            if !dp.pkcs15_definitions.is_null() {
+                unsafe { asn1_delete_structure(&mut dp.pkcs15_definitions) };
+            }
         }
     }
-}
-//println!("Hashmap: {:X?}", dp.files);
+//println!("Hashmap: {:02X?}", dp.files);
 //    there may be other Boxes that might need to be taken over again
     drop(dp);
     card.drv_data = null_mut();
@@ -1315,6 +1318,22 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO =>
             {
                 update_hashmap(card);
+                /* */
+                #[cfg(not(target_os = "windows"))]
+                {
+                        // let req_version = unsafe { CStr::from_bytes_with_nul_unchecked(b"4.16\0") };
+                        // let tasn1_version = unsafe { crate::tasn1_sys::asn1_check_version(std::ptr::null() /*req_version.as_ptr()*/) };
+                        // if !tasn1_version.is_null() {
+                        //     println!("result from asn1_check_version: {:?}", unsafe { CStr::from_ptr(tasn1_version) });
+                        // }
+                    let mut aid = sc_aid::default();
+                    analyze_PKCS15_DIRRecord_2F00(card, &mut aid);
+                    //println!("AID: {:X?}", &aid.value[..aid.len]);
+                    analyze_PKCS15_PKCS15Objects_5031(card);
+                    // the only missing check is that EF.Tokeninfo is PKCS#15 compliant
+                    // analyze_PKCS15_TokenInfo_5032(card);
+                }
+                /* */
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_SDO_CREATE =>
@@ -1886,6 +1905,7 @@ extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
         }
 //      dp_files_value.1[6] = sfi;
     }
+/*
     if [FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&dp_files_value.1[0]) && dp_files_value.1[6] == 0xFF {
         /* a better, more sophisticated distinction requires more info. Here, readable or not. Possibly read first byte from file */
         if  dp_files_value.1[0] == FDB_RSA_KEY_EF {
@@ -1895,6 +1915,7 @@ extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
             dp_files_value.1[6] = if fci.scb8[READ] != 0xFF {PKCS15_FILE_TYPE_ECCPUBLICKEY} else {PKCS15_FILE_TYPE_ECCPRIVATEKEY};
         }
     }
+*/
     if is_DFMF(fci.fdb) {
         if  dp_files_value.1[4..6] == [0_u8; 2] {
             dp_files_value.1[4..6].copy_from_slice(&fci.seid.to_be_bytes());

@@ -25,7 +25,7 @@ use opensc_sys::types::{sc_path/*, SC_MAX_PATH_SIZE*/};
 
 use crate::constants_types::{DataPrivate, FDB_CHV_EF, FDB_CYCLIC_EF, FDB_DF, FDB_ECC_KEY_EF, FDB_LINEAR_FIXED_EF,
                              FDB_LINEAR_VARIABLE_EF, FDB_MF, FDB_PURSE_EF, FDB_RSA_KEY_EF, FDB_SE_FILE,
-                             FDB_SYMMETRIC_KEY_EF, FDB_TRANSPARENT_EF, is_DFMF, p_void, ValueTypeFiles};
+                             FDB_SYMMETRIC_KEY_EF, FDB_TRANSPARENT_EF, is_DFMF, ValueTypeFiles/*, p_void*/};
 
 use crate::wrappers::wr_do_log_t;
 
@@ -82,7 +82,8 @@ pub fn current_path_df(card: &mut sc_card) -> &[u8]
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     assert!(dp.files.contains_key(&file_id));
     let fdb = dp.files[&file_id].1[0];
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
 
     if ![FDB_MF, FDB_DF, FDB_TRANSPARENT_EF, FDB_LINEAR_FIXED_EF, FDB_LINEAR_VARIABLE_EF, FDB_CYCLIC_EF, FDB_SE_FILE,
         FDB_RSA_KEY_EF, FDB_CHV_EF, FDB_SYMMETRIC_KEY_EF, FDB_PURSE_EF, FDB_ECC_KEY_EF].contains(&fdb) {

@@ -9,11 +9,6 @@ fn parse_version_string(input: &str) -> String {
         thus strip all beginning with hyphen */
     let mut result = String::from("cargo:rustc-cfg=");
     let v: Vec<&str>;
-    #[cfg(not(target_os = "windows"))]
-    {
-        v = input.splitn(3, '.').collect();
-    }
-    #[cfg(    target_os = "windows")]
     {
         let pos = input.find('-').or(Some(input.as_bytes().len())).unwrap();
         let input = std::str::from_utf8(&input.as_bytes()[..pos]).unwrap();

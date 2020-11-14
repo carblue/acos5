@@ -219,6 +219,8 @@ fn main() -> Result<(), Error> {
         else {
             // let ctx = Ctx::new_and_initialize("/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so")?;
             let ctx = Ctx::new_and_initialize("opensc-pkcs11.so")?;
+            /* if p11-kit installed and opensc-pkcs11.so configured with highest priority */
+            //let ctx = Ctx::new_and_initialize("p11-kit-proxy.so")?;
         }
     }
 

@@ -88,7 +88,7 @@ use opensc_sys::errors::{SC_SUCCESS};
 use opensc_sys::asn1::{sc_asn1_read_tag, SC_ASN1_TAG_EOC};
 
 use crate::constants_types::{DataPrivate, FDB_RSA_KEY_EF, FDB_SE_FILE, FDB_SYMMETRIC_KEY_EF, SACinfo, SAEinfo, TLV,
-                             is_DFMF, p_void, FDB_ECC_KEY_EF, UPDATE, CRYPTO, DELETE_SELF, CREATE_EF, CREATE_DF};
+                             is_DFMF, FDB_ECC_KEY_EF, UPDATE, CRYPTO, DELETE_SELF, CREATE_EF, CREATE_DF/*, p_void*/};
 use crate::path::{current_path_df, file_id_from_path_value};
 
 /*
@@ -368,7 +368,8 @@ pub fn se_get_references(card: &mut sc_card, file_id: u16, se_reference: u8, sea
         }
     }
 
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
     if result.is_empty() /*== SC_AC_KEY_REF_NONE*/ {
 //        println!("No entries crt.refs for file_id: {}, se_reference: {}, search_template: {:?}", file_id, se_reference, search_template);
     }
@@ -450,7 +451,8 @@ pub fn se_get_is_scb_suitable_for_sm_has_ct(card: &mut sc_card, file_id: u16, se
             }
         }
     }
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
     result
 }
 
@@ -480,7 +482,8 @@ pub fn se_get_sae_scb(card: &mut sc_card, cla_ins_p1_p2: [u8; 4]) -> u8
             }
         }
     }
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
     scb
 }
 

@@ -408,7 +408,8 @@ fn sm_manage_keyset(card: &mut sc_card) -> i32
         if card.sm_ctx.info.current_aid.len == 0 {
             let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
             assert!(!dp.pkcs15_definitions.is_null());
-            card.drv_data = Box::into_raw(dp) as p_void;
+            Box::leak(dp);
+            // card.drv_data = Box::into_raw(dp) as p_void;
             let curr_path = card.cache.current_path;
             let mut aid = sc_aid::default();
             crate::tasn1_pkcs15_util::analyze_PKCS15_DIRRecord_2F00(card, &mut aid);

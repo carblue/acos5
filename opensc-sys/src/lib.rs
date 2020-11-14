@@ -61,24 +61,10 @@
 //! If there is no file or symbolic link `libopensc.so` in the library search path, then create a
 //! symbolic link pointing to the relevant library. It will be used by build.rs.\
 //! The import library `opensc.lib` (for Windows) doesn't get provided by OpenSC. It must be created from opensc.dll.
-//! For some versions they are available from the lib/ directory.
-//! The build.rs file employs a pkg_config-based-adaption to installed OpenSC library version. If You have a chance to
-//! install pkg-config, do so.
-//! Distro's or source code based OpenSC installations probably install a file
-//! /usr/lib/x86_64-linux-gnu/pkgconfig/opensc-pkcs11.pc. Copy that and save as
-//! /usr/lib/x86_64-linux-gnu/pkgconfig/opensc.pc.
-//! Change the lines 'Description:' and 'Libs:' to
+//! For some versions they are available from the opensc-sys/windows-x86_64/lib/ directory.
 //!
-//! `Description: OpenSC library`\
-//! `Libs: -L${libdir} -lopensc`
-//!
-//! The line 'Version:' is where the pkg_config-based-adaption will take the version information from. If You ever
-//! change the OpenSC package to another version,
-//! remember to update the symbolic link and change opensc.pc accordingly.\
-//! The procedure without pkg-config and opensc.pc is described in build.rs.\
-//! The reason why I prefer and recommend the pkg_config-based-adaption is: Related to 'acos5' there are 2-3 build.rs
-//! to be in sync. (repos opensc-sys, acos5 + optionally acos5_pkcs15init)
-//! versus 1 opensc.pc to edit.
+//! The build.rs file employs a detection of installed  libopensc.so/opensc.dll and retrieving it's version information.
+//! That is designed to fail, if the version is lower than 0.17.0, the min. supported version of this binding.
 //!
 //! Run e.g. opensc-tool -i\
 //! OpenSC 0.20.0 [gcc  7.4.0]\
@@ -87,12 +73,11 @@
 //! The important pieces of information here are:\
 //! 1. The release version of my OpenSC binary is 0.20.0, thus covered by this binding.\
 //! 2. A dependency on openssl is given by the binary, i.e. #define ENABLE_OPENSSL 1  was used in config.h\
-//! 3. Sadly the other required info is not reported, thus after adjusting build.rs or pkg_config-based-adaption is
-//!    configured, run:  `cargo test test_struct_sizeof -- --nocapture`
-//!    That will check the variable struct sizes of list_t and sc_card (and more) for x86_64 and Linux/Windows against
+//! 3. Sadly the other required info is not reported, thus run:  `cargo test test_struct_sizeof -- --nocapture`
+//!    That will check the variable struct sizes of list_t and sc_card (and more) for x86_64 Linux/Windows against
 //!    values known and working for me and report something.
 //!    The size values are not relevant, important is, that the test passes.
-//!    It will also call into libopensc, i.e. check linkability and print the OpenSC version to be checked vs. output
+//!    It will also call into libopensc, i.e. check ability to link and print the OpenSC version to be checked vs. output
 //!    of opensc-tool.
 //!    Once the test passes, the opensc-sys binding is ready to be used.
 //!

@@ -1,7 +1,8 @@
 /*
  * Copyright (C) 2002-2014 Free Software Foundation, Inc.
+ * Copyright (C) 2020 of the binding: Carsten Blüggel <bluecars@posteo.eu>
  *
- * This file is part of LIBTASN1.
+ * The file libtasn1.h this is derived from, is part of LIBTASN1.
  *
  * LIBTASN1 is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as

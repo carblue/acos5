@@ -35,14 +35,14 @@ sudo checkinstall
 libdir may be different for some Posix OS and `checkinstall` instead of `make install` is just my preference (Kubuntu).
 Hence all conditional_compile_options originating from C headers are implicitly covered, but some new introduced:
 
-v0_17_0
-v0_18_0
-v0_19_0
-v0_20_0
+v0_17_0  
+v0_18_0  
+v0_19_0  
+v0_20_0  
 
-impl_default
-impl_display
-acos5_impl_default
+impl_default  
+impl_display  
+acos5_impl_default  
 impl_newAT_newCCT_newCT
 
 The last 4 are additions that are specific for "my purpose, the acos5 driver".  

@@ -12,7 +12,7 @@
 # Check for all of the 24 key bytes that they have odd parity == count of 1 in binary coded representation is NOT even
 # line 96: this is the host/terminal key Kt for external authentication with an unlimited error counter
 # line 97: this is the card          key Kc for internal authentication with an unlimited usage counter
-
+#   Done for EVO: Symmetric Key file  create with MRL=0x26==38 (32 byte AES key allowed for int. + ext. auth)
 # If You don't have read the reference manual, then I propose to not change anything in this scrpt other than I ask You to, otherwise a single wrong charakter can break this script's succcessful running.
 
 reset
@@ -66,7 +66,7 @@ reset
 00 44 00 00 02 00 01
 
 ## file 0x3F000002     Global Symmetric Key file          -> will be omitted
-#00 E0 00 00 1B 62 19 83 02 00 02 8A 01 01 82 06 0C 00 00 25 00 04 8C 08 7F 01 FF 01 01 01 01 FF
+#00 E0 00 00 1B 62 19 83 02 00 02 8A 01 01 82 06 0C 00 00 26 00 04 8C 08 7F 01 FF 01 01 01 01 FF
 
 ## file 0x3F000003     Global Security Environment file
 00 E0 00 00 1B 62 19 83 02 00 03 8A 01 01 82 06 1C 00 00 30 00 01 8C 08 7F 01 FF 01 01 00 01 00
@@ -91,12 +91,12 @@ reset
 00 44 00 00 02 41 01
 
 ## file 0x3F0041004102 Local Symmetric Key file
-00 E0 00 00 1B 62 19 83 02 41 02 8A 01 01 82 06 0C 00 00 25 00 0C 8C 08 7F 03 FF 03 03 01 01 FF
+00 E0 00 00 1B 62 19 83 02 41 02 8A 01 01 82 06 0C 00 00 26 00 0C 8C 08 7F 03 FF 03 03 01 01 FF
 00 A4 00 00 02 41 02
-00 DC 01 04 25 81 01 FF 14 F1 E0 D0 C1 B0 A1 89 08 07 16 45 04 13 02 01 F1 89 FE B3 C8 37 45 16 94 00 00 00 00 00 00 00 00 00
-00 DC 02 04 25 82 02 FF FF 14 F1 01 02 13 04 85 16 07 08 49 A1 B0 C1 D0 E0 F1 45 89 B3 16 FE 94 37 C8 00 00 00 00 00 00 00 00
-#00 DC 03 04 25 83 01 FF 14 F1 E0 D0 C1 B0 A1 89 08 07 16 45 04 13 02 01 F1 89 FE B3 C8 37 45 16 94 00 00 00 00 00 00 00 00 00
-#00 DC 04 04 25 84 01 FF 14 F1 E0 D0 C1 B0 A1 89 08 07 16 45 04 13 02 01 F1 89 FE B3 C8 37 45 16 94 00 00 00 00 00 00 00 00 00
+00 DC 01 04 26 81 01 FF 14 F1 E0 D0 C1 B0 A1 89 08 07 16 45 04 13 02 01 F1 89 FE B3 C8 37 45 16 94 00 00 00 00 00 00 00 00 00 00
+00 DC 02 04 26 82 02 FF FF 14 F1 01 02 13 04 85 16 07 08 49 A1 B0 C1 D0 E0 F1 45 89 B3 16 FE 94 37 C8 00 00 00 00 00 00 00 00 00
+#00 DC 03 04 26 83 01 FF 14 F1 E0 D0 C1 B0 A1 89 08 07 16 45 04 13 02 01 F1 89 FE B3 C8 37 45 16 94 00 00 00 00 00 00 00 00 00 00
+#00 DC 04 04 26 84 01 FF 14 F1 E0 D0 C1 B0 A1 89 08 07 16 45 04 13 02 01 F1 89 FE B3 C8 37 45 16 94 00 00 00 00 00 00 00 00 00 00
 00 44 00 00 02 41 02
 
 ## file 0x3F0041004103 Local Security Environment file
@@ -186,7 +186,7 @@ reset
 00 44 00 00 02 51 55
 
 
-## file 0x3F0041004104 test file for SM                   -> will be omitted if not manually changed
+## file 0x3F0041004104 test file for SM                   -> will be omitted if comment character doesn't get removed in the 4 following lines: create, select, write, activate
 #00 E0 00 00 1B 62 19 83 02 41 04 8A 01 01 82 02 01 00 80 02 00 10 8C 08 7F 00 FF 00 03 FF 45 46
 #00 A4 00 00 02 41 04
 #00 D6 00 00 10 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10

@@ -16,17 +16,17 @@ use opensc_sys::errors::{/*SC_SUCCESS,*/ SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT
 use crate::wrappers::{wr_do_log, wr_do_log_ttt};
 use crate::cmd_card_info::{get_card_life_cycle_byte_eeprom, get_op_mode_byte_eeprom, get_zeroize_card_disable_byte_eeprom};
 use crate::no_cdecl::{update_hashmap};
-use crate::constants_types::{DataPrivate, p_void, is_DFMF, FDB_SE_FILE, READ};
+use crate::constants_types::{DataPrivate, is_DFMF, FDB_SE_FILE, READ/*, p_void*/};
 use crate::path::{/*file_id,*/ file_id_se, is_child_of};
 use crate::se::se_get_references;
-/*
+/* * /
 cfg_if::cfg_if! {
     if #[cfg(not(target_os = "windows"))] {
-        use crate::tasn1_sys::{asn1_check_version};
-        use crate::tasn1_pkcs15_util::{analyze_PKCS15_DIRRecord_2F00,/* analyze_PKCS15_PKCS15Objects_5031, analyze_PKCS15_TokenInfo_5032*/};
+        // use crate::tasn1_sys::{asn1_check_version};
+        use crate::tasn1_pkcs15_util::{analyze_PKCS15_DIRRecord_2F00, analyze_PKCS15_PKCS15Objects_5031 /* , analyze_PKCS15_TokenInfo_5032*/};
     }
 }
-*/
+/ * */
 /* route onlY MF doesn't exist to Err ! */
 fn select_mf(card: &mut sc_card) -> Result<i32, i32> {
     let rv = unsafe { sc_select_file(card, sc_get_mf_path(), null_mut()) };
@@ -59,10 +59,18 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
         println!("[] Are the PIN files and Sym. key file(s) constrained to: Never readable, and files activated such that the constraint will be upheld by the cos (card operating system?");
         println!("[] List all SE file record entries, that are unused (and might be deleted), and list all that refer to SM");
         println!("[] Are the SE file record entries (if used) meaningful, i.e. don't refer to something that doesn't exist?");
+        println!("[] Are there 'holes' in SE file? Reading records stops at first zero record");
+        println!("[] Is SE file record index == internal id of record? 00 B2 06 04 38:  80 01 06 ...");
         println!("[] TODO check other recommended access rights, e.g. for RSA key pair files");
-        println!("  [] List all DF/MF that specify SAE and try a plain explanation of constraints");
+        println!("[] List all DF/MF that specify SAE and try a plain explanation of constraints");
+        println!("  [] SAE: Check whether the instruction (cla,p1,p2) referred to are allowed for current hardware and meaningful (e.g. disallowing ins A4 would be nonsense: nothing would work in that DF ");
+        /*
+        AB 0B
+        84 01 2C 97 00         INS 2C (Unblock Pin)  Never allow
+        84 01 24 9E 01 42      INS 24 (Change Code)  SAC SC byte 42  This is wrong for ACOS5 2.00 which doesn't support SM for INS 24
+        */
         println!("[] Warn about non-security-activated files");
-        println!("TODO more to test here");
+        println!("TODO more to check here");
         println!();
         println!("Issues, that can't be checked, i.e. just be careful or ?");
         println!("PIN record entries: TODO check whether all ACOS5 options can be used/set by opensc tools, or whether the first time they should be written with APDU command for Update Record; be careful here; see how it's done in info/card_initialization.scriptor");
@@ -72,14 +80,14 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
         println!("It's inadvisable to block Your emergency exit door: Make sure - by all means -, that Access Control always allows to issue command 'Zeroize Card' (part of re-initialization)");
         println!();
         println!("PKCS#15 related checks");
-        println!("[] Does EF.DIR 3F002F00 exist, is accessible and has appropriate content, specifying at least 1 appDF and it's aid?");
+        println!("[] Does EF.DIR 3F002F00 exist, is accessible and has appropriate content, specifying at least 1 appDF path and it's aid?");
         println!("   [] List for all appDF(s) the information encoded in EF.DIR");
         println!("   [] Do appDF's path exist in file system and are accessible?");
         println!("      [] Does EF.ODF exist in each appDF and is accessible?");
-        println!("[TODO more to test here]");
+        println!("[TODO more to check here]");
         println!("-------------------------------------------------------------------------------------------------------");
         println!();
-        println!();
+        // println!();
     }
     if select_mf(card).is_err() {
         if printable { println!("[X] Does MF exist?  No") }
@@ -110,14 +118,14 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
     #[cfg(not(target_os = "windows"))]
     {
         // let req_version = unsafe { CStr::from_bytes_with_nul_unchecked(b"4.16\0") };
-        let tasn1_version = unsafe { asn1_check_version(std::ptr::null() /*req_version.as_ptr()*/) };
-        if !tasn1_version.is_null() {
-            println!("result from asn1_check_version: {:?}", unsafe { CStr::from_ptr(tasn1_version) });
-        }
+        // let tasn1_version = unsafe { crate::tasn1_sys::asn1_check_version(std::ptr::null() /*req_version.as_ptr()*/) };
+        // if !tasn1_version.is_null() {
+        //     println!("result from asn1_check_version: {:?}", unsafe { CStr::from_ptr(tasn1_version) });
+        // }
         let mut aid = sc_aid::default();
         analyze_PKCS15_DIRRecord_2F00(card, &mut aid);
-println!("AID: {:X?}", &aid.value[..aid.len]);
-        // analyze_PKCS15_PKCS15Objects_5031(card);
+//println!("AID: {:X?}", &aid.value[..aid.len]);
+        analyze_PKCS15_PKCS15Objects_5031(card);
         // analyze_PKCS15_TokenInfo_5032(card);
     }
     / * */
@@ -212,7 +220,8 @@ println!("[X] DF/MF {:04X} references (reduced set) found: {:X?} ", key_dfmf, in
     //         println!("val is_SE  : {:X?}", *val);
     //     }
     // }
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
     Ok(())
 }
 
