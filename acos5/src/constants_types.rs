@@ -639,7 +639,7 @@ pub struct DataPrivate { // see settings in acos5_init
      */
     pub is_running_compute_signature : bool, /* acos5_64_decipher needs to know, whether it was called by acos5_64_compute_signature */
     pub is_running_cmd_long_response : bool,
-    pub is_unwrap_op_in_progress : bool,
+    pub rfu_align_pad3 : bool, // was is_unwrap_op_in_progress
     pub rfu_align_pad2 : bool, // reserved future use, just inserted for alignment reason (fill the gap)
     pub sym_key_file_id : u16,
     pub sym_key_rec_idx : u8,

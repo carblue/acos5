@@ -858,7 +858,7 @@ extern "C" fn acos5_pkcs15_store_key(profile_ptr: *mut sc_profile, p15card_ptr: 
     let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let mrl = dp.files[&file_id_sym_keys].1[4];
 //      let nor = dp.files[&file_id_sym_keys].1[5];
-    dp.is_unwrap_op_in_progress = true;
+    // dp.is_unwrap_op_in_progress = true;
     dp.sym_key_file_id = file_id_sym_keys;
     dp.sym_key_rec_idx = u8::try_from(skey_info.path.index).unwrap();
     dp.sym_key_rec_cnt = mrl;
@@ -1118,6 +1118,9 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
     else if SC_PKCS15_TYPE_SKEY_GENERIC == object.type_ {
         /* called from unwrapping a RSA_WRAPPED_AES_KEY */
         let key_info = unsafe { &mut *(object.data as *mut sc_pkcs15_skey_info) };
+        key_info.access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE;
+        // key_info.key_reference;
+
         log3if!(ctx,f,line!(), cstru!(b"key_info.id: %s\0"), unsafe { sc_dump_hex(key_info.id.value.as_ptr(), key_info.id.len) });
         log3if!(ctx,f,line!(), cstru!(b"key_info.usage: %X\0"), key_info.usage);
         log3if!(ctx,f,line!(), cstru!(b"key_info.access_flags: %X\0"), key_info.access_flags);

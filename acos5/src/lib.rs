@@ -95,8 +95,8 @@ use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
 //use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_PSS};
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 use opensc_sys::opensc::{sc_update_record, SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM_TARGET_FILE,
-                         SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, SC_SEC_OPERATION_UNWRAP,
-                         SC_CARD_CAP_UNWRAP_KEY//, SC_CARD_CAP_WRAP_KEY
+                         SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, SC_SEC_OPERATION_UNWRAP
+                         // , SC_CARD_CAP_UNWRAP_KEY//, SC_CARD_CAP_WRAP_KEY
 //                         , SC_SEC_OPERATION_WRAP
 };
 #[cfg(sym_hw_encrypt)]
@@ -396,7 +396,7 @@ static struct sc_card_operations iso_ops = {
         /* card_reader_lock_obtained:                            NULL */
         /* wrap:                                                 NULL */
         #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-        unwrap:                Some(acos5_unwrap),            // NULL
+        unwrap:                None, //Some(acos5_unwrap),            // NULL
 
         #[cfg(sym_hw_encrypt)]
         encrypt_sym:           Some(acos5_encrypt_sym),       // NULL
@@ -634,8 +634,8 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     /* possibly more SC_CARD_CAP_* apply, TODO clarify */
     card.caps    = SC_CARD_CAP_RNG | SC_CARD_CAP_USE_FCI_AC | SC_CARD_CAP_ISO7816_PIN_INFO;
     /* card.caps |= SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH   what exactly is this? */
-    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-    { card.caps |=  /*SC_CARD_CAP_WRAP_KEY | */ SC_CARD_CAP_UNWRAP_KEY; }
+    // #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+    // { card.caps |=  /*SC_CARD_CAP_WRAP_KEY | */ SC_CARD_CAP_UNWRAP_KEY; }
     #[cfg(sym_hw_encrypt)]
     { card.caps |=  SC_CARD_CAP_SYM_KEY_ALGOS; }
     /* The reader of USB CryptoMate64/CryptoMate Nano supports extended APDU, but the ACOS5-64 cards don't:
@@ -741,7 +741,7 @@ cfg_if::cfg_if! {
         is_running_init: true,
         is_running_compute_signature: false,
         is_running_cmd_long_response: false,
-        is_unwrap_op_in_progress: false,
+        rfu_align_pad3: false,
         rfu_align_pad2 : false,
         sym_key_file_id: 0,
         sym_key_rec_idx: 0,
@@ -782,8 +782,8 @@ println!("offset_of is_fips_mode:                  {}, Δnext:    {}, size_of:  
 println!("offset_of is_fips_compliant:             {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, is_fips_compliant),            offset_of!(DataPrivate, is_running_init)-offset_of!(DataPrivate, is_fips_compliant), std::mem::size_of::<bool>(), std::mem::align_of::<bool>());
 println!("offset_of is_running_init:               {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, is_running_init),              offset_of!(DataPrivate, is_running_compute_signature)-offset_of!(DataPrivate, is_running_init), std::mem::size_of::<bool>(), std::mem::align_of::<bool>());
 println!("offset_of is_running_compute_signature:  {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, is_running_compute_signature), offset_of!(DataPrivate, is_running_cmd_long_response)-offset_of!(DataPrivate, is_running_compute_signature), std::mem::size_of::<bool>(), std::mem::align_of::<bool>());
-println!("offset_of is_running_cmd_long_response:  {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, is_running_cmd_long_response), offset_of!(DataPrivate, is_unwrap_op_in_progress)-offset_of!(DataPrivate, is_running_cmd_long_response), std::mem::size_of::<bool>(), std::mem::align_of::<bool>());
-println!("offset_of is_unwrap_op_in_progress:      {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, is_unwrap_op_in_progress),     offset_of!(DataPrivate, rfu_align_pad2)-offset_of!(DataPrivate, is_unwrap_op_in_progress), std::mem::size_of::<bool>(), std::mem::align_of::<bool>());
+println!("offset_of is_running_cmd_long_response:  {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, is_running_cmd_long_response), offset_of!(DataPrivate, rfu_align_pad3)-offset_of!(DataPrivate, is_running_cmd_long_response), std::mem::size_of::<bool>(), std::mem::align_of::<bool>());
+println!("offset_of rfu_align_pad3:                {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, rfu_align_pad3),     offset_of!(DataPrivate, rfu_align_pad2)-offset_of!(DataPrivate, rfu_align_pad3), std::mem::size_of::<bool>(), std::mem::align_of::<bool>());
 println!("offset_of rfu_align_pad2:                {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, rfu_align_pad2),               offset_of!(DataPrivate, sym_key_file_id)-offset_of!(DataPrivate, rfu_align_pad2), std::mem::size_of::<bool>(), std::mem::align_of::<bool>());
 
 println!("offset_of sym_key_file_id:               {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, sym_key_file_id), offset_of!(DataPrivate, sym_key_rec_idx)-offset_of!(DataPrivate, sym_key_file_id), std::mem::size_of::<u16>(), std::mem::align_of::<u16>());
@@ -811,7 +811,7 @@ offset_of is_fips_compliant:             1774, Δnext:    1, size_of:    1, alig
 offset_of is_running_init:               1775, Δnext:    1, size_of:    1, align_of: 1
 offset_of is_running_compute_signature:  1776, Δnext:    1, size_of:    1, align_of: 1
 offset_of is_running_cmd_long_response:  1777, Δnext:    1, size_of:    1, align_of: 1
-offset_of is_unwrap_op_in_progress:      1778, Δnext:    1, size_of:    1, align_of: 1
+offset_of rfu_align_pad3:                1778, Δnext:    1, size_of:    1, align_of: 1
 offset_of rfu_align_pad2:                1779, Δnext:    1, size_of:    1, align_of: 1
 offset_of sym_key_file_id:               1780, Δnext:    2, size_of:    2, align_of: 2
 offset_of sym_key_rec_idx:               1782, Δnext:    1, size_of:    1, align_of: 1
@@ -2523,7 +2523,7 @@ extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const
     let f = cstru!(b"acos5_set_security_env\0");
     let env_ref  = unsafe { & *env_ref_ptr };
     log3if!(ctx,f,line!(), cstru!(b"called  for operation %d\0"), env_ref.operation);
-//println!("set_security_env: *env_ref_ptr: sc_security_env: {:?}", *env_ref);
+//println!("set_security_env: *env_ref_ptr: sc_security_env: {:0X?}", *env_ref);
     set_sec_env(card, env_ref);
     let mut rv;
 
@@ -3196,6 +3196,10 @@ when pkcs1_strip_PSS_padding works
 
 /* Implementation for RSA_WRAPPED_AES_KEY with template entries for receiving sym. key: CKA_TOKEN=TRUE and CKA_EXTRACTABLE=FALSE.
    i.e. it's assumed that the unwrapped key is of AES type ! */
+// FIXME this doesn't work currently:  the SKDF entry is created already with some data missing, see also acos5_pkcs15/src/lib.rs comment in the end
+// FIXME sc_pkcs15init_store_secret_key get's called, but without calling  profile->ops->store_key (keyargs->key.data_len == 0)
+#[allow(dead_code)]
+#[cold]
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 extern "C" fn acos5_unwrap(card_ptr: *mut sc_card, crgram: *const u8, crgram_len: usize) -> i32
 {
@@ -3217,8 +3221,8 @@ extern "C" fn acos5_unwrap(card_ptr: *mut sc_card, crgram: *const u8, crgram_len
     let klen = vec.len();
     assert!([16, 24, 32].contains(&klen));
 //println!("\n\nUnwrapped {} key bytes: {:X?}\n", klen, vec);
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-    if dp.is_unwrap_op_in_progress {
+    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    if dp.rfu_align_pad3 /* dp.is_unwrap_op_in_progress */ {
         assert!(usize::from(dp.sym_key_rec_cnt) >= klen+3);
         vec.reserve_exact(usize::from(dp.sym_key_rec_cnt));
         vec.insert(0, 0x80|dp.sym_key_rec_idx);
@@ -3230,7 +3234,7 @@ extern "C" fn acos5_unwrap(card_ptr: *mut sc_card, crgram: *const u8, crgram_len
         unsafe { sc_select_file(card, &path, null_mut()) };
         /* TODO This only works if Login-PIN is the same as required for SC_AC_OP_UPDATE of file dp.sym_key_file_id */
         unsafe { sc_update_record(card, u32::from(dp.sym_key_rec_idx), vec.as_ptr(), vec.len(), 0) };
-        dp.is_unwrap_op_in_progress = false;
+        // dp.is_unwrap_op_in_progress = false;
     }
     card.drv_data = Box::into_raw(dp) as p_void;
 

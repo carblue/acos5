@@ -649,7 +649,8 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Op
         let dp_files_value = &dp.files[&file_id];
         card.cache.current_path.value = dp_files_value.0;
         card.cache.current_path.len   = usize::from(dp_files_value.1[1]);
-        card.drv_data = Box::into_raw(dp) as p_void;
+        Box::leak(dp);
+        // card.drv_data = Box::into_raw(dp) as p_void;
     }
     else {
         panic!("calling `iso7816_select_file_replica` returned the error code rv: {}. Function \
@@ -952,13 +953,15 @@ fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*,
     let mut fmt   = cstru!(b"called for path: %s\0");
     log3if!(ctx,f,line!(), fmt, unsafe {sc_dump_hex(path_ref.value.as_ptr(), path_ref.len)});
 
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     assert!(path_ref.len >= 2);
-    let file_id = u16::from_be_bytes([path_ref.value[path_ref.len-2], path_ref.value[path_ref.len-1]]);
+    let file_id = file_id_from_path_value(&path_ref.value[..path_ref.len]);
+
+    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let dp_files_value = &dp.files[&file_id];
     let fdb = dp_files_value.1[0];
     let is_none_2 = dp_files_value.2.is_none();
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
 
     if is_DFMF(fdb)
     {
@@ -1375,7 +1378,8 @@ pub fn get_is_running_cmd_long_response(card: &mut sc_card) -> bool
 {
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let result = dp.is_running_cmd_long_response;
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
     result
 }
 
@@ -1390,7 +1394,8 @@ pub fn get_is_running_compute_signature(card: &mut sc_card) -> bool
 {
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let result = dp.is_running_compute_signature;
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
     result
 }
 
@@ -1410,7 +1415,8 @@ fn get_rsa_caps(card: &mut sc_card) -> u32
 {
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let result = dp.rsa_caps;
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
     result
 }
 
@@ -1428,7 +1434,8 @@ pub fn get_sec_env(card: &mut sc_card) -> sc_security_env
 {
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let result = dp.sec_env;
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
     result
 }
 
@@ -1436,7 +1443,8 @@ pub fn get_sec_env_mod_len(card: &mut sc_card) -> usize
 {
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     let result = usize::from(dp.sec_env_mod_len);
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
     result
 }
 
@@ -2186,7 +2194,8 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
         return Err(SC_ERROR_FILE_NOT_FOUND);
     }
 
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
     Ok(rbuf)
 }
 
@@ -2226,7 +2235,8 @@ pub fn update_hashmap(card: &mut sc_card) {
             log3if!(ctx,f,line!(), fmt1, *key, unsafe { sc_dump_hex(val.1.as_ptr(), 8) });
         }
     }
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
     log3ifr!(ctx,f,line!());
 }
 
@@ -2250,7 +2260,8 @@ pub fn common_read(card: &mut sc_card,
     let fdb      = x.1[0];
     assert!(x.2.is_some());
     let scb_read = x.2.unwrap()[0];
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
 
     if scb_read == 0xFF {
         log3if!(ctx,f,line!(), cstru!(
@@ -2310,7 +2321,8 @@ pub fn common_update(card: &mut sc_card,
     let fdb      = x.1[0];
     assert!(x.2.is_some());
     let scb_update = x.2.unwrap()[1];
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
     // idx==0 means 'append_record' is requested
     if !bin && idx==0 && ![FDB_LINEAR_VARIABLE_EF, FDB_CYCLIC_EF, FDB_SYMMETRIC_KEY_EF, FDB_SE_FILE].contains(&fdb) {
         return SC_ERROR_NOT_ALLOWED;
