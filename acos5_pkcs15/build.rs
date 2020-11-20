@@ -27,7 +27,7 @@ fn main() {
 //        println!("cargo:rustc-link-lib=dylib=iup"); // specifies linking libiup.so/dylib or compiling on Windows with import library iup.lib
 //        println!("cargo:rustc-link-search=native=C:/bin"); // specifies where libiup.so/dylib/ iup.lib is located
     }
-//    println!("cargo:rustc-cfg=ifd_serial_constrained_for_sm"); // if this gets activated, then only for the ifd_serial set in opensc.conf will SM commands be executed (if any at all)
-//    println!("cargo:rustc-cfg=dev_relax_signature_constraints_for_raw"); // this is an insecure setting, meant to be used only temporarily for pkcs11-tool -t with  SC_ALGORITHM_RSA_RAW added to rsa_algo_flags in acos5_init
-//    println!("cargo:rustc-cfg=sym_hw_encrypt"); // experimental only: May be enabled **only** with OpenSC compiled and installed from my branch https://github.com/carblue/OpenSC-1/tree/sym_hw_encrypt ; that is current OpenSC github master (0.21.0-rc2) + on top my patches
+//     println!("cargo:rustc-cfg=ifd_serial_constrained_for_sm"); // if this gets activated, then only for the ifd_serial set in opensc.conf will SM commands be executed (if any at all)
+//     println!("cargo:rustc-cfg=dev_relax_signature_constraints_for_raw"); // this is an insecure setting, meant to be used only temporarily for pkcs11-tool -t with  SC_ALGORITHM_RSA_RAW added to rsa_algo_flags in acos5_init
+//     println!("cargo:rustc-cfg=sym_hw_encrypt"); // experimental only: May be enabled **only** with OpenSC compiled and installed from my branch https://github.com/carblue/OpenSC-1/tree/sym_hw_encrypt ; that is current OpenSC github master 412372b + on top my patches
 }
