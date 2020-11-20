@@ -549,7 +549,12 @@ mod tests {
                 assert_eq!(srd,   32);
                 assert_eq!(pcp,   88);
                 assert_eq!(pcd,  208);
+
+                #[cfg(not(sym_hw_encrypt))]
                 assert_eq!(sco,  296);
+                #[cfg(    sym_hw_encrypt)]
+                assert_eq!(sco,  312);
+
                 #[cfg(any(target_pointer_width = "32", windows))]
                 { assert_eq!(scc,  624); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]

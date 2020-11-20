@@ -94,11 +94,13 @@ use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
 //#[cfg(not(any(v0_17_0, v0_18_0)))]
 //use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_PSS};
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-use opensc_sys::opensc::{sc_update_record, SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM_TARGET_FILE, SC_ALGORITHM_AES_FLAGS,
+use opensc_sys::opensc::{sc_update_record, SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM_TARGET_FILE,
                          SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, SC_SEC_OPERATION_UNWRAP,
                          SC_CARD_CAP_UNWRAP_KEY//, SC_CARD_CAP_WRAP_KEY
 //                         , SC_SEC_OPERATION_WRAP
 };
+#[cfg(sym_hw_encrypt)]
+use opensc_sys::opensc::{SC_CARD_CAP_SYM_KEY_ALGOS};
 
 use opensc_sys::types::{SC_AC_CHV, sc_aid, sc_path, sc_file, sc_serial_number, SC_MAX_PATH_SIZE,
                         SC_PATH_TYPE_FILE_ID, SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH,
@@ -143,7 +145,7 @@ use cmd_card_info::{get_cos_version, get_count_files_curr_df, get_file_info, get
 
 mod constants_types;
 use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES,
-                      BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, BLOCKCIPHER_PAD_TYPE_PKCS5,
+                      BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, BLOCKCIPHER_PAD_TYPE_PKCS7,
                       BLOCKCIPHER_PAD_TYPE_ZEROES, CARD_DRV_NAME, CARD_DRV_SHORT_NAME,
                       CardCtlArray32, CardCtlArray8, CardCtlAuthState, CardCtl_crypt_sym,
                       CardCtl_generate_crypt_asym, CardCtl_generate_inject_asym, DataPrivate,
@@ -169,6 +171,9 @@ use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEAN
                       SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
                       ValueTypeFiles, build_apdu, is_DFMF, p_void, SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile
                       /*,PKCS15_FILE_TYPE_ECCPRIVATEKEY, PKCS15_FILE_TYPE_ECCPUBLICKEY, READ*/};
+#[cfg(sym_hw_encrypt)]
+use constants_types::{RSA_MAX_LEN_MODULUS};
+
 #[cfg(iup_user_consent)]
 use constants_types::{ui_context, set_ui_ctx, get_ui_ctx, acos5_ask_user_consent};
 
@@ -183,12 +188,11 @@ use no_cdecl::{select_file_by_path, enum_dir,
     pin_get_policy, tracking_select_file, acos5_supported_atrs,
                       /*encrypt_public_rsa,*/ get_sec_env, set_sec_env,// get_rsa_caps,
     get_is_running_cmd_long_response, set_is_running_cmd_long_response, is_any_known_digestAlgorithm,
-    sym_en_decrypt,
     generate_asym, encrypt_asym, get_files_hashmap_info, update_hashmap,
     /*, create_mf_file_system*/ convert_acl_array_to_bytes_tag_fcp_sac, get_sec_env_mod_len,
     ACL_CATEGORY_DF_MF, ACL_CATEGORY_EF_CHV, ACL_CATEGORY_KEY, ACL_CATEGORY_SE,
     get_is_running_compute_signature, set_is_running_compute_signature,
-    common_read, common_update, acos5_supported_ec_curves, logout_pin, FCI
+    common_read, common_update, acos5_supported_ec_curves, logout_pin, FCI, sym_en_decrypt
 };
 
 mod path;
@@ -250,7 +254,7 @@ mod   test_v2_v3;
 /// differences in API and behavior (its build.rs mention the last OpenSC commit covered).
 /// master will be handled as an imaginary new version release:
 /// E.g. while currently the latest release is 0.20.0, build OpenSC from source such that it reports imaginary
-/// version 0.21.0 (change config.h after ./configure and before make, and change opensc.pc as well)
+/// version 0.21.0 (change config.h after ./configure and before make)
 /// In this example, cfg!(v0_21_0) will then match that
 ///
 /// @return   The OpenSC release/imaginary version, that this driver implementation supports
@@ -327,7 +331,9 @@ static struct sc_card_operations iso_ops = {
     NULL,            /* read_public_key */
     NULL,            /* card_reader_lock_obtained */
     NULL,            /* wrap */
-    NULL             /* unwrap */
+    NULL,            /* unwrap */
+    NULL,            /* encrypt_sym */
+    NULL             /* decrypt_sym */
 };
 */
     let iso_ops = unsafe { &*(*sc_get_iso7816_driver()).ops };
@@ -392,6 +398,10 @@ static struct sc_card_operations iso_ops = {
         #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
         unwrap:                Some(acos5_unwrap),            // NULL
 
+        #[cfg(sym_hw_encrypt)]
+        encrypt_sym:           Some(acos5_encrypt_sym),       // NULL
+        #[cfg(sym_hw_encrypt)]
+        decrypt_sym:           Some(acos5_decrypt_sym),       // NULL
         ..*iso_ops // untested so far whether remaining functionality from libopensc/iso7816.c is sufficient for cos5
 /* from iso_ops:
     NULL,            /* verify,                deprecated */
@@ -516,7 +526,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
         _                         =>  { return 0; },
     }
 
-        /* excludes any mode except 64K (no FIPS, no 32K, no brasil) */
+        /* excludes any mode except 64K (no FIPS, no 32K, no NSH-1 (ICP Brasil)) */
         if type_out == SC_CARD_TYPE_ACOS5_64_V3 {
 
             /* check 'Operation Mode Byte Setting', must be set to  */
@@ -598,7 +608,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
         log3if!(ctx,f,line!(), cstru!(b"The driver was loaded for application: %s\0"), app_name.as_ptr());
 //        println!("{}", String::from("The driver was loaded for application: ") + app_name.to_str().unwrap());
     }
-
+/* */
     /* Undo 'force_card_driver = acos5_external;'  if match_card reports 'no match' */
     for elem in &acos5_supported_atrs() {
         if elem.atr.is_null() {
@@ -612,7 +622,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
             break;
         }
     }
-
+/* */
     card.cla  = 0x00;                                        // int      default APDU class (interindustry)
     /* max_send_size  IS  treated as a constant (won't change) */
     card.max_send_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE; // 0x0FF; // 0x0FFFF for usb-reader, 0x0FF for chip/card;  Max Lc supported by the card
@@ -626,6 +636,8 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     /* card.caps |= SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH   what exactly is this? */
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     { card.caps |=  /*SC_CARD_CAP_WRAP_KEY | */ SC_CARD_CAP_UNWRAP_KEY; }
+    #[cfg(sym_hw_encrypt)]
+    { card.caps |=  SC_CARD_CAP_SYM_KEY_ALGOS; }
     /* The reader of USB CryptoMate64/CryptoMate Nano supports extended APDU, but the ACOS5-64 cards don't:
        Thus SC_CARD_CAP_APDU_EXT only for ACOS5-EVO TODO */
 
@@ -671,6 +683,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     /* ACOS5 is capable of DES, but I think we can just skip that insecure algo; and the next, 3DES/128 with key1==key3 should NOT be used */
 //    me_card_add_symmetric_alg(card, SC_ALGORITHM_DES,  64,  0);
 //    me_card_add_symmetric_alg(card, SC_ALGORITHM_3DES, 128, 0);
+    /* there is no DES / 3DES support from opensc-pkcs11 binary ! */
     me_card_add_symmetric_alg(card, SC_ALGORITHM_3DES, 192, 0);
 
     cfg_if::cfg_if! {
@@ -678,7 +691,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
             let aes_algo_flags = 0;
         }
         else {
-            let aes_algo_flags = SC_ALGORITHM_AES_FLAGS;
+            let aes_algo_flags = SC_ALGORITHM_AES_ECB | SC_ALGORITHM_AES_CBC;
         }
     }
     me_card_add_symmetric_alg(card, SC_ALGORITHM_AES, 128, aes_algo_flags);
@@ -1366,7 +1379,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
                    !((crypt_sym_data.indata_len  > 0) ^ !crypt_sym_data.infile.is_null())   ||
                    ![8_u8, 16].contains(&crypt_sym_data.block_size)  ||
                    ![BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64,
-                        BLOCKCIPHER_PAD_TYPE_PKCS5, BLOCKCIPHER_PAD_TYPE_ANSIX9_23/*, BLOCKCIPHER_PAD_TYPE_W3C*/]
+                        BLOCKCIPHER_PAD_TYPE_PKCS7, BLOCKCIPHER_PAD_TYPE_ANSIX9_23/*, BLOCKCIPHER_PAD_TYPE_W3C*/]
                         .contains(&crypt_sym_data.pad_type)
 //                    || crypt_sym_data.iv != [0u8; 16]
                 { return SC_ERROR_INVALID_ARGUMENTS; }
@@ -2696,7 +2709,7 @@ extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const
             }
 /* * /
 
-//                env_ref.algorithm_flags = if crypt_sym.cbc {if crypt_sym.pad_type==BLOCKCIPHER_PAD_TYPE_PKCS5 {SC_ALGORITHM_AES_CBC_PAD} else {SC_ALGORITHM_AES_CBC} } else {SC_ALGORITHM_AES_ECB};
+//                env_ref.algorithm_flags = if crypt_sym.cbc {if crypt_sym.pad_type==BLOCKCIPHER_PAD_TYPE_PKCS7 {SC_ALGORITHM_AES_CBC_PAD} else {SC_ALGORITHM_AES_CBC} } else {SC_ALGORITHM_AES_ECB};
 //                env_ref.params[0] = sc_sec_env_param { param_type: SC_SEC_ENV_PARAM_IV, value: crypt_sym.iv.as_mut_ptr() as p_void, value_len: u32::from(crypt_sym.iv_len) };
                 // for 3DES/DES use this to select CBC/ECB: with param_type: SC_SEC_ENV_PARAM_DES_ECB or SC_SEC_ENV_PARAM_DES_CBC
 
@@ -2870,9 +2883,9 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
         set_is_running_compute_signature(card, false);
     }
     else { // assuming plaintext was EME-PKCS1-v1_5 encoded before encipher: Now remove the padding
-//let sec_env_algo_flags = get_sec_env(card).algorithm_flags;
-//println!("\nacos5_decipher:             in_len: {}, out_len: {}, sec_env_algo_flags: 0x{:X}, input data: {:X?}", crgram_len, outlen, sec_env_algo_flags,  unsafe {from_raw_parts(crgram_ref_ptr, crgram_len)});
-//println!("\nacos5_decipher:             in_len: {}, out_len: {}, sec_env_algo_flags: 0x{:X},output data: {:X?}", crgram_len, outlen, sec_env_algo_flags,  vec);
+        // let sec_env_algo_flags = get_sec_env(card).algorithm_flags;
+        // println!("\nacos5_decipher:             in_len: {}, out_len: {}, sec_env_algo_flags: 0x{:X}, input data: {:X?}", crgram_len, outlen, sec_env_algo_flags,  unsafe {from_raw_parts(crgram_ref_ptr, crgram_len)});
+        // println!("\nacos5_decipher:             in_len: {}, out_len: {}, sec_env_algo_flags: 0x{:X},output data: {:X?}", crgram_len, outlen, sec_env_algo_flags,  vec);
         rv = me_pkcs1_strip_02_padding(&mut vec); // returns length of padding to be removed from vec such that net message/plain text remains
         if rv < 0 && (SC_ALGORITHM_RSA_RAW & get_sec_env(card).algorithm_flags) == 0 {
             log3ifr!(ctx,f,line!(), cstru!(b"returning with: Failed strip_02_padding !\0"), rv);
@@ -3321,6 +3334,59 @@ extern "C" fn acos5_update_record(card_ptr: *mut sc_card, rec_nr: u32,
     common_update(card, rec_nr, buf, SC_RECORD_BY_REC_NR, false)
 }
 
+/// does nothing currently
+#[cfg(sym_hw_encrypt)]
+extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, _plaintext: *const u8, _plaintext_len: usize,
+    _out: *mut u8, _outlen: usize/*, block_size: u8*/) -> i32
+{
+    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+    let card = unsafe { &mut *card_ptr };
+    let ctx = unsafe { &mut *card.ctx };
+    log3ifc!(ctx,cstru!(b"acos5_encrypt_sym\0"),line!());
+    0
+}
+
+
+/// does decrypt, but needs to be rewritten
+#[cfg(sym_hw_encrypt)]
+extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, crgram: *const u8, crgram_len: usize,
+                                                           out: *mut u8,       outlen: usize/*, block_size: u8*/) -> i32
+{
+    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+    let card = unsafe { &mut *card_ptr };
+    let ctx = unsafe { &mut *card.ctx };
+    log3ifc!(ctx,cstru!(b"acos5_decrypt_sym\0"),line!());
+
+    assert!(crgram_len <= RSA_MAX_LEN_MODULUS+32);
+    // preliminary: use existing sym_en_decrypt, maybe later remove that
+    let mut crypt_sym = CardCtl_crypt_sym::default();
+    // infile: std::ptr::null(),
+    crypt_sym.indata[..crgram_len].copy_from_slice(unsafe { &* std::ptr::slice_from_raw_parts(crgram, crgram_len) });
+    crypt_sym.indata_len = crgram_len;
+    // outfile: std::ptr::null(),
+    // outdata: [0; RSA_MAX_LEN_MODULUS+32],
+    crypt_sym.outdata_len = outlen;
+    // iv: [0; 16],
+    // iv_len: 0,
+    crypt_sym.key_ref = 0x84;
+    crypt_sym.block_size = 16; // set as default: AES 256 bit CBC, encryption with local key and BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64
+    crypt_sym.key_len = 32;
+    crypt_sym.pad_type = BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64;
+    // local: true,
+    // cbc: true,
+    crypt_sym.encrypt = false;
+    // perform_mse: false,
+
+    let rv = sym_en_decrypt(card, &mut crypt_sym);
+    if rv <= 0 { return rv; }
+    unsafe { copy_nonoverlapping(crypt_sym.outdata.as_ptr(), out, outlen) };
+    rv
+}
+
 /*
 /* Access Control flags */
 SC_AC_NONE
@@ -3328,11 +3394,11 @@ SC_AC_CHV              /* Card Holder Verif. */
                           util_acl_to_str prints with    key_ref: "CHV";
 SC_AC_TERM             /* Terminal auth. */
                           util_acl_to_str prints without key_ref: "TERM";
-                          profile.c map: { "TERM",	SC_AC_TERM	}
+                          profile.c map: { "TERM", SC_AC_TERM }
                           no more OpenSC framework usage and card-specific usage only by: card-several.c
 SC_AC_PRO              /* Secure Messaging */
                           util_acl_to_str prints without key_ref: "PROT";
-                          profile.c map: { "PRO",	SC_AC_PRO	}
+                          profile.c map: { "PRO", SC_AC_PRO }
                           pkcs15-lib.c: get_pin_ident_name: "secure messaging key"
                                         sc_pkcs15init_verify_secret : pinsize = 0; "No 'verify' for secure messaging"
                           tools/pkcs15-init.c
@@ -3340,8 +3406,8 @@ SC_AC_PRO              /* Secure Messaging */
 
 SC_AC_AUT              /* Key auth. */
                           util_acl_to_str prints with    key_ref: "AUTH";
-                          profile.c map: { "AUT",	SC_AC_AUT	}
-                          profile.c map: { "KEY",	SC_AC_AUT	}
+                          profile.c map: { "AUT", SC_AC_AUT }
+                          profile.c map: { "KEY", SC_AC_AUT }
                           pkcs15-lib.c: get_pin_ident_name: "authentication key"
                                         sc_pkcs15init_verify_secret : sc_card_ctl(SC_CARDCTL_GET_CHV_REFERENCE_IN_SE) ...  -> SC_AC_CHV
 
@@ -3349,19 +3415,19 @@ SC_AC_SYMBOLIC         /* internal use only */
 
 SC_AC_SEN              /* Security Environment. */
                           util_acl_to_str prints with    key_ref: "Sec.Env. ";
-                          profile.c map: { "SEN",	SC_AC_SEN	}
+                          profile.c map: { "SEN", SC_AC_SEN }
                           pkcs15-lib.c: get_pin_ident_name: "security environment"
                                         sc_pkcs15init_verify_secret : sc_card_ctl(SC_CARDCTL_GET_CHV_REFERENCE_IN_SE) ...  -> SC_AC_CHV
                           no more OpenSC framework usage and card-specific usage only by: pkcs15-iasecc.c, card-iasecc.c and iasecc-sdo.c
 SC_AC_SCB              /* IAS/ECC SCB byte. */
                           util_acl_to_str prints with    key_ref: "Sec.ControlByte ";
-                          profile.c map: { "SCB",	SC_AC_SCB	}
+                          profile.c map: { "SCB", SC_AC_SCB }
                           pkcs15-lib.c: get_pin_ident_name: "SCB byte in IAS/ECC"
                                         sc_pkcs15init_verify_secret : pinsize = 0;
                           no more OpenSC framework usage and card-specific usage only by: pkcs15-iasecc.c, card-iasecc.c and card-authentic.c
 SC_AC_IDA              /* PKCS#15 authentication ID */
                           util_acl_to_str prints with    key_ref: "PKCS#15 AuthID ";
-                          profile.c map: { "IDA",	SC_AC_IDA	}
+                          profile.c map: { "IDA", SC_AC_IDA }
                           pkcs15-lib.c: get_pin_ident_name: "PKCS#15 reference"
                           no more OpenSC framework usage and card-specific usage only by: pkcs15-iasecc.c
 SC_AC_SESSION          /* Session PIN */ // since opensc source release v0.17.0

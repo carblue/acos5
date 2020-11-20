@@ -72,4 +72,5 @@ fn main() {
     println!("cargo:rustc-cfg=impl_display"); // enables impl fmt::Display for sc_context
     println!("cargo:rustc-cfg=acos5_impl_default"); // enables impl Default, acos5-specific for some structs
     println!("cargo:rustc-cfg=impl_newAT_newCCT_newCT"); // enables some acos5-specific ? assoc. new func. for struct sc_crt
+//    println!("cargo:rustc-cfg=sym_hw_encrypt"); // experimental only: May be enabled **only** with OpenSC compiled and installed from my branch https://github.com/carblue/OpenSC-1/tree/sym_hw_encrypt ; that is current OpenSC github master (0.21.0-rc2) + on top my patches
 }

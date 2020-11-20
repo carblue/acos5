@@ -75,8 +75,14 @@ pub const SC_SEC_OPERATION_AUTHENTICATE : i32 = 0x0003;
 pub const SC_SEC_OPERATION_DERIVE       : i32 = 0x0004;
 cfg_if::cfg_if! {
     if #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))] {
-        pub const SC_SEC_OPERATION_WRAP         : i32 = 0x0005;
-        pub const SC_SEC_OPERATION_UNWRAP       : i32 = 0x0006;
+        pub const SC_SEC_OPERATION_WRAP     : i32 = 0x0005;
+        pub const SC_SEC_OPERATION_UNWRAP   : i32 = 0x0006;
+    }
+}
+cfg_if::cfg_if! {
+    if #[cfg(sym_hw_encrypt)] {
+        pub const SC_SEC_OPERATION_ENCRYPT_SYM  : i32 = 0x0007;
+        pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
     }
 }
 
@@ -941,6 +947,10 @@ pub const SC_CARD_CAP_WRAP_KEY   : c_ulong = 0x0000_0800;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub const SC_CARD_CAP_UNWRAP_KEY : c_ulong = 0x0000_1000;
 
+/* Card supports symmetric/secret key algorithms (currently at least AES, modes ECB and CBC) */
+#[cfg(sym_hw_encrypt)]
+pub const SC_CARD_CAP_SYM_KEY_ALGOS : c_ulong = 0x0000_2000;
+
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_card {
@@ -1201,10 +1211,18 @@ pub struct sc_card_operations {
     pub card_reader_lock_obtained: Option< unsafe extern "C" fn (arg1: *mut sc_card, was_reset: i32) -> i32 >,  // since opensc source release v0.17.0
 
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-    pub wrap: Option< unsafe extern "C" fn (card: *mut sc_card, out: *mut u8, outlen: usize) -> i32 >,
+    pub wrap : Option< unsafe extern "C" fn (card: *mut sc_card, out: *mut u8, outlen: usize) -> i32 >,
 
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-    pub unwrap: Option< unsafe extern "C" fn (card: *mut sc_card, crgram: *const u8, crgram_len: usize) -> i32 >,
+    pub unwrap : Option< unsafe extern "C" fn (card: *mut sc_card, crgram: *const u8, crgram_len: usize) -> i32 >,
+
+    #[cfg(sym_hw_encrypt)]
+    pub encrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, plaintext: *const u8, plaintext_len: usize,
+                                                    out: *mut u8, outlen: usize/*, block_size: u8*/) -> i32 >,
+
+    #[cfg(sym_hw_encrypt)]
+    pub decrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, crgram: *const u8, crgram_len: usize,
+                                                    out: *mut u8, outlen: usize/*, block_size: u8*/) -> i32 >,
 }
 
 #[repr(C)]
@@ -1396,9 +1414,9 @@ pub fn sc_format_apdu(card: *mut sc_card, apdu: *mut sc_apdu, cse: i32, ins: i32
  */
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub fn sc_format_apdu_ex(apdu: *mut sc_apdu,
-		cla: u8, ins: u8, p1: u8, p2: u8,
-		data: *const u8, datalen: usize,
-		resp: *mut u8, resplen: usize);
+    cla: u8, ins: u8, p1: u8, p2: u8,
+    data: *const u8, datalen: usize,
+    resp: *mut u8, resplen: usize);
 
 pub fn sc_check_apdu(card: *mut sc_card, apdu: *const sc_apdu) -> i32;
 
@@ -1935,6 +1953,13 @@ pub fn sc_reset_retry_counter(card: *mut sc_card, type_: u32,
     ref_: i32, puk: *const u8, puklen: usize,
     newref: *const u8, newlen: usize) -> i32;
 pub fn sc_build_pin(buf: *mut u8, buflen: usize, pin: *mut sc_pin_cmd_pin, pad: i32) -> i32;
+
+#[cfg(sym_hw_encrypt)]
+pub fn sc_encrypt_sym(card: *mut sc_card, plaintext: *const u8, plaintext_len: usize,
+    out: *mut u8, outlen: usize/*, block_size: u8*/) -> i32;
+#[cfg(sym_hw_encrypt)]
+pub fn sc_decrypt_sym(card: *mut sc_card, crgram: *const u8, crgram_len: usize,
+    out: *mut u8, outlen: usize/*, block_size: u8*/) -> i32;
 
 /********************************************************************/
 /*               ISO 7816-9 related functions                       */

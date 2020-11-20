@@ -254,3 +254,8 @@ ssh -T -I/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so git@github.com
 Hi your_github_user_name! You've successfully authenticated, but GitHub does not provide shell access.
 
 If You like to push to github with Your github_key: [changing-a-remotes-url](https://docs.github.com/en/free-pro-team@latest/github/using-git/changing-a-remotes-url "https://docs.github.com/en/free-pro-team@latest/github/using-git/changing-a-remotes-url")
+
+Recommended info:  
+[Linux and smart cards for PKI - Overview](http://cedric.dufour.name/blah/IT/SmartCardsOverview.html "http://cedric.dufour.name/blah/IT/SmartCardsOverview.html")  
+[Linux and smart cards (OpenSC) - How-to](http://cedric.dufour.name/blah/IT/SmartCardsHowto.html "http://cedric.dufour.name/blah/IT/SmartCardsHowto.html")  
+[OpenSSL Certificate Authority](https://jamielinux.com/docs/openssl-certificate-authority/ "https://jamielinux.com/docs/openssl-certificate-authority/") with adaptions from ...

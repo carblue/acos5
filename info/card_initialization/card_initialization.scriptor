@@ -1,18 +1,19 @@
 #! /usr/bin/env scriptor
 
-# IMPORTANT MUST DO: Current SO_PIN must be adapted in line 20 (Verify SO_PIN) if it's different from  38 37 36 35 34 33 32 31  (which reads in ascii as character string: 87654321) !!!
-# IMPORTANT MUST DO: Either in line 26 or line 28 or line 30  the leading # must be removed
+# IMPORTANT MUST DO: Current SO_PIN must be adapted in line 21 (Verify SO_PIN) if it's different from  38 37 36 35 34 33 32 31  (which reads in ascii as character string: 87654321) !!!
+# IMPORTANT MUST DO: Either in line 27 or line 29 or line 31  the leading # must be removed
 # Lines beginning with # are comments and don't get processed as APDU commands; spaces between bytes (all in hexadecimal representation) get ignored, they are used here only for better readability
 
 # This script will set these new PIN bytes (change them after card initialization is done, OR NOW !!!):
-# new SO_PIN:   38 37 36 35 34 33 32 31 (which reads in ascii as character string: 87654321)  SO_PUK is the same as SO_PIN,     SO_PIN/SO_PUK set at first/second appearance in line 65
-# new USER_PIN: 31 32 33 34 35 36 37 38 (which reads in ascii as character string: 12345678)  USER_PUK is the same as USER_PIN, USER_PIN/USER_PUK set at first/second appearance in line 90
+# new SO_PIN:   38 37 36 35 34 33 32 31 (which reads in ascii as character string: 87654321)  SO_PUK is the same as SO_PIN,     SO_PIN/SO_PUK set at first/second appearance in line 66
+# new USER_PIN: 31 32 33 34 35 36 37 38 (which reads in ascii as character string: 12345678)  USER_PUK is the same as USER_PIN, USER_PIN/USER_PUK set at first/second appearance in line 91
 
-# This script will set 2 3DES/192 keys for Secure Messaging (the last 24 non-zero bytes in lines 96,97) (PREFERABLY CHANGE THEM NOW AND DO THE SAME IN opensc.conf for keyset...02...):
+# This script will set 2 3DES/192 keys for Secure Messaging (the last 24 non-zero bytes in lines 97,98) (PREFERABLY CHANGE THEM NOW AND DO THE SAME IN opensc.conf for keyset...02...):
 # Check for all of the 24 key bytes that they have odd parity == count of 1 in binary coded representation is NOT even
-# line 96: this is the host/terminal key Kt for external authentication with an unlimited error counter
-# line 97: this is the card          key Kc for internal authentication with an unlimited usage counter
+# line 97: this is the host/terminal key Kt for external authentication with an unlimited error counter
+# line 98: this is the card          key Kc for internal authentication with an unlimited usage counter
 #   Done for EVO: Symmetric Key file  create with MRL=0x26==38 (32 byte AES key allowed for int. + ext. auth)
+#   TODO for EVO: EF.TokenInfo file supportedAlgorithms.algRef bytes for AES are different than those for V2.00/V3.00: will need manual user selection; also CKM_AES_CBC_PAD (0x1085) needs to be removed, it's not supported by ACOS5
 # If You don't have read the reference manual, then I propose to not change anything in this scrpt other than I ask You to, otherwise a single wrong charakter can break this script's succcessful running.
 
 reset

@@ -1048,6 +1048,10 @@ pub fn sc_pkcs15_wrap(p15card: *mut sc_pkcs15_card,
 pub fn sc_pkcs15_compute_signature(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, alg_flags: c_ulong,
                                    in_: *const u8, inlen: usize, out: *mut u8, outlen: usize) -> i32;
 
+#[cfg(sym_hw_encrypt)]
+pub fn sc_pkcs15_decrypt_sym(p15card: *mut sc_pkcs15_card, skey_obj: *const sc_pkcs15_object, flags: c_ulong,
+                             in_: *const u8, inlen: usize, out: *mut u8, outlen: usize) -> i32;
+
 pub fn sc_pkcs15_read_pubkey(p15card: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object,
                              arg3: *mut *mut sc_pkcs15_pubkey) -> i32;
 

@@ -183,7 +183,7 @@ pub const ATR_MASK    : &[u8; 57] = b"FF:FF:00:FF:FF:FF:FF:FF:00:00:00:00:00:00:
 pub const ATR_MASK_TCK: &[u8; 60] = b"FF:FF:00:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF:00\0";
 pub const NAME_V2  : &[u8; 43] = b"ACOS5-64 V2.00: Smart Card or CryptoMate64\0";
 pub const NAME_V3  : &[u8; 46] = b"ACOS5-64 V3.00: Smart Card or CryptoMate Nano\0";
-pub const NAME_V4  : &[u8; 49] = b"ACOS5-EVO V4.X: Smart Card EVO or CryptoMate EVO\0";
+pub const NAME_V4  : &[u8; 50] = b"ACOS5-EVO V4.X0: Smart Card EVO or CryptoMate EVO\0";
 
 pub const CARD_DRV_NAME       : &[u8; 92] = b"'acos5_external', supporting ACOS5 Smart Card V2.00 (CryptoMate64), V3.00 (CryptoMate Nano)\0";
 pub const CARD_DRV_SHORT_NAME : &[u8; 15] =  b"acos5_external\0";
@@ -295,8 +295,8 @@ pub const BLOCKCIPHER_PAD_TYPE_ONEANDZEROES       : u8 =  1; // Unconditionally 
 // be careful with BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64: It can't unambiguously be detected, what is padding, what is payload: Therefore ACOS5 uses a 'Padding Indicator' byte Pi, telling, whether padding was applied or not
 // ACOS5-EVO uses BLOCKCIPHER_PAD_TYPE_ONEANDZEROES (which is not ambiguous), and still uses the now superfluous  'Padding Indicator' byte Pi
 pub const BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64 : u8 =  2; // Used in ACOS5-64 SM: Only if in_len isn't a multiple of blocksize, then add a byte of value 0x80 followed by as many zero bytes (0-6) as is necessary to fill the input to the next exact multiple of B
-// BLOCKCIPHER_PAD_TYPE_PKCS5 is the recommended one, otherwise BLOCKCIPHER_PAD_TYPE_ONEANDZEROES and BLOCKCIPHER_PAD_TYPE_ANSIX9_23 (BLOCKCIPHER_PAD_TYPE_W3C) also exhibit unambiguity
-pub const BLOCKCIPHER_PAD_TYPE_PKCS5              : u8 =  3; // as for CKM_AES_CBC_PAD: If the block length is B then add N padding bytes (1 < N ≤ B Blocksize) of value N to make the input length up to the next exact multiple of B. If the input length is already an exact multiple of B then add B bytes of value B
+// BLOCKCIPHER_PAD_TYPE_PKCS7 is the recommended one, otherwise BLOCKCIPHER_PAD_TYPE_ONEANDZEROES and BLOCKCIPHER_PAD_TYPE_ANSIX9_23 (BLOCKCIPHER_PAD_TYPE_W3C) also exhibit unambiguity
+pub const BLOCKCIPHER_PAD_TYPE_PKCS7              : u8 =  3; // as for CKM_AES_CBC_PAD: If the block length is B then add N padding bytes (1 < N ≤ B Blocksize) of value N to make the input length up to the next exact multiple of B. If the input length is already an exact multiple of B then add B bytes of value B
 pub const BLOCKCIPHER_PAD_TYPE_ANSIX9_23          : u8 =  4; // If N padding bytes are required (1 < N ≤ B Blocksize) set the last byte as N and all the preceding N-1 padding bytes as zero.
 // BLOCKCIPHER_PAD_TYPE_W3C is not recommended
 //b const BLOCKCIPHER_PAD_TYPE_W3C                : u8 =  5; // If N padding bytes are required (1 < N ≤ B Blocksize) set the last byte as N and all the preceding N-1 padding bytes as arbitrary byte values.
@@ -313,6 +313,10 @@ pub const SC_SEC_OPERATION_DERIVE       : i32 = 0x0004;
 pub const SC_SEC_OPERATION_WRAP         : i32 = 0x0005;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub const SC_SEC_OPERATION_UNWRAP       : i32 = 0x0006;
+#[cfg(sym_hw_encrypt)]
+pub const SC_SEC_OPERATION_ENCRYPT_SYM  : i32 = 0x0007;
+#[cfg(sym_hw_encrypt)]
+pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
 */
 ////pub const SC_SEC_OPERATION_ENCIPHER : i32 = 0x0007;
 pub const SC_SEC_OPERATION_GENERATE_RSAPRIVATE : i32 = 0x0008; // sc_set_security_env must know this related to file id
@@ -536,9 +540,9 @@ impl Default for CardCtl_crypt_sym {
             iv: [0; 16],
             iv_len: 0,
             key_ref: 0,
-            block_size: 16, // set as default: AES 256 bit CBC, encryption with local key and PKCS5 padding
+            block_size: 16, // set as default: AES 256 bit CBC, encryption with local key and BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64
             key_len: 32,
-            pad_type: BLOCKCIPHER_PAD_TYPE_PKCS5, // the recommended one, one of those that are able to be de-pad'ed unambiguously
+            pad_type: BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, // one of those that are able to be de-pad'ed unambiguously
 //            use_sess_key: false,
             local: true,
             cbc: true,

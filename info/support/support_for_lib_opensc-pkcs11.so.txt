@@ -80,4 +80,4 @@ C_VerifyRecover              OpenSC: CKR_FUNCTION_NOT_SUPPORTED
 C_VerifyRecoverInit          OpenSC: CKR_FUNCTION_NOT_SUPPORTED
 C_VerifyUpdate               OpenSC: will call OpenSSL but no card function; No support from hardware
 C_WaitForSlotEvent           OKAY
-C_WrapKey                    No support from driver currently; TODO
+C_WrapKey                    No support from driver; None of ACOS5 private keys nor secrect keys is extractable (i.e. they should always have access condition READ: NEVER), hence I don't see any use case to implement C_WrapKey

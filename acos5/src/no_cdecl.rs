@@ -82,7 +82,7 @@ use opensc_sys::sm::{SM_SMALL_CHALLENGE_LEN, SM_CMD_FILE_READ, SM_CMD_FILE_UPDAT
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tt/*, wr_do_log_ttt*/, wr_do_log_tu,
                       wr_do_log_tuv};
 use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES,
-                             BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, BLOCKCIPHER_PAD_TYPE_PKCS5,
+                             BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, BLOCKCIPHER_PAD_TYPE_PKCS7,
                              BLOCKCIPHER_PAD_TYPE_ZEROES, CardCtl_crypt_sym, CardCtl_generate_crypt_asym, DataPrivate,
                              FDB_CYCLIC_EF, FDB_LINEAR_VARIABLE_EF, FDB_RSA_KEY_EF, FDB_SE_FILE,
                              FDB_SYMMETRIC_KEY_EF, NAME_V2, NAME_V3, //PKCS15_FILE_TYPE_ECCPRIVATEKEY, FDB_ECC_KEY_EF,
@@ -1753,7 +1753,7 @@ fn trailing_blockcipher_padding_calculate(
     assert!(rem < block_size);
     assert!(block_size == 16 || block_size == 8);
     assert!([BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64,
-        BLOCKCIPHER_PAD_TYPE_PKCS5, BLOCKCIPHER_PAD_TYPE_ANSIX9_23/*, BLOCKCIPHER_PAD_TYPE_W3C*/].contains(&padding_type));
+        BLOCKCIPHER_PAD_TYPE_PKCS7, BLOCKCIPHER_PAD_TYPE_ANSIX9_23/*, BLOCKCIPHER_PAD_TYPE_W3C*/].contains(&padding_type));
     let mut vec : Vec<u8> = Vec::with_capacity(usize::from(block_size));
     match padding_type {
         BLOCKCIPHER_PAD_TYPE_ZEROES => {
@@ -1770,7 +1770,7 @@ fn trailing_blockcipher_padding_calculate(
                 for _i in 0..block_size-rem-1 { vec.push(0x00); }
             }
         },
-        BLOCKCIPHER_PAD_TYPE_PKCS5 => {
+        BLOCKCIPHER_PAD_TYPE_PKCS7 => {
             let pad_byte = block_size-rem;
             for _i in 0..pad_byte { vec.push(pad_byte); }
         },
@@ -1840,7 +1840,7 @@ fn trailing_blockcipher_padding_get_length(
             if cnt==block_size && [0_u8, 0x80].contains(&last_block_values[0]) {return Ok(0)/*Err(SC_ERROR_KEYPAD_MSG_TOO_LONG)*/;}
             Ok(cnt)
         },
-        BLOCKCIPHER_PAD_TYPE_PKCS5 => {
+        BLOCKCIPHER_PAD_TYPE_PKCS7 => {
             let pad_byte = last_block_values[last_block_values.len()-1];
             let mut cnt = 1_u8;
             for (i,b) in last_block_values[..usize::from(block_size-1)].iter().rev().enumerate() {
@@ -2004,7 +2004,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
                 if !crypt_sym.cbc {
                     env.algorithm_flags |= SC_ALGORITHM_AES_ECB;
                 }
-                else if crypt_sym.pad_type == BLOCKCIPHER_PAD_TYPE_PKCS5 {
+                else if crypt_sym.pad_type == BLOCKCIPHER_PAD_TYPE_PKCS7 {
                     env.algorithm_flags |= SC_ALGORITHM_AES_CBC_PAD;
                 }
                 else {
@@ -2465,9 +2465,9 @@ mod tests {
         assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, 7).as_slice(), &[0x80_u8]);
         assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, 0).as_slice(), &[0_u8; 0]);
 
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS5, 3).as_slice(), &[0x05_u8; 5]);
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS5, 7).as_slice(), &[0x01_u8; 1]);
-        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS5, 0).as_slice(), &[0x08_u8; 8]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS7, 3).as_slice(), &[0x05_u8; 5]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS7, 7).as_slice(), &[0x01_u8; 1]);
+        assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_PKCS7, 0).as_slice(), &[0x08_u8; 8]);
 
         assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, 3).as_slice(), &[0_u8,0,0,0,5]);
         assert_eq!(trailing_blockcipher_padding_calculate(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, 7).as_slice(), &[1_u8]);
@@ -2489,13 +2489,14 @@ mod tests {
         assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0_u8,0,0,0,0,0,0,0x80])?, 1);
         assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, &[0x80_u8,0,0,0,0,0,0,0])?, 0);
 
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[0_u8,5,5,5,5,5,5,5])?, 5);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[0_u8,1,1,1,1,1,1,1])?, 1);
-        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS5, &[8_u8,8,8,8,8,8,8,8])?, 8);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS7, &[0_u8,5,5,5,5,5,5,5])?, 5);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS7, &[0_u8,1,1,1,1,1,1,1])?, 1);
+        assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_PKCS7, &[8_u8,8,8,8,8,8,8,8])?, 8);
 
         assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0_u8,0,0,0,0,0,0,5])?, 5);
         assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0_u8,0,0,0,0,0,0,1])?, 1);
         assert_eq!(trailing_blockcipher_padding_get_length(8,BLOCKCIPHER_PAD_TYPE_ANSIX9_23, &[0_u8,0,0,0,0,0,0,8])?, 8);
         Ok(())
     }
+    //TODO extend to check for AES block_size=16 bytes
 }

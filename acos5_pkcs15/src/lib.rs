@@ -156,7 +156,7 @@ const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 /// differences in API and behavior (its build.rs mention the last OpenSC commit covered).
 /// master will be handled as an imaginary new version release:
 /// E.g. while currently the latest release is 0.20.0, build OpenSC from source such that it reports imaginary
-/// version 0.21.0 (change config.h after ./configure and before make, and change opensc.pc as well)
+/// version 0.21.0 (change config.h after ./configure and before make)
 /// In this example, cfg!(v0_21_0) will then match that
 ///
 /// @return   The OpenSC release/imaginary version, that this driver implementation supports
@@ -164,7 +164,7 @@ const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     if cfg!(v0_17_0) || cfg!(v0_18_0) || cfg!(v0_19_0) || cfg!(v0_20_0) { unsafe { sc_get_version() } }
-    else if cfg!(v0_21_0)  { unsafe { sc_get_version() } } // experimental only: see build.rs which github commit is supported
+    else if cfg!(v0_21_0)  { unsafe { sc_get_version() } } // experimental only:  Latest github commit covered: c4a75eb  0.21.0-rc2
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -1151,6 +1151,72 @@ extern "C" fn acos5_pkcs15_sanity_check(_profile: *mut sc_profile, p15card: *mut
     log3ifc!(ctx,f,line!());
     unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SANITY_CHECK, null_mut()) }
 }
+
+/*
+from a run of main_RW_unwrap_AES_key_wrapped_by_RSA_key.rs:
+FIXME the AES key labeled "Secret Key" doesn't actually get stored !!!
+FIXME the AES key labeled "Secret Key" (shown below) has some wrong entries in SKDF
+accessFlags are missing
+keyReference is wrong
+path.path is wrong
+path.index is missing
+path.length is missing
+
+
+name: secretKey  type: CHOICE
+  name: genericSecretKey  type: SEQUENCE
+    name: commonObjectAttributes  type: SEQUENCE
+      name: label  type: UTF8_STR  value: AES3
+      name: flags  type: BIT_STR  value(2): c0  ->  11
+      name: authId  type: OCT_STR  value: 01
+    name: commonKeyAttributes  type: SEQUENCE
+      name: iD  type: OCT_STR  value: 07
+      name: usage  type: BIT_STR  value(2): c0  ->  11
+      name: native  type: BOOLEAN
+        name: NULL  type: DEFAULT  value: TRUE
+      name: accessFlags  type: BIT_STR  value(4): b0  ->  1011
+      name: keyReference  type: INTEGER  value: 0x0083
+      name: algReference  type: SEQ_OF
+        name: NULL  type: INTEGER
+        name: ?1  type: INTEGER  value: 0x01
+        name: ?2  type: INTEGER  value: 0x02
+    name: commonSecretKeyAttributes  type: SEQUENCE
+      name: keyLen  type: INTEGER  value: 0x0100
+    name: genericSecretKeyAttributes  type: SEQUENCE
+      name: value  type: CHOICE
+        name: indirect  type: CHOICE
+          name: path  type: SEQUENCE
+            name: path  type: OCT_STR  value: 3f0041004102
+            name: index  type: INTEGER  value: 0x03
+            name: length  type: INTEGER  value: 0x25
+
+name: secretKey  type: CHOICE
+  name: genericSecretKey  type: SEQUENCE
+    name: commonObjectAttributes  type: SEQUENCE
+      name: label  type: UTF8_STR  value: Secret Key
+      name: flags  type: BIT_STR  value(2): c0  ->  11
+      name: authId  type: OCT_STR  value: 01
+    name: commonKeyAttributes  type: SEQUENCE
+      name: iD  type: OCT_STR  value: 09
+      name: usage  type: BIT_STR  value(2): c0  ->  11
+      name: native  type: BOOLEAN
+        name: NULL  type: DEFAULT  value: TRUE
+      name: keyReference  type: INTEGER  value: 0x00
+    name: commonSecretKeyAttributes  type: SEQUENCE
+      name: keyLen  type: INTEGER  value: 0x0100
+    name: genericSecretKeyAttributes  type: SEQUENCE
+      name: value  type: CHOICE
+        name: indirect  type: CHOICE
+          name: path  type: SEQUENCE
+            name: path  type: OCT_STR  value: 3f004100
+
+Content of SKDF
+A4 39 30 0C 0C 03 53 4D 31 03 02 06 C0 04 01 01 30 0F 04 01 01 03 02 06 C0 03 02 04 B0 02 02 00 81 A0 04 02 02 00 C0 A1 12 30 10 30 0E 04 06 3F
+00 41 00 41 02 02 01 01 80 01 25 A4 39 30 0C 0C 03 53 4D 32 03 02 06 C0 04 01 01 30 0F 04 01 02 03 02 06 C0 03 02 04 B0 02 02 00 82 A0 04 02 02
+00 C0 A1 12 30 10 30 0E 04 06 3F 00 41 00 41 02 02 01 02 80 01 25 30 42 30 0D 0C 04 41 45 53 33 03 02 06 C0 04 01 01 30 17 04 01 07 03 02 06 C0
+03 02 04 B0 02 02 00 83 A1 06 02 01 01 02 01 02 A0 04 02 02 01 00 A1 12 30 10 30 0E 04 06 3F 00 41 00 41 02 02 01 03 80 01 25 30 33 30 13 0C 0A
+53 65 63 72 65 74 20 4B 65 79 03 02 06 C0 04 01 01 30 0A 04 01 09 03 02 06 C0 02 01 00 A0 04 02 02 01 00 A1 0A 30 08 30 06 04 04 3F 00 41 00
+*/
 
 /* Not yet ready; possibly better to be implemented in the driver and call that via sc_card_ctl
    I didn't yet check the Opensc functionality for that, but the driver probably will use libtasn1 anyway !
