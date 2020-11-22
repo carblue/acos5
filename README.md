@@ -4,7 +4,7 @@
 
 Driver for Advanced Card Systems (ACS)  ACOS5 Smart Card V2.00 (CryptoMate64) and V3.00 (CryptoMate Nano),  
 as external modules operating within the OpenSC framework.  
-The new ACOS5-EVO (ACOS5 V4.00, V4.10, V4.20?): I don't have that, hence untested/unknown what works or doesn't, when serving that card. Therefore, as matching EVO cards got activated, please file any issues/problems.  
+The new ACOS5-EVO (ACOS5 V4.00, V4.10, V4.20?): I don't yet have that, hence untested/unknown what works or doesn't, when serving that card. Therefore, as matching EVO cards got activated, please file any issues/problems.  
 The respective reference manual for Your hardware is available on request from: info@acs.com.hk
 
 Platforns supported: Those that the Rust compiler targets: [rustc platform-support](https://doc.rust-lang.org/nightly/rustc/platform-support.html "https://doc.rust-lang.org/nightly/rustc/platform-support.html").  
@@ -26,7 +26,7 @@ External modules need some configuration once in opensc.conf, such that they get
 Prerequisite installations  
 Mandatory:  
 - Rust compiler rustc and cargo build manager (it's bundled) from [Rust, cargo](https://www.rust-lang.org/tools/install "https://www.rust-lang.org/tools/install")  
-- OpenSC  (requires OpenSSL, the driver will use that as well; *nix OS: requires libpcsclite1)  
+- OpenSC  (requires OpenSSL, the driver will use that as well; *nix OS: requires pcscd and libpcsclite1 and libccid)  
 - [Libtasn1](https://www.gnu.org/software/libtasn1/ "https://www.gnu.org/software/libtasn1/") only for non-Windows (*nix) OS  
 
 Recommended:  
@@ -34,7 +34,7 @@ Recommended:
 ```
 sudo apt-get update
 sudo apt-get upgrade
-sudo apt-get install opensc opensc-pkcs11 libtasn1-6-dev pcsc-tools
+sudo apt-get install opensc opensc-pkcs11 openssl pcscd libtasn1-6-dev pcsc-tools
 ```
 If that doesn't install a symbolic link libopensc.so, then this must be done manually
 
@@ -53,7 +53,7 @@ In the following I won't make any distinction anymore and call both 'the driver'
 This repo also builds a library from the included opensc-sys binding for internal use. It's the basic building block for the driver components such that they are able to call into the libopensc library.  
 The minimal OpenSC version supported is 0.17.0  
 
-All these builds will be tied to the OpenSC version installed, so that installation must be done first. Then, for all 3 builds there are files build.rs which get processed prior to the remaining build and control how that will be done (conditional comilation, see [conditional_compile_options](https://github.com/carblue/acos5/tree/master/conditional_compile_options.md "https://github.com/carblue/acos5/tree/master/conditional_compile_options.md")). The first one will detect the OpenSC version installed, adapt the opensc_sys binding to that version and pass the version info to the other builds.
+All these builds will be tied to the OpenSC version installed, so that installation must be done first. Then, for all 3 builds there are files build.rs which get processed prior to the remaining build and control how that will be done (conditional compilation, see [conditional_compile_options](https://github.com/carblue/acos5/tree/master/conditional_compile_options.md "https://github.com/carblue/acos5/tree/master/conditional_compile_options.md")). The first one will detect the OpenSC version installed, adapt the opensc_sys binding to that version and pass the version info to the other builds.
 Upon loading external modules, OpenSC will check, that driver's version matches the one of the installed OpenSC version, rejecting the external modules in case of mismatch.  
 OpenSC also has the implication: If Your card got initialized by an ACS tool and is not [PKCS#15](https://stackoverflow.com/questions/33792095/what-does-it-mean-for-a-smart-card-to-be-pkcs15-compatible "https://stackoverflow.com/questions/33792095/what-does-it-mean-for-a-smart-card-to-be-pkcs15-compatible") compliant (this is true for all that I've run into), then it won't work (well) with OpenSC and likely requires card's re-initialization, see [card_initialization README](https://github.com/carblue/acos5/tree/master/info/card_initialization "https://github.com/carblue/acos5/tree/master/info/card_initialization"))  
 
@@ -95,7 +95,8 @@ Thus a sanity-check without any errors found should prevent the driver from beco
    `opensc-tool --serial`
 4. In case build errors or other errors occur:
    You have a copy of the opensc-sys binding on Your system in directory opensc-sys.  
-   If there are build errors, then go to that folder and issue `cargo test test_struct_sizeof -- --nocapture`. Likely that fails then, and an error reason is found by asking why didn't that find the library libopensc.so or does the version reported differ, or ?, or as the worst case:  
+   If there are build errors, then go to that folder and issue `cargo test test_struct_sizeof -- --nocapture  
+   Likely that fails then, and an error reason is found by asking why didn't that find the library libopensc.so or does the version reported differ, or ?, or as the worst case:  
    OpenSC was built with different settings/switches than the binding requires/assumes.  
    Other errors occur: Likely the opensc.conf file is incorrect.  
    Otherwise file an issue.
@@ -253,9 +254,9 @@ ssh -T -I/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so git@github.com
 ```
 Hi your_github_user_name! You've successfully authenticated, but GitHub does not provide shell access.
 
-If You like to push to github with Your github_key: [changing-a-remotes-url](https://docs.github.com/en/free-pro-team@latest/github/using-git/changing-a-remotes-url "https://docs.github.com/en/free-pro-team@latest/github/using-git/changing-a-remotes-url")
+If You like to push from current local git repo  to github via being authenticated by Your github_key: [changing-a-remotes-url](https://docs.github.com/en/free-pro-team@latest/github/using-git/changing-a-remotes-url "https://docs.github.com/en/free-pro-team@latest/github/using-git/changing-a-remotes-url")
 
 Recommended info:  
 [Linux and smart cards for PKI - Overview](http://cedric.dufour.name/blah/IT/SmartCardsOverview.html "http://cedric.dufour.name/blah/IT/SmartCardsOverview.html")  
 [Linux and smart cards (OpenSC) - How-to](http://cedric.dufour.name/blah/IT/SmartCardsHowto.html "http://cedric.dufour.name/blah/IT/SmartCardsHowto.html")  
-[OpenSSL Certificate Authority](https://jamielinux.com/docs/openssl-certificate-authority/ "https://jamielinux.com/docs/openssl-certificate-authority/") with adaptions from ...
+[OpenSSL Certificate Authority](https://jamielinux.com/docs/openssl-certificate-authority/ "https://jamielinux.com/docs/openssl-certificate-authority/") with adaptions from info/howto/HOWTO_Create_Your_own_CA_root_hierarchy_on_Linux

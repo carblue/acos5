@@ -8,7 +8,7 @@ If OpenSC doesn't support a function (CKR_FUNCTION_NOT_SUPPORTED), then there us
 libopensc's sc_card_ctl function. Look at src/constants_types.rs and import that: SC_CARDCTL_ACOS5* are the command encodings for functionality accessible from the driver directly (it's extensively used by acos5_gui).
 Some of the following functions require acos5_pkcs15 to be installed and configured in opensc.conf in order to be operational.
 
-It's not detailed here, that some support may be only partial: E.g. C_Decrypt is supported by OpenSC only referring to RSA
+It's not detailed here, that some support may be only partial: E.g. C_Decrypt is supported by OpenSC only referring to asym. key algorithms RSA and ECC
 
 ------------------------------------------------------------------------------------------
 user@host:~$ nm -D /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so
@@ -72,7 +72,7 @@ C_SignInit                   OKAY, tested via  ssh -T git@github.com
 C_SignRecover                OpenSC: CKR_FUNCTION_NOT_SUPPORTED
 C_SignRecoverInit            OpenSC: CKR_FUNCTION_NOT_SUPPORTED
 C_SignUpdate                           SC_ERROR_NO_CARD_SUPPORT; No support from hardware
-C_UnwrapKey                  OKAY for RSA_wrapped_AES_key, tested with 
+C_UnwrapKey                  temporarily deactivated/not supported by driver (?? OKAY for RSA_wrapped_AES_key, tested with ) need to in-depth invesitigate the OpenSC framwork unwrap operation: doesn't seem to be optimal/suitable? for ACOS5, which doen't support session object
 C_Verify                     OpenSC: will call OpenSSL but no card function
 C_VerifyFinal                OpenSC: will call OpenSSL but no card function; No support from hardware
 C_VerifyInit                 OpenSC: will call OpenSSL but no card function

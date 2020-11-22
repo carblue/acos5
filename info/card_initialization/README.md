@@ -33,7 +33,7 @@ keyset_41434F53504B43532D313576312E3030_02_* MUST MATCH. Any mistake with that e
 
 Note, that current card_initialization.scriptor *DOES NOT* force anything to happen protected by SM, though there are
 records #5 and #6 in file 0x3F0041004103 that may be used for SM inside PKCS#15 Application DF 0x3F004100.
-I recommend to use SM gradually and get used to it, e.g. by removing comment characters from lines 183-186 in
+I recommend to use SM gradually and get used to it, e.g. by removing comment characters from lines 191-194 in
 card_initialization.scriptor.
 This will then create a test file sized 16 bytes, that i.a. forces read_binary to use SM as specified in record #6,
 i.e. transmit response encrypted, the driver will then decrypt and e.g. opensc-tool -f will display that plain text.
@@ -81,10 +81,13 @@ ssh -T -I /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so git@github.com
 Response on success: Hi your_github_name! You've successfully authenticated, but GitHub does not provide shell access.
 ```
 
-Add new content, e.g. sym. key (either with tool acos5_gui or the following command).Invoke<br>
-TODO not yet ready
+Add new content, e.g. sym. key (either with tool acos5_gui or the following command).  
+With a hex editor, craft a file e.g. aes_key_256.hex with exactly as many key bytes as required for the specified key
+type (32 bytes in this example). Invoke e.g.<br>
+$ pkcs15-init --store-secret-key aes_key_256.hex --secret-key-algorithm aes/256  --auth-id 01 --id 02 --verify-pin
 
-Import a certificate for Your RSA key pair (not yet tested how to do that)
+Import a certificate for Your RSA key pair (not yet tested)  
+$ pkcs15-init --store-certificate some.cert.pem --auth-id ?? --id ?? --format pem --pin ??
 
 
 Foresight

@@ -262,7 +262,7 @@ mod   test_v2_v3;
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     if cfg!(v0_17_0) || cfg!(v0_18_0) || cfg!(v0_19_0) || cfg!(v0_20_0) { unsafe { sc_get_version() } }
-    else if cfg!(v0_21_0)  { unsafe { sc_get_version() } } // experimental only:  Latest github commit covered: c4a75eb  0.21.0-rc2
+    else if cfg!(v0_21_0)  { unsafe { sc_get_version() } } // experimental only:  Latest OpenSC github commit covered: 0e55a34
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -1071,8 +1071,14 @@ println!("sc_update_binary: rv: {}", rv);
             }
         }
     }
+    cfg_if::cfg_if! {
+        if #[cfg(finish_verbose)] {
+            println!("EEPROM remaining free memory space: ~ {} of {}, in kB", get_free_space(card).unwrap()/1000_u32,
+                if card.type_> SC_CARD_TYPE_ACOS5_64_V3 {192} else {64});
 //println!("Hashmap: {:02X?}", dp.files);
-//    there may be other Boxes that might need to be taken over again
+        }
+    }
+
     drop(dp);
     card.drv_data = null_mut();
     SC_SUCCESS

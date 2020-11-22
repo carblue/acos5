@@ -53,6 +53,7 @@ An option is active when it's not in a comment. Comments are lines that start wi
 and a closing */
 
 The build.rs files get processed before any other source code, and depending on the cfg=   content, some source code lines may be compiled into the driver or be excluded from the driver.
+Rust allows to use the conditional_compile_option with operators not (negation), any ((inclusive) disjunction, also known as alternation) and all (conjunction).   
 E.g. the  cfg= version information has i.a. direct influence on the functions `sc_driver_version`.
 
 In acos5/build.rs, there is currently only one other setting active:<br>
@@ -79,11 +80,15 @@ The homepage of IUP is https://webserver2.tecgraf.puc-rio.br/iup/
 3. Even with the above completed, there is another stopping point in opensc.conf: change to user_consent_enabled = yes; to enable that feature.
 
 
-The last option is centered around the question: When an operation get's executed in Secure Messaging mode, do You want to be sure to be connected with a specific hardware smart card/usb crypto token?
+Another option is centered around the question: When an operation get's executed in Secure Messaging mode, do You want to be sure to be connected with a specific hardware smart card/usb crypto token?
 If yes, then edit opensc.conf and fill in the hardware's serial number into ifd_serial, 8 bytes, hexadecimal notation, each byte separated by a colon. For ACOS5 V2.00 with a 6 byte serial number, add 2 zero bytes
 and activate line:
 //println!("cargo:rustc-cfg=ifd_serial_constrained_for_sm");
 Obviously this makes sense only, if You have no more than 1 ACOS5 token with SM enabled.
+
+//println!("cargo:rustc-cfg=sym_hw_encrypt"); // experimental only: May be enabled **only** with OpenSC compiled and installed from my branch https://github.com/carblue/OpenSC-1/tree/sym_hw_encrypt ; that is current OpenSC github master 0e55a34 + on top my patches
+//println!("cargo:rustc-cfg=rsa_key_gen_verbose"); // enable to print to console some info while generating RSA key pair (see function acos5_pkcs15/src/lib.rs: acos5_pkcs15_create_key)
+//println!("cargo:rustc-cfg=finish_verbose"); // enable to print to console some info short before finishing driver process (see function acos5_finish)
 
 The last option
 //println!("cargo:rustc-cfg=dev_relax_signature_constraints_for_raw");

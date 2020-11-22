@@ -522,9 +522,9 @@ mod tests {
                 assert_eq!(ski,  408);
                 assert_eq!(sai,   88);
             }
-            else  if cfg!(v0_21_0) { // experimental only: it's git-master, Latest commit 57a391f, defined as version 0.21.0
+            else  if cfg!(v0_21_0) { // experimental only: it's git-master, Latest commit 0e55a34, defined as version 0.21.0
                 // testing v0_21_0 verified with Windows 10:    ?
-                // testing v0_21_0 verified with Kubuntu 18.04: yes, ok for latest commit  0b40d3b
+                // testing v0_21_0 verified with Kubuntu 18.04: yes, ok for latest commit  0e55a34
 // WARNING watch out for everything that depends on SC_MAX_SUPPORTED_ALGORITHMS, increased from 8 -> 16  sse,
 // sc_pin_cmd_data pcd with new int field
 // sc_pin_cmd_pin  pcp with some fields removed

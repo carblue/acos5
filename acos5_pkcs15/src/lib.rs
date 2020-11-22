@@ -164,7 +164,7 @@ const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     if cfg!(v0_17_0) || cfg!(v0_18_0) || cfg!(v0_19_0) || cfg!(v0_20_0) { unsafe { sc_get_version() } }
-    else if cfg!(v0_21_0)  { unsafe { sc_get_version() } } // experimental only:  Latest github commit covered: c4a75eb  0.21.0-rc2
+    else if cfg!(v0_21_0)  { unsafe { sc_get_version() } } // experimental only:  Latest OpenSC github commit covered: 0e55a34
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -625,7 +625,8 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
             b"### The maximum of 48 RSA key pairs is exceeded. First delete one for a free file id slot ###\0"), rv);
         return rv;
     }
-    println!("This file id will be chosen for the private RSA key:  {:X}", fid_priv_possible_min);
+    #[cfg(rsa_key_gen_verbose)]
+    { println!("This file id will be chosen for the private RSA key:  {:X}", fid_priv_possible_min); }
     /* The final values for path and fid_priv */
     file_priv.path.value[file_priv.path.len-1] = u8::try_from(fid_priv_possible_min & 0x00FF).unwrap();
     file_priv.id = i32::from(u16::from_be_bytes([file_priv.path.value[file_priv.path.len-2],
@@ -655,7 +656,8 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     file_pub.size = 21 + keybits/8;
     file_pub.path.value[file_pub.path.len-1] += 0x30;
     file_pub.id                              += 0x30;
-    println!("This file id will be chosen for the public  RSA key:  {:X}", file_pub.id);
+    #[cfg(rsa_key_gen_verbose)]
+    { println!("This file id will be chosen for the public  RSA key:  {:X}", file_pub.id); }
     if app_name == cstru!(b"acos5_gui \0") {
         let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
         dp.agi.file_id_priv = u16::try_from(file_priv.id).unwrap();
