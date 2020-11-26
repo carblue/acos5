@@ -5,58 +5,58 @@
 # Lines beginning with # are comments and don't get processed as APDU commands; spaces between bytes (all in hexadecimal representation) get ignored, they are used here only for better readability
 
 # This script will set these new PIN bytes (change them after card initialization is done, OR NOW !!!):
-# new SO_PIN:   38 37 36 35 34 33 32 31 (which reads in ascii as character string: 87654321)  SO_PUK is the same as SO_PIN,     SO_PIN/SO_PUK set at first/second appearance in line 66
-# new USER_PIN: 31 32 33 34 35 36 37 38 (which reads in ascii as character string: 12345678)  USER_PUK is the same as USER_PIN, USER_PIN/USER_PUK set at first/second appearance in line 91
+# new SO_PIN:   38 37 36 35 34 33 32 31 (which reads in ascii as character string: 87654321)  SO_PUK set to same value as SO_PIN,     SO_PIN/SO_PUK set at first/second appearance in line 66
+# new USER_PIN: 31 32 33 34 35 36 37 38 (which reads in ascii as character string: 12345678)  USER_PUK set to same value as USER_PIN, USER_PIN/USER_PUK set at first/second appearance in line 91
 
 # This script will set 2 3DES/192 keys for Secure Messaging (the last 24 non-zero bytes in lines 97,98) (PREFERABLY CHANGE THEM NOW AND DO THE SAME IN opensc.conf for keyset...02...):
-# Check for all of the 24 key bytes that they have odd parity == count of 1 in binary coded representation is NOT even
+# Check for all of the 24 key bytes that they have odd parity == count of 1 in binary coded representation is NOT even, e.g. byte 0xBD=0b10111101 is disallowed, must be changed to 0xBC=0b10111100
 # line 97: this is the host/terminal key Kt for external authentication with an unlimited error counter
 # line 98: this is the card          key Kc for internal authentication with an unlimited usage counter
 #   Done for EVO: Symmetric Key file  create with MRL=0x26==38 (32 byte AES key allowed for int. + ext. auth)
 #   TODO for EVO: EF.TokenInfo file supportedAlgorithms.algRef bytes for AES are different than those for V2.00/V3.00: will need manual user selection; also CKM_AES_CBC_PAD (0x1085) needs to be removed, it's not supported by ACOS5
-# If You don't have read the reference manual, then I propose to not change anything in this scrpt other than I ask You to, otherwise a single wrong charakter can break this script's succcessful running.
+# If You don't have read the reference manual, then I propose to not change anything in this script other than I ask You to, otherwise a single wrong character may break this script's succcessful running to it's end.
 
 reset
-## Verify SO_PIN
+## Verify SO_PIN, the Security Officer's (SO) PIN, also called admin PIN, which is stored in file 0x3F000001     Global PIN file
 00 20 00 01 08 38 37 36 35 34 33 32 31
 ## Erase everything from card
 80 30 00 00 00
 80 30 00 00 00
 ## Possibly set Operation mode byte; depends on card type V2.00 or V3.00
-## If it's an ACOS5-64 V2.00 (Smart card or CryptoMate64) the next sets 64K mode:
+## If it's an ACOS5-64 V2.00 (Smart card or CryptoMate64) the next line's command sets 64K mode:
 #00 D6 C1 91 01 00
-## If it's an ACOS5-64 V3.00 (Smart card or CryptoNano) the next sets 64K mode:
+## If it's an ACOS5-64 V3.00 (Smart card or CryptoMate Nano) the next line's command sets 64K mode (recommended for V3.00 !):
 #00 D6 C1 91 01 02
-## If it's an ACOS5-64 V3.00 (Smart card or CryptoNano) the next sets FIPS 140-2 Level 3-Compliant mode:
+## If it's an ACOS5-64 V3.00 (Smart card or CryptoMate Nano) the next line's command sets FIPS 140-2 Level 3-Compliant mode:
 #00 D6 C1 91 01 00
 
 # file 0x3F00         MF
 # file 0x3F000001     Global PIN file
 # file 0x3F000002     Global Symmetric Key file          -> will be omitted
 # file 0x3F000003     Global Security Environment file
-# file 0x3F002F00     PKCS#15 EF.DIR file
+# file 0x3F002F00     PKCS#15 EF.DIR
 # file 0x3F004100     PKCS#15 Application DF
 # file 0x3F0041004101 Local PIN file
 # file 0x3F0041004102 Local Symmetric Key file
 # file 0x3F0041004103 Local Security Environment file
-# file 0x3F0041004110 PKCS#15 EF.PrKDF file
-# file 0x3F0041004111 PKCS#15 EF.PuKDF file
-# file 0x3F0041004112 PKCS#15 EF.PuKDF_TRUSTED file
-# file 0x3F0041004113 PKCS#15 EF.SKDF file
-# file 0x3F0041004114 PKCS#15 EF.CDF file
-# file 0x3F0041004115 PKCS#15 EF.CDF_TRUSTED file
-# file 0x3F0041004116 PKCS#15 EF.CDF_USEFUL file
-# file 0x3F0041004117 PKCS#15 EF.DODF file
-# file 0x3F0041004118 PKCS#15 EF.AODF file
-# file 0x3F0041005031 PKCS#15 EF.ODF file
-# file 0x3F0041005032 PKCS#15 EF.TokenInfo file
-# file 0x3F0041005033 PKCS#15 EF.Unused file             -> will be omitted
-# file 0x3F0041004129 File to retain compatibility with ACS tool/driver
-# file 0x3F0041005155 File to retain compatibility with ACS tool/driver
+# file 0x3F0041004110 PKCS#15 EF.PrKDF
+# file 0x3F0041004111 PKCS#15 EF.PuKDF
+# file 0x3F0041004112 PKCS#15 EF.PuKDF_TRUSTED
+# file 0x3F0041004113 PKCS#15 EF.SKDF
+# file 0x3F0041004114 PKCS#15 EF.CDF
+# file 0x3F0041004115 PKCS#15 EF.CDF_TRUSTED
+# file 0x3F0041004116 PKCS#15 EF.CDF_USEFUL
+# file 0x3F0041004117 PKCS#15 EF.DODF
+# file 0x3F0041004118 PKCS#15 EF.AODF
+# file 0x3F0041005031 PKCS#15 EF.ODF
+# file 0x3F0041005032 PKCS#15 EF.TokenInfo
+# file 0x3F0041005033 PKCS#15 EF.Unused                  -> will be omitted
+# file 0x3F0041004129 File to retain compatibility with ACS tool/PKCS#11 dll
+# file 0x3F0041005155 File to retain compatibility with ACS tool/PKCS#11 dll
 # file 0x3F0041004104 test file for SM                   -> will be omitted if not manually changed
-# file space from 0x3F00410041A0 to 0x3F00410041FF is reserved for driver placing max. 48 new RSA key pairs there !
+# file space from 0x3F0041005000 to 0x3F0041005FFF is reserved for - besides EF.ODF, EF.TokenInfo, EF.Unused - driver placing max. 2046 new RSA/ECC key pairs there ! (theoretically: the actual limit is the minimum of 2046/what free/user-available EEPROM memory allows)
 
-## File creation followed by population and activation
+## File creation (instruction byte 0xE0), followed by selection (ins 0xA4), population (ins 0xDC or 0xD6) and activation (ins 0x44)
 ## file 0x3F00         MF
 00 E0 00 00 1B 62 19 83 02 3F 00 8A 01 01 82 02 3F 00 8D 02 00 03 8C 08 7F 01 FF 01 01 01 01 01
 
@@ -121,14 +121,17 @@ reset
 ## file 0x3F0041004110 PKCS#15 EF.PrKDF file
 00 E0 00 00 1B 62 19 83 02 41 10 8A 01 05 82 02 01 00 80 02 03 00 8C 08 7F 00 FF 00 03 FF 00 00
 00 A4 00 00 02 41 10
+00 44 00 00 02 41 10
 
 ## file 0x3F0041004111 PKCS#15 EF.PuKDF file
 00 E0 00 00 1B 62 19 83 02 41 11 8A 01 05 82 02 01 00 80 02 03 00 8C 08 7F 00 FF 00 03 FF 00 00
 00 A4 00 00 02 41 11
+00 44 00 00 02 41 11
 
-## file 0x3F0041004112 PKCS#15 EF.PuKDF_TRUSTED file
-#00 E0 00 00 1B 62 19 83 02 41 12 8A 01 05 82 02 01 00 80 02 01 00 8C 08 7F 00 FF 00 03 FF 00 00
-#00 A4 00 00 02 41 12
+## file 0x3F0041004112 PKCS#15 EF.PuKDF_TRUSTED file      -> may be omitted: currently unsupported by OpenSC (see also  src/libopensc/pkcs15.c: sc_pkcs15_parse_df)
+00 E0 00 00 1B 62 19 83 02 41 12 8A 01 05 82 02 01 00 80 02 01 00 8C 08 7F 00 FF 00 03 FF 00 00
+00 A4 00 00 02 41 12
+00 44 00 00 02 41 12
 
 ## file 0x3F0041004113 PKCS#15 EF.SKDF file
 00 E0 00 00 1B 62 19 83 02 41 13 8A 01 01 82 02 01 00 80 02 02 00 8C 08 7F 00 FF 00 03 FF 00 00
@@ -139,18 +142,22 @@ reset
 ## file 0x3F0041004114 PKCS#15 EF.CDF file
 00 E0 00 00 1B 62 19 83 02 41 14 8A 01 05 82 02 01 00 80 02 01 00 8C 08 7F 00 FF 00 03 FF 00 00
 00 A4 00 00 02 41 14
+00 44 00 00 02 41 14
 
 ## file 0x3F0041004115 PKCS#15 EF.CDF_TRUSTED file
 00 E0 00 00 1B 62 19 83 02 41 15 8A 01 05 82 02 01 00 80 02 01 00 8C 08 7F 00 FF 00 03 FF 00 00
 00 A4 00 00 02 41 15
+00 44 00 00 02 41 15
 
 ## file 0x3F0041004116 PKCS#15 EF.CDF_USEFUL file
 00 E0 00 00 1B 62 19 83 02 41 16 8A 01 05 82 02 01 00 80 02 01 00 8C 08 7F 00 FF 00 03 FF 00 00
 00 A4 00 00 02 41 16
+00 44 00 00 02 41 16
 
 ## file 0x3F0041004117 PKCS#15 EF.DODF file
 00 E0 00 00 1B 62 19 83 02 41 17 8A 01 05 82 02 01 00 80 02 01 00 8C 08 7F 00 FF 00 03 FF 00 00
 00 A4 00 00 02 41 17
+00 44 00 00 02 41 17
 
 ## file 0x3F0041004118 PKCS#15 EF.AODF file
 00 E0 00 00 1B 62 19 83 02 41 18 8A 01 01 82 02 01 00 80 02 01 00 8C 08 7F 00 FF 00 03 FF 00 00
@@ -199,3 +206,7 @@ reset
 
 00 A4 00 00 02 3F 00
 00 44 00 00 02 3F 00
+
+# get free space in bytes i.e. remaining free EEPROM capacity from initially 64,000 minus used by files acc. commands above:
+80 14 04 00 02
+# the response may be something like DA C0 90 00: first 2 bytes (are hexadecimal repr.) 0xDAC0 == 56,000 byte; last 2 bytes are just the status word of response, and 0x9000 means: okay, no error occured

@@ -71,8 +71,8 @@ Message in debug_file: successfully loaded pkcs15init driver 'acos5-external'
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::if_not_else))]
 
-extern crate libc;
-extern crate opensc_sys;
+//extern crate libc;
+//extern crate opensc_sys;
 //extern crate pkcs11;
 //extern crate libloading as lib;
 
@@ -93,7 +93,7 @@ use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_select_file, sc_card_ctl, S
 use opensc_sys::profile::{sc_profile};
 use opensc_sys::pkcs15::{sc_pkcs15_card, sc_pkcs15_object, sc_pkcs15_prkey, sc_pkcs15_pubkey, sc_pkcs15_skey_info,
                          SC_PKCS15_TYPE_SKEY_DES/*, SC_PKCS15_TYPE_SKEY_2DES*/, SC_PKCS15_TYPE_SKEY_3DES, SC_PKCS15_TYPE_SKEY_GENERIC,
-                         sc_pkcs15_prkey_info, sc_pkcs15_pubkey_info, //sc_pkcs15_prkey_rsa,
+                         sc_pkcs15_prkey_info, sc_pkcs15_pubkey_info, SC_PKCS15_TYPE_PRKEY_EC, //sc_pkcs15_prkey_rsa,
                          SC_PKCS15_TYPE_PRKEY_RSA, SC_PKCS15_TYPE_PUBKEY_RSA, sc_pkcs15_auth_info, //sc_pkcs15_id,
                          SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_SKDF, SC_PKCS15_CDF, SC_PKCS15_CDF_TRUSTED,
                          SC_PKCS15_DODF, sc_pkcs15_read_pubkey, sc_pkcs15_free_pubkey, sc_pkcs15_der,
@@ -120,21 +120,28 @@ use opensc_sys::log::{/*sc_do_log, SC_LOG_DEBUG_NORMAL,*/ sc_dump_hex};
 #[macro_use]
 pub mod    macros;
 
-pub mod    missing_exports; // this is NOT the same as in acos5
-use crate::missing_exports::{me_profile_get_file, me_pkcs15_dup_bignum};
-
 pub mod    constants_types; // shared file among modules acos5, acos5_pkcs15 and acos5_sm
 use crate::constants_types::{CARD_DRV_SHORT_NAME, CardCtl_generate_crypt_asym, DataPrivate, SC_CARDCTL_ACOS5_SDO_CREATE,
                              SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, SC_CARD_TYPE_ACOS5_64_V3, build_apdu, p_void,
-                             SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile};
+                             SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile, file_id_from_path_value};
+
+pub mod    missing_exports; // this is NOT the same as in acos5
+use crate::missing_exports::{me_profile_get_file, me_pkcs15_dup_bignum};
+
+pub mod    no_cdecl; // this is NOT the same as in acos5
+use crate::no_cdecl::{rsa_modulus_bits_canonical, first_of_free_indices, construct_sym_key_entry, free_fid_asym,
+                      check_enlarge_prkdf_pukdf
+}; /*call_dynamic_update_hashmap, call_dynamic_sm_test,*/
+
+cfg_if::cfg_if! {
+    if #[cfg(not(target_os = "windows"))] {
+        mod tasn1_pkcs15_util;
+        mod tasn1_sys;
+    }
+}
 
 pub mod    wrappers; // shared file among modules acos5, acos5_pkcs15 and acos5_sm
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tu};
-
-pub mod    no_cdecl; // this is NOT the same as in acos5
-use crate::no_cdecl::{rsa_modulus_bits_canonical, first_of_free_indices, construct_sym_key_entry}; /*call_dynamic_update_hashmap, call_dynamic_sm_test,*/
-
-mod tasn1_sys;
 
 
 const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
@@ -147,24 +154,24 @@ const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 ///
 /// Its essential, that this doesn't merely echo, what a call to `sc_get_version` reports:
 /// Its my/developers statement, that the support as reported by sc_driver_version got checked !
-/// Thus, if e.g. a new OpenSC version 0.21.0 got released and if I didn't reflect that in sc_driver_version,
+/// Thus, if e.g. a new OpenSC version 0.22.0 got released and if I didn't reflect that in sc_driver_version,
 /// (updating opensc-sys binding and code of acos5 and acos5_pkcs15),
 /// then the driver won't accidentally malfunction for a not yet supported OpenSC environment/version !
 ///
 /// The support of not yet released OpenSC code (i.e. github/master) is somewhat experimental:
 /// Its accuracy depends on how closely the opensc-sys binding and driver code has covered the possible
-/// differences in API and behavior (its build.rs mention the last OpenSC commit covered).
+/// differences in API and behavior (this function mentions the last OpenSC commit covered).
 /// master will be handled as an imaginary new version release:
-/// E.g. while currently the latest release is 0.20.0, build OpenSC from source such that it reports imaginary
-/// version 0.21.0 (change config.h after ./configure and before make)
-/// In this example, cfg!(v0_21_0) will then match that
+/// E.g. while currently the latest release is 0.21.0, build OpenSC from source such that it reports imaginary
+/// version 0.22.0 (change config.h after ./configure and before make)
+/// In this example, cfg!(v0_22_0) will then match that
 ///
 /// @return   The OpenSC release/imaginary version, that this driver implementation supports
 #[allow(clippy::same_functions_in_if_condition)]
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
-    if cfg!(v0_17_0) || cfg!(v0_18_0) || cfg!(v0_19_0) || cfg!(v0_20_0) { unsafe { sc_get_version() } }
-    else if cfg!(v0_21_0)  { unsafe { sc_get_version() } } // experimental only:  Latest OpenSC github commit covered: 0e55a34
+    if cfg!(v0_17_0) || cfg!(v0_18_0) || cfg!(v0_19_0) || cfg!(v0_20_0) || cfg!(v0_21_0) { unsafe { sc_get_version() } }
+//    else if cfg!(v0_22_0)  { unsafe { sc_get_version() } } // experimental only:  Latest OpenSC github commit covered: 85e08ae
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -410,21 +417,23 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         return SC_SUCCESS;
     }
 
+
+    let (ax, ay) = match free_fid_asym(p15card) {
+        Ok((ax, ay)) => (ax, ay),
+        Err(e) => return e,
+    };
     let key_info = unsafe { &mut *(object.data as *mut sc_pkcs15_prkey_info) };
-    if SC_PKCS15_TYPE_PRKEY_RSA != object.type_ || (key_info.usage & (SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT)) == 0 {
-        log3if!(ctx,f,line!(), cstru!(b"Failed: Only RSA is supported\0"));
+    if ![SC_PKCS15_TYPE_PRKEY_RSA, SC_PKCS15_TYPE_PRKEY_EC].contains(&object.type_) ||
+        (key_info.usage & (SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT)) == 0 {
+        log3if!(ctx,f,line!(), cstru!(b"Failed: Only RSA and ECC is supported\0"));
         return SC_ERROR_NOT_SUPPORTED;
     }
-    key_info.access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE |
-                            SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE |
-                            SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE |
-                            SC_PKCS15_PRKEY_ACCESS_LOCAL;
-
     key_info.modulus_length = rsa_modulus_bits_canonical(key_info.modulus_length);
+
     let keybits = key_info.modulus_length;
     if keybits < 512 || keybits > 4096 || (keybits % 256) > 0 {
         rv = SC_ERROR_INVALID_ARGUMENTS;
-        log3ifr!(ctx,f,line!(), cstru!(b"Invalid RSA key size\0"), rv);
+        log3ifr!(ctx,f,line!(), cstru!(b"Invalid RSA modulus size requested\0"), rv);
         return rv;
     }
     /* Check that the card supports the requested modulus length */
@@ -434,6 +443,32 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         return rv;
     }
     /* TODO Think about other checks or possibly refuse to generate keys if file access rights are wrong */
+/* */
+    /* enlarge EF.PrKDF, EF.PuKDF, if required AND check for enough memory available */
+    #[cfg(not(target_os = "windows"))]
+    {
+    cfg_if::cfg_if! {
+        if #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))] {
+            if object.session_object == 0 {
+                match check_enlarge_prkdf_pukdf(profile, p15card, key_info) {
+                    Ok(_val) => (),
+                    Err(e) => return e,
+                }
+            }
+        }
+        else {
+            match check_enlarge_prkdf_pukdf(profile, p15card, key_info) {
+                Ok(_val) => (),
+                Err(e) => return e,
+            }
+        }
+    }
+    }
+/* */
+    key_info.access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE |
+                            SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE |
+                            SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE |
+                            SC_PKCS15_PRKEY_ACCESS_LOCAL;
 
 /* * /
     if !profile.name.is_null() {
@@ -626,12 +661,11 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         return rv;
     }
     #[cfg(rsa_key_gen_verbose)]
-    { println!("This file id will be chosen for the private RSA key:  {:X}", fid_priv_possible_min); }
+    { println!("This file id will be chosen for the private RSA key:  {:X}", ax); }
     /* The final values for path and fid_priv */
-    file_priv.path.value[file_priv.path.len-1] = u8::try_from(fid_priv_possible_min & 0x00FF).unwrap();
-    file_priv.id = i32::from(u16::from_be_bytes([file_priv.path.value[file_priv.path.len-2],
-                                                 file_priv.path.value[file_priv.path.len-1]]));
-
+    // file_priv.path.value[file_priv.path.len-1] = u8::try_from(fid_priv_possible_min & 0x00FF).unwrap();
+    file_priv.path.value[file_priv.path.len-2..file_priv.path.len].copy_from_slice(&ax.to_be_bytes());
+    file_priv.id = i32::from(file_id_from_path_value(&file_priv.path.value[..file_priv.path.len]));
     log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
         unsafe { sc_dump_hex(file_priv.path.value.as_ptr(), file_priv.path.len) });
     log3if!(ctx,f,line!(), cstru!(b"file_priv.id: %X\0"), file_priv.id);
@@ -654,8 +688,9 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     }
     let mut file_pub = unsafe { &mut *file_pub };
     file_pub.size = 21 + keybits/8;
-    file_pub.path.value[file_pub.path.len-1] += 0x30;
-    file_pub.id                              += 0x30;
+    // file_pub.path.value[file_pub.path.len-1] += 0x30;
+    file_pub.path.value[file_pub.path.len-2..file_pub.path.len].copy_from_slice(&ay.to_be_bytes());
+    file_pub.id = i32::from(file_id_from_path_value(&file_pub.path.value[..file_pub.path.len]));
     #[cfg(rsa_key_gen_verbose)]
     { println!("This file id will be chosen for the public  RSA key:  {:X}", file_pub.id); }
     if app_name == cstru!(b"acos5_gui \0") {

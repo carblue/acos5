@@ -6,7 +6,7 @@ use std::os::raw::{c_char};
 use opensc_sys::opensc::{sc_file_dup};
 use opensc_sys::profile::{sc_profile, file_info};
 use opensc_sys::types::{sc_path, sc_file/*, SC_AC_OP_CREATE_EF, SC_PATH_TYPE_FILE_ID, SC_AC_OP_DELETE*/};
-use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_FILE_NOT_FOUND, SC_ERROR_OUT_OF_MEMORY, SC_ERROR_INVALID_ARGUMENTS};
+use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_FILE_NOT_FOUND, SC_ERROR_OUT_OF_MEMORY, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_PKCS15INIT};
 use opensc_sys::pkcs15::{sc_pkcs15_bignum, sc_pkcs15_card, sc_pkcs15_df};
 //use opensc_sys::log::{sc_dump_hex};
 
@@ -112,7 +112,7 @@ pub fn find_df_by_type(p15card: &mut sc_pkcs15_card, type_: u8) -> Result<&mut s
             df = (*df).next;
         }
         if df.is_null() {
-            Err(-1)
+            Err(SC_ERROR_PKCS15INIT)
         }
         else {
             Ok(&mut *df)

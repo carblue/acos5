@@ -88,8 +88,9 @@ use opensc_sys::errors::{SC_SUCCESS};
 use opensc_sys::asn1::{sc_asn1_read_tag, SC_ASN1_TAG_EOC};
 
 use crate::constants_types::{DataPrivate, FDB_RSA_KEY_EF, FDB_SE_FILE, FDB_SYMMETRIC_KEY_EF, SACinfo, SAEinfo, TLV,
-                             is_DFMF, FDB_ECC_KEY_EF, UPDATE, CRYPTO, DELETE_SELF, CREATE_EF, CREATE_DF/*, p_void*/};
-use crate::path::{current_path_df, file_id_from_path_value};
+                             is_DFMF, FDB_ECC_KEY_EF, UPDATE, CRYPTO, DELETE_SELF, CREATE_EF, CREATE_DF,
+                             file_id_from_path_value /*, p_void*/};
+use crate::path::{current_path_df};
 
 /*
 It's not possible to map file access conditions from ACOS5 (scb8) to OpenSC exactly:

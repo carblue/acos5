@@ -527,13 +527,33 @@ pub fn sc_asn1_sig_value_sequence_to_rs(ctx: *mut sc_context, r#in: *const u8, i
                                         buf: *mut u8, buflen: usize) -> i32;
 } // extern "C"
 
+/* long form tags use these */
+/* Same as  SC_ASN1_TAG_* shifted left by 24 bits  */
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))]
 pub const SC_ASN1_CLASS_MASK            : u32 = 0x3000_0000;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+pub const SC_ASN1_CLASS_MASK            : u32 = 0xC000_0000;
 pub const SC_ASN1_UNI                   : u32 = 0x0000_0000; /* Universal */
-pub const SC_ASN1_APP                   : u32 = 0x1000_0000; /* Application */
-pub const SC_ASN1_CTX                   : u32 = 0x2000_0000; /* Context */
-pub const SC_ASN1_PRV                   : u32 = 0x3000_0000; /* Private */
-pub const SC_ASN1_CONS                  : u32 = 0x0100_0000;
 
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))]
+pub const SC_ASN1_APP                   : u32 = 0x1000_0000; /* Application */
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+pub const SC_ASN1_APP                   : u32 = 0x4000_0000; /* Application */
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))]
+pub const SC_ASN1_CTX                   : u32 = 0x2000_0000; /* Context */
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+pub const SC_ASN1_CTX                   : u32 = 0x8000_0000; /* Context */
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))]
+pub const SC_ASN1_PRV                   : u32 = 0x3000_0000; /* Private */
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+pub const SC_ASN1_PRV                   : u32 = 0xC000_0000; /* Private */
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))]
+pub const SC_ASN1_CONS                  : u32 = 0x0100_0000;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+pub const SC_ASN1_CONS                  : u32 = 0x2000_0000;
+
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+pub const SC_ASN1_CLASS_CONS            : u32 = 0xE000_0000; /* CLASS and CONS */
 pub const SC_ASN1_TAG_MASK              : u32 = 0x00FF_FFFF;
 pub const SC_ASN1_TAGNUM_SIZE           : usize = 3;
 
@@ -575,6 +595,7 @@ pub const SC_ASN1_SE_INFO               : u32 = 260;
 /* use callback function */
 pub const SC_ASN1_CALLBACK              : u32 = 384;
 
+/* use with short one byte tags */
 pub const SC_ASN1_TAG_CLASS             : u32 = 0xC0;
 pub const SC_ASN1_TAG_UNIVERSAL         : u32 = 0x00;
 pub const SC_ASN1_TAG_APPLICATION       : u32 = 0x40;
@@ -583,6 +604,8 @@ pub const SC_ASN1_TAG_PRIVATE           : u32 = 0xC0;
 
 pub const SC_ASN1_TAG_CONSTRUCTED       : u32 = 0x20;
 pub const SC_ASN1_TAG_PRIMITIVE         : u32 = 0x1F;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+pub const SC_ASN1_TAG_CLASS_CONS        : u32 = 0xE0;
 
 /* sc_asn1_entry.tag   SC_ASN1_TAG_EOC <-> SC_ASN1_TAG_ESCAPE_MARKER,   maybe bitOR'ed e.g. with */
 pub const SC_ASN1_TAG_EOC               : u32 = 0;

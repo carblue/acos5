@@ -522,7 +522,7 @@ mod tests {
                 assert_eq!(ski,  408);
                 assert_eq!(sai,   88);
             }
-            else  if cfg!(v0_21_0) { // experimental only: it's git-master, Latest commit 0e55a34, defined as version 0.21.0
+            else  if cfg!(v0_21_0) {
                 // testing v0_21_0 verified with Windows 10:    ?
                 // testing v0_21_0 verified with Kubuntu 18.04: yes, ok for latest commit  0e55a34
 // WARNING watch out for everything that depends on SC_MAX_SUPPORTED_ALGORITHMS, increased from 8 -> 16  sse,
@@ -579,9 +579,63 @@ mod tests {
                 assert_eq!(ski,  440);
                 assert_eq!(sai,  144);
             }
+            else  if cfg!(v0_22_0) { // experimental only: it's git-master, Latest commit 0e55a34, defined as version 0.21.0
+                // testing v0_22_0 verified with Windows 10:    ?
+                // testing v0_22_0 verified with Kubuntu 18.04: ?,  for latest commit  85e08ae
+                println!("For OpenSC 0.22.0 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
+                    size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
+                    size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \
+                    size_of::<sc_pkcs15_card>: {}, size_of::<sc_file>: {}, size_of::<scconf_context>: {}, size_of::<sc_pkcs15init_prkeyargs>: {}, \
+                    size_of::<sc_pkcs15init_skeyargs>: {}, size_of::<sc_pkcs15_prkey_info>: {}, size_of::<sc_pkcs15_pubkey_info>: {}, \
+                    size_of::<sc_pkcs15_skey_info>: {}, size_of::<sc_supported_algo_info>: {}",
+                         sl, sc, sr, sse, sef, srd, pcp, pcd, sco, scc, spo, sca, sf, sccc, ip, is,  prki, puki, ski, sai);
+                #[cfg(any(target_pointer_width = "32", windows))]
+                    { assert_eq!(sc,  1376); }
+                #[cfg(all(target_pointer_width = "64", not(windows)))]
+                    { assert_eq!(sc,  1392); }
+                #[cfg(any(target_pointer_width = "32", windows))]
+                    { assert_eq!(sr,   200); }
+                #[cfg(all(target_pointer_width = "64", not(windows)))]
+                    { assert_eq!(sr,   208); }
+
+                assert_eq!(sse, 2712);
+                assert_eq!(sef,  176);
+                assert_eq!(srd,   32);
+                assert_eq!(pcp,   88);
+                assert_eq!(pcd,  208);
+
+                #[cfg(not(sym_hw_encrypt))]
+                assert_eq!(sco,  296);
+                #[cfg(    sym_hw_encrypt)]
+                assert_eq!(sco,  312);
+
+                #[cfg(any(target_pointer_width = "32", windows))]
+                    { assert_eq!(scc,  624); }
+                #[cfg(all(target_pointer_width = "64", not(windows)))]
+                    { assert_eq!(scc,  632); }
+
+                assert_eq!(spo, 2776);
+                assert_eq!(sca,  160);
+                assert_eq!(sf,   456);
+                assert_eq!(sccc,  32);
+                #[cfg(any(target_pointer_width = "32", windows))]
+                    { assert_eq!(ip,   792); }
+                #[cfg(all(target_pointer_width = "64", not(windows)))]
+                    { assert_eq!(ip,   800); }
+
+                #[cfg(any(target_pointer_width = "32", windows))]
+                    { assert_eq!(is,   584); }
+                #[cfg(all(target_pointer_width = "64", not(windows)))]
+                    { assert_eq!(is,   592); }
+
+                assert_eq!(prki, 472);
+                assert_eq!(puki, 496);
+                assert_eq!(ski,  440);
+                assert_eq!(sai,  144);
+            }
             else {
                 // experimental use only, this check may not be consistent with current master
-                println!("For OpenSC beyond 0.21.0 (https://github.com/OpenSC/OpenSC  branch: master) and 64bit unix/windows OS: \
+                println!("For OpenSC beyond 0.22.0 (https://github.com/OpenSC/OpenSC  branch: master) and 64bit unix/windows OS: \
                     size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
                     size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
                     size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \

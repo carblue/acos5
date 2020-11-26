@@ -169,7 +169,8 @@ use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEAN
                       SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
-                      ValueTypeFiles, build_apdu, is_DFMF, p_void, SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile
+                      ValueTypeFiles, build_apdu, is_DFMF, p_void, SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile,
+                      file_id_from_path_value, file_id, file_id_se, FCI
                       /*,PKCS15_FILE_TYPE_ECCPRIVATEKEY, PKCS15_FILE_TYPE_ECCPUBLICKEY, READ*/};
 #[cfg(sym_hw_encrypt)]
 use constants_types::{RSA_MAX_LEN_MODULUS};
@@ -192,11 +193,11 @@ use no_cdecl::{select_file_by_path, enum_dir,
     /*, create_mf_file_system*/ convert_acl_array_to_bytes_tag_fcp_sac, get_sec_env_mod_len,
     ACL_CATEGORY_DF_MF, ACL_CATEGORY_EF_CHV, ACL_CATEGORY_KEY, ACL_CATEGORY_SE,
     get_is_running_compute_signature, set_is_running_compute_signature,
-    common_read, common_update, acos5_supported_ec_curves, logout_pin, FCI, sym_en_decrypt
+    common_read, common_update, acos5_supported_ec_curves, logout_pin, sym_en_decrypt
 };
 
 mod path;
-use path::{file_id_from_cache_current_path, file_id_from_path_value, current_path_df, file_id, file_id_se};
+use path::{file_id_from_cache_current_path, current_path_df};
 
 // #[cfg(sanity)]
 mod sanity;
@@ -245,24 +246,24 @@ mod   test_v2_v3;
 ///
 /// Its essential, that this doesn't merely echo, what a call to `sc_get_version` reports:
 /// Its my/developers statement, that the support as reported by sc_driver_version got checked !
-/// Thus, if e.g. a new OpenSC version 0.21.0 got released and if I didn't reflect that in sc_driver_version,
+/// Thus, if e.g. a new OpenSC version 0.22.0 got released and if I didn't reflect that in sc_driver_version,
 /// (updating opensc-sys binding and code of acos5 and acos5_pkcs15),
 /// then the driver won't accidentally malfunction for a not yet supported OpenSC environment/version !
 ///
 /// The support of not yet released OpenSC code (i.e. github/master) is somewhat experimental:
 /// Its accuracy depends on how closely the opensc-sys binding and driver code has covered the possible
-/// differences in API and behavior (its build.rs mention the last OpenSC commit covered).
+/// differences in API and behavior (this function mentions the last OpenSC commit covered).
 /// master will be handled as an imaginary new version release:
-/// E.g. while currently the latest release is 0.20.0, build OpenSC from source such that it reports imaginary
-/// version 0.21.0 (change config.h after ./configure and before make)
-/// In this example, cfg!(v0_21_0) will then match that
+/// E.g. while currently the latest release is 0.21.0, build OpenSC from source such that it reports imaginary
+/// version 0.22.0 (change config.h after ./configure and before make)
+/// In this example, cfg!(v0_22_0) will then match that
 ///
 /// @return   The OpenSC release/imaginary version, that this driver implementation supports
 #[allow(clippy::same_functions_in_if_condition)]
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
-    if cfg!(v0_17_0) || cfg!(v0_18_0) || cfg!(v0_19_0) || cfg!(v0_20_0) { unsafe { sc_get_version() } }
-    else if cfg!(v0_21_0)  { unsafe { sc_get_version() } } // experimental only:  Latest OpenSC github commit covered: 0e55a34
+    if cfg!(v0_17_0) || cfg!(v0_18_0) || cfg!(v0_19_0) || cfg!(v0_20_0) || cfg!(v0_21_0) { unsafe { sc_get_version() } }
+//    else if cfg!(v0_22_0)  { unsafe { sc_get_version() } } // experimental only:  Latest OpenSC github commit covered:
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -1073,7 +1074,7 @@ println!("sc_update_binary: rv: {}", rv);
     }
     cfg_if::cfg_if! {
         if #[cfg(finish_verbose)] {
-            println!("EEPROM remaining free memory space: ~ {} of {}, in kB", get_free_space(card).unwrap()/1000_u32,
+            println!("EEPROM remaining free memory space: ~ {} of {}, in kB", f64::try_from(get_free_space(card).unwrap()).unwrap()/1000.,
                 if card.type_> SC_CARD_TYPE_ACOS5_64_V3 {192} else {64});
 //println!("Hashmap: {:02X?}", dp.files);
         }
@@ -1634,7 +1635,7 @@ extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) 
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || file_ptr.is_null() || unsafe {(*file_ptr).id==0} {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
-    let card       = unsafe { &mut *card_ptr };
+    let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     let f = cstru!(b"acos5_create_file\0");
     let file = unsafe { &mut *file_ptr };
@@ -1643,12 +1644,14 @@ extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) 
 
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     if dp.files.contains_key(&(u16::try_from(file.id).unwrap())) {
-        card.drv_data = Box::into_raw(dp) as p_void;
+        Box::leak(dp);
+        // card.drv_data = Box::into_raw(dp) as p_void;
         rv = SC_ERROR_NOT_ALLOWED;
         log3ifr!(ctx,f,line!(),cstru!(b"### Duplicate file id disallowed by the driver ! ###\0"), rv);
         return rv;
     }
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
 
     if file.path.len == 0 {
         let current_path_df_slice = current_path_df(card);
@@ -1720,13 +1723,15 @@ extern "C" fn acos5_delete_file(card_ptr: *mut sc_card, path_ref_ptr: *const sc_
     let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     if !dp.files.contains_key(&file_id) {
 println!("file_id: {:X} is not a key of hashmap dp.files", file_id);
-        card.drv_data = Box::into_raw(dp) as p_void;
+        Box::leak(dp);
+        // card.drv_data = Box::into_raw(dp) as p_void;
         return -1;
     }
     let x = &dp.files[&file_id];
     let need_to_select_or_process_fci = x.2.is_none() || file_id != file_id_from_cache_current_path(card);
     let mut scb_delete_self = if !need_to_select_or_process_fci {x.2.unwrap()[6]} else {0xFF};
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
 
     let mut rv;
     if need_to_select_or_process_fci {
@@ -1738,7 +1743,8 @@ println!("file_id: {:X} is not a key of hashmap dp.files", file_id);
         }
         let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
         scb_delete_self = dp.files[&file_id].2.unwrap()[6];
-        card.drv_data = Box::into_raw(dp) as p_void;
+        Box::leak(dp);
+        // card.drv_data = Box::into_raw(dp) as p_void;
     }
 
 //println!("acos5_delete_file  scb_delete_self: {:X}", scb_delete_self);
@@ -2050,25 +2056,26 @@ SEQUENCE (6 elem)
 
     /* file type in profile to be entered aus FDB: File Descriptor Byte */
     let acl_category = match u8::try_from(file_ref.type_).unwrap() {
-        FDB_DF | FDB_MF => ACL_CATEGORY_DF_MF,
+        FDB_DF | FDB_MF        => ACL_CATEGORY_DF_MF,
         FDB_TRANSPARENT_EF |
         FDB_LINEAR_FIXED_EF |
         FDB_LINEAR_VARIABLE_EF |
         FDB_CYCLIC_EF |
-        FDB_CHV_EF => ACL_CATEGORY_EF_CHV,
+        FDB_CHV_EF             => ACL_CATEGORY_EF_CHV,
         FDB_RSA_KEY_EF |
         FDB_ECC_KEY_EF |
-        FDB_SYMMETRIC_KEY_EF => ACL_CATEGORY_KEY,
-        FDB_SE_FILE=> ACL_CATEGORY_SE,
-        _  => {
+        FDB_SYMMETRIC_KEY_EF   => ACL_CATEGORY_KEY,
+        FDB_SE_FILE            => ACL_CATEGORY_SE,
+        _                      => {
 println!("Non-match in let acl_category. file_ref.type_: {}", file_ref.type_);
-            return -1
+            return -1;
         }, // this includes FDB_PURSE_EF: unknown acl_category
     };
 
+//println!("acl_category: {}, file to create: {:?}", acl_category, *file_ref);
     let bytes_tag_fcp_sac = match convert_acl_array_to_bytes_tag_fcp_sac(&file_ref.acl, acl_category) {
         Ok(val) => val,
-        Err(e) => return e,
+        Err(e) => { println!("Error xyz"); return e; },
     };
 //println!("bytes_tag_fcp_sac: {:X?}", bytes_tag_fcp_sac); // bytes_tag_fcp_sac: [7F, 1, FF, 1, 1, 1, 1, 1]
     let mut buf2 = [0; 2];
@@ -3375,7 +3382,7 @@ extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, crgram: *const u8, crgra
     // preliminary: use existing sym_en_decrypt, maybe later remove that
     let mut crypt_sym = CardCtl_crypt_sym::default();
     // infile: std::ptr::null(),
-    crypt_sym.indata[..crgram_len].copy_from_slice(unsafe { &* std::ptr::slice_from_raw_parts(crgram, crgram_len) });
+    crypt_sym.indata[..crgram_len].copy_from_slice(unsafe { from_raw_parts(crgram, crgram_len) });
     crypt_sym.indata_len = crgram_len;
     // outfile: std::ptr::null(),
     // outdata: [0; RSA_MAX_LEN_MODULUS+32],

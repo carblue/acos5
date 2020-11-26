@@ -71,12 +71,13 @@ use opensc_sys::errors::{/*SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKNOWN, SC_ERROR
                          SC_ERROR_KEYPAD_MSG_TOO_LONG,/*, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL*/
 SC_ERROR_WRONG_LENGTH, SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT_FOUND, SC_ERROR_INCORRECT_PARAMETERS, SC_ERROR_CARD_CMD_FAILED,
 SC_ERROR_OUT_OF_MEMORY, SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_NO_CARD_SUPPORT,
-SC_ERROR_SM_RAND_FAILED
+SC_ERROR_SM_RAND_FAILED,
+
+SC_ERROR_INVALID_ASN1_OBJECT, SC_ERROR_ASN1_OBJECT_NOT_FOUND, SC_ERROR_TOO_MANY_OBJECTS, SC_ERROR_OBJECT_NOT_VALID//, SC_ERROR_ASN1_END_OF_CONTENTS
 };
 use opensc_sys::internal::{sc_atr_table};
 use opensc_sys::asn1::{sc_asn1_read_tag};
-use opensc_sys::iso7816::{ISO7816_TAG_FCI, ISO7816_TAG_FCP, ISO7816_TAG_FCP_SIZE, ISO7816_TAG_FCP_TYPE,
-                          ISO7816_TAG_FCP_FID, ISO7816_TAG_FCP_DF_NAME, ISO7816_TAG_FCP_LCS};
+use opensc_sys::iso7816::{ISO7816_TAG_FCI, ISO7816_TAG_FCP};
 use opensc_sys::sm::{SM_SMALL_CHALLENGE_LEN, SM_CMD_FILE_READ, SM_CMD_FILE_UPDATE};
 
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tt/*, wr_do_log_ttt*/, wr_do_log_tu,
@@ -91,113 +92,18 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
                              SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
                              SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                              SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
-                             Acos5EcCurve, build_apdu, is_DFMF, p_void, TLV, ATR_MASK_TCK,
-                             ISO7816_RFU_TAG_FCP_SFI, ISO7816_RFU_TAG_FCP_SAC, ISO7816_RFU_TAG_FCP_SEID,
-                             ISO7816_RFU_TAG_FCP_SAE, GuardFile, SC_CARD_TYPE_ACOS5_EVO_V4, NAME_V4, ATR_V4, ATR_V4_1C,
-                             ATR_V4_1F};
+                             Acos5EcCurve, build_apdu, is_DFMF, p_void, ATR_MASK_TCK,
+                             // ISO7816_RFU_TAG_FCP_SFI, ISO7816_RFU_TAG_FCP_SAC, ISO7816_RFU_TAG_FCP_SEID, ISO7816_RFU_TAG_FCP_SAE,
+                             GuardFile, SC_CARD_TYPE_ACOS5_EVO_V4, NAME_V4, ATR_V4, ATR_V4_1C,
+                             ATR_V4_1F, file_id_from_path_value, file_id_se};
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
-use crate::path::{cut_path, file_id_from_cache_current_path, file_id_from_path_value, current_path_df,
-                  is_impossible_file_match, file_id_se};
+use crate::path::{cut_path, file_id_from_cache_current_path, current_path_df, is_impossible_file_match};
 use crate::missing_exports::me_get_max_recv_size;
 use crate::cmd_card_info::{get_is_pin_authenticated};
 use crate::sm::{SM_SMALL_CHALLENGE_LEN_u8, sm_common_read, sm_common_update};
 use crate::crypto::{RAND_bytes, des_ecb3_unpadded_8, Encrypt};
 
 use super::{acos5_process_fci/*, acos5_list_files, acos5_select_file, acos5_set_security_env*/};
-
-/* Represents the FCI content, */
-#[derive(Debug, Clone, PartialEq)]
-pub struct FCI {
-    pub fdb : u8,
-    pub fid : u16,
-    pub size : u16,
-    pub lcsi : u8,
-
-    pub df_name : Vec<u8>,
-    pub scb8 : [u8; 8],
-    pub sae : Vec<u8>,
-    pub seid : u16,
-
-    pub mrl : u8,
-    pub nor : u8,
-}
-
-impl Default for FCI {
-    fn default() -> Self {
-        Self {
-            fdb: 0,
-            fid: 0,
-            size: 0,
-            lcsi: 0,
-            df_name: Vec::with_capacity(16),
-            scb8: [0; 8],
-            sae: Vec::with_capacity(32),
-            seid: 0,
-            mrl: 0,
-            nor: 0
-        }
-    }
-}
-
-impl FCI {
-/*
-    pub fn new(fdb: u8, fid : u16, size: u16, lcsi: u8, df_name: Vec<u8>, scb8: [u8; 8], sae: Vec<u8>, seid : u16, mrl: u8, nor: u8) -> Self {
-        FCI { fdb, fid, size, lcsi, df_name, scb8, sae, seid, mrl, nor }
-    }
-*/
-    pub fn new_parsed(fci_bytes_sequence_body: &[u8]) -> Self {
-        let mut result = FCI::default();
-        // let tlv_iter = TLV::new(fci_bytes_sequence_body);
-        for tlv in TLV::new(fci_bytes_sequence_body) {
-            match tlv.tag() {
-                ISO7816_TAG_FCP_TYPE => {
-                    let len = tlv.length();
-                    assert!([1,2,5,6].contains(&len));
-                    result.fdb = tlv.value()[0];
-                    if len > 2 {
-                        result.mrl = tlv.value()[3];
-                        result.nor = tlv.value()[usize::from(len)-1];
-                        result.size = u16::from(result.mrl) * u16::from(result.nor);
-                    }
-                },
-                ISO7816_TAG_FCP_FID => {
-                    assert_eq!(2, tlv.length());
-                    result.fid = u16::from_be_bytes( [ tlv.value()[0], tlv.value()[1] ]);
-                },
-                ISO7816_TAG_FCP_SIZE => {
-                    assert_eq!(2, tlv.length());
-                    result.size = u16::from_be_bytes( [ tlv.value()[0], tlv.value()[1] ]);
-                },
-                ISO7816_TAG_FCP_LCS => {
-                    assert_eq!(1, tlv.length());
-                    result.lcsi = tlv.value()[0];
-                },
-                ISO7816_TAG_FCP_DF_NAME => {
-                    result.df_name.extend_from_slice(tlv.value());
-                },
-                ISO7816_RFU_TAG_FCP_SFI => {
-                    assert_eq!(1, tlv.length());
-                    // result.sfi = tlv.value()[0];
-                },
-                ISO7816_RFU_TAG_FCP_SAC => {
-                    result.scb8 = match convert_bytes_tag_fcp_sac_to_scb_array(tlv.value()) {
-                        Ok(val)  => val,
-                        Err(_e)     => panic!(),
-                    };
-                },
-                ISO7816_RFU_TAG_FCP_SAE => {
-                    result.sae.extend_from_slice(tlv.value());
-                },
-                ISO7816_RFU_TAG_FCP_SEID => {
-                    assert_eq!(2, tlv.length());
-                    result.seid = u16::from_be_bytes( [ tlv.value()[0], tlv.value()[1] ]);
-                },
-                _ => unreachable!()
-            }
-        }
-        result
-    }
-}
 
 #[allow(dead_code)]
 #[cold]
@@ -997,63 +903,6 @@ fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*,
 } // enum_dir_gui
 
 
-/* SCB: Security Condition Byte
- * convert_bytes_tag_fcp_sac_to_scb_array expands the (possibly) "compressed" tag_fcp_sac (0x8C) bytes from card file/director's
- * header to a 'standard' 8 byte SCB array, interpreting the AM byte (AMB);
- * The position of a SCB within the array is related to a command/operation, that is controlled by this byte
- * The value of SCB refers to a record id in Security Environment file, that stores details of conditions that must be
- * met in order to grant access
- * SC's byte positions are assigned values matching the AM bit-representation in reference manual, i.e. it is reversed
- * to what many other cards do:
- * Bit 7 of AM byte indicates what is stored to byte-index 7 of SC ( Not Used by ACOS )
- * Bit 0 of AM byte indicates what is stored to byte-index 0 of SC ( EF: READ, DF/MF:  Delete_Child )
- * Bits 0,1,2 may have different meaning depending on file type, from bits 3 to 6/7 (unused) meanings are the same for
- * all file types
- * Maybe later integrate this in acos5_process_fci
- * @param  bytes_tag_fcp_sac IN  the TLV's V bytes readable from file header for tag 0x8C, same order from left to right;
- *                               number of bytes: min: 0, max. 8
- *                               If there are >= 1 bytes, the first is AM (telling by 1 bits which bytes will follow)
- * @param  scb8          OUT     8 SecurityConditionBytes, from leftmost (index 0)'READ'/'Delete_Child' to
- *                               (6)'SC_AC_OP_DELETE_SELF', (7)'unused'
- *
- * The reference manual contains a table indicating the possible combinations of bits allowed for a scb:
- * For any violation, Err will be returned
- */
-/*
- * What it does
- * @apiNote
- * @param
- * @return
- */
-///
-/// # Errors
-#[allow(clippy::missing_errors_doc)]
-fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Result<[u8; 8], i32>
-{
-    let mut scb8 = [0_u8; 8]; // if AM has no 1 bit for a command/operation, then it's : always allowed
-    scb8[7] = 0xFF; // though not expected to be accidentally set, it get's overridden to NEVER: it's not used by ACOS
-
-    if bytes_tag_fcp_sac.is_empty() {
-        return Ok(scb8);
-    }
-    assert!(bytes_tag_fcp_sac.len() <= 8, "bytes_tag_fcp_sac.len() > 8");
-
-    let mut idx = 0;
-    let amb = bytes_tag_fcp_sac[idx];
-    idx += 1;
-    if usize::try_from(amb.count_ones()).unwrap() != bytes_tag_fcp_sac.len()-1 { // the count of 1-valued bits of amb Byte must equal (taglen-1), the count of bytes following amb
-        return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
-    }
-
-    for pos in 0..8 {
-        if (amb & (0b1000_0000 >> pos)) != 0 { //assert(i);we should never get anything for scb8[7], it's not used by ACOS
-            scb8[7-pos] = bytes_tag_fcp_sac[idx];
-            idx += 1;
-        }
-    }
-    Ok(scb8)
-}
-
 ///
 /// # Errors
 #[allow(clippy::missing_errors_doc)]
@@ -1167,6 +1016,33 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
             }
         }
         ACL_CATEGORY_EF_CHV => {
+/*acl_category: 2, file to create: sc_file {
+  path: sc_path { value: [63, 0, 65, 0, 65, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 6, index: 0, count: -1, type_: 2, aid: sc_aid { value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 0 } },
+  name: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  namelen: 0,
+  type_: 1,
+  ef_structure: 1,
+  status: 0,
+  shareable: 0,
+  size: 1024,
+  id: 16656,
+  sid: 16,
+  acl: [0x2, 0x1, 0x2, 0x0, 0x2, 0x55d97ad19f70, 0x0, 0x0, 0x2, 0x0,
+        ===  ===  ===       ===  ==============            ===
+        0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+        0x0, 0x0, 0x2, 0x2, 0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0],
+                  ===  ===  ===
+  record_length: 0,
+  record_count: 0,
+  sec_attr: 0x0,
+  sec_attr_len: 0,
+   prop_attr:
+   0x55d97ad3ca10,
+   prop_attr_len: 30,
+   type_attr: 0x55d97ad17310,
+   type_attr_len: 2,
+   encoded_content: 0x0, encoded_content_len: 0, magic: 339896656 }
+*/
             let mut p = acl[usize::try_from(SC_AC_OP_READ).unwrap()];
             if p.is_null() {                      result[7] = 0; }
             else if p==(1 as *mut sc_acl_entry) { result[7] = 0xFF; }
@@ -1174,7 +1050,7 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
             else if p==(3 as *mut sc_acl_entry) { result[7] = 0xFF; }
             else {
                 let p_ref = unsafe { &*p };
-                if p_ref.method!=SC_AC_SCB { return Err(-1); }
+                if p_ref.method!=SC_AC_SCB { return Err(SC_ERROR_INVALID_ASN1_OBJECT); }
                 result[7] = u8::try_from(p_ref.key_ref).unwrap();
             }
             p = acl[usize::try_from(SC_AC_OP_UPDATE).unwrap()];
@@ -1184,7 +1060,7 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
             else if p==(3 as *mut sc_acl_entry) { result[6] = 0xFF; }
             else {
                 let p_ref = unsafe { &*p };
-                if p_ref.method!=SC_AC_SCB { return Err(-1); }
+                if p_ref.method!=SC_AC_SCB { return Err(SC_ERROR_ASN1_OBJECT_NOT_FOUND); }
                 result[6] = u8::try_from(p_ref.key_ref).unwrap();
             }
         },
@@ -1195,10 +1071,10 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
     else if p==(1 as *mut sc_acl_entry) { result[4] = 0xFF; }
     else if p==(2 as *mut sc_acl_entry) { result[4] = 0; }
     else if p==(3 as *mut sc_acl_entry) { result[4] = 0xFF; }
-    else {
-        let p_ref = unsafe { &*p };
-        if p_ref.method!=SC_AC_SCB { return Err(-1); }
-        result[4] = u8::try_from(p_ref.key_ref).unwrap();
+    else {  /*println!("SC_AC_OP_INVALIDATE sc_acl_entry: {:?}", unsafe { *p });*/ result[4] = 0xFF;
+        // let p_ref = unsafe { &*p };
+        // if p_ref.method!=SC_AC_SCB { return Err(SC_ERROR_ASN1_END_OF_CONTENTS); }
+        // result[4] = u8::try_from(p_ref.key_ref).unwrap();
     }
 
     p = acl[usize::try_from(SC_AC_OP_REHABILITATE).unwrap()];
@@ -1208,7 +1084,7 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
     else if p==(3 as *mut sc_acl_entry) { result[3] = 0xFF; }
     else {
         let p_ref = unsafe { &*p };
-        if p_ref.method!=SC_AC_SCB { return Err(-1); }
+        if p_ref.method!=SC_AC_SCB { return Err(SC_ERROR_OUT_OF_MEMORY); }
         result[3] = u8::try_from(p_ref.key_ref).unwrap();
     }
 
@@ -1219,7 +1095,7 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
     else if p==(3 as *mut sc_acl_entry) { result[2] = 0xFF; }
     else {
         let p_ref = unsafe { &*p };
-        if p_ref.method!=SC_AC_SCB { return Err(-1); }
+        if p_ref.method!=SC_AC_SCB { return Err(SC_ERROR_TOO_MANY_OBJECTS); }
         result[2] = u8::try_from(p_ref.key_ref).unwrap();
     }
 
@@ -1230,7 +1106,7 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
     else if p==(3 as *mut sc_acl_entry) { result[1] = 0xFF; }
     else {
         let p_ref = unsafe { &*p };
-        if p_ref.method!=SC_AC_SCB { return Err(-1); }
+        if p_ref.method!=SC_AC_SCB { return Err(SC_ERROR_OBJECT_NOT_VALID); }
         result[1] = u8::try_from(p_ref.key_ref).unwrap();
     }
 
@@ -1670,8 +1546,7 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
     if data.do_generate_with_standard_rsa_pub_exponent { command[4] = 2; }
     else { command[7..23].copy_from_slice(&data.rsa_pub_exponent); }
     let mut apdu = build_apdu(ctx, &command[.. command.len() - if data.do_generate_with_standard_rsa_pub_exponent {16} else {0}], SC_APDU_CASE_3_SHORT, &mut[]);
-    let fmt  = cstru!(b"generate_asym: %s\0");
-    log3if!(ctx,f,line!(), fmt, unsafe {sc_dump_hex(command.as_ptr(), 7)});
+//log3if!(ctx,f,line!(), cstru!(b"%s\0"), unsafe {sc_dump_hex(command.as_ptr(), 7)});
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
     rv = unsafe { sc_check_apdu(card, &apdu) };
     rv
@@ -2367,19 +2242,26 @@ pub fn common_update(card: &mut sc_card,
 
 #[cfg(test)]
 mod tests {
-    use super::{convert_bytes_tag_fcp_sac_to_scb_array, convert_amdo_to_cla_ins_p1_p2_array,
-                trailing_blockcipher_padding_calculate, trailing_blockcipher_padding_get_length, FCI};
+    use super::{convert_amdo_to_cla_ins_p1_p2_array,
+                trailing_blockcipher_padding_calculate, trailing_blockcipher_padding_get_length};
     use crate::constants_types::*;
 
     #[test]
     fn test_fci() {
-        let fci = FCI::new_parsed(&[
+        let mut fci = FCI::new_parsed(&[
             /*0x6F, 0x30,*/ 0x83, 0x02, 0x41, 0x00, 0x88, 0x01, 0x00, 0x8A, 0x01, 0x05, 0x82, 0x02, 0x38, 0x00,
             0x8D, 0x02, 0x41, 0x03, 0x84, 0x10, 0x41, 0x43, 0x4F, 0x53, 0x50, 0x4B, 0x43, 0x53, 0x2D, 0x31,
             0x35, 0x76, 0x31, 0x2E, 0x30, 0x30, 0x8C, 0x08, 0x7F, 0x03, 0xFF, 0x00, 0x01, 0x01, 0x01, 0x01,
             0xAB, 0x00]);
         assert_eq!(fci, FCI { fdb: 0x38, fid: 0x4100, size: 0, lcsi: 5, df_name: b"ACOSPKCS-15v1.00".to_vec(),
-            scb8: [1_u8,1,1,1,0,255,3,255], sae: vec![], seid: 0x4103, mrl: 0, nor: 0 })
+            scb8: [1_u8,1,1,1,0,255,3,255], sae: vec![], seid: 0x4103, mrl: 0, nor: 0 });
+
+        fci = FCI::new_parsed(&[
+            /*0x6F, 0x1E,*/ 0x83, 0x02, 0x41, 0x10, 0x88, 0x01, 0x10, 0x8A, 0x01, 0x05, 0x82, 0x02, 0x01, 0x00,
+           0x80, 0x02, 0x03, 0x00, 0x8C, 0x08, 0x7F,   0x00, 0xFF, 0x00, 0x03, 0xFF, 0x00, 0x00,   0xAB, 0x00
+        ]);
+        assert_eq!(fci, FCI { fdb: 0x01, fid: 0x4110, size: 0x0300, lcsi: 5, df_name: vec![],
+            scb8: [0_u8,0,255,3,0,255,0,255], sae: vec![], seid: 0, mrl: 0, nor: 0 });
     }
 
     #[test]

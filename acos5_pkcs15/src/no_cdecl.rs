@@ -1,18 +1,32 @@
+//use libc::strlen;
 //use std::ffi::CStr;
 use std::collections::HashSet;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
+use std::ptr::null_mut;
+// use std::slice::from_raw_parts;
 
-//use libc::strlen;
-
-use opensc_sys::opensc::{SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES};
-
-use opensc_sys::pkcs15::{sc_pkcs15_card, SC_PKCS15_SKDF, SC_PKCS15_TYPE_SKEY, sc_pkcs15_skey_info /*, sc_pkcs15_object*/};
-use opensc_sys::errors::{SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_CARD_CMD_FAILED};
+use opensc_sys::opensc::{SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_select_file, sc_read_binary,
+                         sc_delete_file, sc_create_file, sc_update_binary, sc_card_ctl, sc_transmit_apdu};
+use opensc_sys::types::{SC_AC_OP_DELETE, SC_AC_OP_DELETE_SELF, SC_AC_OP_CREATE_EF, SC_AC_OP_UPDATE, SC_APDU_CASE_1};
+use opensc_sys::pkcs15::{sc_pkcs15_card, SC_PKCS15_SKDF, SC_PKCS15_TYPE_SKEY, sc_pkcs15_skey_info,
+                         SC_PKCS15_SEARCH_CLASS_PRKEY, SC_PKCS15_SEARCH_CLASS_PUBKEY,
+                         SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, /*SC_PKCS15_PUKDF_TRUSTED, sc_pkcs15_object, */
+                         sc_pkcs15_prkey_info, sc_pkcs15_pubkey_info, sc_pkcs15_parse_df};
+use opensc_sys::pkcs15_init::sc_pkcs15init_authenticate;
+use opensc_sys::profile::sc_profile;
+use opensc_sys::errors::{SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_CARD_CMD_FAILED, SC_SUCCESS, SC_ERROR_INTERNAL,
+                         SC_ERROR_NOT_ENOUGH_MEMORY
+                         /*, SC_ERROR_CLASS_NOT_SUPPORTED*/};
 use opensc_sys::log::{sc_dump_hex};
 
-use crate::constants_types::{SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4};
-use crate::wrappers::{wr_do_log, wr_do_log_t};
+use crate::constants_types::{SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4, GuardFile,
+                             DataPrivate, file_id_from_path_value, file_id_se, SC_CARDCTL_ACOS5_GET_FREE_SPACE, p_void,
+                             build_apdu // , FCI
+};
+use crate::wrappers::{wr_do_log, wr_do_log_t, wr_do_log_rv, wr_do_log_sds};
 use crate::missing_exports::{find_df_by_type};
+#[cfg(not(target_os = "windows"))]
+use crate::tasn1_pkcs15_util::DirectoryRange;
 
 #[must_use]
 pub fn rsa_modulus_bits_canonical(rsa_modulus_bits: usize) -> usize { ((rsa_modulus_bits + 8) /256) *256 }
@@ -40,67 +54,28 @@ pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mu
     let mut index_possible : HashSet<u8> = HashSet::with_capacity(255);
     for i in 0..255 { index_possible.insert(i+1); }
 
-    /*
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:156:first_of_free_indices: obj_list.type_: 304
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:157:first_of_free_indices: obj_list.label: SM1
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:158:first_of_free_indices: obj_list.flags: 3
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:159:first_of_free_indices: obj_list.content.len: 0
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:161:first_of_free_indices: skey_info.id.len: 1
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:162:first_of_free_indices: skey_info.id: 01
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:163:first_of_free_indices: skey_info.key_reference: 129
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:164:first_of_free_indices: skey_info.key_type: 0
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:165:first_of_free_indices: skey_info.path: 3F0041004102
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:166:first_of_free_indices: skey_info.path.index: 1
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:167:first_of_free_indices: skey_info.path.count: 37
-
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:156:first_of_free_indices: obj_list.type_: 304
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:157:first_of_free_indices: obj_list.label: SM2
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:158:first_of_free_indices: obj_list.flags: 3
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:159:first_of_free_indices: obj_list.content.len: 0
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:161:first_of_free_indices: skey_info.id.len: 1
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:162:first_of_free_indices: skey_info.id: 02
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:163:first_of_free_indices: skey_info.key_reference: 130
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:164:first_of_free_indices: skey_info.key_type: 0
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:165:first_of_free_indices: skey_info.path: 3F0041004102
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:166:first_of_free_indices: skey_info.path.index: 2
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:167:first_of_free_indices: skey_info.path.count: 37
-
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:156:first_of_free_indices: obj_list.type_: 301
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:157:first_of_free_indices: obj_list.label: AES3
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:158:first_of_free_indices: obj_list.flags: 3
-    P:4411; T:0x140611560458048 22:28:26.288 [opensc-pkcs11] acos5:159:first_of_free_indices: obj_list.content.len: 0
-    P:4411; T:0x140611560458048 22:28:26.289 [opensc-pkcs11] acos5:161:first_of_free_indices: skey_info.id.len: 1
-    P:4411; T:0x140611560458048 22:28:26.289 [opensc-pkcs11] acos5:162:first_of_free_indices: skey_info.id: 07
-    P:4411; T:0x140611560458048 22:28:26.289 [opensc-pkcs11] acos5:163:first_of_free_indices: skey_info.key_reference: 131
-    P:4411; T:0x140611560458048 22:28:26.289 [opensc-pkcs11] acos5:164:first_of_free_indices: skey_info.key_type: 31
-    P:4411; T:0x140611560458048 22:28:26.289 [opensc-pkcs11] acos5:165:first_of_free_indices: skey_info.path: 3F0041004102
-    P:4411; T:0x140611560458048 22:28:26.289 [opensc-pkcs11] acos5:166:first_of_free_indices: skey_info.path.index: 3
-    P:4411; T:0x140611560458048 22:28:26.289 [opensc-pkcs11] acos5:167:first_of_free_indices: skey_info.path.count: 37
-    */
     while !obj_list_ptr.is_null() {
         let obj_list = unsafe { &*obj_list_ptr };
         if (obj_list.type_ & SC_PKCS15_TYPE_SKEY) == SC_PKCS15_TYPE_SKEY {
             assert!(!obj_list.data.is_null());
-            log3if!(ctx,f,line!(), cstru!(b"obj_list.type_: %X\0"),        obj_list.type_);
-            log3if!(ctx,f,line!(), cstru!(b"obj_list.label: %s\0"),        obj_list.label.as_ptr());
-            log3if!(ctx,f,line!(), cstru!(b"obj_list.flags: %X\0"),        obj_list.flags);
-            log3if!(ctx,f,line!(), cstru!(b"obj_list.content.len: %zu\0"), obj_list.content.len);
+            // log3if!(ctx,f,line!(), cstru!(b"obj_list.type_: %X\0"),        obj_list.type_);
+            // log3if!(ctx,f,line!(), cstru!(b"obj_list.label: %s\0"),        obj_list.label.as_ptr());
+            // log3if!(ctx,f,line!(), cstru!(b"obj_list.flags: %X\0"),        obj_list.flags);
+            // log3if!(ctx,f,line!(), cstru!(b"obj_list.content.len: %zu\0"), obj_list.content.len);
             let skey_info = unsafe { &*(obj_list.data as *mut sc_pkcs15_skey_info) };
-            log3if!(ctx,f,line!(), cstru!(b"skey_info.id.len: %zu\0"),       skey_info.id.len);
-            log3if!(ctx,f,line!(), cstru!(b"skey_info.id: %s\0"),
-                unsafe { sc_dump_hex(skey_info.id.value.as_ptr(), skey_info.id.len) });
+            // log3if!(ctx,f,line!(), cstru!(b"skey_info.id.len: %zu\0"),       skey_info.id.len);
+            // log3if!(ctx,f,line!(), cstru!(b"skey_info.id: %s\0"),
+            //     unsafe { sc_dump_hex(skey_info.id.value.as_ptr(), skey_info.id.len) });
             log3if!(ctx,f,line!(), cstru!(b"skey_info.key_reference: %d\0"), skey_info.key_reference);
             log3if!(ctx,f,line!(), cstru!(b"skey_info.key_type: %lu\0"),     skey_info.key_type);
-            log3if!(ctx,f,line!(), cstru!(b"skey_info.path: %s\0"),
-                unsafe { sc_dump_hex(skey_info.path.value.as_ptr(), skey_info.path.len) });
-            log3if!(ctx,f,line!(), cstru!(b"skey_info.path.index: %d\0"),    skey_info.path.index);
-            log3if!(ctx,f,line!(), cstru!(b"skey_info.path.count: %d\0"),    skey_info.path.count);
+            // log3if!(ctx,f,line!(), cstru!(b"skey_info.path: %s\0"),
+            //     unsafe { sc_dump_hex(skey_info.path.value.as_ptr(), skey_info.path.len) });
+            // log3if!(ctx,f,line!(), cstru!(b"skey_info.path.index: %d\0"),    skey_info.path.index);
+            // log3if!(ctx,f,line!(), cstru!(b"skey_info.path.count: %d\0"),    skey_info.path.count);
             assert!(skey_info.path.index >= 0 && skey_info.path.index <= 255);
             index_possible.remove(& u8::try_from(skey_info.path.index).unwrap());
-            if *file_id_sym_keys == 0 {
-                assert!(skey_info.path.len>=2);
-                *file_id_sym_keys = u16::from_be_bytes([skey_info.path.value[skey_info.path.len-2],
-                                                        skey_info.path.value[skey_info.path.len-1]]);
+            if  *file_id_sym_keys == 0 {
+                *file_id_sym_keys = file_id_from_path_value(&skey_info.path.value[..skey_info.path.len]);
             }
         }
         obj_list_ptr = obj_list.next;
@@ -113,6 +88,296 @@ pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mu
     }
     i32::from(u8::try_from(index_possible_min).unwrap())
 }
+
+/* find unused file id s, i.e. not listed in EF.PrKDF, EF.PuKDF (, EF.PuKDF_TRUSTED) */
+pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
+{
+    if p15card.card.is_null() || unsafe { (*p15card.card).ctx.is_null() } {
+        return Err(SC_ERROR_INVALID_ARGUMENTS);
+    }
+    let ctx = unsafe { &mut *(*p15card.card).ctx };
+    let f = cstru!(b"free_fid_asym\0");
+    log3ifc!(ctx,f,line!());
+
+    let mut df = p15card.df_list;
+    while !df.is_null() {
+        let df_ref = unsafe { &*df };
+        if (3 & (1 << df_ref.type_)) == 0 {
+            df = df_ref.next;
+            continue;
+        }
+        if df_ref.enumerated != 0 {
+            df = df_ref.next;
+            continue;
+        }
+        /* Enumerate the DF's, so p15card->obj_list is populated. */
+        unsafe {
+            if !p15card.ops.parse_df.is_none() { p15card.ops.parse_df.unwrap()(p15card, df); }
+            else                               { sc_pkcs15_parse_df(p15card, df); }
+        }
+        df = df_ref.next;
+    }
+
+    let mut vec : Vec<u16> = (0x5000..0x6000).collect();
+    vec.retain(|&x|  x != 0x5030 && x != 0x5031 && x != 0x5032 && x != 0x5033 && x != 0x5154 && x != 0x5155);
+//println!("{:X?}", vec);
+
+    /* for SC_PKCS15_PRKDF */
+    // let df_path = match find_df_by_type(p15card, SC_PKCS15_PRKDF) {
+    //     Ok(df) => if df.enumerated==1 {&df.path} else {return Err(-1)},
+    //     Err(e) => return Err(e),
+    // };
+//log3if!(ctx,f,line!(), cstru!(b"df_list.path of SC_PKCS15_PRKDF: %s\0"),
+//    unsafe { sc_dump_hex(df_path.value.as_ptr(), df_path.len) });
+    let mut obj_list_ptr = p15card.obj_list;
+    if obj_list_ptr.is_null() {
+        return Err(-1);
+    }
+    while !obj_list_ptr.is_null() {
+        let obj_list = unsafe { &*obj_list_ptr };
+        if (1 << (obj_list.type_ >> 8)) == SC_PKCS15_SEARCH_CLASS_PRKEY {
+            assert!(!obj_list.data.is_null());
+//log3if!(ctx,f,line!(), cstru!(b"obj_list.type_: %X\0"),        obj_list.type_);
+//log3if!(ctx,f,line!(), cstru!(b"obj_list.label: %s\0"),        obj_list.label.as_ptr());
+            let prkey_info = unsafe { &*(obj_list.data as *mut sc_pkcs15_prkey_info) };
+//log3if!(ctx,f,line!(), cstru!(b"prkey_info.path: %s\0"),
+//    unsafe { sc_dump_hex(prkey_info.path.value.as_ptr(), prkey_info.path.len) });
+            let y = file_id_from_path_value(&prkey_info.path.value[..prkey_info.path.len]);
+            vec.retain(|&x|  x != y);
+        }
+        obj_list_ptr = obj_list.next;
+    }
+
+    /* same for SC_PKCS15_PUKDF */
+    // let df_path = match find_df_by_type(p15card, SC_PKCS15_PUKDF) {
+    //     Ok(df) => if df.enumerated==1 {&df.path} else {return Err(-1)},
+    //     Err(e) => return Err(e),
+    // };
+//log3if!(ctx,f,line!(), cstru!(b"df_list.path of SC_PKCS15_PUKDF: %s\0"),
+//    unsafe { sc_dump_hex(df_path.value.as_ptr(), df_path.len) });
+    obj_list_ptr = p15card.obj_list;
+/*
+    if obj_list_ptr.is_null() {
+        return Err(-1);
+    }
+*/
+    while !obj_list_ptr.is_null() {
+        let obj_list = unsafe { &*obj_list_ptr };
+        if (1 << (obj_list.type_ >> 8)) == SC_PKCS15_SEARCH_CLASS_PUBKEY {
+            assert!(!obj_list.data.is_null());
+//log3if!(ctx,f,line!(), cstru!(b"obj_list.type_: %X\0"),        obj_list.type_);
+//log3if!(ctx,f,line!(), cstru!(b"obj_list.label: %s\0"),        obj_list.label.as_ptr());
+            let pukey_info = unsafe { &*(obj_list.data as *mut sc_pkcs15_pubkey_info) };
+//log3if!(ctx,f,line!(), cstru!(b"pukey_info.path: %s\0"),
+//    unsafe { sc_dump_hex(pukey_info.path.value.as_ptr(), pukey_info.path.len) });
+            let y = file_id_from_path_value(&pukey_info.path.value[..pukey_info.path.len]);
+            vec.retain(|&x|  x != y);
+        }
+        obj_list_ptr = obj_list.next;
+    }
+/*
+    let df_path = match find_df_by_type(p15card, SC_PKCS15_PUKDF_TRUSTED) {
+        Ok(df) => if df.enumerated==1 {&df.path} else {return Err(-1)},
+        Err(e) => return Err(e),
+    };
+    log3if!(ctx,f,line!(), cstru!(b"df_list.path of SC_PKCS15_PUKDF_TRUSTED: %s\0"),
+        unsafe { sc_dump_hex(df_path.value.as_ptr(), df_path.len) });
+    let mut obj_list_ptr = p15card.obj_list;
+    if obj_list_ptr.is_null() {
+        return Err(-1);
+    }
+    while !obj_list_ptr.is_null() {
+        let obj_list = unsafe { &*obj_list_ptr };
+        if (1 << (obj_list.type_ >> 8)) == SC_PKCS15_SEARCH_CLASS_PUBKEY {
+            assert!(!obj_list.data.is_null());
+            log3if!(ctx,f,line!(), cstru!(b"obj_list.type_: %X\0"),        obj_list.type_);
+            log3if!(ctx,f,line!(), cstru!(b"obj_list.label: %s\0"),        obj_list.label.as_ptr());
+            let pukey_info = unsafe { &*(obj_list.data as *mut sc_pkcs15_pubkey_info) };
+            log3if!(ctx,f,line!(), cstru!(b"pukey_info.path: %s\0"),
+                unsafe { sc_dump_hex(pukey_info.path.value.as_ptr(), pukey_info.path.len) });
+            let y = file_id_from_path_value(&pukey_info.path.value[..pukey_info.path.len]);
+            vec.retain(|&x|  x != y);
+        }
+        obj_list_ptr = obj_list.next;
+    }
+*/
+
+    if vec.len() >= 2 { log3ifr!(ctx,f,line!(), SC_SUCCESS); Ok((vec[0], vec[1])) }
+    else              { log3ifr!(ctx,f,line!(), SC_ERROR_INTERNAL); Err(SC_ERROR_INTERNAL) }
+}
+
+#[allow(dead_code)]
+#[cfg(not(target_os = "windows"))]
+pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs15_card, key_info: &sc_pkcs15_prkey_info) -> Result<(), i32> {
+    if p15card.card.is_null() || unsafe { (*p15card.card).ctx.is_null() } {
+        return Err(SC_ERROR_INVALID_ARGUMENTS);
+    }
+    let card = unsafe { &mut *p15card.card };
+    let ctx = unsafe { &mut *(*p15card.card).ctx };
+    let f = cstru!(b"check_enlarge_prkdf_pukdf\0");
+    log3ifc!(ctx,f,line!());
+
+    let df_path_priv = match find_df_by_type(p15card, SC_PKCS15_PRKDF) {
+        Ok(df) => if df.enumerated==1 {df.path} else {return Err(-1)},
+        Err(e) => return Err(e),
+    };
+    let df_path_pub = match find_df_by_type(p15card, SC_PKCS15_PUKDF) {
+        Ok(df) => if df.enumerated==1 {df.path} else {return Err(-1)},
+        Err(e) => return Err(e),
+    };
+    assert!(df_path_priv.len >= 4);
+    assert!(df_path_pub.len >= 4);
+    let mut df_path_parent = df_path_priv;
+    df_path_parent.len -= 2;
+    let file_priv_id = file_id_from_path_value(&df_path_priv.value[..df_path_priv.len]);
+    let file_pub_id  = file_id_from_path_value( &df_path_pub.value[..df_path_pub.len]);
+//    let file_parent_id = file_id_from_path_value(&df_path_parent.value[..df_path_parent.len]);
+    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    // let dp_files_value = &dp.files[&file_priv_id];
+    let size_priv : usize = file_id_se(dp.files[&file_priv_id].1).into();
+    let size_pub  : usize = file_id_se(dp.files[&file_pub_id].1).into();
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
+
+    let mut file_parent = null_mut();
+    let guard_file_parent = GuardFile::new(&mut file_parent);
+    let mut rv = unsafe { sc_select_file(card, &df_path_parent, *guard_file_parent) };
+    if rv != SC_SUCCESS { return Err(-1); }
+
+    let mut file_priv = null_mut();
+    let guard_file_priv = GuardFile::new(&mut file_priv);
+    rv = unsafe { sc_select_file(card, &df_path_priv, *guard_file_priv) };
+    if rv != SC_SUCCESS { return Err(-1); }
+    let mut rbuf_priv = vec![0_u8; size_priv];
+    rv = unsafe { sc_read_binary(card, 0, rbuf_priv.as_mut_ptr(), rbuf_priv.len(), 0) };
+    if rv != size_priv.try_into().unwrap()  { return Err(-1); }
+    let unused_len = DirectoryRange::new(&rbuf_priv).unused_len();
+//println!("SC_PKCS15_PRKDF: unused_len: {} of available {},\nfile_priv: {:X?}", unused_len, rv, unsafe {*file_priv});
+    let mut card_free_space : u32 = 0;
+    rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FREE_SPACE, &mut card_free_space  as *mut _ as p_void) };
+    assert_eq!(SC_SUCCESS, rv);
+    let key_pair_size_req = key_info.modulus_length/16 * 7 + 26; // min. is 250 for RSA/512
+    if  key_pair_size_req > card_free_space.try_into().unwrap() { return Err(SC_ERROR_NOT_ENOUGH_MEMORY); }
+    const INC : usize = 0x100;
+    if unused_len < 60  &&  key_pair_size_req + INC <= card_free_space.try_into().unwrap() {
+        /* TODO any enlargement only if it makes sense : get_free_space; in any case it MUST BE AVOIDED that EF.PrKDF gets deleted without being able to re-create it enlarged !!! */
+        let file_priv = unsafe { &mut *file_priv };
+//        let mut fci = FCI::new_parsed(unsafe { from_raw_parts(file_priv.prop_attr, file_priv.prop_attr_len) });
+        file_priv.size += INC;
+//        fci.size       += INC;
+//println!("Need to  enlarge file {:04X?} in DF {:04X?}, fci: {:02X?}", file_priv.id, file_parent_id, fci );
+        /* Authenticate  */
+        rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_parent, i32::try_from(SC_AC_OP_DELETE).unwrap()) };
+        if rv < 0 {
+            log3ifr!(ctx,f,line!(), cstru!(b"PIN verification failed\0"), rv);
+            return Err(rv);
+        }
+        /* Authenticate  */
+        rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_parent, i32::try_from(SC_AC_OP_CREATE_EF).unwrap()) };
+        if rv < 0 {
+            log3ifr!(ctx,f,line!(), cstru!(b"PIN verification failed\0"), rv);
+            return Err(rv);
+        }
+        /* Authenticate  */
+        rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_priv, i32::try_from(SC_AC_OP_DELETE_SELF).unwrap()) };
+        if rv < 0 {
+            log3ifr!(ctx,f,line!(), cstru!(b"PIN verification failed\0"), rv);
+            return Err(rv);
+        }
+        /* Authenticate  */
+        rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_priv, i32::try_from(SC_AC_OP_UPDATE).unwrap()) };
+        if rv < 0 {
+            log3ifr!(ctx,f,line!(), cstru!(b"PIN verification failed\0"), rv);
+            return Err(rv);
+        }
+
+        rv = unsafe { sc_delete_file(card, &df_path_priv) };
+        if rv < 0 {
+            log3ifr!(ctx,f,line!(), cstru!(b"File deletion failed\0"), rv);
+            return Err(rv);
+        }
+        rv = unsafe { sc_create_file(card, file_priv) };
+        if rv < 0 {
+            log3ifr!(ctx,f,line!(), cstru!(b"File creation failed\0"), rv);
+            return Err(rv);
+        }
+        // drop(guard_file_priv);
+        rv = unsafe { sc_update_binary(card, 0, rbuf_priv.as_ptr(), rbuf_priv.len(), 0/*flags: c_ulong*/) };
+        if rv < 0 {
+            log3ifr!(ctx,f,line!(), cstru!(b"File update failed\0"), rv);
+            return Err(rv);
+        }
+        let mut apdu = build_apdu(ctx, &[0, 0x44, 0, 0], SC_APDU_CASE_1, &mut[]);
+        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { /*return Err(rv);*/ }
+    }
+
+
+    let mut file_pub = null_mut();
+    let guard_file_pub = GuardFile::new(&mut file_pub);
+    rv = unsafe { sc_select_file(card, &df_path_pub, *guard_file_pub) };
+    if rv != SC_SUCCESS { return Err(-1); }
+    let mut rbuf_pub = vec![0_u8; size_pub];
+    rv = unsafe { sc_read_binary(card, 0, rbuf_pub.as_mut_ptr(), rbuf_pub.len(), 0) };
+    if rv != size_pub.try_into().unwrap()  { return Err(-1); }
+    let unused_len = DirectoryRange::new(&rbuf_pub).unused_len();
+//println!("SC_PKCS15_PUKDF: unused_len: {} of available {},\nfile_pub: {:X?}", unused_len, rv, unsafe {*file_pub});
+    rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FREE_SPACE, &mut card_free_space  as *mut _ as p_void) };
+    assert_eq!(SC_SUCCESS, rv);
+    if  key_pair_size_req > card_free_space.try_into().unwrap() { return Err(SC_ERROR_NOT_ENOUGH_MEMORY); }
+    if unused_len < 60  &&  key_pair_size_req + INC <= card_free_space.try_into().unwrap() {
+        /* TODO any enlargement only if it makes sense : get_free_space; in any case it MUST BE AVOIDED that EF.PuKDF gets deleted without being able to re-create it enlarged !!! */
+        let file_pub = unsafe { &mut *file_pub };
+//        let mut fci = FCI::new_parsed(unsafe { from_raw_parts(file_pub.prop_attr, file_pub.prop_attr_len) });
+        file_pub.size += INC;
+//        fci.size      += INC;
+//println!("Need to  enlarge file {:04X?} in DF {:04X?}, fci: {:02X?}", file_pub.id, file_parent_id, fci );
+        /* Authenticate  */
+        rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_parent, i32::try_from(SC_AC_OP_DELETE).unwrap()) };
+        if rv < 0 {
+            log3ifr!(ctx,f,line!(), cstru!(b"PIN verification failed\0"), rv);
+            return Err(rv);
+        }
+        /* Authenticate  */
+        rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_parent, i32::try_from(SC_AC_OP_CREATE_EF).unwrap()) };
+        if rv < 0 {
+            log3ifr!(ctx,f,line!(), cstru!(b"PIN verification failed\0"), rv);
+            return Err(rv);
+        }
+        /* Authenticate  */
+        rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_pub, i32::try_from(SC_AC_OP_DELETE_SELF).unwrap()) };
+        if rv < 0 {
+            log3ifr!(ctx,f,line!(), cstru!(b"PIN verification failed\0"), rv);
+            return Err(rv);
+        }
+        /* Authenticate  */
+        rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_pub, i32::try_from(SC_AC_OP_UPDATE).unwrap()) };
+        if rv < 0 {
+            log3ifr!(ctx,f,line!(), cstru!(b"PIN verification failed\0"), rv);
+            return Err(rv);
+        }
+
+        rv = unsafe { sc_delete_file(card, &df_path_pub) };
+        if rv < 0 {
+            log3ifr!(ctx,f,line!(), cstru!(b"File deletion failed\0"), rv);
+            return Err(rv);
+        }
+        rv = unsafe { sc_create_file(card, file_pub) };
+        if rv < 0 {
+            log3ifr!(ctx,f,line!(), cstru!(b"File creation failed\0"), rv);
+            return Err(rv);
+        }
+        // drop(guard_file_pub);
+        rv = unsafe { sc_update_binary(card, 0, rbuf_pub.as_ptr(), rbuf_pub.len(), 0/*flags: c_ulong*/) };
+        if rv < 0 {
+            log3ifr!(ctx,f,line!(), cstru!(b"File update failed\0"), rv);
+            return Err(rv);
+        }
+        let mut apdu = build_apdu(ctx, &[0, 0x44, 0, 0], SC_APDU_CASE_1, &mut[]);
+        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { /*return Err(rv);*/ }
+    }
+    Ok(())
+}
+
 
 /* creates the first part of a sym key record entry; only 'key_len_bytes' key bytes need to be appended */
 fn prefix_sym_key(card_type: i32, rec_nr: u8, algorithm_type: u32, key_len_bytes: u8,
@@ -427,4 +692,4 @@ pub fn acos5_pkcs15_new_file(profile: &mut sc_profile, card: &mut sc_card,
     }
     SC_SUCCESS
 }
-*/
+ */

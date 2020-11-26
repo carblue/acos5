@@ -22,6 +22,7 @@
 
 use std::os::raw::{c_char, c_ulong, c_void};
 use std::ops::{Deref, DerefMut};
+use std::convert::{TryFrom/*, TryInto*/};
 use std::collections::HashMap;
 
 use opensc_sys::opensc::{sc_context, sc_security_env, sc_file_free, sc_bytes2apdu};
@@ -29,105 +30,9 @@ use opensc_sys::types::{sc_file, sc_apdu, sc_crt, sc_object_id, SC_MAX_CRTS_IN_S
 use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUSTED,
                          SC_PKCS15_SKDF, SC_PKCS15_CDF, SC_PKCS15_CDF_TRUSTED, SC_PKCS15_CDF_USEFUL,
                          SC_PKCS15_DODF, SC_PKCS15_AODF};
-use opensc_sys::errors::{SC_SUCCESS};
-
-#[allow(non_camel_case_types)]
-pub type p_void = *mut c_void;
-
-#[derive(Debug, Clone)]
-pub struct TLV<'a> {
-    tag: u8,
-    length: u8,
-    value: &'a [u8],
-
-    rem: &'a [u8],
-}
-
-impl<'a> TLV<'a> {
-    #[must_use]
-    pub fn new(input: &'a[u8]) -> Self {
-        Self { tag: 0, length: 0, value: input, rem: input }
-    }
-
-    #[must_use]
-    pub fn tag(&self) -> u8 {
-        self.tag
-    }
-    #[must_use]
-    pub fn length(&self) -> u8 {
-        self.length
-    }
-    #[must_use]
-    pub fn value(&self) -> &'a [u8] {
-        self.value
-    }
-}
-
-impl<'a> Iterator for TLV<'a> {
-    type Item = TLV<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.rem.is_empty() {
-            None
-        }
-        else {
-            assert!(self.rem.len()>=2);
-            self.tag    = self.rem[0];
-            self.length = self.rem[1];
-            self.rem    = &self.rem[2..];
-            let len = usize::from(self.length);
-            assert!(self.rem.len() >= len);
-            self.value  = &self.rem[..len]; // can this be easily replaced using split_at ?
-            self.rem    = &self.rem[  len..];
-            Some(self.clone())
-        }
-    }
-}
-
-// #[derive(Debug, Eq, PartialEq)]
-pub struct GuardFile(*mut *mut sc_file);
-
-impl GuardFile {
-    /// Creates a guard for the specified element.
-    pub fn new(inner: *mut *mut sc_file) -> Self {
-//println!("GuardFile");
-        GuardFile(inner)
-    }
-    /*
-        /// Forgets this guard and unwraps out the contained element.
-        pub fn unwrap(self) -> E {
-            let inner = self.0;
-            forget(self);   // Don't drop me or I'll destroy `inner`!
-            inner
-        }
-    */
-}
-
-impl Drop for GuardFile {
-    fn drop(&mut self) {
-        if !self.0.is_null() && unsafe { !(*self.0).is_null() } {
-//println!("Drop for file path: {:X?}", unsafe { (*(*self.0)).path.value });
-            unsafe { sc_file_free(*self.0) }
-        }
-    }
-}
-
-/// Be careful on deferecing so you don't store another copy of the element somewhere.
-impl Deref for GuardFile {
-    type Target = *mut *mut sc_file;
-    // fn deref(&self) -> &Self::Target;
-    fn deref(&self) -> & *mut *mut sc_file {
-        &self.0
-    }
-}
-
-/// Be careful on deferecing so you don't store another copy of the element somewhere.
-impl DerefMut for GuardFile {
-    // fn deref_mut(&mut self) -> &mut Self::Target;
-    fn deref_mut(&mut self) -> &mut *mut *mut sc_file {
-        &mut self.0
-    }
-}
+use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_INTERNAL};
+use opensc_sys::iso7816::{/*ISO7816_TAG_FCI, ISO7816_TAG_FCP,*/ ISO7816_TAG_FCP_SIZE, ISO7816_TAG_FCP_TYPE,
+                          ISO7816_TAG_FCP_FID, ISO7816_TAG_FCP_DF_NAME, ISO7816_TAG_FCP_LCS};
 
 /*
 Limits:
@@ -391,6 +296,198 @@ pub const CRYPTO       : usize =  2;
 pub const CREATE_DF    : usize =  2;
 pub const DELETE_SELF  : usize =  6;
 
+
+#[allow(non_camel_case_types)]
+pub type p_void = *mut c_void;
+
+/* Represents the FCI content, */
+#[derive(Debug, Clone, PartialEq)]
+pub struct FCI {
+    pub fdb : u8,
+    pub fid : u16,
+    pub size : u16,
+    pub lcsi : u8,
+
+    pub df_name : Vec<u8>,
+    pub scb8 : [u8; 8],
+    pub sae : Vec<u8>,
+    pub seid : u16,
+
+    pub mrl : u8,
+    pub nor : u8,
+}
+
+impl Default for FCI {
+    fn default() -> Self {
+        Self {
+            fdb: 0,
+            fid: 0,
+            size: 0,
+            lcsi: 0,
+            df_name: Vec::with_capacity(16),
+            scb8: [0; 8],
+            sae: Vec::with_capacity(32),
+            seid: 0,
+            mrl: 0,
+            nor: 0
+        }
+    }
+}
+
+impl FCI {
+    /*
+        pub fn new(fdb: u8, fid : u16, size: u16, lcsi: u8, df_name: Vec<u8>, scb8: [u8; 8], sae: Vec<u8>, seid : u16, mrl: u8, nor: u8) -> Self {
+            FCI { fdb, fid, size, lcsi, df_name, scb8, sae, seid, mrl, nor }
+        }
+    */
+    pub fn new_parsed(fci_bytes_sequence_body: &[u8]) -> Self {
+        let mut result = FCI::default();
+        // let tlv_iter = TLV::new(fci_bytes_sequence_body);
+        for tlv in TLV::new(fci_bytes_sequence_body) {
+            match tlv.tag() {
+                ISO7816_TAG_FCP_TYPE => {
+                    let len = tlv.length();
+                    assert!([1,2,5,6].contains(&len));
+                    result.fdb = tlv.value()[0];
+                    if len > 2 {
+                        result.mrl = tlv.value()[3];
+                        result.nor = tlv.value()[usize::from(len)-1];
+                        result.size = u16::from(result.mrl) * u16::from(result.nor);
+                    }
+                },
+                ISO7816_TAG_FCP_FID => {
+                    assert_eq!(2, tlv.length());
+                    result.fid = u16::from_be_bytes( [ tlv.value()[0], tlv.value()[1] ]);
+                },
+                ISO7816_TAG_FCP_SIZE => {
+                    assert_eq!(2, tlv.length());
+                    result.size = u16::from_be_bytes( [ tlv.value()[0], tlv.value()[1] ]);
+                },
+                ISO7816_TAG_FCP_LCS => {
+                    assert_eq!(1, tlv.length());
+                    result.lcsi = tlv.value()[0];
+                },
+                ISO7816_TAG_FCP_DF_NAME => {
+                    result.df_name.extend_from_slice(tlv.value());
+                },
+                ISO7816_RFU_TAG_FCP_SFI => {
+                    assert_eq!(1, tlv.length());
+                    // result.sfi = tlv.value()[0];
+                },
+                ISO7816_RFU_TAG_FCP_SAC => {
+                    result.scb8 = match convert_bytes_tag_fcp_sac_to_scb_array(tlv.value()) {
+                        Ok(val)  => val,
+                        Err(_e)     => panic!(),
+                    };
+                },
+                ISO7816_RFU_TAG_FCP_SAE => {
+                    result.sae.extend_from_slice(tlv.value());
+                },
+                ISO7816_RFU_TAG_FCP_SEID => {
+                    assert_eq!(2, tlv.length());
+                    result.seid = u16::from_be_bytes( [ tlv.value()[0], tlv.value()[1] ]);
+                },
+                _ => unreachable!()
+            }
+        }
+        result
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TLV<'a> {
+    tag: u8,
+    length: u8,
+    value: &'a [u8],
+
+    rem: &'a [u8],
+}
+
+impl<'a> TLV<'a> {
+    #[must_use]
+    pub fn new(input: &'a[u8]) -> Self {
+        Self { tag: 0, length: 0, value: input, rem: input }
+    }
+
+    #[must_use]
+    pub fn tag(&self) -> u8 {
+        self.tag
+    }
+    #[must_use]
+    pub fn length(&self) -> u8 {
+        self.length
+    }
+    #[must_use]
+    pub fn value(&self) -> &'a [u8] {
+        self.value
+    }
+}
+
+impl<'a> Iterator for TLV<'a> {
+    type Item = TLV<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.rem.is_empty() {
+            None
+        }
+        else {
+            assert!(self.rem.len()>=2);
+            self.tag    = self.rem[0];
+            self.length = self.rem[1];
+            self.rem    = &self.rem[2..];
+            let len = usize::from(self.length);
+            assert!(self.rem.len() >= len);
+            self.value  = &self.rem[..len]; // can this be easily replaced using split_at ?
+            self.rem    = &self.rem[  len..];
+            Some(self.clone())
+        }
+    }
+}
+
+// #[derive(Debug, Eq, PartialEq)]
+pub struct GuardFile(*mut *mut sc_file);
+
+impl GuardFile {
+    /// Creates a guard for the specified element.
+    pub fn new(inner: *mut *mut sc_file) -> Self {
+//println!("GuardFile");
+        GuardFile(inner)
+    }
+    /*
+        /// Forgets this guard and unwraps out the contained element.
+        pub fn unwrap(self) -> E {
+            let inner = self.0;
+            forget(self);   // Don't drop me or I'll destroy `inner`!
+            inner
+        }
+    */
+}
+
+impl Drop for GuardFile {
+    fn drop(&mut self) {
+        if !self.0.is_null() && unsafe { !(*self.0).is_null() } {
+//println!("Drop for file path: {:X?}", unsafe { (*(*self.0)).path.value });
+            unsafe { sc_file_free(*self.0) }
+        }
+    }
+}
+
+/// Be careful on deferecing so you don't store another copy of the element somewhere.
+impl Deref for GuardFile {
+    type Target = *mut *mut sc_file;
+    // fn deref(&self) -> &Self::Target;
+    fn deref(&self) -> & *mut *mut sc_file {
+        &self.0
+    }
+}
+
+/// Be careful on deferecing so you don't store another copy of the element somewhere.
+impl DerefMut for GuardFile {
+    // fn deref_mut(&mut self) -> &mut Self::Target;
+    fn deref_mut(&mut self) -> &mut *mut *mut sc_file {
+        &mut self.0
+    }
+}
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone,  PartialEq)]
@@ -699,6 +796,92 @@ pub fn build_apdu(ctx: &mut sc_context, cmd: &[u8], cse: i32, rbuf: &mut [u8]) -
     apdu
 }
 
+pub fn is_child_of(child: &ValueTypeFiles, parent: &ValueTypeFiles) -> bool {
+    let pos = usize::from(parent.1[1]);
+    assert!(pos < 16);
+    let mut path = parent.0;
+    path[pos..pos+2].copy_from_slice(&child.1[2..4]);
+    path == child.0  &&  pos+2 == child.1[1].into()
+}
+
+/* The following 2 functions take the file id from the last valid path component */
+#[must_use]
+pub fn file_id_from_path_value(path_value: &[u8]) -> u16
+{
+    let len = path_value.len();
+    assert!(len>=2);
+    u16::from_be_bytes([path_value[len-2], path_value[len-1]])
+}
+
+pub fn file_id(file_info_bytes: [u8; 8]) ->u16 {
+    u16::from_be_bytes([file_info_bytes[2], file_info_bytes[3]])
+}
+
+/*
+ a 2-byte slot [4..6] gets used only by some file types:
+ for DF/MF its the id of an SE file
+ for non-record based file types its the file size
+*/
+pub fn file_id_se(file_info_bytes: [u8; 8]) ->u16 {
+    u16::from_be_bytes([file_info_bytes[4], file_info_bytes[5]])
+}
+
+/* SCB: Security Condition Byte
+ * convert_bytes_tag_fcp_sac_to_scb_array expands the (possibly) "compressed" tag_fcp_sac (0x8C) bytes from card file/director's
+ * header to a 'standard' 8 byte SCB array, interpreting the AM byte (AMB);
+ * The position of a SCB within the array is related to a command/operation, that is controlled by this byte
+ * The value of SCB refers to a record id in Security Environment file, that stores details of conditions that must be
+ * met in order to grant access
+ * SC's byte positions are assigned values matching the AM bit-representation in reference manual, i.e. it is reversed
+ * to what many other cards do:
+ * Bit 7 of AM byte indicates what is stored to byte-index 7 of SC ( Not Used by ACOS )
+ * Bit 0 of AM byte indicates what is stored to byte-index 0 of SC ( EF: READ, DF/MF:  Delete_Child )
+ * Bits 0,1,2 may have different meaning depending on file type, from bits 3 to 6/7 (unused) meanings are the same for
+ * all file types
+ * Maybe later integrate this in acos5_process_fci
+ * @param  bytes_tag_fcp_sac IN  the TLV's V bytes readable from file header for tag 0x8C, same order from left to right;
+ *                               number of bytes: min: 0, max. 8
+ *                               If there are >= 1 bytes, the first is AM (telling by 1 bits which bytes will follow)
+ * @param  scb8          OUT     8 SecurityConditionBytes, from leftmost (index 0)'READ'/'Delete_Child' to
+ *                               (6)'SC_AC_OP_DELETE_SELF', (7)'unused'
+ *
+ * The reference manual contains a table indicating the possible combinations of bits allowed for a scb:
+ * For any violation, Err will be returned
+ */
+/*
+ * What it does
+ * @apiNote
+ * @param
+ * @return
+ */
+///
+/// # Errors
+#[allow(clippy::missing_errors_doc)]
+pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Result<[u8; 8], i32>
+{
+    let mut scb8 = [0_u8; 8]; // if AM has no 1 bit for a command/operation, then it's : always allowed
+    scb8[7] = 0xFF; // though not expected to be accidentally set, it get's overridden to NEVER: it's not used by ACOS
+
+    if bytes_tag_fcp_sac.is_empty() {
+        return Ok(scb8);
+    }
+    assert!(bytes_tag_fcp_sac.len() <= 8, "bytes_tag_fcp_sac.len() > 8");
+
+    let mut idx = 0;
+    let amb = bytes_tag_fcp_sac[idx];
+    idx += 1;
+    if usize::try_from(amb.count_ones()).unwrap() != bytes_tag_fcp_sac.len()-1 { // the count of 1-valued bits of amb Byte must equal (taglen-1), the count of bytes following amb
+        return Err(SC_ERROR_INTERNAL);
+    }
+
+    for pos in 0..8 {
+        if (amb & (0b1000_0000 >> pos)) != 0 { //assert(i);we should never get anything for scb8[7], it's not used by ACOS
+            scb8[7-pos] = bytes_tag_fcp_sac[idx];
+            idx += 1;
+        }
+    }
+    Ok(scb8)
+}
 
 ////////////////
 ////////////////

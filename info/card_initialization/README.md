@@ -11,7 +11,7 @@ pkcs15-init --sanity-check). This will print to stdout everything notable about 
 The catch-22 with ACS tool card initialization is, that any SE-file (which provides information i.a. about how to do PIN
 verification) is readable only after PIN verification has been completed.
 
-Note, that the philosophy of OpenSC is to have free access (reading always allowed or SM constrains satisfiable without
+Note, that the philosophy of OpenSC is to have free access (reading always allowed or SM constraints satisfiable without
 any PIN entry) to PKCS#15 directory file EF.DIR and PKCS#15 object directory file EF.ODF and to all what they point to.
 Also to EF.TokenInfo. The driver requires free access to all SE-files.
 
@@ -26,8 +26,8 @@ exclude Yourself from the card.
 
 In order to enable secured pin entry with ACOS5-64 V3.00 card/token: There is a special
 V3_00_card_initialization_secured_pin.scriptor. It differs from card_initialization.scriptor only in that it uses the
-SAE tag 0xAB for directories in which pin commands are forced to use Secure Messaging in order to send pins encrypted
-to the card for commands 'pin verify', 'pin change' and 'pin unblock'.
+SAE tag 0xAB for directories in which pin commands are forced to use Secure Messaging (SM) in order to send pins
+encrypted to the card for commands 'pin verify', 'pin change' and 'pin unblock'.
 Note that the keys written to file 0x3F0041004102 Local Symmetric Key file and within opensc.conf under
 keyset_41434F53504B43532D313576312E3030_02_* MUST MATCH. Any mistake with that entails impossibility to verify pins.
 

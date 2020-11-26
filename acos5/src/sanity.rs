@@ -16,8 +16,7 @@ use opensc_sys::errors::{/*SC_SUCCESS,*/ SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT
 use crate::wrappers::{wr_do_log, wr_do_log_ttt};
 use crate::cmd_card_info::{get_card_life_cycle_byte_eeprom, get_op_mode_byte_eeprom, get_zeroize_card_disable_byte_eeprom};
 use crate::no_cdecl::{update_hashmap};
-use crate::constants_types::{DataPrivate, is_DFMF, FDB_SE_FILE, READ/*, p_void*/};
-use crate::path::{/*file_id,*/ file_id_se, is_child_of};
+use crate::constants_types::{DataPrivate, is_DFMF, FDB_SE_FILE, READ, file_id_se, is_child_of /*file_id, p_void*/};
 use crate::se::se_get_references;
 /* * /
 cfg_if::cfg_if! {
