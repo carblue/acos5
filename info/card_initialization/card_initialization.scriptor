@@ -54,7 +54,7 @@ reset
 # file 0x3F0041004129 File to retain compatibility with ACS tool/PKCS#11 dll
 # file 0x3F0041005155 File to retain compatibility with ACS tool/PKCS#11 dll
 # file 0x3F0041004104 test file for SM                   -> will be omitted if not manually changed
-# file space from 0x3F0041005000 to 0x3F0041005FFF is reserved for - besides EF.ODF, EF.TokenInfo, EF.Unused - driver placing max. 2046 new RSA/ECC key pairs there ! (theoretically: the actual limit is the minimum of 2046/what free/user-available EEPROM memory allows)
+# file space from 0x3F0041005000 to 0x3F0041005FFF is reserved for - besides EF.ODF, EF.TokenInfo, EF.Unused - driver placing max. 2045 new RSA/ECC key pairs there ! (theoretically: the actual limit is the minimum of 2045/what free/user-available EEPROM memory allows)
 
 ## File creation (instruction byte 0xE0), followed by selection (ins 0xA4), population (ins 0xDC or 0xD6) and activation (ins 0x44)
 ## file 0x3F00         MF
@@ -209,4 +209,4 @@ reset
 
 # get free space in bytes i.e. remaining free EEPROM capacity from initially 64,000 minus used by files acc. commands above:
 80 14 04 00 02
-# the response may be something like DA C0 90 00: first 2 bytes (are hexadecimal repr.) 0xDAC0 == 56,000 byte; last 2 bytes are just the status word of response, and 0x9000 means: okay, no error occured
+# the response may be something like DE 81 90 00: first 2 bytes (are hexadecimal repr.) 0xDE81 == 56,961 bytes; last 2 bytes are just the status word of response, and 0x9000 means: okay, no error occured

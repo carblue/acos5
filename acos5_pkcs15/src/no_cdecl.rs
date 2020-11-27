@@ -256,10 +256,10 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
     let mut card_free_space : u32 = 0;
     rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FREE_SPACE, &mut card_free_space  as *mut _ as p_void) };
     assert_eq!(SC_SUCCESS, rv);
-    let key_pair_size_req = key_info.modulus_length/16 * 7 + 26; // min. is 250 for RSA/512
+    let key_pair_size_req = key_info.modulus_length/16 * 7 + 26; // min. is 250 bytes for RSA/512
     if  key_pair_size_req > card_free_space.try_into().unwrap() { return Err(SC_ERROR_NOT_ENOUGH_MEMORY); }
     const INC : usize = 0x100;
-    if unused_len < 60  &&  key_pair_size_req + INC <= card_free_space.try_into().unwrap() {
+    if unused_len < 80  &&  key_pair_size_req + INC <= card_free_space.try_into().unwrap() {
         /* TODO any enlargement only if it makes sense : get_free_space; in any case it MUST BE AVOIDED that EF.PrKDF gets deleted without being able to re-create it enlarged !!! */
         let file_priv = unsafe { &mut *file_priv };
 //        let mut fci = FCI::new_parsed(unsafe { from_raw_parts(file_priv.prop_attr, file_priv.prop_attr_len) });
@@ -301,7 +301,6 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
             log3ifr!(ctx,f,line!(), cstru!(b"File creation failed\0"), rv);
             return Err(rv);
         }
-        // drop(guard_file_priv);
         rv = unsafe { sc_update_binary(card, 0, rbuf_priv.as_ptr(), rbuf_priv.len(), 0/*flags: c_ulong*/) };
         if rv < 0 {
             log3ifr!(ctx,f,line!(), cstru!(b"File update failed\0"), rv);
@@ -324,7 +323,7 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
     rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FREE_SPACE, &mut card_free_space  as *mut _ as p_void) };
     assert_eq!(SC_SUCCESS, rv);
     if  key_pair_size_req > card_free_space.try_into().unwrap() { return Err(SC_ERROR_NOT_ENOUGH_MEMORY); }
-    if unused_len < 60  &&  key_pair_size_req + INC <= card_free_space.try_into().unwrap() {
+    if unused_len < 80  &&  key_pair_size_req + INC <= card_free_space.try_into().unwrap() {
         /* TODO any enlargement only if it makes sense : get_free_space; in any case it MUST BE AVOIDED that EF.PuKDF gets deleted without being able to re-create it enlarged !!! */
         let file_pub = unsafe { &mut *file_pub };
 //        let mut fci = FCI::new_parsed(unsafe { from_raw_parts(file_pub.prop_attr, file_pub.prop_attr_len) });
@@ -366,7 +365,6 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
             log3ifr!(ctx,f,line!(), cstru!(b"File creation failed\0"), rv);
             return Err(rv);
         }
-        // drop(guard_file_pub);
         rv = unsafe { sc_update_binary(card, 0, rbuf_pub.as_ptr(), rbuf_pub.len(), 0/*flags: c_ulong*/) };
         if rv < 0 {
             log3ifr!(ctx,f,line!(), cstru!(b"File update failed\0"), rv);
