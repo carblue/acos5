@@ -1,16 +1,19 @@
 use libc::{strcmp, calloc, memcpy/*, memcmp,*/};
 
 use std::os::raw::{c_char};
+use std::ptr::copy_nonoverlapping;
 //use std::ffi::{CStr};
 
-use opensc_sys::opensc::{sc_file_dup};
+use opensc_sys::opensc::{sc_file_dup, sc_file_new, sc_file_valid};
 use opensc_sys::profile::{sc_profile, file_info};
-use opensc_sys::types::{sc_path, sc_file/*, SC_AC_OP_CREATE_EF, SC_PATH_TYPE_FILE_ID, SC_AC_OP_DELETE*/};
+use opensc_sys::types::{sc_path, sc_file, sc_acl_entry, SC_MAX_AID_SIZE, SC_MAX_AC_OPS
+                        /*, SC_AC_OP_CREATE_EF, SC_PATH_TYPE_FILE_ID, SC_AC_OP_DELETE*/};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_FILE_NOT_FOUND, SC_ERROR_OUT_OF_MEMORY, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_PKCS15INIT};
 use opensc_sys::pkcs15::{sc_pkcs15_bignum, sc_pkcs15_card, sc_pkcs15_df};
 //use opensc_sys::log::{sc_dump_hex};
 
 use crate::constants_types::p_void;
+use std::ptr::null_mut;
 //use crate::wrappers::*;
 
 fn me_profile_find_file(profile: &mut sc_profile, _path: *const sc_path, name: *const c_char) -> *mut file_info
@@ -82,12 +85,84 @@ pub fn me_profile_get_file(profile: &mut sc_profile, name: *const c_char, ret: *
     let fi = unsafe { & *fi};
     assert!(!fi.file.is_null());
     unsafe { sc_file_dup(ret, fi.file) };
+    // unsafe { my_file_dup(&mut *ret, &*fi.file) };
     if unsafe { (*ret).is_null() } {
         return SC_ERROR_OUT_OF_MEMORY;
     }
     SC_SUCCESS
 }
 
+/* How this differs from sc_file_dup:
+   field acl       doesn't get duplicated, but set to all: SC_AC_NONE, as internal/virtual  pointer encoding,
+                   see sc_file_add_acl_entry
+   field sec_attr         no copy
+   field prop_attr        no copy
+   field type_attr        no copy
+   field encoded_content  no copy
+ */
+#[allow(dead_code)]
+pub fn my_file_dup(dest: &mut *mut sc_file, src: &sc_file) {
+    *dest = null_mut();
+    if unsafe { sc_file_valid(src) != 1 }  { return; }
+    let newf : *mut sc_file = unsafe { sc_file_new() }; // initializes all its bits to zero, then file.magic = SC_FILE_MAGIC;
+    if  newf.is_null() { return; }
+    *dest = newf;
+    let mut newf = unsafe { &mut *newf };
+
+    unsafe {
+        // memcpy(&newf->path, &src->path, sizeof(struct sc_path));
+        copy_nonoverlapping(&src.path, &mut newf.path, std::mem::size_of::<sc_path>());
+        // memcpy(&newf->name, &src->name, sizeof(src->name));
+        copy_nonoverlapping(src.name.as_ptr(), newf.name.as_mut_ptr(), SC_MAX_AID_SIZE);
+    }
+    newf.namelen = src.namelen;
+
+    newf.type_        = src.type_;
+    newf.ef_structure = src.ef_structure;
+    newf.status       = src.status;
+    newf.shareable    = src.shareable;
+    newf.size         = src.size;
+    newf.id           = src.id;
+    // newf.sid         = src.sid;
+    newf.acl     = [2 as *mut sc_acl_entry; SC_MAX_AC_OPS]; // this is SC_AC_NONE, corrected later on
+/*
+    for (unsigned int op = 0; op < SC_MAX_AC_OPS; op++) {
+        newf.acl[op] = NULL;
+        const sc_acl_entry_t *e = sc_file_get_acl_entry(src, op);
+        if (e != NULL) {
+            if (sc_file_add_acl_entry(newf, op, e.method, e.key_ref) < 0)
+            goto err;
+        }
+    }
+*/
+    newf.record_length = src.record_length;
+    newf.record_count  = src.record_count;
+return;
+    // if (sc_file_set_sec_attr(newf, src.sec_attr, src.sec_attr_len) < 0)
+    // goto err;
+    // if (sc_file_set_prop_attr(newf, src.prop_attr, src.prop_attr_len) < 0)
+    // goto err;
+    // if (sc_file_set_type_attr(newf, src.type_attr, src.type_attr_len) < 0)
+    // goto err;
+    // if (sc_file_set_content(newf, src.encoded_content, src.encoded_content_len) < 0)
+    // goto err;
+// return;
+    // err:
+    //     sc_file_free(newf);
+    // *dest = NULL;
+
+    // unsafe { opensc_sys::opensc::sc_file_dup(dest, src) }
+/*
+$ grep -rnw sc_file_dup
+opensc-sys/src/opensc.rs:1990:pub fn sc_file_dup(dest: *mut *mut sc_file, src: *const sc_file);
+
+acos5_pkcs15/src/missing_exports.rs:6:use opensc_sys::opensc::{sc_file_dup};
+acos5_pkcs15/src/missing_exports.rs:84:    unsafe { sc_file_dup(ret, fi.file) };
+
+acos5_pkcs15/src/lib.rs:91: sc_file_dup, sc_delete_file, sc_check_sw, sc_update_record, SC_RECORD_BY_REC_NR, sc_get_version};
+acos5_pkcs15/src/lib.rs:685:    unsafe { sc_file_dup(*guard_file_pub, file_priv) };
+*/
+}
 
 pub fn me_pkcs15_dup_bignum(dst: &mut sc_pkcs15_bignum, src: &sc_pkcs15_bignum) -> i32
 {

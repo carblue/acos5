@@ -2,6 +2,9 @@
 # PKCS15 r/w profile for ACOS5 cards
 #
 # file.type is used differently here: The ACOS5 file type: File Descriptor Byte
+#
+# WARNING DON'T USE any of: TERM, SYMBOLIC,
+#   because it will break re-creating EF.PrKDF, EF.PuKDF after being deleted (breakage in function acos5/src/no_cdecl.rs: convert_acl_array_to_bytes_tag_fcp_sac)
 
 cardinfo {
     label        = "ACOS5-64 Card";

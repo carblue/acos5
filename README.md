@@ -10,7 +10,7 @@ The respective reference manual for Your hardware is available on request from: 
 Platforns supported: Those that the Rust compiler targets: [rustc platform-support](https://doc.rust-lang.org/nightly/rustc/platform-support.html "https://doc.rust-lang.org/nightly/rustc/platform-support.html").  
 Platforms tested: Those that I use:  
 Linux/Kubuntu 18.04.5 LTS (extensively tested, everything implemented works as expected),  
-Windows 10 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: SM and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Note that, for the time being, after all this annoying hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow for sanity-check).
+Windows 10 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: SM and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Note that, for the time being, after all this annoying time consuming hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow i.a. for sanity-check).
 
 Motivation:  
 For platform-independent, serious use of a cryptographic token from software like Firefox, Thunderbird, ssh etc., a [PKCS#11](https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11 "https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11") implementing library is required.  
@@ -18,7 +18,7 @@ There is none known to me for ACOS5 that is open-source, nothing in this regard 
 The only open-source software downloadable from ACS is [acsccid](https://github.com/acshk/acsccid "https://github.com/acshk/acsccid"), a PC/SC driver for Linux/Mac OS X. PC/SC or WinSCard (Windows) is just the basic layer on which a PKCS#11 library can build upon. I never installed acsccid for production use of my CryptoMate64 and CryptoMate Nano, hence the debian/Ubuntu-supplied [ccid](https://ccid.apdu.fr/ "https://ccid.apdu.fr/") seems to be sufficient (if it's new enough to list those cards as supported ones: [shouldwork](https://ccid.apdu.fr/ccid/shouldwork.html "https://ccid.apdu.fr/ccid/shouldwork.html")).  
 So be careful what You get from ACS when it's called driver. Perhaps You get something that is behind the "File Upon Request" barrier.
 
-[OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki") supplies i.a. a PKCS#11 implementing open-source library if it get's augmented by a hardware specific driver, which is missing currently for ACOS5 in OpenSC v0.20.0, and the one available in earlier versions was rudimentary/incomplete.
+[OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki") supplies i.a. a PKCS#11 implementing open-source library if it get's augmented by a hardware specific driver, which is missing currently for ACOS5 in OpenSC v0.21.0, and the one available in previous versions was rudimentary/incomplete.
 
 With this repo's components 'acos5' and 'acos5_pkcs15' as plug-ins, OpenSC supports some ACOS5 hardware as well. (Fortunately OpenSC allows such plug-ins as - in OpenSC lingo - external modules/shared libraries/DLL).  
 External modules need some configuration once in opensc.conf, such that they get 'registered' and used by OpenSC software, explained below.
@@ -36,14 +36,14 @@ sudo apt-get update
 sudo apt-get upgrade
 sudo apt-get install opensc opensc-pkcs11 openssl pcscd libtasn1-6-dev pcsc-tools
 ```
-If that doesn't install a symbolic link libopensc.so, then this must be done manually
+**If that doesn't install a symbolic link libopensc.so, then this must be done manually**
 
 Optional:  
 - [IUP](https://webserver2.tecgraf.puc-rio.br/iup/en/download.html "https://webserver2.tecgraf.puc-rio.br/iup/en/download.html") from [pre-build binaries](https://sourceforge.net/projects/iup/files/ "https://sourceforge.net/projects/iup/files/") in ...Libraries sub-folder   
 
 The driver may be "configured" to include code for: User consent to use an RSA private key: A dialog window (provided by IUP)
 pops up every time when an RSA private key is requested to be used for sign, decrypt, unwrap. I recommend to use this feature for enhanced security, more in file   [conditional_compile_options](https://github.com/carblue/acos5/tree/master/conditional_compile_options.md "https://github.com/carblue/acos5/tree/master/conditional_compile_options.md"), referring to 'iup_user_consent'.
-It's just not mandatory due to the required additional installation, required editing of acos5_external/acos5/build.rs and editing opensc.conf: iup_user_consent_enabled = yes; the latter allows to have that feature compiled in, but disable it temporarily e.g. for pkcs11-tool --test  where it would be tedious to approve each RSA key usage. The pre-build binaries are easy to install on Linux via sudo ./install (check for all dependencies satisfied with ldd libiup.so).
+It's just not mandatory due to the required additional installation, required editing of acos5_external/acos5/build.rs and editing opensc.conf: iup_user_consent_enabled = yes; the latter allows to have that feature compiled in, but disable it temporarily e.g. for pkcs11-tool --test  where it would be tedious to approve each RSA key usage. The pre-built binaries are easy to install on Linux via sudo ./install (check for all dependencies satisfied with ldd libiup.so).
 
 This repo builds 2 dll/shared object libraries:  
 - libacos5.so/dylib/dll, which is a mandatory one, the driver in the narrow sense, and
@@ -54,7 +54,7 @@ This repo also builds a library from the included opensc-sys binding for interna
 The minimal OpenSC version supported is 0.17.0  
 
 All these builds will be tied to the OpenSC version installed, so that installation must be done first. Then, for all 3 builds there are files build.rs which get processed prior to the remaining build and control how that will be done (conditional compilation, see [conditional_compile_options](https://github.com/carblue/acos5/tree/master/conditional_compile_options.md "https://github.com/carblue/acos5/tree/master/conditional_compile_options.md")). The first one will detect the OpenSC version installed, adapt the opensc_sys binding to that version and pass the version info to the other builds.
-Upon loading external modules, OpenSC will check, that driver's version matches the one of the installed OpenSC version, rejecting the external modules in case of mismatch.  
+Upon loading external modules, OpenSC will check, that driver's version matches the one of the installed OpenSC version, rejecting the external modules in case of version mismatch.  
 OpenSC also has the implication: If Your card got initialized by an ACS tool and is not [PKCS#15](https://stackoverflow.com/questions/33792095/what-does-it-mean-for-a-smart-card-to-be-pkcs15-compatible "https://stackoverflow.com/questions/33792095/what-does-it-mean-for-a-smart-card-to-be-pkcs15-compatible") compliant (this is true for all that I've run into), then it won't work (well) with OpenSC and likely requires card's re-initialization, see [card_initialization README](https://github.com/carblue/acos5/tree/master/info/card_initialization "https://github.com/carblue/acos5/tree/master/info/card_initialization"))  
 
 
@@ -63,45 +63,44 @@ There is a huge number of "limits" and "rules" that apply, many originate from s
 Common usage won't exceed these limits and the driver will "just work". E.g. probably You won't have a file in Your file system that will be addressed by such a long 18-byte path, e.g.
 0x3F00_4100_4200_4300_4400_4500_4600_4700_4710  
 An 18-byte path length won't work, as OpenSC data structures are limited to a path length of 16 bytes.  
-File ids 0x41A0 - 0x41FF are reserved for the driver. It will place generated RSA files into this range of file ids and will delete - if necessary - any other types of files in this range of file ids (and even RSA files that are not listed in PrKDF/PuKDF).  
+File ids 0x5000 - 0x5FFF are reserved for the driver and PKCS#15 files 0x5031, 0x5032 and 0x5033. The driver will place generated RSA files into this range of file ids and will delete - if necessary - any other types of files in this range of file ids (and even RSA files that are not listed in PrKDF/PuKDF).  
 And a driver rule to name explicitly: In case of manually adding records to 'PIN file', 'Symmetric Key file' or 'Security Environment file': These are record-based file types, i.e. content gets addressed by a record no. **and** store inside that record an ID (of pin, sym. key or SE condition): Record no. and ID always must be the same ! This can be checked only for readable files, and 'PIN file' / 'Symmetric Key file' never are readable.  
 If a manually added 'Symmetric Key' is not listed in SKDF, then it does not exist for OpenSC/driver and the record/key will be overwritten next time a 'key store' or 'unwrap' operation occurs !
 
-So this is the point: It would be graceful reacting upon such limits/rules violations with error returns and respective error messages in opensc-debug.log, but often the driver isn't yet that polite and just deliberately aborts ("panic" in Rust lingo, due to an assert violation).
-So, if anybody wants to contribute, removing these rough edges is an easy way to start.
-And if the driver is "impolite" currently, it's most likely something about card content, that is different from expected according to PKCS#15 / ISO/IEC 7816-15 / OpenSC.  
+So this is the point: It would be graceful reacting upon such limits/rules violations with error returns and respective error messages in opensc-debug.log, but all too often the driver isn't yet that polite and just deliberately aborts ("panic" in Rust lingo, due to an assert violation).
+So, if anybody wants to contribute, removing these rough edges is an easy way to start.  
+And if the driver is "impolite" currently, it's most likely something about card content, that is different from expected according to PKCS#15 / ISO/IEC 7816-15 / OpenSC. It's tough for outsiders to spot from OpenSC code: What is the exact requirement for ASN.1 content of PKCS#15 files. Maybe it's easier to read from [PKCS15.asn](https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn "https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn"), which is specifically crafted/modified from a module pkcs-15v1_1.asn found by a web search, for compatibility with OpenSC version 0.19.0 ? - 0.21.0, libtasn1 and ACOS5. It's also internally used by the driver in non-Windows builds.
 
-Akin to the www with it's broken links phenomenon, that may happen with a smart card as well: A lot in PKCS#15 and ACOS5 depends on "pointing to", and that may easily be broken. Thus I plan to integrate detection code for this kind of errors and more, for pkcs15-init --sanity-check  
+Akin to the www with it's broken links phenomenon, that may happen with a smart card as well: A lot in PKCS#15 and ACOS5 depends on "pointing to", and that may easily be broken by software bugs or ?. Thus I plan to integrate detection code for this kind of errors and more, for pkcs15-init --sanity-check  
 Thus a sanity-check without any errors found should prevent the driver from becoming "impolite" or reporting errors.  
 
 ## Steps towards driver binary builds and setup
 
-
 1. Prerequisite installations are done, optionally read   [conditional_compile_options](https://github.com/carblue/acos5/tree/master/conditional_compile_options.md "https://github.com/carblue/acos5/tree/master/conditional_compile_options.md").  
-   If Your OS is different from debian/Ubuntu, then I recommend to inspect all 3 build.rs files once, whether the lines starting with `println!("cargo:rustc-link` are correct: Maybe for other OS the library names might differ or the path specified there. If libraries aren't located in linkers 'standard' directory search list, then lines println!("cargo:rustc-link-search=native=path"); might need to be added and path adapted.
+   If Your OS is different from debian/Ubuntu, then I recommend to inspect all 3 build.rs files once (in folders acos5, acos5_pkcs15 and opensc-sys), whether the lines starting with `println!("cargo:rustc-link` are correct: Maybe for other OS the library names might differ or the path specified there. If libraries aren't located in linkers 'standard' directory search list, then lines println!("cargo:rustc-link-search=native=path"); might need to be added and path adapted.
    
    and then build the driver acos5:  
    `user@host:~/path/to/acos5_root_downloaded$  cargo build --release`. The 2 shared object binaries will be built into directory target/release  
    `optionally user@host:~/path/to/acos5_root_downloaded$  strip --strip-unneeded target/release/libacos5.so`  
    `optionally user@host:~/path/to/acos5_root_downloaded$  strip --strip-unneeded target/release/libacos5_pkcs15.so`    
-   Towards OpenSC, the driver's name is acos5_external, in order to make it distinguishable from a quite useless acos5 internal driver, that existed in OpenSC throughout until version 0.19.0
+   Towards OpenSC, the driver's name is `acos5_external`, in order to make it distinguishable from a quite useless acos5 internal driver, that existed in OpenSC throughout until version 0.19.0
 
 2. Copy acos5_pkcs15/acos5_external.profile to the directory where all the other .profile files installed by OpenSC are located, for Linux probably in /usr/share/opensc/ or /usr/local/share/opensc/, for Windows something like C:/Program Files/OpenSC Project/OpenSC/profiles.  
 
 3. Adapt opensc.conf (see below). Also, in the beginning, switch on logging by a setting `debug=3;`  
    If all the above went well, the log file will have an entry within it's first 4 lines, reporting: "load_dynamic_driver: successfully loaded card driver 'acos5_external'".  
-   Check that by reissuing: `opensc-tool --info`  
+   Check that by issuing: `opensc-tool --info`  
    The last command should have successfully loaded card driver 'acos5_external', but it didn't yet use it. The next will do so (and also check for disallowed duplicate file ids):  
    `opensc-tool --serial`
 4. In case build errors or other errors occur:
    You have a copy of the opensc-sys binding on Your system in directory opensc-sys.  
-   If there are build errors, then go to that folder and issue `cargo test test_struct_sizeof -- --nocapture  
+   If there are build errors, then go to that folder and issue `cargo test test_struct_sizeof -- --nocapture`  
    Likely that fails then, and an error reason is found by asking why didn't that find the library libopensc.so or does the version reported differ, or ?, or as the worst case:  
    OpenSC was built with different settings/switches than the binding requires/assumes.  
    Other errors occur: Likely the opensc.conf file is incorrect.  
    Otherwise file an issue.
 
-When You change/update Your OpenSC installation: Only step 1 needs to be redone, and as I don't know whether Rust's rerun feature is reliable, I first delete folder target and file Cargo.lock, then build the driver.
+When You change/update Your OpenSC installation: Only step 1 needs to be redone, and as I don't know whether Rust's rerun feature is reliable, I first delete folder target and file Cargo.lock, then (re-)build the driver.
 
 The required opensc.conf entries:  
 The location of opensc.conf on Linux: /etc/opensc/opensc.conf.  
@@ -170,7 +169,7 @@ Its assumed You have a local git repository, want to push to Your own or other's
 and haven’t yet done that via SSH.  
 Also, to be explicit, its assumed You don't yet have an RSA keypair for authentication with GitHub,
 so let's create that first:  
-I like the max. bit length that my CryptoMate64 allows: 4096 bit, and use the 'standard' public exponent 0x10001.
+I like the max. modulus bit length that my CryptoMate64 allows: 4096 bit, and use the 'standard' public exponent 0x10001.
 We need to specify some more info for PKCS#15: The key pair will have the (new unique) iD 01, be protected by authId 01
 (i.e. there is an authentication object defined in my EF.AODF with iD 01; in my case it refers to the user pin, that must be verified before RSA
 private key usage gets allowed for cryptographic operations, or key file allowed to be updated; reading of the newly created private key file will 
@@ -187,8 +186,8 @@ profile /usr/share/opensc/acos5_external.profile loaded ok
 ```
 $ pkcs15-init --generate-key rsa/4096 --auth-id 01 --id 01 --label github_key --key-usage sign
 Using reader with a card: ACS CryptoMate64 00 00
-This file id will be chosen for the private RSA key:  41A0
-This file id will be chosen for the public  RSA key:  41D0
+optionally printed: This file id will be chosen for the private RSA key:  5000
+optionally printed: This file id will be chosen for the public  RSA key:  5001
 User PIN [User] required.
 Please enter User PIN [User]: 
 $
@@ -210,7 +209,7 @@ name: privateRSAKey  type: SEQUENCE
     name: value  type: CHOICE
       name: indirect  type: CHOICE
         name: path  type: SEQUENCE
-          name: path  type: OCT_STR  value: 3f00410041a0
+          name: path  type: OCT_STR  value: 3f0041005000
     name: modulusLength  type: INTEGER  value: 0x1000
     
 and appended to our EF.PuKDF:
@@ -229,13 +228,13 @@ name: publicRSAKey  type: SEQUENCE
     name: value  type: CHOICE
       name: indirect  type: CHOICE
         name: path  type: SEQUENCE
-          name: path  type: OCT_STR  value: 3f00410041d0
+          name: path  type: OCT_STR  value: 3f0041005001
     name: modulusLength  type: INTEGER  value: 0x1000
 
 
 ```
 So, everything is okay with those entries, though OpenSC did include the optional keyReference field with invalid value 0:
-It is irrelevant for ACOS5 card, which references RSA keys by file id/path.
+It is irrelevant for the ACOS5 card, which references RSA keys by file id/path.
 
 We need a representation of our github_key (the public part of the key pair), that we will present to/store at GitHub:
 ```
@@ -250,7 +249,7 @@ click New SSH key and copy/paste Your key content.
 
 Then test whether You "could" establish an ssh connection with Your github_key:  
 ```
-ssh -T -I/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so git@github.com
+ssh -T -I/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so  git@github.com
 ```
 Hi your_github_user_name! You've successfully authenticated, but GitHub does not provide shell access.
 

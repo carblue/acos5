@@ -2,6 +2,21 @@
 //! It provides functions, that OpenSC categorizes within pkcs15init (see opensc_sys::pkcs15_init struct sc_pkcs15init_operations)
 
 //! The bulk of driver functions access a card in a read-only manner, a few only in write-access manner as 'building block' functions:
+
+// TODO the profile related code and scconf wasn't investigated in depth and isn't yet understood well, thus there might
+//   be some inconsistency and hard coded content and it's far from being robust concerning users modifying the file
+//   acos5_external.profile.
+
+// TODO once I faced an error with EF.PrKDF re-creation after deletion because of some error in function
+//   convert_acl_array_to_bytes_tag_fcp_sac
+//   match acl_category  ACL_CATEGORY_EF_CHV (for file 0x4110 EF.PrKDF with Nano) =>  SC_AC_OP_INVALIDATE
+//   if p_ref.method!=SC_AC_SCB { return Err(-1); }   <== this seems to have broken the re-creation !!!!
+
+// TODO therefore, for the time being be careful about ACL input from .profile and overwrite it, as e.g. the new
+//   function my_file_dup does (temporary replacement for sc_file_dup)
+//   check usage of me_profile_get_file  and  my_file_dup/sc_file_dup, both in acos5_pkcs15_create_key (and acos5_pkcs15_create_dir)
+
+// TODO acos5_pkcs15_create_key needs to be split and revamped : Far too complex, long, hard to understand
 /*
 write_binary
 update_binary
@@ -82,7 +97,7 @@ use libc::{free}; // strlen
 use std::os::raw::{c_char};
 use std::ffi::CStr;
 use std::ptr::{null_mut};
-use std::collections::HashSet;
+// use std::collections::HashSet;
 use std::convert::{TryFrom, TryInto};
 use std::slice::from_raw_parts;
 
@@ -126,7 +141,7 @@ use crate::constants_types::{CARD_DRV_SHORT_NAME, CardCtl_generate_crypt_asym, D
                              SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile, file_id_from_path_value};
 
 pub mod    missing_exports; // this is NOT the same as in acos5
-use crate::missing_exports::{me_profile_get_file, me_pkcs15_dup_bignum};
+use crate::missing_exports::{me_profile_get_file, me_pkcs15_dup_bignum/*, my_file_dup*/};
 
 pub mod    no_cdecl; // this is NOT the same as in acos5
 use crate::no_cdecl::{rsa_modulus_bits_canonical, first_of_free_indices, construct_sym_key_entry, free_fid_asym,
@@ -557,8 +572,12 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     let mut file_priv = unsafe { &mut *file_priv };
     assert_eq!(file_priv.path.type_, SC_PATH_TYPE_PATH);
     assert!(file_priv.path.len >= 4 && file_priv.path.len<=16);
+//file_priv.acl[SC_AC_OP_READ as usize] = 0x1 as *mut sc_acl_entry;
+//println!("file_priv: {:02X?}", *file_priv);
     assert_eq!(file_priv.acl[SC_AC_OP_READ as usize], 0x1 as *mut sc_acl_entry); // NEVER allowed to be read
     assert_eq!(file_priv.path.len, key_info.path.len+2);
+//println!("file_priv: {:02X?}", *file_priv);
+//println!("key_info:  {:02X?}", *key_info);
 /* */
     assert!(!ctx.app_name.is_null());
     let app_name = unsafe { CStr::from_ptr(ctx.app_name) }; // app_name: "pkcs15-init"
@@ -604,15 +623,16 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
 
     /* The following is the possible starting value for key priv file path */
     file_priv.path.value[file_priv.path.len-2] = file_priv.path.value[file_priv.path.len-4];
-    let mut fid_priv_possible : HashSet<u16> = HashSet::with_capacity(0x30);
-    let mut fid_pub_possible  : HashSet<u16> = HashSet::with_capacity(0x30);
+//    let mut fid_priv_possible : HashSet<u16> = HashSet::with_capacity(0x30);
+//    let mut fid_pub_possible  : HashSet<u16> = HashSet::with_capacity(0x30);
     {
-        let fid = u16::from_be_bytes([file_priv.path.value[file_priv.path.len-2], file_priv.path.value[file_priv.path.len-1]]);
-//        log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
-//            unsafe { sc_dump_hex(file_priv.path.value.as_ptr(), file_priv.path.len) });
-        for i in 0..0x30 { fid_priv_possible.insert(fid+i); }
-        for i in 0..0x30 { fid_pub_possible.insert( fid+i +0x30); }
+//        let fid = u16::from_be_bytes([file_priv.path.value[file_priv.path.len-2], file_priv.path.value[file_priv.path.len-1]]);
+log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
+    unsafe { sc_dump_hex(file_priv.path.value.as_ptr(), file_priv.path.len) });
+//        for i in 0..0x30 { fid_priv_possible.insert(fid+i); }
+//        for i in 0..0x30 { fid_pub_possible.insert( fid+i +0x30); }
     }
+/*
     /* examine existing key priv file path */
     let mut _cnt_priv = 0_u8;
     let mut p15obj_list_ptr = p15card.obj_list;
@@ -634,32 +654,32 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
 / * */
             _cnt_priv += 1;
             assert!(!p15obj.data.is_null());
-            let p15obj_prkey_info_path = & unsafe { &mut *(p15obj.data as *mut sc_pkcs15_prkey_info) }.path;
+//            let p15obj_prkey_info_path = & unsafe { &mut *(p15obj.data as *mut sc_pkcs15_prkey_info) }.path;
 //            log3if!(ctx,f,line!(), cstru!(b"p15obj_prkey_info_path: %s\0"),
 //                unsafe { sc_dump_hex(p15obj_prkey_info_path.value.as_ptr(), p15obj_prkey_info_path.len) });
-            let fid_priv_used = u16::from_be_bytes([p15obj_prkey_info_path.value[p15obj_prkey_info_path.len-2],
-                                                    p15obj_prkey_info_path.value[p15obj_prkey_info_path.len-1]]);
-            fid_priv_possible.remove(&fid_priv_used);
-            fid_pub_possible.remove(&fid_priv_used);
+//            let fid_priv_used = u16::from_be_bytes([p15obj_prkey_info_path.value[p15obj_prkey_info_path.len-2],
+//                                                    p15obj_prkey_info_path.value[p15obj_prkey_info_path.len-1]]);
+//            fid_priv_possible.remove(&fid_priv_used);
+//            fid_pub_possible.remove(&fid_priv_used);
         }
         p15obj_list_ptr = p15obj.next;
     }
-
-    let mut fid_priv_possible_min = 0xFFFF_u16;
-    for elem in &fid_priv_possible {
-        if *elem < fid_priv_possible_min && fid_pub_possible.contains(&(*elem+0x30)) { fid_priv_possible_min = *elem; }
-    }
+*/
+//    let mut fid_priv_possible_min = 0xFFFF_u16;
+//    for elem in &fid_priv_possible {
+//        if *elem < fid_priv_possible_min && fid_pub_possible.contains(&(*elem+0x30)) { fid_priv_possible_min = *elem; }
+//    }
 
 //    println!("fid_priv_possible.len(): {}", fid_priv_possible.len());
 //    println!("fid_publ_possible.len(): {}", fid_pub_possible.len());
 //    println!("fid_priv_existing.len(): {}", _cnt_priv);
-    if fid_priv_possible_min == 0xFFFF {
-        println!("The maximum of 48 RSA key pairs is exceeded. First delete one for a free file id slot");
-        rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
-        log3ifr!(ctx,f,line!(), cstru!(
-            b"### The maximum of 48 RSA key pairs is exceeded. First delete one for a free file id slot ###\0"), rv);
-        return rv;
-    }
+//    if fid_priv_possible_min == 0xFFFF {
+//        println!("The maximum of 48 RSA key pairs is exceeded. First delete one for a free file id slot");
+//        rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
+//        log3ifr!(ctx,f,line!(), cstru!(
+//            b"### The maximum of 48 RSA key pairs is exceeded. First delete one for a free file id slot ###\0"), rv);
+//        return rv;
+//    }
     #[cfg(rsa_key_gen_verbose)]
     { println!("This file id will be chosen for the private RSA key:  {:X}", ax); }
     /* The final values for path and fid_priv */
@@ -683,6 +703,7 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     let mut file_pub = null_mut();
     let guard_file_pub = GuardFile::new(&mut file_pub);
     unsafe { sc_file_dup(*guard_file_pub, file_priv) };
+    // unsafe { my_file_dup(&mut **guard_file_pub, file_priv) };
     if file_pub.is_null() {
         return SC_ERROR_OUT_OF_MEMORY;
     }
@@ -701,6 +722,8 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     }
     // TODO don't leak old file_pub.acl[SC_AC_OP_READ]
     file_pub.acl[SC_AC_OP_READ as usize] = 0x2 as *mut sc_acl_entry; // ALWAYS allowed to be read
+//println!("file_pub: {:02X?}", *file_pub);
+//println!("key_info: {:02X?}", *key_info);
 
     let file_priv_has_to_be_deleted = if do_create_files {SC_SUCCESS == unsafe{sc_select_file(card, &file_priv.path, null_mut())}} else {false};
     let file_pub_has_to_be_deleted  = if do_create_files {SC_SUCCESS == unsafe{sc_select_file(card,  &file_pub.path, null_mut())}} else {false};

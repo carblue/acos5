@@ -2067,15 +2067,15 @@ SEQUENCE (6 elem)
         FDB_SYMMETRIC_KEY_EF   => ACL_CATEGORY_KEY,
         FDB_SE_FILE            => ACL_CATEGORY_SE,
         _                      => {
-println!("Non-match in let acl_category. file_ref.type_: {}", file_ref.type_);
-            return -1;
+println!("Failure: Non-match in let acl_category. file_ref.type_: {}", file_ref.type_);
+            return SC_ERROR_NOT_ALLOWED;
         }, // this includes FDB_PURSE_EF: unknown acl_category
     };
 
-//println!("acl_category: {}, file to create: {:?}", acl_category, *file_ref);
-    let bytes_tag_fcp_sac = match convert_acl_array_to_bytes_tag_fcp_sac(&file_ref.acl, acl_category) {
+//println!("\nacl_category: {}, file to create: {:02X?}", acl_category, *file_ref);
+    let bytes_tag_fcp_sac = match convert_acl_array_to_bytes_tag_fcp_sac(/*card,*/ &file_ref.acl, acl_category) {
         Ok(val) => val,
-        Err(e) => { println!("Error xyz"); return e; },
+        Err(e) => { println!("\n\nError xyz\n\n"); return e; },
     };
 //println!("bytes_tag_fcp_sac: {:X?}", bytes_tag_fcp_sac); // bytes_tag_fcp_sac: [7F, 1, FF, 1, 1, 1, 1, 1]
     let mut buf2 = [0; 2];
@@ -3409,7 +3409,7 @@ extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, crgram: *const u8, crgra
 SC_AC_NONE
 SC_AC_CHV              /* Card Holder Verif. */
                           util_acl_to_str prints with    key_ref: "CHV";
-SC_AC_TERM             /* Terminal auth. */
+SC_AC_TERM             /* Terminal auth. */                                => unused in driver, *.profile
                           util_acl_to_str prints without key_ref: "TERM";
                           profile.c map: { "TERM", SC_AC_TERM }
                           no more OpenSC framework usage and card-specific usage only by: card-several.c
@@ -3428,9 +3428,9 @@ SC_AC_AUT              /* Key auth. */
                           pkcs15-lib.c: get_pin_ident_name: "authentication key"
                                         sc_pkcs15init_verify_secret : sc_card_ctl(SC_CARDCTL_GET_CHV_REFERENCE_IN_SE) ...  -> SC_AC_CHV
 
-SC_AC_SYMBOLIC         /* internal use only */
+SC_AC_SYMBOLIC         /* internal use only */                               => unused in driver, *.profile
 
-SC_AC_SEN              /* Security Environment. */
+SC_AC_SEN              /* Security Environment. */                               => unused in driver, *.profile
                           util_acl_to_str prints with    key_ref: "Sec.Env. ";
                           profile.c map: { "SEN", SC_AC_SEN }
                           pkcs15-lib.c: get_pin_ident_name: "security environment"
@@ -3442,14 +3442,14 @@ SC_AC_SCB              /* IAS/ECC SCB byte. */
                           pkcs15-lib.c: get_pin_ident_name: "SCB byte in IAS/ECC"
                                         sc_pkcs15init_verify_secret : pinsize = 0;
                           no more OpenSC framework usage and card-specific usage only by: pkcs15-iasecc.c, card-iasecc.c and card-authentic.c
-SC_AC_IDA              /* PKCS#15 authentication ID */
+SC_AC_IDA              /* PKCS#15 authentication ID */                               => unused in driver, *.profile
                           util_acl_to_str prints with    key_ref: "PKCS#15 AuthID ";
                           profile.c map: { "IDA", SC_AC_IDA }
                           pkcs15-lib.c: get_pin_ident_name: "PKCS#15 reference"
                           no more OpenSC framework usage and card-specific usage only by: pkcs15-iasecc.c
-SC_AC_SESSION          /* Session PIN */ // since opensc source release v0.17.0
+SC_AC_SESSION          /* Session PIN */ // since opensc source release v0.17.0            => unused in driver, *.profile
 #[cfg(not(v0_17_0))]
-SC_AC_CONTEXT_SPECIFIC /* Context specific login */ // since opensc source release v0.18.0
+SC_AC_CONTEXT_SPECIFIC /* Context specific login */ // since opensc source release v0.18.0          => unused in driver, *.profile
 
 The driver doesn't support access control condition: 'authenticate a key' because OpenSC doesn't support that either.
 

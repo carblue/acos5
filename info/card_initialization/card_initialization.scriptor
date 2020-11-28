@@ -1,13 +1,12 @@
 #! /usr/bin/env scriptor
 
-# IMPORTANT MUST DO: Current SO_PIN must be adapted in line 21 (Verify SO_PIN) if it's different from  38 37 36 35 34 33 32 31  (which reads in ascii as character string: 87654321) !!!
-# IMPORTANT MUST DO: Either in line 27 or line 29 or line 31  the leading # must be removed
+# IMPORTANT MUST DO: Current SO_PIN must be adapted in line 20 (Verify SO_PIN) if it's different from  38 37 36 35 34 33 32 31  (which reads in ascii as character string: 87654321) !!!
+# IMPORTANT MUST DO: Either in line 27 or line 29 (or line 31)  the leading # must be removed
 # Lines beginning with # are comments and don't get processed as APDU commands; spaces between bytes (all in hexadecimal representation) get ignored, they are used here only for better readability
 
 # This script will set these new PIN bytes (change them after card initialization is done, OR NOW !!!):
 # new SO_PIN:   38 37 36 35 34 33 32 31 (which reads in ascii as character string: 87654321)  SO_PUK set to same value as SO_PIN,     SO_PIN/SO_PUK set at first/second appearance in line 66
 # new USER_PIN: 31 32 33 34 35 36 37 38 (which reads in ascii as character string: 12345678)  USER_PUK set to same value as USER_PIN, USER_PIN/USER_PUK set at first/second appearance in line 91
-
 # This script will set 2 3DES/192 keys for Secure Messaging (the last 24 non-zero bytes in lines 97,98) (PREFERABLY CHANGE THEM NOW AND DO THE SAME IN opensc.conf for keyset...02...):
 # Check for all of the 24 key bytes that they have odd parity == count of 1 in binary coded representation is NOT even, e.g. byte 0xBD=0b10111101 is disallowed, must be changed to 0xBC=0b10111100
 # line 97: this is the host/terminal key Kt for external authentication with an unlimited error counter
@@ -22,12 +21,13 @@ reset
 ## Erase everything from card
 80 30 00 00 00
 80 30 00 00 00
+80 30 00 00 00
 ## Possibly set Operation mode byte; depends on card type V2.00 or V3.00
 ## If it's an ACOS5-64 V2.00 (Smart card or CryptoMate64) the next line's command sets 64K mode:
 #00 D6 C1 91 01 00
 ## If it's an ACOS5-64 V3.00 (Smart card or CryptoMate Nano) the next line's command sets 64K mode (recommended for V3.00 !):
 #00 D6 C1 91 01 02
-## If it's an ACOS5-64 V3.00 (Smart card or CryptoMate Nano) the next line's command sets FIPS 140-2 Level 3-Compliant mode:
+## If it's an ACOS5-64 V3.00 (Smart card or CryptoMate Nano) the next line's command sets FIPS 140-2 Level 3-Compliant mode: Note that restrictions acc. reference manual apply with this setting !!!
 #00 D6 C1 91 01 00
 
 # file 0x3F00         MF

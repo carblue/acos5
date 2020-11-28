@@ -51,8 +51,8 @@ use opensc_sys::types::{sc_object_id,sc_apdu, /*sc_aid, sc_path, SC_MAX_AID_SIZE
                         SC_MAX_APDU_BUFFER_SIZE, SC_MAX_PATH_SIZE, SC_APDU_FLAGS_CHAINING,
                         SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT,
                         SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
-                        SC_AC_CHV, SC_AC_AUT, SC_AC_NONE, SC_AC_SCB, /*, SC_AC_UNKNOWN*/
-                        sc_acl_entry, SC_AC_UNKNOWN, SC_MAX_AC_OPS
+                        SC_AC_NONE, SC_AC_CHV, SC_AC_TERM, SC_AC_PRO, SC_AC_AUT, SC_AC_SYMBOLIC, SC_AC_SEN, SC_AC_SCB, SC_AC_IDA, SC_AC_SESSION/*, SC_AC_CONTEXT_SPECIFIC*/, SC_AC_UNKNOWN, SC_AC_NEVER,
+                        sc_acl_entry, SC_MAX_AC_OPS
                         ,SC_AC_OP_READ
                         ,SC_AC_OP_UPDATE
                         ,SC_AC_OP_CRYPTO
@@ -63,7 +63,6 @@ use opensc_sys::types::{sc_object_id,sc_apdu, /*sc_aid, sc_path, SC_MAX_AID_SIZE
     ,SC_AC_OP_REHABILITATE
     ,SC_AC_OP_LOCK
     ,SC_AC_OP_DELETE_SELF
-
 };
 use opensc_sys::log::{sc_dump_hex};
 use opensc_sys::errors::{/*SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKNOWN, SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_NOT_SUPPORTED, */
@@ -71,9 +70,7 @@ use opensc_sys::errors::{/*SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKNOWN, SC_ERROR
                          SC_ERROR_KEYPAD_MSG_TOO_LONG,/*, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL*/
 SC_ERROR_WRONG_LENGTH, SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT_FOUND, SC_ERROR_INCORRECT_PARAMETERS, SC_ERROR_CARD_CMD_FAILED,
 SC_ERROR_OUT_OF_MEMORY, SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_NO_CARD_SUPPORT,
-SC_ERROR_SM_RAND_FAILED,
-
-SC_ERROR_INVALID_ASN1_OBJECT, SC_ERROR_ASN1_OBJECT_NOT_FOUND, SC_ERROR_TOO_MANY_OBJECTS, SC_ERROR_OBJECT_NOT_VALID//, SC_ERROR_ASN1_END_OF_CONTENTS
+SC_ERROR_SM_RAND_FAILED
 };
 use opensc_sys::internal::{sc_atr_table};
 use opensc_sys::asn1::{sc_asn1_read_tag};
@@ -937,8 +934,12 @@ This MUST match exactly how *mut sc_acl_entry are added in acos5_process_fci or 
 ///
 /// # Errors
 #[allow(clippy::missing_errors_doc)]
-pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_AC_OPS], acl_category: u8) -> Result<[u8; 8], i32>
+pub fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl: &[*mut sc_acl_entry; SC_MAX_AC_OPS], acl_category: u8) -> Result<[u8; 8], i32>
 {
+    // let ctx = unsafe { &mut *card.ctx };
+    // log3ifc!(ctx,cstru!(b"convert_acl_array_to_bytes_tag_fcp_sac\0"),line!());
+    const SC_AC_FLAGS_ALL_ALLOWED : [u32; 12] = [
+        SC_AC_NONE, SC_AC_CHV, SC_AC_TERM, SC_AC_PRO, SC_AC_AUT, SC_AC_SYMBOLIC, SC_AC_SEN, SC_AC_SCB, SC_AC_IDA, SC_AC_SESSION/*, SC_AC_CONTEXT_SPECIFIC*/, SC_AC_UNKNOWN, SC_AC_NEVER];
     let mut result = [0x7F_u8,0,0,0,0,0,0,0];
     match acl_category {
         ACL_CATEGORY_SE => {
@@ -959,7 +960,9 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
             else if p==(3 as *mut sc_acl_entry) { result[7] = 0xFF; }
             else {
                 let p_ref = unsafe { &*p };
-                if p_ref.method!=SC_AC_SCB { return Err(-1); }
+//println!("SC_AC_OP_DELETE sc_acl_entry: {:?}", *p_ref );
+                if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
+                { return Err(SC_ERROR_NOT_ALLOWED); }
                 result[7] = u8::try_from(p_ref.key_ref).unwrap();
             }
             p = acl[usize::try_from(SC_AC_OP_CREATE_EF).unwrap()];
@@ -969,7 +972,9 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
             else if p==(3 as *mut sc_acl_entry) { result[6] = 0xFF; }
             else {
                 let p_ref = unsafe { &*p };
-                if p_ref.method!=SC_AC_SCB { return Err(-1); }
+//println!("SC_AC_OP_CREATE_EF sc_acl_entry: {:?}", *p_ref );
+                if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
+                { return Err(SC_ERROR_NOT_ALLOWED); }
                 result[6] = u8::try_from(p_ref.key_ref).unwrap();
             }
             p = acl[usize::try_from(SC_AC_OP_CREATE_DF).unwrap()];
@@ -979,7 +984,9 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
             else if p==(3 as *mut sc_acl_entry) { result[5] = 0xFF; }
             else {
                 let p_ref = unsafe { &*p };
-                if p_ref.method!=SC_AC_SCB { return Err(-1); }
+//println!("SC_AC_OP_CREATE_DF sc_acl_entry: {:?}", *p_ref );
+                if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
+                { return Err(SC_ERROR_NOT_ALLOWED); }
                 result[5] = u8::try_from(p_ref.key_ref).unwrap();
             }
         }
@@ -991,7 +998,9 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
             else if p==(3 as *mut sc_acl_entry) { result[7] = 0xFF; }
             else {
                 let p_ref = unsafe { &*p };
-                if p_ref.method!=SC_AC_SCB { return Err(-1); }
+//println!("SC_AC_OP_READ sc_acl_entry: {:?}", *p_ref );
+                if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
+                { return Err(SC_ERROR_NOT_ALLOWED); }
                 result[7] = u8::try_from(p_ref.key_ref).unwrap();
             }
             p = acl[usize::try_from(SC_AC_OP_UPDATE).unwrap()];
@@ -1001,7 +1010,9 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
             else if p==(3 as *mut sc_acl_entry) { result[6] = 0xFF; }
             else {
                 let p_ref = unsafe { &*p };
-                if p_ref.method!=SC_AC_SCB { return Err(-1); }
+//println!("SC_AC_OP_UPDATE sc_acl_entry: {:?}", *p_ref );
+                if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
+                { return Err(SC_ERROR_NOT_ALLOWED); }
                 result[6] = u8::try_from(p_ref.key_ref).unwrap();
             }
             p = acl[usize::try_from(SC_AC_OP_CRYPTO).unwrap()];
@@ -1011,38 +1022,13 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
             else if p==(3 as *mut sc_acl_entry) { result[5] = 0xFF; }
             else {
                 let p_ref = unsafe { &*p };
-                if p_ref.method!=SC_AC_SCB { return Err(-1); }
+//println!("SC_AC_OP_CRYPTO sc_acl_entry: {:?}", *p_ref );
+                if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
+                { return Err(SC_ERROR_NOT_ALLOWED); }
                 result[5] = u8::try_from(p_ref.key_ref).unwrap();
             }
         }
         ACL_CATEGORY_EF_CHV => {
-/*acl_category: 2, file to create: sc_file {
-  path: sc_path { value: [63, 0, 65, 0, 65, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 6, index: 0, count: -1, type_: 2, aid: sc_aid { value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], len: 0 } },
-  name: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  namelen: 0,
-  type_: 1,
-  ef_structure: 1,
-  status: 0,
-  shareable: 0,
-  size: 1024,
-  id: 16656,
-  sid: 16,
-  acl: [0x2, 0x1, 0x2, 0x0, 0x2, 0x55d97ad19f70, 0x0, 0x0, 0x2, 0x0,
-        ===  ===  ===       ===  ==============            ===
-        0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
-        0x0, 0x0, 0x2, 0x2, 0x2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0],
-                  ===  ===  ===
-  record_length: 0,
-  record_count: 0,
-  sec_attr: 0x0,
-  sec_attr_len: 0,
-   prop_attr:
-   0x55d97ad3ca10,
-   prop_attr_len: 30,
-   type_attr: 0x55d97ad17310,
-   type_attr_len: 2,
-   encoded_content: 0x0, encoded_content_len: 0, magic: 339896656 }
-*/
             let mut p = acl[usize::try_from(SC_AC_OP_READ).unwrap()];
             if p.is_null() {                      result[7] = 0; }
             else if p==(1 as *mut sc_acl_entry) { result[7] = 0xFF; }
@@ -1050,7 +1036,9 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
             else if p==(3 as *mut sc_acl_entry) { result[7] = 0xFF; }
             else {
                 let p_ref = unsafe { &*p };
-                if p_ref.method!=SC_AC_SCB { return Err(SC_ERROR_INVALID_ASN1_OBJECT); }
+//println!("SC_AC_OP_READ sc_acl_entry: {:?}", *p_ref );
+                if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
+                { return Err(SC_ERROR_NOT_ALLOWED); }
                 result[7] = u8::try_from(p_ref.key_ref).unwrap();
             }
             p = acl[usize::try_from(SC_AC_OP_UPDATE).unwrap()];
@@ -1060,7 +1048,9 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
             else if p==(3 as *mut sc_acl_entry) { result[6] = 0xFF; }
             else {
                 let p_ref = unsafe { &*p };
-                if p_ref.method!=SC_AC_SCB { return Err(SC_ERROR_ASN1_OBJECT_NOT_FOUND); }
+//println!("SC_AC_OP_UPDATE sc_acl_entry: {:?}", *p_ref );
+                if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
+                { return Err(SC_ERROR_NOT_ALLOWED); }
                 result[6] = u8::try_from(p_ref.key_ref).unwrap();
             }
         },
@@ -1071,10 +1061,12 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
     else if p==(1 as *mut sc_acl_entry) { result[4] = 0xFF; }
     else if p==(2 as *mut sc_acl_entry) { result[4] = 0; }
     else if p==(3 as *mut sc_acl_entry) { result[4] = 0xFF; }
-    else {  /*println!("SC_AC_OP_INVALIDATE sc_acl_entry: {:?}", unsafe { *p });*/ result[4] = 0xFF;
-        // let p_ref = unsafe { &*p };
-        // if p_ref.method!=SC_AC_SCB { return Err(SC_ERROR_ASN1_END_OF_CONTENTS); }
-        // result[4] = u8::try_from(p_ref.key_ref).unwrap();
+    else {
+        let p_ref = unsafe { &*p };
+//println!("SC_AC_OP_INVALIDATE sc_acl_entry: {:?}", *p_ref );
+        if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
+        { return Err(SC_ERROR_NOT_ALLOWED); }
+        result[4] = u8::try_from(p_ref.key_ref).unwrap();
     }
 
     p = acl[usize::try_from(SC_AC_OP_REHABILITATE).unwrap()];
@@ -1084,7 +1076,9 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
     else if p==(3 as *mut sc_acl_entry) { result[3] = 0xFF; }
     else {
         let p_ref = unsafe { &*p };
-        if p_ref.method!=SC_AC_SCB { return Err(SC_ERROR_OUT_OF_MEMORY); }
+//println!("SC_AC_OP_REHABILITATE sc_acl_entry: {:?}", *p_ref );
+        if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
+        { return Err(SC_ERROR_NOT_ALLOWED); }
         result[3] = u8::try_from(p_ref.key_ref).unwrap();
     }
 
@@ -1095,7 +1089,9 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
     else if p==(3 as *mut sc_acl_entry) { result[2] = 0xFF; }
     else {
         let p_ref = unsafe { &*p };
-        if p_ref.method!=SC_AC_SCB { return Err(SC_ERROR_TOO_MANY_OBJECTS); }
+//println!("SC_AC_OP_LOCK sc_acl_entry: {:?}", *p_ref );
+        if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
+        { return Err(SC_ERROR_NOT_ALLOWED); }
         result[2] = u8::try_from(p_ref.key_ref).unwrap();
     }
 
@@ -1106,7 +1102,9 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(acl: &[*mut sc_acl_entry; SC_MAX_A
     else if p==(3 as *mut sc_acl_entry) { result[1] = 0xFF; }
     else {
         let p_ref = unsafe { &*p };
-        if p_ref.method!=SC_AC_SCB { return Err(SC_ERROR_OBJECT_NOT_VALID); }
+//println!("SC_AC_OP_DELETE_SELF sc_acl_entry: {:?}", *p_ref );
+        if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
+        { return Err(SC_ERROR_NOT_ALLOWED); }
         result[1] = u8::try_from(p_ref.key_ref).unwrap();
     }
 
