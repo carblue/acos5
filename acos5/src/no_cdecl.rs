@@ -1800,13 +1800,28 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     log3if!(ctx,f,line!(), if crypt_sym.encrypt {cstru!(b"called for encryption\0")}
                            else {cstru!(b"called for decryption\0")});
 
+    let block_size = usize::from(crypt_sym.block_size);
     let indata_len;
     let indata_ptr;
     let mut vec_in = Vec::new();
 
-    if crypt_sym.infile.is_null() {
+    if crypt_sym.infile.is_null() && crypt_sym.inbuf.is_null() {
         indata_len = std::cmp::min(crypt_sym.indata_len, crypt_sym.indata.len());
         indata_ptr = crypt_sym.indata.as_ptr();
+    }
+    else if !crypt_sym.inbuf.is_null() {
+        vec_in.extend_from_slice(unsafe { from_raw_parts(crypt_sym.inbuf, crypt_sym.indata_len) });
+        debug_assert_eq!(crypt_sym.indata_len, vec_in.len());
+        // let block_size : usize = crypt_sym.block_size.into();
+        if !vec_in.len().is_multiple_of(&block_size) {
+            debug_assert_eq!(BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, crypt_sym.pad_type);
+            vec_in.push(0x80);
+            vec_in.resize(vec_in.len().next_multiple_of(&block_size), 0_u8);
+            // while !vec_in.len().is_multiple_of(&block_size) { vec_in.push(0); }
+        }
+        debug_assert!(vec_in.len().is_multiple_of(&block_size));
+        indata_len = vec_in.len();
+        indata_ptr = vec_in.as_ptr();
     }
     else {
         vec_in.extend_from_slice(match vecu8_from_file(crypt_sym.infile) {
@@ -1818,7 +1833,6 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     }
 
     let mut rv;
-    let block_size = usize::from(crypt_sym.block_size);
     let Len1 = indata_len;
     let Len0 =  Len1.prev_multiple_of(&block_size); // (Len1/block_size) * block_size;
     let Len2 = (Len1+ if !crypt_sym.encrypt || [BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64].contains(&crypt_sym.pad_type) {0} else {1}).
@@ -1832,9 +1846,14 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     let outdata_ptr;
     let mut vec_out = Vec::new();
 
-    if crypt_sym.outfile.is_null() {
+    if crypt_sym.outfile.is_null() && crypt_sym.outbuf.is_null() {
         outdata_len = std::cmp::min(crypt_sym.outdata_len, crypt_sym.outdata.len());
         outdata_ptr = crypt_sym.outdata.as_mut_ptr();
+    }
+    else if !crypt_sym.outbuf.is_null() {
+        outdata_len = crypt_sym.outdata_len;
+        outdata_ptr = crypt_sym.outbuf;
+        assert!(indata_len<=outdata_len);
     }
     else {
         vec_out.resize(Len2, 0_u8);
@@ -1843,7 +1862,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     }
 
     assert!(indata_len >= 32);
-    let mut fmt  = cstru!(b"called with indata_len: %zu, first 16 bytes: %s\0");
+    let mut fmt  = cstru!(b"called with indata_len: %zu, first 32 bytes: %s\0");
     log3if!(ctx,f,line!(), fmt, indata_len, unsafe {sc_dump_hex(indata_ptr, 32)});
     fmt = cstru!(b"called with infile_name: %s, outfile_name: %s\0");
     log3ift!(ctx,f,line!(), fmt, crypt_sym.infile, crypt_sym.outfile);

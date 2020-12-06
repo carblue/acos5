@@ -8,8 +8,8 @@ also some file content, e.g. content of EF.DIR.
 If Your card was initialized already by other means, then that was probably done by an ACS tool. I don't recall all
 reasons for a need to re-initialization (except i.a. a catch-22), but instead will provide a sanity-check (accessible via
 pkcs15-init --sanity-check). This will print to stdout everything notable about Your card's content.
-The catch-22 with ACS tool card initialization is, that any SE-file (which provides information i.a. about how to do PIN
-verification) is readable only after PIN verification has been completed.
+The catch-22 with ACS tool card initialization is, that any (Security Environment) SE-file (which provides information
+i.a. about how to do PIN verification) is readable only after PIN verification has been completed.
 
 Note, that the philosophy of OpenSC is to have free access (reading always allowed or SM constraints satisfiable without
 any PIN entry) to PKCS#15 directory file EF.DIR and PKCS#15 object directory file EF.ODF and to all what they point to.
@@ -17,7 +17,7 @@ Also to EF.TokenInfo. The driver requires free access to all SE-files.
 
 OpenSC in general has provisions for card initialization, but I didn't implement this (so far, and havn't made up my
 mind if I ever will do).<br>
-Instead I provide script card_initialization.scriptor to initialize Your ACOS5-64 V2.00 or ACOS5-64 V3.00 card/token:
+Instead I provide script `card_initialization.scriptor` to initialize Your ACOS5-64 V2.00 or ACOS5-64 V3.00 card/token:
 It allows the ultimate control over what will be done. (Or, if You want to do card initialization manually, invoke
 pkcs15-init --erase-card  and continue on Your own).<br>
 With knowledge from the reference manual You can adapt everything in the script to Your heart's content, but I recommend
@@ -33,7 +33,7 @@ keyset_41434F53504B43532D313576312E3030_02_* MUST MATCH. Any mistake with that e
 
 Note, that current card_initialization.scriptor *DOES NOT* force anything to happen protected by SM, though there are
 records #5 and #6 in file 0x3F0041004103 that may be used for SM inside PKCS#15 Application DF 0x3F004100.
-I recommend to use SM gradually and get used to it, e.g. by removing comment characters from lines 191-194 in
+I recommend to use SM gradually and get used to it, e.g. by removing comment characters from lines 131-134 in
 card_initialization.scriptor.
 This will then create a test file sized 16 bytes, that i.a. forces read_binary to use SM as specified in record #6,
 i.e. transmit response encrypted, the driver will then decrypt and e.g. opensc-tool -f will display that plain text.
@@ -48,7 +48,7 @@ but thats not disclosable publicly.
 scriptor from package pcsc-tools (see http://ludovic.rousseau.free.fr/softwares/pcsc-tools/) or some equivalent tool
 that can send APDUs to a smart card in batch mode will be required.
 
-The bulk of initialization will be done by script card_initialization.scriptor:
+The bulk of initialization will be done by script `card_initialization.scriptor`:
 1. Adapt the script referring to old SOPIN and whether the line for V2.00 or for V3.00 has to be executed (see
    explanation inside the script: comments).
 2. With Linux: Make sure that a tool like scriptor is available (in the following I will assume scriptor) and that the

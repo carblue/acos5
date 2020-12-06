@@ -79,12 +79,12 @@ cfg_if::cfg_if! {
         pub const SC_SEC_OPERATION_UNWRAP   : i32 = 0x0006;
     }
 }
-cfg_if::cfg_if! {
-    if #[cfg(sym_hw_encrypt)] {
+// cfg_if::cfg_if! {
+//     if #[cfg(sym_hw_encrypt)] {
         pub const SC_SEC_OPERATION_ENCRYPT_SYM  : i32 = 0x0007;
         pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
-    }
-}
+//     }
+// }
 
 /* sc_security_env flags */
 pub const SC_SEC_ENV_ALG_REF_PRESENT         : c_ulong = 0x0001;
@@ -346,14 +346,14 @@ pub const SC_ALGORITHM_EXT_EC_UNCOMPRESES  : u32 = 0x0000_0010;
 pub const SC_ALGORITHM_EXT_EC_COMPRESS     : u32 = 0x0000_0020;
 
 /* symmetric algorithm flags. More algorithms to be added when implemented. */
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_ALGORITHM_AES_ECB             : u32 = 0x0100_0000;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_ALGORITHM_AES_CBC             : u32 = 0x0200_0000;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_ALGORITHM_AES_CBC_PAD         : u32 = 0x0400_0000;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub const SC_ALGORITHM_AES_FLAGS           : u32 = 0x0F00_0000;
+cfg_if::cfg_if! {
+    if #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))] {
+        pub const SC_ALGORITHM_AES_ECB     : u32 = 0x0100_0000;
+        pub const SC_ALGORITHM_AES_CBC     : u32 = 0x0200_0000;
+        pub const SC_ALGORITHM_AES_CBC_PAD : u32 = 0x0400_0000;
+        pub const SC_ALGORITHM_AES_FLAGS   : u32 = 0x0F00_0000;
+    }
+}
 
 
 /* Event masks for sc_wait_for_event() */
@@ -369,15 +369,15 @@ pub const MAX_FILE_SIZE : usize = 65535; // since v0_20_0
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_supported_algo_info {
-    pub reference : u32,
-    pub mechanism : u32,
+    pub reference : u32,   /* a unique reference that is used for cross-reference purposes from PrKDFs and PuKDFs */
+    pub mechanism : u32,   /* CKM_* */
     #[cfg(    any(         v0_18_0, v0_19_0, v0_20_0))]
     pub parameters : *mut sc_object_id, /* OID for ECC, NULL for RSA */  // since opensc source release v0.18.0
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
     pub parameters : sc_object_id, /* OID for ECC */  // since opensc source release v0.21.0
-    pub operations : u32,
+    pub operations : u32, /* identifies operations the card can perform with a particular mechanism */
     pub algo_id : sc_object_id,
-    pub algo_ref : u32,
+    pub algo_ref : u32,  /* indicates the identifier used by the card for denoting this algorithm */
 }
 
 #[cfg(impl_default)]
@@ -564,7 +564,7 @@ impl Default for sc_algorithm_info__union {
 pub struct sc_algorithm_info {
     pub algorithm  : u32,
     pub key_length : u32,
-    pub flags      : u32,
+    pub flags      : u32,    /* e.g. SC_ALGORITHM_RSA_RAW  or SC_ALGORITHM_AES_CBC_PAD, see struct sc_security_env, field algorithm_flags */
 
     pub u : sc_algorithm_info__union,
 }
@@ -948,8 +948,8 @@ pub const SC_CARD_CAP_WRAP_KEY   : c_ulong = 0x0000_0800;
 pub const SC_CARD_CAP_UNWRAP_KEY : c_ulong = 0x0000_1000;
 
 /* Card supports symmetric/secret key algorithms (currently at least AES, modes ECB and CBC) */
-#[cfg(sym_hw_encrypt)]
-pub const SC_CARD_CAP_SYM_KEY_ALGOS : c_ulong = 0x0000_2000;
+// #[cfg(sym_hw_encrypt)]
+// pub const SC_CARD_CAP_SYM_KEY_ALGOS : c_ulong = 0x0000_2000;
 
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]

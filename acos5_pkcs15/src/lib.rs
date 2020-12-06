@@ -186,7 +186,7 @@ const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     if cfg!(v0_17_0) || cfg!(v0_18_0) || cfg!(v0_19_0) || cfg!(v0_20_0) || cfg!(v0_21_0) { unsafe { sc_get_version() } }
-//    else if cfg!(v0_22_0)  { unsafe { sc_get_version() } } // experimental only:  Latest OpenSC github commit covered: 85e08ae
+    else if cfg!(v0_22_0)  { unsafe { sc_get_version() } } // experimental only:  Latest OpenSC github commit covered: f015746
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 

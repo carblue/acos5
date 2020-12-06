@@ -85,22 +85,21 @@ use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_securit
                          SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR, sc_select_file,
                          SC_CARD_CAP_ISO7816_PIN_INFO, SC_ALGORITHM_AES, sc_read_binary, sc_get_version,
                          SC_ALGORITHM_ECDSA_RAW, SC_ALGORITHM_EXT_EC_NAMEDCURVE //, sc_path_set, sc_verify
+                         , SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM
 //                         SC_ALGORITHM_ECDH_CDH_RAW, SC_ALGORITHM_ECDSA_HASH_NONE, SC_ALGORITHM_ECDSA_HASH_SHA1,
 //                         SC_ALGORITHM_EXT_EC_UNCOMPRESES,
 //                         ,sc_pin_cmd_pin, sc_pin_cmd//, sc_update_binary
 };
-#[cfg(not(v0_17_0))]
-use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
+// #[cfg(not(v0_17_0))]
+// use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
 //#[cfg(not(any(v0_17_0, v0_18_0)))]
 //use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_PSS};
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 use opensc_sys::opensc::{sc_update_record, SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM_TARGET_FILE,
-                         SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, SC_SEC_OPERATION_UNWRAP
+                         SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, SC_SEC_OPERATION_UNWRAP//, SC_ALGORITHM_AES_CBC_PAD
                          // , SC_CARD_CAP_UNWRAP_KEY//, SC_CARD_CAP_WRAP_KEY
 //                         , SC_SEC_OPERATION_WRAP
 };
-#[cfg(sym_hw_encrypt)]
-use opensc_sys::opensc::{SC_CARD_CAP_SYM_KEY_ALGOS};
 
 use opensc_sys::types::{SC_AC_CHV, sc_aid, sc_path, sc_file, sc_serial_number, SC_MAX_PATH_SIZE,
                         SC_PATH_TYPE_FILE_ID, SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH,
@@ -263,7 +262,7 @@ mod   test_v2_v3;
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     if cfg!(v0_17_0) || cfg!(v0_18_0) || cfg!(v0_19_0) || cfg!(v0_20_0) || cfg!(v0_21_0) { unsafe { sc_get_version() } }
-//    else if cfg!(v0_22_0)  { unsafe { sc_get_version() } } // experimental only:  Latest OpenSC github commit covered:
+    else if cfg!(v0_22_0)  { unsafe { sc_get_version() } } // experimental only:  Latest OpenSC github commit covered: f015746
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -637,8 +636,6 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     /* card.caps |= SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH   what exactly is this? */
     // #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     // { card.caps |=  /*SC_CARD_CAP_WRAP_KEY | */ SC_CARD_CAP_UNWRAP_KEY; }
-    #[cfg(sym_hw_encrypt)]
-    { card.caps |=  SC_CARD_CAP_SYM_KEY_ALGOS; }
     /* The reader of USB CryptoMate64/CryptoMate Nano supports extended APDU, but the ACOS5-64 cards don't:
        Thus SC_CARD_CAP_APDU_EXT only for ACOS5-EVO TODO */
 
@@ -2537,6 +2534,12 @@ extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const
     let env_ref  = unsafe { & *env_ref_ptr };
     log3if!(ctx,f,line!(), cstru!(b"called  for operation %d\0"), env_ref.operation);
 //println!("set_security_env: *env_ref_ptr: sc_security_env: {:0X?}", *env_ref);
+/*
+Tokenunfo
+30 7F 02 01 01 04 08 B0 35 00 5B A1 0A 65 00 0C 1A 41 64 76 61 6E 63 65 64 20 43 61 72 64 20 53 79 73 74 65 6D 73 20 4C 74 64 2E 80 14 4E 36 34
+5F 42 30 33 35 30 30 35 42 41 31 30 41 36 35 30 30 03 02 04 20 A2 3A 30 1B 02 01 01 02 02 10 81 05 00 03 02 00 0C 06 09 60 86 48 01 65 03 04 01
+29 02 01 04 30 1B 02 01 02 02 02 10 82 05 00 03 02 00 0C 06 09 60 86 48 01 65 03 04 01 2A 02 01 06
+*/
     set_sec_env(card, env_ref);
     let mut rv;
 
@@ -2644,21 +2647,25 @@ extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const
             return rv;
         }
     }
-    else if [SC_SEC_OPERATION_ENCIPHER_SYMMETRIC, SC_SEC_OPERATION_DECIPHER_SYMMETRIC].contains(&env_ref.operation)  &&
-            (env_ref.flags & SC_SEC_ENV_KEY_REF_PRESENT) > 0 && (env_ref.flags & SC_SEC_ENV_ALG_REF_PRESENT) > 0
-    {
+    // #[cfg(sym_hw_encrypt)]
+    else if cfg!(sym_hw_encrypt) &&
+        [SC_SEC_OPERATION_ENCIPHER_SYMMETRIC, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
+         SC_SEC_OPERATION_ENCRYPT_SYM,        SC_SEC_OPERATION_DECRYPT_SYM].contains(&env_ref.operation)  &&
+            (env_ref.flags & SC_SEC_ENV_KEY_REF_PRESENT) > 0 &&
+            (env_ref.flags & SC_SEC_ENV_ALG_PRESENT) > 0 &&
+            (env_ref.flags & SC_SEC_ENV_ALG_REF_PRESENT) > 0
+        {
         if env_ref.key_ref_len == 0 {
             rv = SC_ERROR_NOT_SUPPORTED;
             log3ifr!(ctx,f,line!(), rv);
             return rv;
         }
-        if (env_ref.flags & SC_SEC_ENV_ALG_PRESENT) == 0  ||
-            ![SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES].contains(&env_ref.algorithm)
-        {
+        if ![SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES].contains(&env_ref.algorithm) {
             rv = SC_ERROR_NOT_SUPPORTED;
             log3ifr!(ctx,f,line!(), rv);
             return rv;
         }
+/*
         #[cfg(not(    v0_17_0))]
         {
             if env_ref.flags & SC_SEC_ENV_KEY_REF_SYMMETRIC == 0 {
@@ -2667,22 +2674,51 @@ extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const
                 return rv;
             }
         }
+*/
         #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
         {
             if (env_ref.algorithm & SC_ALGORITHM_AES) > 0 &&
-                ![SC_ALGORITHM_AES_CBC_PAD,
-                  SC_ALGORITHM_AES_CBC,
-                  SC_ALGORITHM_AES_ECB].contains(&env_ref.algorithm_flags)
-            {
+                ![SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB].contains(&env_ref.algorithm_flags) {
                 rv = SC_ERROR_NOT_SUPPORTED;
                 log3ifr!(ctx,f,line!(), rv);
                 return rv;
             }
         }
+// if env_ref.algorithm_ref==0 then inspect, whether it can be found in supportedAlgorithms.algo_ref
+/*
+        cfg_if::cfg_if! {
+            if #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))] {
+                let mut env_ref_algorithm_ref = env_ref.algorithm_ref;
+            }
+            else {
+                let     env_ref_algorithm_ref = env_ref.algorithm_ref;
+            }
+        }
+        if env_ref_algorithm_ref == 0 {
+            for elem in &env_ref.supported_algos {
+                if elem.reference == 0 { break; }
+                if ![0x1081, 0x1082].contains(&elem.mechanism) { continue; }
+                #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+                {
+                    match env_ref.algorithm_flags {
+                        SC_ALGORITHM_AES_ECB => if elem.mechanism != 0x1081 /*CKM_AES_ECB*/ { continue; } else { env_ref_algorithm_ref = elem.algo_ref; break;},
+                        SC_ALGORITHM_AES_CBC => if elem.mechanism != 0x1082 /*CKM_AES_CBC*/ { continue; } else { env_ref_algorithm_ref = elem.algo_ref; break;},
+                        _ => continue,
+                    }
+                }
+            }
+            // env_ref_algorithm_ref = 4; // AES (ECB)
+        }
+*/
+        if env_ref.algorithm_ref == 0 {
+            rv = SC_ERROR_NOT_SUPPORTED;
+            log3ifr!(ctx,f,line!(), rv);
+            return rv;
+        }
 
         let mut vec =   // made for cbc and blockSize == 16
             vec![0_u8,  0x22, 0x01,  0xB8, 0xFF,
-                 0x95, 0x01, 0xC0,
+                 0x95, 0x01, 0x40,
                  0x80, 0x01, 0xFF,
                  0x83, 0x01, 0xFF,
                  0x87, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -2691,12 +2727,12 @@ extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const
             #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
             { if env_ref.algorithm_flags == SC_ALGORITHM_AES_ECB {vec.truncate(vec.len()-18);} }
             #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-            {
+            { // TODO check for EVO
                 if [4, 5].contains(&env_ref.algorithm_ref) // AES (ECB)
                 { vec.truncate(vec.len()-18); }
             }
         }
-        else { // then it's SC_ALGORITHM_3DES | SC_ALGORITHM_DES
+        else { // then it's SC_ALGORITHM_3DES | SC_ALGORITHM_DES    TODO check for EVO
             vec.truncate(vec.len()-8);
             let pos = vec.len()-9;
             vec[pos] = 8; // IV has len == 8. assuming it's CBC
@@ -3352,9 +3388,10 @@ extern "C" fn acos5_update_record(card_ptr: *mut sc_card, rec_nr: u32,
 }
 
 /// does nothing currently
+// plaintext_len is allowed to be not a multiple of block_size 16
 #[cfg(sym_hw_encrypt)]
-extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, _plaintext: *const u8, _plaintext_len: usize,
-    _out: *mut u8, _outlen: usize/*, block_size: u8*/) -> i32
+extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, plaintext_len: usize,
+    out: *mut u8, outlen: usize) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
@@ -3362,7 +3399,16 @@ extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, _plaintext: *const u8, _
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     log3ifc!(ctx,cstru!(b"acos5_encrypt_sym\0"),line!());
-    0
+    // temporarily route via (acos5)sc_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr: p_void) SC_CARDCTL_ACOS5_ENCRYPT_SYM
+    let mut crypt_sym_data = CardCtl_crypt_sym {
+        inbuf        : plaintext,
+        indata_len   : plaintext_len,
+        outbuf       : out,
+        outdata_len  : outlen,
+        // encrypt      : true,
+        .. CardCtl_crypt_sym::default()
+    };
+    sym_en_decrypt(card,  &mut crypt_sym_data)
 }
 
 
@@ -3453,4 +3499,8 @@ SC_AC_CONTEXT_SPECIFIC /* Context specific login */ // since opensc source relea
 
 The driver doesn't support access control condition: 'authenticate a key' because OpenSC doesn't support that either.
 
+*/
+/*
+user@host:~/workspace/acos5_gui/opensc/C/contribute_opensc/OpenSC-1/src$ grep -rnw supported_algos
+user@host:~/workspace/acos5_gui/opensc/C/contribute_opensc/OpenSC-1/src$ grep -rnw algo_refs
 */

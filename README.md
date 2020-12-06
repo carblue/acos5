@@ -10,7 +10,9 @@ The respective reference manual for Your hardware is available on request from: 
 Platforns supported: Those that the Rust compiler targets: [rustc platform-support](https://doc.rust-lang.org/nightly/rustc/platform-support.html "https://doc.rust-lang.org/nightly/rustc/platform-support.html").  
 Platforms tested: Those that I use:  
 Linux/Kubuntu 18.04.5 LTS (extensively tested, everything implemented works as expected),  
-Windows 10 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: SM and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Note that, for the time being, after all this annoying time consuming hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow i.a. for sanity-check).
+Windows 10 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: SM and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Note that, for the time being, after all this annoying, time consuming hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow i.a. for sanity-check).
+
+Release tags get added irregularly, mainly i.o. to refer to something from acos5_gui. If Your interest is in this driver only, then master's HEAD has the best code for You.
 
 Motivation:  
 For platform-independent, serious use of a cryptographic token from software like Firefox, Thunderbird, ssh etc., a [PKCS#11](https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11 "https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11") implementing library is required.  
@@ -43,14 +45,14 @@ Optional:
 
 The driver may be "configured" to include code for: User consent to use an RSA private key: A dialog window (provided by IUP)
 pops up every time when an RSA private key is requested to be used for sign, decrypt, unwrap. I recommend to use this feature for enhanced security, more in file   [conditional_compile_options](https://github.com/carblue/acos5/tree/master/conditional_compile_options.md "https://github.com/carblue/acos5/tree/master/conditional_compile_options.md"), referring to 'iup_user_consent'.
-It's just not mandatory due to the required additional installation, required editing of acos5_external/acos5/build.rs and editing opensc.conf: iup_user_consent_enabled = yes; the latter allows to have that feature compiled in, but disable it temporarily e.g. for pkcs11-tool --test  where it would be tedious to approve each RSA key usage. The pre-built binaries are easy to install on Linux via sudo ./install (check for all dependencies satisfied with ldd libiup.so).
+It's just not mandatory due to the required additional installation, required editing of acos5_external/acos5/build.rs and editing opensc.conf: iup_user_consent_enabled = yes; the latter allows to have that feature compiled in, but disable it temporarily e.g. for pkcs11-tool --test  where it would be tedious to approve each RSA key usage. The pre-built IUP binaries are easy to install on Linux via sudo ./install (check for all dependencies satisfied with ldd libiup.so), or as usual, compile from sources.
 
 This repo builds 2 dll/shared object libraries:  
 - libacos5.so/dylib/dll, which is a mandatory one, the driver in the narrow sense, and
 - libacos5_pkcs15.so/dylib/dll, which is theoretically optional, but very likely required if the token isn't used read-only; e.g. storing/generating keys on-card requires this.  
 In the following I won't make any distinction anymore and call both 'the driver' for ACOS5.
 
-This repo also builds a library from the included opensc-sys binding for internal use. It's the basic building block for the driver components such that they are able to call into the libopensc library.  
+This repo also builds a library from the included opensc-sys binding for internal use. It's the basic building block for the driver components in order to be able to call into the libopensc library, the backbone/workhorse of OpenSC.  
 The minimal OpenSC version supported is 0.17.0  
 
 All these builds will be tied to the OpenSC version installed, so that installation must be done first. Then, for all 3 builds there are files build.rs which get processed prior to the remaining build and control how that will be done (conditional compilation, see [conditional_compile_options](https://github.com/carblue/acos5/tree/master/conditional_compile_options.md "https://github.com/carblue/acos5/tree/master/conditional_compile_options.md")). The first one will detect the OpenSC version installed, adapt the opensc_sys binding to that version and pass the version info to the other builds.
@@ -67,7 +69,7 @@ File ids 0x5000 - 0x5FFF are reserved for the driver and PKCS#15 files 0x5031, 0
 And a driver rule to name explicitly: In case of manually adding records to 'PIN file', 'Symmetric Key file' or 'Security Environment file': These are record-based file types, i.e. content gets addressed by a record no. **and** store inside that record an ID (of pin, sym. key or SE condition): Record no. and ID always must be the same ! This can be checked only for readable files, and 'PIN file' / 'Symmetric Key file' never are readable.  
 If a manually added 'Symmetric Key' is not listed in SKDF, then it does not exist for OpenSC/driver and the record/key will be overwritten next time a 'key store' or 'unwrap' operation occurs !
 
-So this is the point: It would be graceful reacting upon such limits/rules violations with error returns and respective error messages in opensc-debug.log, but all too often the driver isn't yet that polite and just deliberately aborts ("panic" in Rust lingo, due to an assert violation).
+So this is the point: It would be graceful to react upon limits/rules violations with error returns and respective error messages in opensc-debug.log, but all too often the driver isn't yet that polite and just deliberately aborts ("panic" in Rust lingo, due to an assert violation).
 So, if anybody wants to contribute, removing these rough edges is an easy way to start.  
 And if the driver is "impolite" currently, it's most likely something about card content, that is different from expected according to PKCS#15 / ISO/IEC 7816-15 / OpenSC. It's tough for outsiders to spot from OpenSC code: What is the exact requirement for ASN.1 content of PKCS#15 files. Maybe it's easier to read from [PKCS15.asn](https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn "https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn"), which is specifically crafted/modified from a module pkcs-15v1_1.asn found by a web search, for compatibility with OpenSC version 0.19.0 ? - 0.21.0, libtasn1 and ACOS5. It's also internally used by the driver in non-Windows builds.
 

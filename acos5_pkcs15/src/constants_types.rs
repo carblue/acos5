@@ -20,7 +20,7 @@
 
 #![allow(dead_code)]
 
-use std::os::raw::{c_char, c_ulong, c_void};
+use std::os::raw::{c_char, c_uchar, c_ulong, c_void};
 use std::ops::{Deref, DerefMut};
 use std::convert::{TryFrom/*, TryInto*/};
 use std::collections::HashMap;
@@ -222,16 +222,17 @@ pub const SC_SEC_OPERATION_UNWRAP       : i32 = 0x0006;
 pub const SC_SEC_OPERATION_ENCRYPT_SYM  : i32 = 0x0007;
 #[cfg(sym_hw_encrypt)]
 pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
+
 */
-////pub const SC_SEC_OPERATION_ENCIPHER : i32 = 0x0007;
-pub const SC_SEC_OPERATION_GENERATE_RSAPRIVATE : i32 = 0x0008; // sc_set_security_env must know this related to file id
-pub const SC_SEC_OPERATION_GENERATE_RSAPUBLIC  : i32 = 0x0009; // sc_set_security_env must know this related to file id
+////pub const SC_SEC_OPERATION_ENCIPHER : i32 = 0x0009;
+pub const SC_SEC_OPERATION_GENERATE_RSAPRIVATE : i32 = 0x000A; // sc_set_security_env must know this related to file id
+pub const SC_SEC_OPERATION_GENERATE_RSAPUBLIC  : i32 = 0x000B; // sc_set_security_env must know this related to file id
 
-pub const SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC  : i32 = 0x000A; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
-pub const SC_SEC_OPERATION_DECIPHER_RSAPRIVATE : i32 = 0x000B; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
+pub const SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC  : i32 = 0x000C; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
+pub const SC_SEC_OPERATION_DECIPHER_RSAPRIVATE : i32 = 0x000D; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
 
-pub const SC_SEC_OPERATION_ENCIPHER_SYMMETRIC  : i32 = 0x000C; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
-pub const SC_SEC_OPERATION_DECIPHER_SYMMETRIC  : i32 = 0x000D; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
+pub const SC_SEC_OPERATION_ENCIPHER_SYMMETRIC  : i32 = 0x000E; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
+pub const SC_SEC_OPERATION_DECIPHER_SYMMETRIC  : i32 = 0x000F; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
 
 /*
 /*
@@ -604,9 +605,11 @@ impl Default for CardCtl_generate_inject_asym {
 pub struct CardCtl_crypt_sym {
     /* input is from : infile xor indata, i.e. assert!(logical_xor(indata_len > 0, !infile.is_null() )); */
     pub infile       : *const c_char, //  path/to/file where the indata may be read from, interpreted as an [u8]; if!= null has preference over indata
+    pub inbuf        : *const c_uchar,
     pub indata       : [u8; RSA_MAX_LEN_MODULUS+16],
     pub indata_len   : usize,
     pub outfile      : *const c_char, //  path/to/file where the outdata may be written to, interpreted as an [u8]; if!= null has preference over outdata
+    pub outbuf       : *mut c_uchar,
     pub outdata      : [u8; RSA_MAX_LEN_MODULUS+32],
     pub outdata_len  : usize,
     /* until OpenSC v0.20.0  iv is [0u8; 16], then use sc_sec_env_param and SC_SEC_ENV_PARAM_IV */
@@ -629,9 +632,11 @@ impl Default for CardCtl_crypt_sym {
     fn default() -> Self {
         Self {
             infile: std::ptr::null(),
+            inbuf: std::ptr::null(),
             indata: [0; RSA_MAX_LEN_MODULUS+16],
             indata_len: 0,
             outfile: std::ptr::null(),
+            outbuf: std::ptr::null_mut(),
             outdata: [0; RSA_MAX_LEN_MODULUS+32],
             outdata_len: 0,
             iv: [0; 16],
