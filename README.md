@@ -4,7 +4,7 @@
 
 Driver for Advanced Card Systems (ACS)  ACOS5 Smart Card V2.00 (CryptoMate64) and V3.00 (CryptoMate Nano),  
 as external modules operating within the OpenSC framework.  
-The new ACOS5-EVO (ACOS5 V4.00, V4.10, V4.20?): I don't yet have that, hence untested/unknown what works or doesn't, when serving that card. Therefore, as matching EVO cards got activated, please file any issues/problems.  
+The new ACOS5-EVO (ACOS5 V4.00, V4.10, V4.20?): No support for the time being.  
 The respective reference manual for Your hardware is available on request from: info@acs.com.hk
 
 Platforns supported: Those that the Rust compiler targets: [rustc platform-support](https://doc.rust-lang.org/nightly/rustc/platform-support.html "https://doc.rust-lang.org/nightly/rustc/platform-support.html").  
@@ -13,6 +13,7 @@ Linux/Kubuntu 18.04.5 LTS (extensively tested, everything implemented works as e
 Windows 10 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: SM and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Note that, for the time being, after all this annoying, time consuming hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow i.a. for sanity-check).
 
 Release tags get added irregularly, mainly i.o. to refer to something from acos5_gui. If Your interest is in this driver only, then master's HEAD has the best code for You.
+
 
 Motivation:  
 For platform-independent, serious use of a cryptographic token from software like Firefox, Thunderbird, ssh etc., a [PKCS#11](https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11 "https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11") implementing library is required.  
@@ -36,7 +37,7 @@ Recommended:
 ```
 sudo apt-get update
 sudo apt-get upgrade
-sudo apt-get install opensc opensc-pkcs11 openssl pcscd libtasn1-6-dev pcsc-tools
+sudo apt-get install opensc opensc-pkcs11 openssl pcscd libssl-dev libtasn1-6-dev build-essential pcsc-tools
 ```
 **If that doesn't install a symbolic link libopensc.so, then this must be done manually**
 

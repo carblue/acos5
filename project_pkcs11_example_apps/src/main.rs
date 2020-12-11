@@ -20,7 +20,7 @@ use pkcs11::{Ctx, errors::Error};
 use pkcs11::types::{CKF_SERIAL_SESSION, CKU_USER, CK_SESSION_HANDLE, CK_OBJECT_CLASS, CK_ATTRIBUTE, CKO_PRIVATE_KEY,
                     CK_VOID_PTR, CKA_CLASS, CK_OBJECT_HANDLE/*, CK_UTF8CHAR, CK_BYTE*/, CKA_LABEL, CKA_ID, CKA_KEY_TYPE,
                     CK_KEY_TYPE, CKA_DECRYPT, CK_BBOOL, CKA_SIGN, CKA_UNWRAP, CKO_SECRET_KEY, CKA_LOCAL,
-                    CKA_EXTRACTABLE, CKA_SENSITIVE, CKA_TOKEN, CKA_PRIVATE, CKA_MODIFIABLE, CKA_COPYABLE,
+                    CKA_EXTRACTABLE, CKA_SENSITIVE, CKA_TOKEN, CKA_PRIVATE, CKA_MODIFIABLE, //CKA_COPYABLE,
                     CKA_ALWAYS_SENSITIVE, CKA_NEVER_EXTRACTABLE, CKA_ENCRYPT, CKA_VERIFY, CKA_SIGN_RECOVER,
                     CKA_VERIFY_RECOVER, CKA_WRAP, CKO_PUBLIC_KEY};
 use std::mem::size_of;
@@ -44,7 +44,7 @@ fn show_key_info(ctx: &Ctx, session: CK_SESSION_HANDLE, key: CK_OBJECT_HANDLE) -
     let mut is_token_object : CK_BBOOL = 0xAA;
     let mut is_private : CK_BBOOL = 0xAA;
     let mut is_modifiable : CK_BBOOL = 0xAA;
-    let mut is_copyable : CK_BBOOL = 0xAA;
+    // let mut is_copyable : CK_BBOOL = 0xAA;
 
     let mut is_sensitive : CK_BBOOL = 0xAA;
     let mut is_extractable : CK_BBOOL = 0xAA;
@@ -81,10 +81,11 @@ fn show_key_info(ctx: &Ctx, session: CK_SESSION_HANDLE, key: CK_OBJECT_HANDLE) -
         CK_ATTRIBUTE { attrType: CKA_MODIFIABLE,
                        pValue: &mut is_modifiable as *mut _ as CK_VOID_PTR,
                        ulValueLen: 1 },
+/*
         CK_ATTRIBUTE { attrType: CKA_COPYABLE,
                        pValue: &mut is_copyable as *mut _ as CK_VOID_PTR,
                        ulValueLen: 1 },
-
+*/
         CK_ATTRIBUTE { attrType: CKA_SENSITIVE,
                        pValue: &mut is_sensitive as *mut _ as CK_VOID_PTR,
                        ulValueLen: 1 },
@@ -159,35 +160,35 @@ fn show_key_info(ctx: &Ctx, session: CK_SESSION_HANDLE, key: CK_OBJECT_HANDLE) -
     else { print!("\tKey is_token_object too large, or not found"); }
     if template[5].ulValueLen > 0 { print!("\t is_modifiable: {}", is_modifiable==1); }
     else { print!("\tKey is_token_object too large, or not found"); }
-    if template[6].ulValueLen > 0 { print!("\t is_copyable: {}", is_copyable==1); }
+    // if template[6].ulValueLen > 0 { print!("\t is_copyable: {}", is_copyable==1); }
+    // else { print!("\tKey is_token_object too large, or not found"); }
+
+    if template[6].ulValueLen > 0 { print!("\t is_sensitive: {}", is_sensitive==1); }
+    else { print!("\tKey is_token_object too large, or not found"); }
+    if template[7].ulValueLen > 0 { print!("\t is_extractable: {}", is_extractable==1); }
+    else { print!("\tKey is_token_object too large, or not found"); }
+    if template[8].ulValueLen > 0 { print!("\t is_always_sensitive: {}", is_always_sensitive==1); }
+    else { print!("\tKey is_token_object too large, or not found"); }
+    if template[9].ulValueLen > 0 { print!("\t is_never_extractable: {}", is_never_extractable==1); }
+    else { print!("\tKey is_token_object too large, or not found"); }
+    if template[10].ulValueLen > 0 { print!("\t is_local: {}", is_local==1); }
     else { print!("\tKey is_token_object too large, or not found"); }
 
-    if template[7].ulValueLen > 0 { print!("\t is_sensitive: {}", is_sensitive==1); }
+    if template[11].ulValueLen > 0 { print!("\t can_encrypt: {}", can_encrypt==1); }
     else { print!("\tKey is_token_object too large, or not found"); }
-    if template[8].ulValueLen > 0 { print!("\t is_extractable: {}", is_extractable==1); }
+    if template[12].ulValueLen > 0 { print!("\t can_decrypt: {}", can_decrypt==1); }
     else { print!("\tKey is_token_object too large, or not found"); }
-    if template[9].ulValueLen > 0 { print!("\t is_always_sensitive: {}", is_always_sensitive==1); }
+    if template[13].ulValueLen > 0 { print!("\t can_sign: {}", can_sign==1); }
     else { print!("\tKey is_token_object too large, or not found"); }
-    if template[10].ulValueLen > 0 { print!("\t is_never_extractable: {}", is_never_extractable==1); }
+    if template[14].ulValueLen > 0 { print!("\t can_verify: {}", can_verify==1); }
     else { print!("\tKey is_token_object too large, or not found"); }
-    if template[11].ulValueLen > 0 { print!("\t is_local: {}", is_local==1); }
+    if template[15].ulValueLen > 0 { print!("\t can_signRecover: {}", can_signrecover==1); }
     else { print!("\tKey is_token_object too large, or not found"); }
-
-    if template[12].ulValueLen > 0 { print!("\t can_encrypt: {}", can_encrypt==1); }
+    if template[16].ulValueLen > 0 { print!("\t can_verifyRecover: {}", can_verifyrecover==1); }
     else { print!("\tKey is_token_object too large, or not found"); }
-    if template[13].ulValueLen > 0 { print!("\t can_decrypt: {}", can_decrypt==1); }
+    if template[17].ulValueLen > 0 { print!("\t can_wrap: {}", can_wrap==1); }
     else { print!("\tKey is_token_object too large, or not found"); }
-    if template[14].ulValueLen > 0 { print!("\t can_sign: {}", can_sign==1); }
-    else { print!("\tKey is_token_object too large, or not found"); }
-    if template[15].ulValueLen > 0 { print!("\t can_verify: {}", can_verify==1); }
-    else { print!("\tKey is_token_object too large, or not found"); }
-    if template[16].ulValueLen > 0 { print!("\t can_signRecover: {}", can_signrecover==1); }
-    else { print!("\tKey is_token_object too large, or not found"); }
-    if template[17].ulValueLen > 0 { print!("\t can_verifyRecover: {}", can_verifyrecover==1); }
-    else { print!("\tKey is_token_object too large, or not found"); }
-    if template[18].ulValueLen > 0 { print!("\t can_wrap: {}", can_wrap==1); }
-    else { print!("\tKey is_token_object too large, or not found"); }
-    if template[19].ulValueLen > 0 { println!("\t can_unwrap: {}", can_unwrap==1); }
+    if template[18].ulValueLen > 0 { println!("\t can_unwrap: {}", can_unwrap==1); }
     else { println!("\tKey is_token_object too large, or not found"); }
 
     Ok(())
@@ -247,12 +248,28 @@ fn main() -> Result<(), Error> {
 $ cargo run
 ...
 slot count: 1. Selected slotId: 0
+
+after merge of PR #2176
+
 CKO_PUBLIC_KEY:
-Found a key:  Key label: arcor          Key ID: 0x06    Key type: 0 (0 == CKK_RSA, 3==CKK_EC)    is_token_object: true   is_private: false       is_modifiable: false    is_copyable: false      is_sensitive: false     is_extractable: false   is_always_sensitive: false     is_never_extractable: false     is_local: true   can_encrypt: true       can_decrypt: false      can_sign: false         can_verify: true        can_signRecover: false  can_verifyRecover: false        can_wrap: false         can_unwrap: false
-Found a key:  Key label: dummy          Key ID: 0x08    Key type: 0 (0 == CKK_RSA, 3==CKK_EC)    is_token_object: true   is_private: false       is_modifiable: false    is_copyable: false      is_sensitive: false     is_extractable: false   is_always_sensitive: false     is_never_extractable: false     is_local: true   can_encrypt: true       can_decrypt: false      can_sign: false         can_verify: true        can_signRecover: false  can_verifyRecover: false        can_wrap: true          can_unwrap: false
+Found a key:  Key label: arcor          Key ID: 0x06    Key type: 0 (0 (CKK_RSA), 3 (CKK_EC), 31 (CKK_AES))      is_token_object: true   is_private: false       is_modifiable: true     is_sensitive: false     is_extractable: true    is_always_sensitive: false      is_never_extractable: false   is_local: true  can_encrypt: true       can_decrypt: false      can_sign: false         can_verify: true        can_signRecover: false  can_verifyRecover: false        can_wrap: false         can_unwrap: false
+Found a key:  Key label: dummy          Key ID: 0x08    Key type: 0 (0 (CKK_RSA), 3 (CKK_EC), 31 (CKK_AES))      is_token_object: true   is_private: false       is_modifiable: true     is_sensitive: false     is_extractable: true    is_always_sensitive: false      is_never_extractable: false   is_local: true  can_encrypt: true       can_decrypt: false      can_sign: false         can_verify: true        can_signRecover: false  can_verifyRecover: false        can_wrap: true  can_unwrap: false
 CKO_PRIVATE_KEY:
-Found a key:  Key label: arcor          Key ID: 0x06    Key type: 0 (0 == CKK_RSA, 3==CKK_EC)    is_token_object: true   is_private: true        is_modifiable: false    is_copyable: false      is_sensitive: true      is_extractable: false   is_always_sensitive: true      is_never_extractable: true      is_local: true   can_encrypt: false      can_decrypt: true       can_sign: true          can_verify: false       can_signRecover: false  can_verifyRecover: false        can_wrap: false         can_unwrap: false
-Found a key:  Key label: dummy          Key ID: 0x08    Key type: 0 (0 == CKK_RSA, 3==CKK_EC)    is_token_object: true   is_private: true        is_modifiable: false    is_copyable: false      is_sensitive: true      is_extractable: false   is_always_sensitive: true      is_never_extractable: true      is_local: true   can_encrypt: false      can_decrypt: true       can_sign: true          can_verify: false       can_signRecover: false  can_verifyRecover: false        can_wrap: false         can_unwrap: true
+Found a key:  Key label: arcor          Key ID: 0x06    Key type: 0 (0 (CKK_RSA), 3 (CKK_EC), 31 (CKK_AES))      is_token_object: true   is_private: true        is_modifiable: true     is_sensitive: true      is_extractable: false   is_always_sensitive: true       is_never_extractable: true    is_local: true  can_encrypt: false      can_decrypt: true       can_sign: true          can_verify: false       can_signRecover: false  can_verifyRecover: false        can_wrap: false         can_unwrap: false
+Found a key:  Key label: dummy          Key ID: 0x08    Key type: 0 (0 (CKK_RSA), 3 (CKK_EC), 31 (CKK_AES))      is_token_object: true   is_private: true        is_modifiable: true     is_sensitive: true      is_extractable: false   is_always_sensitive: true       is_never_extractable: true    is_local: true  can_encrypt: false      can_decrypt: true       can_sign: true          can_verify: false       can_signRecover: false  can_verifyRecover: false        can_wrap: false         can_unwrap: true
 CKO_SECRET_KEY:
-Found a key:  Key label: AES3           Key ID: 0x07    Key type: 31 (0 == CKK_RSA, 3==CKK_EC)   is_token_object: true   is_private: true        is_modifiable: true     is_copyable: false      is_sensitive: true      is_extractable: true    is_always_sensitive: true      is_never_extractable: true      is_local: false  can_encrypt: true       can_decrypt: true       can_sign: false         can_verify: false       can_signRecover: false  can_verifyRecover: false        can_wrap: false         can_unwrap: false
+Found a key:  Key label: AES3           Key ID: 0x07    Key type: 31 (0 (CKK_RSA), 3 (CKK_EC), 31 (CKK_AES))     is_token_object: true   is_private: true        is_modifiable: true     is_sensitive: true      is_extractable: false   is_always_sensitive: true       is_never_extractable: true    is_local: false  can_encrypt: true      can_decrypt: true       can_sign: false         can_verify: false       can_signRecover: false  can_verifyRecover: false        can_wrap: false         can_unwrap: false
+
+
+before merge of PR #2176
+
+CKO_PUBLIC_KEY:
+Found a key:  Key label: arcor          Key ID: 0x06    Key type: 0 (0 == CKK_RSA, 3==CKK_EC)                    is_token_object: true   is_private: false       is_modifiable: false    is_sensitive: false     is_extractable: false   is_always_sensitive: false     is_never_extractable: false     is_local: true   can_encrypt: true       can_decrypt: false      can_sign: false         can_verify: true        can_signRecover: false  can_verifyRecover: false        can_wrap: false         can_unwrap: false
+Found a key:  Key label: dummy          Key ID: 0x08    Key type: 0 (0 == CKK_RSA, 3==CKK_EC)                    is_token_object: true   is_private: false       is_modifiable: false    is_sensitive: false     is_extractable: false   is_always_sensitive: false     is_never_extractable: false     is_local: true   can_encrypt: true       can_decrypt: false      can_sign: false         can_verify: true        can_signRecover: false  can_verifyRecover: false        can_wrap: true          can_unwrap: false
+CKO_PRIVATE_KEY:
+Found a key:  Key label: arcor          Key ID: 0x06    Key type: 0 (0 == CKK_RSA, 3==CKK_EC)                    is_token_object: true   is_private: true        is_modifiable: false    is_sensitive: true      is_extractable: false   is_always_sensitive: true      is_never_extractable: true      is_local: true   can_encrypt: false      can_decrypt: true       can_sign: true          can_verify: false       can_signRecover: false  can_verifyRecover: false        can_wrap: false         can_unwrap: false
+Found a key:  Key label: dummy          Key ID: 0x08    Key type: 0 (0 == CKK_RSA, 3==CKK_EC)                    is_token_object: true   is_private: true        is_modifiable: false    is_sensitive: true      is_extractable: false   is_always_sensitive: true      is_never_extractable: true      is_local: true   can_encrypt: false      can_decrypt: true       can_sign: true          can_verify: false       can_signRecover: false  can_verifyRecover: false        can_wrap: false         can_unwrap: true
+CKO_SECRET_KEY:
+Found a key:  Key label: AES3           Key ID: 0x07    Key type: 31 (0 == CKK_RSA, 3==CKK_EC)                   is_token_object: true   is_private: true        is_modifiable: true     is_sensitive: true      is_extractable: true    is_always_sensitive: true      is_never_extractable: true      is_local: false  can_encrypt: true       can_decrypt: true       can_sign: false         can_verify: false       can_signRecover: false  can_verifyRecover: false        can_wrap: false         can_unwrap: false
+
 */

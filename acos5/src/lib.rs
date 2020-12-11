@@ -96,8 +96,8 @@ use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_securit
 //use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_PSS};
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 use opensc_sys::opensc::{sc_update_record, SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM_TARGET_FILE,
-                         SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, SC_SEC_OPERATION_UNWRAP//, SC_ALGORITHM_AES_CBC_PAD
-                         // , SC_CARD_CAP_UNWRAP_KEY//, SC_CARD_CAP_WRAP_KEY
+                         SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, SC_SEC_OPERATION_UNWRAP,
+                         SC_ALGORITHM_AES_CBC_PAD //, SC_CARD_CAP_UNWRAP_KEY , SC_CARD_CAP_WRAP_KEY
 //                         , SC_SEC_OPERATION_WRAP
 };
 
@@ -171,8 +171,6 @@ use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEAN
                       ValueTypeFiles, build_apdu, is_DFMF, p_void, SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile,
                       file_id_from_path_value, file_id, file_id_se, FCI
                       /*,PKCS15_FILE_TYPE_ECCPRIVATEKEY, PKCS15_FILE_TYPE_ECCPUBLICKEY, READ*/};
-#[cfg(sym_hw_encrypt)]
-use constants_types::{RSA_MAX_LEN_MODULUS};
 
 #[cfg(iup_user_consent)]
 use constants_types::{ui_context, set_ui_ctx, get_ui_ctx, acos5_ask_user_consent};
@@ -262,7 +260,7 @@ mod   test_v2_v3;
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     if cfg!(v0_17_0) || cfg!(v0_18_0) || cfg!(v0_19_0) || cfg!(v0_20_0) || cfg!(v0_21_0) { unsafe { sc_get_version() } }
-    else if cfg!(v0_22_0)  { unsafe { sc_get_version() } } // experimental only:  Latest OpenSC github commit covered: f015746
+    else if cfg!(v0_22_0)  { unsafe { sc_get_version() } } // experimental only:  Latest OpenSC github master commit covered: f8af905 ; sym_hw_encrypt: dadfed3
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -398,9 +396,9 @@ static struct sc_card_operations iso_ops = {
         #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
         unwrap:                None, //Some(acos5_unwrap),            // NULL
 
-        #[cfg(sym_hw_encrypt)]
+        #[cfg(all(sym_hw_encrypt, not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))))]
         encrypt_sym:           Some(acos5_encrypt_sym),       // NULL
-        #[cfg(sym_hw_encrypt)]
+        #[cfg(all(sym_hw_encrypt, not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))))]
         decrypt_sym:           Some(acos5_decrypt_sym),       // NULL
         ..*iso_ops // untested so far whether remaining functionality from libopensc/iso7816.c is sufficient for cos5
 /* from iso_ops:
@@ -689,7 +687,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
             let aes_algo_flags = 0;
         }
         else {
-            let aes_algo_flags = SC_ALGORITHM_AES_ECB | SC_ALGORITHM_AES_CBC;
+            let aes_algo_flags = SC_ALGORITHM_AES_ECB | SC_ALGORITHM_AES_CBC | SC_ALGORITHM_AES_CBC_PAD;
         }
     }
     me_card_add_symmetric_alg(card, SC_ALGORITHM_AES, 128, aes_algo_flags);
@@ -2539,6 +2537,8 @@ Tokenunfo
 30 7F 02 01 01 04 08 B0 35 00 5B A1 0A 65 00 0C 1A 41 64 76 61 6E 63 65 64 20 43 61 72 64 20 53 79 73 74 65 6D 73 20 4C 74 64 2E 80 14 4E 36 34
 5F 42 30 33 35 30 30 35 42 41 31 30 41 36 35 30 30 03 02 04 20 A2 3A 30 1B 02 01 01 02 02 10 81 05 00 03 02 00 0C 06 09 60 86 48 01 65 03 04 01
 29 02 01 04 30 1B 02 01 02 02 02 10 82 05 00 03 02 00 0C 06 09 60 86 48 01 65 03 04 01 2A 02 01 06
+
+30819C0201010408B035005BA10A65000C1A416476616E63656420436172642053797374656D73204C74642E80144E36345F4230333530303542413130413635303003020420A257301B0201010202108105000302000C0609608648016503040129020104301B0201020202108205000302000C060960864801650304012A020106301B0201030202108505000302000C060960864801650304012A020106
 */
     set_sec_env(card, env_ref);
     let mut rv;
@@ -2647,13 +2647,12 @@ Tokenunfo
             return rv;
         }
     }
-    // #[cfg(sym_hw_encrypt)]
-    else if cfg!(sym_hw_encrypt) &&
+    else if cfg!(all(sym_hw_encrypt, not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))) &&
         [SC_SEC_OPERATION_ENCIPHER_SYMMETRIC, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
          SC_SEC_OPERATION_ENCRYPT_SYM,        SC_SEC_OPERATION_DECRYPT_SYM].contains(&env_ref.operation)  &&
             (env_ref.flags & SC_SEC_ENV_KEY_REF_PRESENT) > 0 &&
             (env_ref.flags & SC_SEC_ENV_ALG_PRESENT) > 0 &&
-            (env_ref.flags & SC_SEC_ENV_ALG_REF_PRESENT) > 0
+            (env_ref.flags & SC_SEC_ENV_ALG_REF_PRESENT) > 0  // FIXME relax and don't require this
         {
         if env_ref.key_ref_len == 0 {
             rv = SC_ERROR_NOT_SUPPORTED;
@@ -2678,7 +2677,7 @@ Tokenunfo
         #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
         {
             if (env_ref.algorithm & SC_ALGORITHM_AES) > 0 &&
-                ![SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB].contains(&env_ref.algorithm_flags) {
+                ![SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB].contains(&env_ref.algorithm_flags) {
                 rv = SC_ERROR_NOT_SUPPORTED;
                 log3ifr!(ctx,f,line!(), rv);
                 return rv;
@@ -2711,6 +2710,7 @@ Tokenunfo
         }
 */
         if env_ref.algorithm_ref == 0 {
+            // FIXME supply the missing (from TokenInfo) algorithm_ref
             rv = SC_ERROR_NOT_SUPPORTED;
             log3ifr!(ctx,f,line!(), rv);
             return rv;
@@ -3389,7 +3389,7 @@ extern "C" fn acos5_update_record(card_ptr: *mut sc_card, rec_nr: u32,
 
 /// does nothing currently
 // plaintext_len is allowed to be not a multiple of block_size 16
-#[cfg(sym_hw_encrypt)]
+#[cfg(all(sym_hw_encrypt, not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))))]
 extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, plaintext_len: usize,
     out: *mut u8, outlen: usize) -> i32
 {
@@ -3399,13 +3399,15 @@ extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, pl
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     log3ifc!(ctx,cstru!(b"acos5_encrypt_sym\0"),line!());
+//println!("acos5_encrypt_sym {:02X?}", unsafe { from_raw_parts(plaintext, plaintext_len) });
     // temporarily route via (acos5)sc_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr: p_void) SC_CARDCTL_ACOS5_ENCRYPT_SYM
     let mut crypt_sym_data = CardCtl_crypt_sym {
         inbuf        : plaintext,
         indata_len   : plaintext_len,
         outbuf       : out,
         outdata_len  : outlen,
-        // encrypt      : true,
+        pad_type     : BLOCKCIPHER_PAD_TYPE_PKCS7,
+        encrypt      : true,
         .. CardCtl_crypt_sym::default()
     };
     sym_en_decrypt(card,  &mut crypt_sym_data)
@@ -3413,9 +3415,9 @@ extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, pl
 
 
 /// does decrypt, but needs to be rewritten
-#[cfg(sym_hw_encrypt)]
+#[cfg(all(sym_hw_encrypt, not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))))]
 extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, crgram: *const u8, crgram_len: usize,
-                                                           out: *mut u8,       outlen: usize/*, block_size: u8*/) -> i32
+                                                           out: *mut u8,       outlen: usize) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
@@ -3423,31 +3425,18 @@ extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, crgram: *const u8, crgra
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     log3ifc!(ctx,cstru!(b"acos5_decrypt_sym\0"),line!());
-
-    assert!(crgram_len <= RSA_MAX_LEN_MODULUS+32);
-    // preliminary: use existing sym_en_decrypt, maybe later remove that
-    let mut crypt_sym = CardCtl_crypt_sym::default();
-    // infile: std::ptr::null(),
-    crypt_sym.indata[..crgram_len].copy_from_slice(unsafe { from_raw_parts(crgram, crgram_len) });
-    crypt_sym.indata_len = crgram_len;
-    // outfile: std::ptr::null(),
-    // outdata: [0; RSA_MAX_LEN_MODULUS+32],
-    crypt_sym.outdata_len = outlen;
-    // iv: [0; 16],
-    // iv_len: 0,
-    crypt_sym.key_ref = 0x84;
-    crypt_sym.block_size = 16; // set as default: AES 256 bit CBC, encryption with local key and BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64
-    crypt_sym.key_len = 32;
-    crypt_sym.pad_type = BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64;
-    // local: true,
-    // cbc: true,
-    crypt_sym.encrypt = false;
-    // perform_mse: false,
-
-    let rv = sym_en_decrypt(card, &mut crypt_sym);
-    if rv <= 0 { return rv; }
-    unsafe { copy_nonoverlapping(crypt_sym.outdata.as_ptr(), out, outlen) };
-    rv
+//println!("acos5_decrypt_sym {:02X?}", unsafe { from_raw_parts(crgram, crgram_len) });
+    // temporarily route via (acos5)sc_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr: p_void) SC_CARDCTL_ACOS5_ENCRYPT_SYM
+    let mut crypt_sym_data = CardCtl_crypt_sym {
+        inbuf        : crgram,
+        indata_len   : crgram_len,
+        outbuf       : out,
+        outdata_len  : outlen,
+        pad_type     : BLOCKCIPHER_PAD_TYPE_PKCS7,
+        encrypt      : false,
+        .. CardCtl_crypt_sym::default()
+    };
+    sym_en_decrypt(card,  &mut crypt_sym_data)
 }
 
 /*
@@ -3503,4 +3492,111 @@ The driver doesn't support access control condition: 'authenticate a key' becaus
 /*
 user@host:~/workspace/acos5_gui/opensc/C/contribute_opensc/OpenSC-1/src$ grep -rnw supported_algos
 user@host:~/workspace/acos5_gui/opensc/C/contribute_opensc/OpenSC-1/src$ grep -rnw algo_refs
+
+file 4114:
+
+name: secretKey  type: CHOICE
+  name: genericSecretKey  type: SEQUENCE
+    name: commonObjectAttributes  type: SEQUENCE
+      name: label  type: UTF8_STR  value: AES3                                 name: label  type: UTF8_STR  value: Secret Key
+      name: flags  type: BIT_STR  value(2): c0  ->  11
+      name: authId  type: OCT_STR  value: 01
+    name: commonKeyAttributes  type: SEQUENCE
+      name: iD  type: OCT_STR  value: 07                                       name: iD  type: OCT_STR  value: 09
+      name: usage  type: BIT_STR  value(2): c0  ->  11
+      name: native  type: BOOLEAN
+        name: NULL  type: DEFAULT  value: TRUE
+      name: accessFlags  type: BIT_STR  value(4): b0  ->  1011                 missing !!!
+      name: keyReference  type: INTEGER  value: 0x0083                         name: keyReference  type: INTEGER  value: 0x00
+      name: algReference  type: SEQ_OF                                         missing !!!
+        name: NULL  type: INTEGER
+        name: ?1  type: INTEGER  value: 0x01
+        name: ?2  type: INTEGER  value: 0x02
+    name: commonSecretKeyAttributes  type: SEQUENCE
+      name: keyLen  type: INTEGER  value: 0x0100
+    name: genericSecretKeyAttributes  type: SEQUENCE
+      name: value  type: CHOICE
+        name: indirect  type: CHOICE
+          name: path  type: SEQUENCE
+            name: path  type: OCT_STR  value: 3f0041004102                     name: path  type: OCT_STR  value: 3f004100
+            name: index  type: INTEGER  value: 0x03                            missing !!!
+            name: length  type: INTEGER  value: 0x25                           missing !!!
+
+name: secretKey  type: CHOICE
+  name: genericSecretKey  type: SEQUENCE
+    name: commonObjectAttributes  type: SEQUENCE
+      name: label  type: UTF8_STR  value: Secret Key
+      name: flags  type: BIT_STR  value(2): c0  ->  11
+      name: authId  type: OCT_STR  value: 01
+    name: commonKeyAttributes  type: SEQUENCE
+      name: iD  type: OCT_STR  value: 09
+      name: usage  type: BIT_STR  value(2): c0  ->  11
+      name: native  type: BOOLEAN
+        name: NULL  type: DEFAULT  value: TRUE
+      name: keyReference  type: INTEGER  value: 0x00
+    name: commonSecretKeyAttributes  type: SEQUENCE
+      name: keyLen  type: INTEGER  value: 0x0100
+    name: genericSecretKeyAttributes  type: SEQUENCE
+      name: value  type: CHOICE
+        name: indirect  type: CHOICE
+          name: path  type: SEQUENCE
+            name: path  type: OCT_STR  value: 3f004100
+
+
+A4 39 30 0C 0C 03 53 4D 31 03 02 06 C0 04 01 01
+30 0F 04 01 01 03 02 06 C0 03 02 04 B0 02 02 00
+81 A0 04 02 02 00 C0 A1 12 30 10 30 0E 04 06 3F
+00 41 00 41 02 02 01 01 80 01 25 A4 39 30 0C 0C
+03 53 4D 32 03 02 06 C0 04 01 01 30 0F 04 01 02
+03 02 06 C0 03 02 04 B0 02 02 00 82 A0 04 02 02
+00 C0 A1 12 30 10 30 0E 04 06 3F 00 41 00 41 02
+02 01 02 80 01 25 30 42 30 0D 0C 04 41 45 53 33
+03 02 06 C0 04 01 01 30 17 04 01 07 03 02 06 C0
+03 02 04 B0 02 02 00 83 A1 06 02 01 01 02 01 02
+A0 04 02 02 01 00 A1 12 30 10 30 0E 04 06 3F 00
+41 00 41 02 02 01 03 80 01 25 30 33 30 13 0C 0A
+53 65 63 72 65 74 20 4B 65 79 03 02 06 C0 04 01
+01 30 0A 04 01 09 03 02 06 C0 02 01 00 A0 04 02
+02 01 00 A1 0A 30 08 30 06 04 04 3F 00 41 00
+
+SEQUENCE (4 elem)
+  SEQUENCE (3 elem)
+    UTF8String AES3
+    BIT STRING (2 bit) 11
+    OCTET STRING (1 byte) 01
+  SEQUENCE (5 elem)
+    OCTET STRING (1 byte) 07
+    BIT STRING (2 bit) 11
+    BIT STRING (4 bit) 1011
+    INTEGER 131
+    [1] (2 elem)
+      INTEGER 1
+      INTEGER 2
+  [0] (1 elem)
+    INTEGER 256
+  [1] (1 elem)
+    SEQUENCE (1 elem)
+      SEQUENCE (3 elem)
+        OCTET STRING (6 byte) 3F0041004102
+        INTEGER 3
+        [0] (1 byte) %
+
+
+
+SEQUENCE (4 elem)
+  SEQUENCE (3 elem)
+    UTF8String Secret Key
+    BIT STRING (2 bit) 11
+    OCTET STRING (1 byte) 01
+  SEQUENCE (3 elem)
+    OCTET STRING (1 byte)
+    BIT STRING (2 bit) 11
+
+    INTEGER 0
+  [0] (1 elem)
+    INTEGER 256
+  [1] (1 elem)
+    SEQUENCE (1 elem)
+      SEQUENCE (1 elem)
+        OCTET STRING (4 byte) 3F004100
 */

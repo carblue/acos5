@@ -77,7 +77,7 @@ use opensc_sys::asn1::{sc_asn1_read_tag};
 use opensc_sys::iso7816::{ISO7816_TAG_FCI, ISO7816_TAG_FCP};
 use opensc_sys::sm::{SM_SMALL_CHALLENGE_LEN, SM_CMD_FILE_READ, SM_CMD_FILE_UPDATE};
 
-use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tt/*, wr_do_log_ttt*/, wr_do_log_tu,
+use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tu,/* wr_do_log_tt, wr_do_log_ttt,*/
                       wr_do_log_tuv};
 use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES,
                              BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, BLOCKCIPHER_PAD_TYPE_PKCS7,
@@ -89,10 +89,10 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
                              SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
                              SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                              SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
-                             Acos5EcCurve, build_apdu, is_DFMF, p_void, ATR_MASK_TCK,
+                             Acos5EcCurve, build_apdu, is_DFMF, p_void, // ATR_MASK_TCK,
                              // ISO7816_RFU_TAG_FCP_SFI, ISO7816_RFU_TAG_FCP_SAC, ISO7816_RFU_TAG_FCP_SEID, ISO7816_RFU_TAG_FCP_SAE,
-                             GuardFile, SC_CARD_TYPE_ACOS5_EVO_V4, NAME_V4, ATR_V4, ATR_V4_1C,
-                             ATR_V4_1F, file_id_from_path_value, file_id_se};
+                             GuardFile, // SC_CARD_TYPE_ACOS5_EVO_V4, NAME_V4, ATR_V4, ATR_V4_1C, ATR_V4_1F,
+                             file_id_from_path_value, file_id_se};
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, current_path_df, is_impossible_file_match};
 use crate::missing_exports::me_get_max_recv_size;
@@ -1165,7 +1165,7 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
 }
 
 #[must_use]
-pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 6]
+pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 3]
 {
     [
         sc_atr_table {
@@ -1184,6 +1184,7 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 6]
             flags: 0,
             card_atr: null_mut(),
         },
+/*
         sc_atr_table {
             atr:     cstru!(ATR_V4).as_ptr(),
             atrmask: cstru!(ATR_MASK).as_ptr(),
@@ -1208,6 +1209,7 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 6]
             flags: 0,
             card_atr: null_mut(),
         },
+*/
         sc_atr_table::default(),
     ]
 }
@@ -1812,16 +1814,15 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     else if !crypt_sym.inbuf.is_null() {
         vec_in.extend_from_slice(unsafe { from_raw_parts(crypt_sym.inbuf, crypt_sym.indata_len) });
         debug_assert_eq!(crypt_sym.indata_len, vec_in.len());
-        // let block_size : usize = crypt_sym.block_size.into();
-        if !vec_in.len().is_multiple_of(&block_size) {
-            debug_assert_eq!(BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, crypt_sym.pad_type);
-            vec_in.push(0x80);
-            vec_in.resize(vec_in.len().next_multiple_of(&block_size), 0_u8);
-            // while !vec_in.len().is_multiple_of(&block_size) { vec_in.push(0); }
+        if crypt_sym.encrypt && (get_sec_env(card).algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) > 0 {
+            debug_assert_eq!(BLOCKCIPHER_PAD_TYPE_PKCS7, crypt_sym.pad_type);
+            vec_in.extend_from_slice(&trailing_blockcipher_padding_calculate(crypt_sym.block_size, crypt_sym.pad_type,
+                u8::try_from(vec_in.len()-vec_in.len().prev_multiple_of(&block_size)).unwrap()) );
+//println!("acos5_encrypt_sym {:02X?}", vec_in.as_slice());
         }
-        debug_assert!(vec_in.len().is_multiple_of(&block_size));
         indata_len = vec_in.len();
         indata_ptr = vec_in.as_ptr();
+        debug_assert!(vec_in.len().is_multiple_of(&block_size));
     }
     else {
         vec_in.extend_from_slice(match vecu8_from_file(crypt_sym.infile) {
@@ -1835,7 +1836,8 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     let mut rv;
     let Len1 = indata_len;
     let Len0 =  Len1.prev_multiple_of(&block_size); // (Len1/block_size) * block_size;
-    let Len2 = (Len1+ if !crypt_sym.encrypt || [BLOCKCIPHER_PAD_TYPE_ZEROES, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64].contains(&crypt_sym.pad_type) {0} else {1}).
+    let Len2 = (Len1+ if !crypt_sym.encrypt || [BLOCKCIPHER_PAD_TYPE_PKCS7, BLOCKCIPHER_PAD_TYPE_ZEROES,
+        BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64].contains(&crypt_sym.pad_type) {0} else {1}).
         next_multiple_of(&block_size);
     if !crypt_sym.encrypt {
         assert_eq!(Len1, Len0);
@@ -1861,16 +1863,16 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
         outdata_ptr = vec_out.as_mut_ptr();
     }
 
-    assert!(indata_len >= 32);
-    let mut fmt  = cstru!(b"called with indata_len: %zu, first 32 bytes: %s\0");
-    log3if!(ctx,f,line!(), fmt, indata_len, unsafe {sc_dump_hex(indata_ptr, 32)});
-    fmt = cstru!(b"called with infile_name: %s, outfile_name: %s\0");
-    log3ift!(ctx,f,line!(), fmt, crypt_sym.infile, crypt_sym.outfile);
+//assert!(indata_len >= 32);
+//let mut fmt  = cstru!(b"called with indata_len: %zu, first 32 bytes: %s\0");
+//log3if!(ctx,f,line!(), fmt, indata_len, unsafe {sc_dump_hex(indata_ptr, 32)});
+//fmt = cstru!(b"called with infile_name: %s, outfile_name: %s\0");
+//log3ift!(ctx,f,line!(), fmt, crypt_sym.infile, crypt_sym.outfile);
 
     if !crypt_sym.infile.is_null() && !crypt_sym.outfile.is_null()
     { assert_ne!(crypt_sym.infile, crypt_sym.outfile); } // FIXME doesn't work for symbolic links: the check is meant for using copy_nonoverlapping
-    assert!(Len1 == 0    || outdata_len >= Len1);
-    assert!(Len1 == Len2 || outdata_len == Len2);
+    assert!(Len1 == 0    || outdata_len >= Len1);                                      // FIXME
+    assert!(Len1 == Len2 || (outdata_len == Len2 || outdata_len == Len2+block_size));  // FIXME
     let mut inDataRem = Vec::with_capacity(block_size);
     if crypt_sym.encrypt && Len1 != Len2 {
         inDataRem.extend_from_slice(unsafe { from_raw_parts(indata_ptr.add(Len0), Len1-Len0) });
@@ -2010,11 +2012,22 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     if crypt_sym.encrypt {
         crypt_sym.outdata_len = cnt;
     }
-    else {
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+    {
+        if !crypt_sym.encrypt && get_sec_env(card).algorithm_flags==SC_ALGORITHM_AES_CBC_PAD {
+            let mut last_block_values = [0_u8; 16];
+            last_block_values.copy_from_slice(unsafe {from_raw_parts(outdata_ptr.add(cnt-block_size), block_size)});
+            crypt_sym.outdata_len = cnt - usize::from(trailing_blockcipher_padding_get_length(crypt_sym.block_size, crypt_sym.pad_type,
+                                                                                              &last_block_values[..block_size]).unwrap());
+        }
+    }
+    if !crypt_sym.encrypt {
+/*
         let mut last_block_values = [0_u8; 16];
         last_block_values[..block_size].copy_from_slice(unsafe {from_raw_parts(outdata_ptr.add(cnt-block_size), block_size)});
         crypt_sym.outdata_len = cnt - usize::from(trailing_blockcipher_padding_get_length(crypt_sym.block_size, crypt_sym.pad_type,
             &last_block_values[..block_size]).unwrap());
+*/
         if !crypt_sym.outfile.is_null() {
             vec_out.truncate(crypt_sym.outdata_len);
         }
