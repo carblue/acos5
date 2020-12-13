@@ -44,7 +44,7 @@ pkcs11/framework-pkcs15.c       pkcs15_skey_encrypt
 libopensc/pkcs15-sec.c            sc_pkcs15_encrypt_sym  
                                     format_senv  
 libopensc/padding.c                 sc_get_encoding_flags  
-libopensc/pkcs15-sec.c              use_key(p15card, obj, &senv, sc_encrypt_sym, in, inlen, out, outlen)  
+libopensc/pkcs15-sec.c              use_key_sym(p15card, obj, &senv, sc_encrypt_sym, in, inlen, out, outlen)  
                                       select_key_file  
                                       sc_set_security_env  
 libopensc/sec.c                         sc_encrypt_sym  
@@ -63,11 +63,28 @@ pkcs11/framework-pkcs15.c       pkcs15_skey_decrypt
 libopensc/pkcs15-sec.c            sc_pkcs15_decrypt_sym  
                                     format_senv  
 libopensc/padding.c                 sc_get_encoding_flags  
-libopensc/pkcs15-sec.c              use_key(p15card, obj, &senv, sc_decrypt_sym, in, inlen, out, outlen)  
+libopensc/pkcs15-sec.c              use_key_sym(p15card, obj, &senv, sc_decrypt_sym, in, inlen, out, outlen)  
                                       select_key_file  
                                       sc_set_security_env  
 libopensc/sec.c                         sc_decrypt_sym  
 libopensc/card_driver                     card->ops->decrypt_sym  
+
+==============================================================  
+pkcs11/pkcs11-object.c    C_UnwrapKey  
+                            sc_create_object_int  
+pkcs11/mechanism.c          sc_pkcs11_unwrap  
+pkcs11/misc.c                 session_start_operation  
+pkcs11/mechanism.c            sc_pkcs11_unwrap_operation  
+pkcs11/framework-pkcs15.c       pkcs15_prkey_unwrap      pkcs15_skey_unwrap  
+libopensc/pkcs15-sec.c            sc_pkcs15_unwrap  
+                                    format_senv  
+libopensc/padding.c                 sc_get_encoding_flags  
+libopensc/pkcs15-sec.c              use_key(p15card, obj, &senv, sc_unwrap, in, inlen, out, outlen)  
+                                      select_key_file  
+                                      sc_set_security_env  
+libopensc/sec.c                         sc_unwrap  
+libopensc/card_driver                     card->ops->unwrap  
+==============================================================
 ```
 
 
