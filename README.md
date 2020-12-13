@@ -9,7 +9,7 @@ The respective reference manual for Your hardware is available on request from: 
 
 Platforns supported: Those that the Rust compiler targets: [rustc platform-support](https://doc.rust-lang.org/nightly/rustc/platform-support.html "https://doc.rust-lang.org/nightly/rustc/platform-support.html").  
 Platforms tested: Those that I use:  
-Linux/Kubuntu 18.04.5 LTS (extensively tested, everything implemented works as expected),  
+Linux/Kubuntu 18.04.5/20.04.1 LTS (extensively tested, everything implemented works as expected),  
 Windows 10 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: SM and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Note that, for the time being, after all this annoying, time consuming hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow i.a. for sanity-check).
 
 Release tags get added irregularly, mainly i.o. to refer to something from acos5_gui. If Your interest is in this driver only, then master's HEAD has the best code for You.

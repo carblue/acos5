@@ -1,7 +1,7 @@
 
 Much is known to work, but not all tested so far
 
-OpenSC: CKR_FUNCTION_NOT_SUPPORTED : as of version 0.20.0
+OpenSC: CKR_FUNCTION_NOT_SUPPORTED : as of version 0.21.0
 
 How to interpret the following: Usually, functionality/ functions like e.g. C_Login is used by calls into opensc-plcs11.so/.dll etc.
 If OpenSC doesn't support a function (CKR_FUNCTION_NOT_SUPPORTED), then there usually is no implementation in the driver either, but there are exceptions: E.g. C_Encrypt is not implemented by OpenSC, but the driver offers Encrypt/Decrypt via
@@ -10,6 +10,8 @@ Some of the following functions require acos5_pkcs15 to be installed and configu
 
 It's not detailed here, that some support may be only partial: E.g. C_Decrypt is supported by OpenSC only referring to asym. key algorithms RSA and ECC
 
+Note that "symmetric on-card crypto" is not yet available from OpenSC, but inofficially from my branch https://github.com/carblue/OpenSC-1/tree/sym_hw_encrypt for:
+C_EncryptInit, C_Encrypt, C_DecryptInit, C_Decrypt for AES: ECB, CBC, CBC_PAD
 ------------------------------------------------------------------------------------------
 user@host:~$ nm -D /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so
 
@@ -18,10 +20,10 @@ C_CloseAllSessions           OKAY
 C_CloseSession               OKAY
 C_CopyObject                 OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
 C_CreateObject               OKAY
-C_Decrypt                    OKAY, tested via  pkcs11-tool -t -l   also impl. via sc_card_ctl(card, SC_CARDCTL_DECRYPT_SYM, ...)
+C_Decrypt                    OKAY, tested asym. via  pkcs11-tool -t -l  ;  OKAY, tested sym. via project_pkcs11_example_apps/src/main_RO_sym_decrypt.rs  ;  also impl. via sc_card_ctl(card, SC_CARDCTL_DECRYPT_SYM, ...)
 C_DecryptDigestUpdate        OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
 C_DecryptFinal               OpenSC: CKR_FUNCTION_NOT_SUPPORTED
-C_DecryptInit                OKAY, tested via  pkcs11-tool -t -l
+C_DecryptInit                OKAY, tested asym. via  pkcs11-tool -t -l  ;  OKAY, tested sym. via project_pkcs11_example_apps/src/main_RO_sym_decrypt.rs
 C_DecryptUpdate              OpenSC: CKR_FUNCTION_NOT_SUPPORTED
 C_DecryptVerifyUpdate        OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
 C_DeriveKey                            SC_ERROR_NO_CARD_SUPPORT; No support from hardware/driver
@@ -32,13 +34,13 @@ C_DigestFinal                OpenSC: will call OpenSSL but no card function
 C_DigestInit                 OpenSC: will call OpenSSL but no card function
 C_DigestKey                  OpenSC: CKR_FUNCTION_NOT_SUPPORTED; No support from hardware either
 C_DigestUpdate               OpenSC: will call OpenSSL but no card function
-C_Encrypt                    OpenSC: CKR_FUNCTION_NOT_SUPPORTED; impl. via sc_card_ctl(card, SC_CARDCTL_ENCRYPT_SYM, ...)  and sc_card_ctl(card, SC_CARDCTL_ENCRYPT_ASYM, ...)
+C_Encrypt                    OKAY, tested sym. via project_pkcs11_example_apps/src/main_RO_sym_encrypt.r; also impl. via sc_card_ctl(card, SC_CARDCTL_ENCRYPT_SYM, ...)  and sc_card_ctl(card, SC_CARDCTL_ENCRYPT_ASYM, ...)
 C_EncryptFinal               OpenSC: CKR_FUNCTION_NOT_SUPPORTED
-C_EncryptInit                OpenSC: CKR_FUNCTION_NOT_SUPPORTED
+C_EncryptInit                OKAY, tested sym. via project_pkcs11_example_apps/src/main_RO_sym_encrypt.r
 C_EncryptUpdate              OpenSC: CKR_FUNCTION_NOT_SUPPORTED
 C_Finalize                   OKAY, tested in acos5_gui
-C_FindObjects
-C_FindObjectsFinal
+C_FindObjects                OKAY, tested via  ssh -T git@github.com
+C_FindObjectsFinal           OKAY, tested via  ssh -T git@github.com
 C_FindObjectsInit            OKAY, tested via  ssh -T git@github.com
 C_GenerateKey                OpenSC: CKR_FUNCTION_NOT_SUPPORTED
 C_GenerateKeyPair            OKAY, requires acos5_pkcs15 installed: tested via  pkcs15-init --generate-key rsa/3072 --auth-id 01 --id 09 --label testkey --key-usage sign,decrypt
@@ -55,11 +57,11 @@ C_GetSessionInfo             OKAY
 C_GetSlotInfo                OKAY, tested in acos5_gui
 C_GetSlotList                OKAY, tested in acos5_gui
 C_GetTokenInfo               OKAY, tested in acos5_gui
-C_Initialize                 OKAY, tested in acos5_gui
+C_Initialize                 OKAY, tested via  ssh -T git@github.com
 C_InitPIN                    No support from driver currently; sc_card_ctl(SC_CARDCTL_PKCS11_INIT_PIN):   SC_ERROR_NO_CARD_SUPPORT (Card does not support the requested operation)
 C_InitToken                  No support from driver currently; sc_card_ctl(SC_CARDCTL_PKCS11_INIT_TOKEN): SC_ERROR_NO_CARD_SUPPORT (Card does not support the requested operation)
 C_Login                      OKAY, tested via  ssh -T git@github.com
-C_Logout                     OKAY
+C_Logout                     OKAY, tested via  opensc-tool --serial
 C_OpenSession                OKAY, tested via  ssh -T git@github.com
 C_SeedRandom                 OpenSC: CKR_FUNCTION_NOT_SUPPORTED; ACOS5 RNG does that automatically
 C_SetAttributeValue

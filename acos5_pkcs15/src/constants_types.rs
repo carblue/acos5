@@ -25,7 +25,8 @@ use std::ops::{Deref, DerefMut};
 use std::convert::{TryFrom/*, TryInto*/};
 use std::collections::HashMap;
 
-use opensc_sys::opensc::{sc_context, sc_security_env, sc_file_free, sc_bytes2apdu};
+use opensc_sys::opensc::{sc_context, sc_security_env, sc_file_free, sc_bytes2apdu, SC_ALGORITHM_AES};
+
 use opensc_sys::types::{sc_file, sc_apdu, sc_crt, sc_object_id, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
 use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUSTED,
                          SC_PKCS15_SKDF, SC_PKCS15_CDF, SC_PKCS15_CDF_TRUSTED, SC_PKCS15_CDF_USEFUL,
@@ -616,6 +617,8 @@ pub struct CardCtl_crypt_sym {
     pub iv           : [u8; 16],
     pub iv_len       : usize, // 0==unused or equal to block_size, i.e. 16 for AES, else 8
 
+    pub algorithm       : u32, // e.g. SC_ALGORITHM_AES
+    pub algorithm_flags : u32, // e.g. SC_ALGORITHM_AES_CBC_PAD
 //  pub key_id       : u8, // how the key is known by OpenSC in SKDF: id
     pub key_ref      : u8, // how the key is known by cos5: e.g. internal local key with id 3 has key_ref: 0x83
     pub block_size   : u8, // 16: AES; 8: 3DES or DES
@@ -641,6 +644,8 @@ impl Default for CardCtl_crypt_sym {
             outdata_len: 0,
             iv: [0; 16],
             iv_len: 0,
+            algorithm: SC_ALGORITHM_AES,
+            algorithm_flags: 0, // SC_ALGORITHM_AES_CBC_PAD,
             key_ref: 0,
             block_size: 16, // set as default: AES 256 bit CBC, encryption with local key and BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64
             key_len: 32,

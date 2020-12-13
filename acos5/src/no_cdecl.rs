@@ -1630,7 +1630,7 @@ RFC 8017                      PKCS #1 v2.2                 November 2016
 fn trailing_blockcipher_padding_calculate(
     block_size   : u8, // 16 or 8
     padding_type : u8, // any of BLOCKCIPHER_PAD_TYPE_*
-    rem          : u8  // == len (input len to blockcipher encrypt, may be != block_size) % block_size; 0 <= rem < block_size
+    rem          : u8  // block_size_overhang   == len (input len to blockcipher encrypt, may be != block_size) % block_size; 0 <= rem < block_size
 ) -> Vec<u8> // in general: 0 <= result_len <= block_size, but different for some padding_type
 {
     assert!(rem < block_size);
@@ -1655,7 +1655,7 @@ fn trailing_blockcipher_padding_calculate(
         },
         BLOCKCIPHER_PAD_TYPE_PKCS7 => {
             let pad_byte = block_size-rem;
-            for _i in 0..pad_byte { vec.push(pad_byte); }
+            vec.resize(vec.len()+usize::from(pad_byte), pad_byte);
         },
         BLOCKCIPHER_PAD_TYPE_ANSIX9_23 => {
             let pad_byte = block_size-rem;
@@ -1726,11 +1726,11 @@ fn trailing_blockcipher_padding_get_length(
         BLOCKCIPHER_PAD_TYPE_PKCS7 => {
             let pad_byte = last_block_values[last_block_values.len()-1];
             let mut cnt = 1_u8;
-            for (i,b) in last_block_values[..usize::from(block_size-1)].iter().rev().enumerate() {
-                if *b==pad_byte && i+1<usize::from(pad_byte) { cnt += 1; }
-                else {break;}
+            for (i, &b) in last_block_values[..usize::from(block_size-1)].iter().rev().enumerate() {
+                if b==pad_byte && i+1<usize::from(pad_byte) { cnt += 1 }
+                else {break}
             }
-            if cnt != pad_byte {return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);}
+            if cnt != pad_byte {return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG)}
             Ok(cnt)
         },
         BLOCKCIPHER_PAD_TYPE_ANSIX9_23 => {
@@ -1814,7 +1814,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     else if !crypt_sym.inbuf.is_null() {
         vec_in.extend_from_slice(unsafe { from_raw_parts(crypt_sym.inbuf, crypt_sym.indata_len) });
         debug_assert_eq!(crypt_sym.indata_len, vec_in.len());
-        if crypt_sym.encrypt && (get_sec_env(card).algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) > 0 {
+        if crypt_sym.encrypt && (crypt_sym.algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) > 0 {
             debug_assert_eq!(BLOCKCIPHER_PAD_TYPE_PKCS7, crypt_sym.pad_type);
             vec_in.extend_from_slice(&trailing_blockcipher_padding_calculate(crypt_sym.block_size, crypt_sym.pad_type,
                 u8::try_from(vec_in.len()-vec_in.len().prev_multiple_of(&block_size)).unwrap()) );
@@ -2014,7 +2014,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     }
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     {
-        if !crypt_sym.encrypt && get_sec_env(card).algorithm_flags==SC_ALGORITHM_AES_CBC_PAD {
+        if !crypt_sym.encrypt && crypt_sym.algorithm_flags==SC_ALGORITHM_AES_CBC_PAD {
             let mut last_block_values = [0_u8; 16];
             last_block_values.copy_from_slice(unsafe {from_raw_parts(outdata_ptr.add(cnt-block_size), block_size)});
             crypt_sym.outdata_len = cnt - usize::from(trailing_blockcipher_padding_get_length(crypt_sym.block_size, crypt_sym.pad_type,

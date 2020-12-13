@@ -2945,7 +2945,7 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
     unsafe { copy_nonoverlapping(vec.as_ptr(), out_ptr, vec.len()) };
     log3ifr!(ctx,f,line!(), rv);
     rv
-}
+} // acos5_decipher
 
 
 /*
@@ -3391,7 +3391,7 @@ extern "C" fn acos5_update_record(card_ptr: *mut sc_card, rec_nr: u32,
 // plaintext_len is allowed to be not a multiple of block_size 16
 #[cfg(all(sym_hw_encrypt, not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))))]
 extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, plaintext_len: usize,
-    out: *mut u8, outlen: usize) -> i32
+    out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
@@ -3406,6 +3406,8 @@ extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, pl
         indata_len   : plaintext_len,
         outbuf       : out,
         outdata_len  : outlen,
+        algorithm,
+        algorithm_flags,
         pad_type     : BLOCKCIPHER_PAD_TYPE_PKCS7,
         encrypt      : true,
         .. CardCtl_crypt_sym::default()
@@ -3417,7 +3419,7 @@ extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, pl
 /// does decrypt, but needs to be rewritten
 #[cfg(all(sym_hw_encrypt, not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))))]
 extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, crgram: *const u8, crgram_len: usize,
-                                                           out: *mut u8,       outlen: usize) -> i32
+    out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
@@ -3432,6 +3434,8 @@ extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, crgram: *const u8, crgra
         indata_len   : crgram_len,
         outbuf       : out,
         outdata_len  : outlen,
+        algorithm,
+        algorithm_flags,
         pad_type     : BLOCKCIPHER_PAD_TYPE_PKCS7,
         encrypt      : false,
         .. CardCtl_crypt_sym::default()
