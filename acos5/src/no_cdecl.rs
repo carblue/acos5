@@ -612,8 +612,9 @@ pub fn select_file_by_path(card: &mut sc_card, path_ref: &sc_path, file_out: Opt
 }
 
 /* FIPS compliance dictates these values for SC_CARD_TYPE_ACOS5_64_V3 */
-#[allow(non_snake_case)]
-fn get_known_sec_env_entry_V3_FIPS(is_local: bool, rec_nr: u32, buf: &mut [u8])
+// #[allow(dead_code)]
+#[cold]
+fn get_known_sec_env_entry_v3_fips(is_local: bool, rec_nr: u32, buf: &mut [u8])
 {
     assert_eq!(buf.len(), 33);
     assert!( is_local || [1, 2].contains(&rec_nr));
@@ -741,7 +742,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
               TODO only if  card.type_== SC_CARD_TYPE_ACOS5_64_V3 &&
                             get_op_mode_byte==0 &&
                             get_fips_compliance == true
-              then take record entries from get_known_sec_env_entry_V3_FIPS
+              then take record entries from get_known_sec_env_entry_v3_fips
               pub fn get_op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
               pub fn get_fips_compliance(card: &mut sc_card) -> Result<bool, i32> // is_FIPS_compliant==true
             */
@@ -750,7 +751,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
                 let mut buf = [0_u8; 255];
                 /* The case for V3 being FIPS-compliant, see 9.0. FIPS Mode File System Requirements: Don't read but take known entries */
                 if card.type_== SC_CARD_TYPE_ACOS5_64_V3  &&  SC_AC_AUT==acl_entry_read_method {
-                    get_known_sec_env_entry_V3_FIPS(is_local, rec_nr, &mut buf[..33]);
+                    get_known_sec_env_entry_v3_fips(is_local, rec_nr, &mut buf[..33]);
                 }
                 else {
                     rv = unsafe { sc_read_record(card, rec_nr, buf.as_mut_ptr(), mrl, SC_RECORD_BY_REC_NR) };

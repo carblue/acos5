@@ -260,7 +260,7 @@ mod   test_v2_v3;
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     if cfg!(v0_17_0) || cfg!(v0_18_0) || cfg!(v0_19_0) || cfg!(v0_20_0) || cfg!(v0_21_0) { unsafe { sc_get_version() } }
-    else if cfg!(v0_22_0)  { unsafe { sc_get_version() } } // experimental only:  Latest OpenSC github master commit covered: f8af905 ; sym_hw_encrypt: dadfed3
+    else if cfg!(v0_22_0)  { unsafe { sc_get_version() } } // experimental only:  Latest OpenSC github master commit covered: f8af905 ; sym_hw_encrypt: 956da6b
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -638,7 +638,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
        Thus SC_CARD_CAP_APDU_EXT only for ACOS5-EVO TODO */
 
     /* it's possible to add SC_ALGORITHM_RSA_RAW, but then pkcs11-tool -t needs insecure
-       cfg=dev_relax_signature_constraints_for_raw */
+       --cfg dev_relax_signature_constraints_for_raw */
     let rsa_algo_flags = SC_ALGORITHM_ONBOARD_KEY_GEN | SC_ALGORITHM_RSA_PAD_PKCS1 /* | SC_ALGORITHM_RSA_RAW*/;
 //    rsa_algo_flags   |= SC_ALGORITHM_RSA_RAW; // PSS works with that only currently via acos5_decipher; declaring SC_ALGORITHM_RSA_PAD_PSS seems superfluous
 //    #[cfg(not(any(v0_17_0, v0_18_0)))]
@@ -647,16 +647,15 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
 
     /* SC_ALGORITHM_NEED_USAGE : Don't use that: the driver will handle that for sign internally ! */
 
-    // probably the call to get_is_fips_compliant is irrelevant for applying the restrictions
-    let is_fips_compliant = match card.type_ {
+    let is_fips_mode = match card.type_ {
         SC_CARD_TYPE_ACOS5_64_V3 |
-        SC_CARD_TYPE_ACOS5_EVO_V4 => get_op_mode_byte(card).unwrap()==0 /*&& get_is_fips_compliant(card).unwrap()*/,
+        SC_CARD_TYPE_ACOS5_EVO_V4 => get_op_mode_byte(card).unwrap()==0,
         _ => false,
     };
     let mut rv;
-    let     rsa_key_len_from : u32 = if is_fips_compliant { 2048 } else {  512 };
-    let     rsa_key_len_step : u32 = if is_fips_compliant { 1024 } else {  256 };
-    let     rsa_key_len_to   : u32 = if is_fips_compliant && card.type_==SC_CARD_TYPE_ACOS5_64_V3 { 3072 } else { 4096 };
+    let     rsa_key_len_from : u32 = if is_fips_mode { 2048 } else {  512 };
+    let     rsa_key_len_step : u32 = if is_fips_mode { 1024 } else {  256 };
+    let     rsa_key_len_to   : u32 = if is_fips_mode { 3072 } else { 4096 };
     let mut rsa_key_len = rsa_key_len_from;
     /* TODO currently there is no support for public exponents differing from 0x10001 */
     while   rsa_key_len <= rsa_key_len_to {
@@ -693,7 +692,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     me_card_add_symmetric_alg(card, SC_ALGORITHM_AES, 128, aes_algo_flags);
     me_card_add_symmetric_alg(card, SC_ALGORITHM_AES, 192, aes_algo_flags);
     me_card_add_symmetric_alg(card, SC_ALGORITHM_AES, 256, aes_algo_flags);
-    assert!( me_card_find_alg(card, SC_ALGORITHM_AES, 256, None).is_some());
+    debug_assert!( me_card_find_alg(card, SC_ALGORITHM_AES, 256, None).is_some());
 ////////////////////////////////////////
 cfg_if::cfg_if! {
     if #[cfg(not(target_os = "windows"))] {
@@ -707,7 +706,7 @@ cfg_if::cfg_if! {
             let c_str = unsafe { CStr::from_ptr(error_description.as_ptr()) };
             println!("asn1_result (definitions): {}, error_description: {:?}", asn1_result, c_str);
         }
-        assert!(!pkcs15_definitions.is_null());
+        debug_assert!(!pkcs15_definitions.is_null());
     }
 }
     let mut files : HashMap<KeyTypeFiles, ValueTypeFiles> = HashMap::with_capacity(50);
@@ -732,7 +731,7 @@ cfg_if::cfg_if! {
         sec_env_mod_len: 0,
         rfu_align_pad1: 0,
         does_mf_exist: true,       // just an assumption; will be set in enum_dir
-        is_fips_mode: false,       // just an assumption; will be set in
+        is_fips_mode,
         is_fips_compliant : false, // just an assumption; will be set in
         is_running_init: true,
         is_running_compute_signature: false,
@@ -873,7 +872,7 @@ cfg_if::cfg_if! {
     }
 }
 
-    let mut dp= unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
     dp.files.shrink_to_fit();
     dp.is_running_init = false;
 
@@ -3393,14 +3392,15 @@ extern "C" fn acos5_update_record(card_ptr: *mut sc_card, rec_nr: u32,
 extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, plaintext_len: usize,
     out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32) -> i32
 {
-    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
+    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || algorithm != SC_ALGORITHM_AES ||
+        ![SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB].contains(&algorithm_flags) {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     log3ifc!(ctx,cstru!(b"acos5_encrypt_sym\0"),line!());
 //println!("acos5_encrypt_sym {:02X?}", unsafe { from_raw_parts(plaintext, plaintext_len) });
-    // temporarily route via (acos5)sc_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr: p_void) SC_CARDCTL_ACOS5_ENCRYPT_SYM
+    // temporarily route via sym_en_decrypt
     let mut crypt_sym_data = CardCtl_crypt_sym {
         inbuf        : plaintext,
         indata_len   : plaintext_len,
@@ -3409,6 +3409,7 @@ extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, pl
         algorithm,
         algorithm_flags,
         pad_type     : BLOCKCIPHER_PAD_TYPE_PKCS7,
+        cbc          : [SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC].contains(&algorithm_flags),
         encrypt      : true,
         .. CardCtl_crypt_sym::default()
     };
@@ -3421,14 +3422,15 @@ extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, pl
 extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, crgram: *const u8, crgram_len: usize,
     out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32) -> i32
 {
-    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
+    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || algorithm != SC_ALGORITHM_AES ||
+        ![SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB].contains(&algorithm_flags) {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     log3ifc!(ctx,cstru!(b"acos5_decrypt_sym\0"),line!());
 //println!("acos5_decrypt_sym {:02X?}", unsafe { from_raw_parts(crgram, crgram_len) });
-    // temporarily route via (acos5)sc_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr: p_void) SC_CARDCTL_ACOS5_ENCRYPT_SYM
+    // temporarily route via sym_en_decrypt
     let mut crypt_sym_data = CardCtl_crypt_sym {
         inbuf        : crgram,
         indata_len   : crgram_len,
@@ -3437,6 +3439,7 @@ extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, crgram: *const u8, crgra
         algorithm,
         algorithm_flags,
         pad_type     : BLOCKCIPHER_PAD_TYPE_PKCS7,
+        cbc          : [SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC].contains(&algorithm_flags),
         encrypt      : false,
         .. CardCtl_crypt_sym::default()
     };
