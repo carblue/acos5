@@ -30,7 +30,7 @@ use opensc_sys::opensc::{sc_context, sc_security_env, sc_file_free, sc_bytes2apd
 use opensc_sys::types::{sc_file, sc_apdu, sc_crt, sc_object_id, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
 use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUSTED,
                          SC_PKCS15_SKDF, SC_PKCS15_CDF, SC_PKCS15_CDF_TRUSTED, SC_PKCS15_CDF_USEFUL,
-                         SC_PKCS15_DODF, SC_PKCS15_AODF};
+                         SC_PKCS15_DODF, SC_PKCS15_AODF, sc_pkcs15_id};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_INTERNAL};
 use opensc_sys::iso7816::{/*ISO7816_TAG_FCI, ISO7816_TAG_FCP,*/ ISO7816_TAG_FCP_SIZE, ISO7816_TAG_FCP_TYPE,
                           ISO7816_TAG_FCP_FID, ISO7816_TAG_FCP_DF_NAME, ISO7816_TAG_FCP_LCS};
@@ -83,8 +83,8 @@ pub const SC_CARD_TYPE_ACOS5_EVO_V4 : i32 = 16005; // = SC_CARD_TYPE_ACOS5_BASE 
 pub const ATR_V2      : &[u8; 57] = b"3b:be:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00\0"; // Using reader with a card: ACS CryptoMate64 00 00
 pub const ATR_V3      : &[u8; 57] = b"3b:be:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00\0"; // Using reader with a card: ACS CryptoMate (T2) 00 00 ; reported by my CryptoMate Nano
 pub const ATR_V4      : &[u8; 57] = b"3b:9e:96:80:01:41:05:40:00:00:00:00:00:00:00:00:00:90:00\0";    // unverified currently
-pub const ATR_V4_1C   : &[u8; 60] = b"3b:9e:96:80:01:41:05:41:00:00:00:00:00:00:00:00:00:90:00:1C\0"; // unverified currently
-pub const ATR_V4_1F   : &[u8; 60] = b"3b:9e:96:80:01:41:05:42:00:00:00:00:00:00:00:00:00:90:00:1F\0"; // unverified currently
+pub const ATR_V4_1C   : &[u8; 60] = b"3b:9e:96:80:01:41:05:41:00:00:00:00:00:00:00:00:00:90:00:1c\0"; // unverified currently
+pub const ATR_V4_1F   : &[u8; 60] = b"3b:9e:96:80:01:41:05:42:00:00:00:00:00:00:00:00:00:90:00:1f\0"; // Using reader with a card: ACS CryptoMate EVO 00 00
 pub const ATR_MASK    : &[u8; 57] = b"FF:FF:00:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF\0";
 pub const ATR_MASK_TCK: &[u8; 60] = b"FF:FF:00:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF:00\0";
 pub const NAME_V2  : &[u8; 43] = b"ACOS5-64 V2.00: Smart Card or CryptoMate64\0";
@@ -143,15 +143,15 @@ pub const FDB_SE_FILE            : u8 = 0x1C; // Security Environment File, exac
 ATTENTION with CRT_TAG_CT Confidentiality Template: In reality acos makes no difference for asym/sym, there is 0xB8 only
 The distinction is artificial and for some reason, corrected later
 */
-pub const CRT_TAG_HT      : u32 = 0xAA;   // Hash Template                 : AND:      Algorithm
-pub const CRT_TAG_AT      : u32 = 0xA4;   // Authentication Template       : AND: UQB, Pin_Key,
-pub const CRT_TAG_DST     : u32 = 0xB6;   // Digital Signature Template    : AND: UQB, Algorithm, KeyFile_RSA
-//pub const CRT_TAG_CT_ASYM : u32 = 0xB8+1; // Confidentiality Template      : AND: UQB, Algorithm       OR: KeyFile_RSA
-//pub const CRT_TAG_CT_SYM  : u32 = 0xB8+0; // Confidentiality Template      : AND: UQB, Algorithm       OR: ID_Pin_Key_Local_Global, HP_Key_Session  ; OPT: Initial_Vector
-pub const CRT_TAG_CT      : u32 = 0xB8;   // Confidentiality Template
-pub const CRT_TAG_CCT     : u32 = 0xB4;   // Cryptographic Checksum Templ. : AND: UQB, Algorithm  ;    OR: ID_Pin_Key_Local_Global, HP_Key_Session  ; OPT: Initial_Vector
-pub const CRT_TAG_KAT     : u32 = 0xA6;   // Key Agreement Template. The KAT defines which parameters to use in key derivation operations. available only with EVO
-pub const CRT_TAG_NA      : u32 = 0x00;   // N/A unknown
+pub const CRT_TAG_HT      : u8 = 0xAA;   // Hash Template                 : AND:      Algorithm
+pub const CRT_TAG_AT      : u8 = 0xA4;   // Authentication Template       : AND: UQB, Pin_Key,
+pub const CRT_TAG_DST     : u8 = 0xB6;   // Digital Signature Template    : AND: UQB, Algorithm, KeyFile_RSA
+//pub const CRT_TAG_CT_ASYM : u8 = 0xB8+1; // Confidentiality Template      : AND: UQB, Algorithm       OR: KeyFile_RSA
+//pub const CRT_TAG_CT_SYM  : u8 = 0xB8+0; // Confidentiality Template      : AND: UQB, Algorithm       OR: ID_Pin_Key_Local_Global, HP_Key_Session  ; OPT: Initial_Vector
+pub const CRT_TAG_CT      : u8 = 0xB8;   // Confidentiality Template
+pub const CRT_TAG_CCT     : u8 = 0xB4;   // Cryptographic Checksum Templ. : AND: UQB, Algorithm  ;    OR: ID_Pin_Key_Local_Global, HP_Key_Session  ; OPT: Initial_Vector
+pub const CRT_TAG_KAT     : u8 = 0xA6;   // Key Agreement Template. The KAT defines which parameters to use in key derivation operations. available only with EVO
+pub const CRT_TAG_NA      : u8 = 0x00;   // N/A unknown
 
 // the following bytes indicate, whether an SC Byte encodes Secure Messaging, it does't guarantee, that the referred command allows SM at all
 //pub const SM_MODE_NONE           : u8 = 0; // SM is not enforced/impossible as of SCB setting
@@ -189,9 +189,9 @@ pub const PKCS15_FILE_TYPE_AUTHKEY       : u8 =  23;
 pub const PKCS15_FILE_TYPE_NONE          : u8 =  0xFF; // should not happen to extract a path for this
 
 pub const RSA_MAX_LEN_MODULUS      : usize = 512; // bytes; as bits: 512*8 = 4096
-pub const RSAPUB_MAX_LEN           : usize = 5 + 16 + RSA_MAX_LEN_MODULUS; // the max. file size requirement for RSA public key (4096 bit == 512 byte; 16 byte is the max. public exponent length)
-pub const RSAPRIV_MAX_LEN_STD      : usize = 5 +      RSA_MAX_LEN_MODULUS; // the max. file size requirement for RSA private key (non-CRT)
-pub const RSAPRIV_MAX_LEN_CRT      : usize = 5 +   5*(RSA_MAX_LEN_MODULUS/2); // the max. file size requirement for RSA private key stored in CRT manner
+pub const RSAPUB_MAX_LEN           : usize = 5 + 16 + RSA_MAX_LEN_MODULUS; // the max. file size (byte) requirement for RSA public key (4096 bit == 512 byte; 16 byte is the max. public exponent length)
+pub const RSAPRIV_MAX_LEN_STD      : usize = 5 +      RSA_MAX_LEN_MODULUS; // the max. file size (byte) requirement for RSA private key (non-CRT)
+pub const RSAPRIV_MAX_LEN_CRT      : usize = 5 +   5*(RSA_MAX_LEN_MODULUS/2); // the max. file size (byte) requirement for RSA private key stored in CRT manner
 
 
 //https://cryptosys.net/pki/manpki/pki_paddingschemes.html
@@ -229,11 +229,14 @@ pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
 pub const SC_SEC_OPERATION_GENERATE_RSAPRIVATE : i32 = 0x000A; // sc_set_security_env must know this related to file id
 pub const SC_SEC_OPERATION_GENERATE_RSAPUBLIC  : i32 = 0x000B; // sc_set_security_env must know this related to file id
 
-pub const SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC  : i32 = 0x000C; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
-pub const SC_SEC_OPERATION_DECIPHER_RSAPRIVATE : i32 = 0x000D; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
+pub const SC_SEC_OPERATION_GENERATE_ECCPRIVATE : i32 = 0x000C; // sc_set_security_env must know this related to file id
+pub const SC_SEC_OPERATION_GENERATE_ECCPUBLIC  : i32 = 0x000D; // sc_set_security_env must know this related to file id
 
-pub const SC_SEC_OPERATION_ENCIPHER_SYMMETRIC  : i32 = 0x000E; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
-pub const SC_SEC_OPERATION_DECIPHER_SYMMETRIC  : i32 = 0x000F; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
+pub const SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC  : i32 = 0x000E; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
+pub const SC_SEC_OPERATION_DECIPHER_RSAPRIVATE : i32 = 0x000F; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
+
+pub const SC_SEC_OPERATION_ENCIPHER_SYMMETRIC  : i32 = 0x0010; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
+pub const SC_SEC_OPERATION_DECIPHER_SYMMETRIC  : i32 = 0x0011; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
 
 /*
 /*
@@ -269,6 +272,8 @@ pub const SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE        : c_ulong =  0x0000_0019; // 
 pub const SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE     : c_ulong =  0x0000_001A; // data: *mut bool,  get_is_fips_compliant
 pub const SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE      : c_ulong =  0x0000_001B; // data: *mut CardCtlAuthState,  get_is_pin_authenticated
 pub const SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE      : c_ulong =  0x0000_001C; // data: *mut CardCtlAuthState,  get_is_key_authenticated
+
+pub const SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE      : c_ulong =  0x0000_001D; // data: *mut CardCtlAlgoRefSymStore,  algo_ref_sym_store
 
 pub const SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO   : c_ulong =  0x0000_001E; // data: null
 pub const SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO   : c_ulong =  0x0000_001F; // data: *mut CardCtlArray32,  get_files_hashmap_info
@@ -502,6 +507,16 @@ pub struct Acos5EcCurve {
 /* more related to acos5_sm */
 
 /* common types and general function(s) */
+
+// struct for SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE
+#[repr(C)]
+#[derive(Default, Debug, Copy, Clone,  PartialEq)]
+pub struct CardCtlAlgoRefSymStore {
+    pub card_type: i32,     // IN
+    pub algorithm: u32,     // IN
+    pub key_len_bytes: u8,  // IN
+    pub value        : u8,  // OUT
+}
 
 // struct for SC_CARDCTL_GET_FILE_INFO
 #[repr(C)]
@@ -751,6 +766,7 @@ pub struct DataPrivate { // see settings in acos5_init
     pub sym_key_file_id : u16,
     pub sym_key_rec_idx : u8,
     pub sym_key_rec_cnt : u8,
+    pub last_keygen_priv_id: sc_pkcs15_id,
     #[cfg(iup_user_consent)]
     pub ui_ctx : ui_context,
 }

@@ -935,7 +935,7 @@ extern "C" fn acos5_pkcs15_store_key(profile_ptr: *mut sc_profile, p15card_ptr: 
         return SC_ERROR_NOT_SUPPORTED;
     }
 */
-    let key_vec = construct_sym_key_entry(card.type_, skey_info.path.index.try_into().unwrap(),
+    let key_vec = construct_sym_key_entry(card, skey_info.path.index.try_into().unwrap(),
                                           skey_algo, skey.data_len.try_into().unwrap(),
             false, 0xFF, false, 0xFFFF,
              mrl.into(), unsafe { from_raw_parts(skey.data, skey.data_len) }).unwrap();
@@ -1129,7 +1129,13 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
     if !path.is_null() && unsafe{ (*path).len > 0 } {
         log3if!(ctx,f,line!(), cstru!(b"path: %s\0"), unsafe { sc_dump_hex((*path).value.as_ptr(), (*path).len) }); // 0
     }
-    if SC_PKCS15_TYPE_PUBKEY_RSA == object.type_ {
+
+    if SC_PKCS15_TYPE_PRKEY_RSA == object.type_ {
+        let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        dp.last_keygen_priv_id = unsafe { (&mut *(object.data as *mut sc_pkcs15_prkey_info)).id };
+        card.drv_data = Box::into_raw(dp) as p_void;
+    }
+    else if SC_PKCS15_TYPE_PUBKEY_RSA == object.type_ {
         let key_info = unsafe { &mut *(object.data as *mut sc_pkcs15_pubkey_info) };
 /*
     log3if!(ctx,f,line!(), cstru!(b"object.label: %s\0"),   object.label.as_ptr()); // pkcs15-init -G rsa/3072 -a 01 -i 08 -l testkey -u sign,decrypt
@@ -1165,15 +1171,22 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
         key_info.modulus_length = rsa_modulus_bits_canonical(key_info.modulus_length);
         key_info.access_flags = SC_PKCS15_PRKEY_ACCESS_EXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_LOCAL;
         key_info.native = 1;
-
         let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+/**/
+        /* FIXME temporarily solve issue https://github.com/OpenSC/OpenSC/issues/2184 here, later improve OpenSC code */
+        if key_info.id != dp.last_keygen_priv_id {
+            key_info.id = dp.last_keygen_priv_id;
+            log3if!(ctx,f,line!(), cstru!(b"##### Warning: public key iD got corrected to match private key iD #####\0"));
+        }
+/**/
         let dp_files_value_ref = &dp.files[&dp.agc.file_id_pub];
 //        if dp.agc.is_key_pair_created_and_valid_for_generation {
         key_info.path = sc_path { type_: SC_PATH_TYPE_PATH, value: dp_files_value_ref.0,
             len: dp_files_value_ref.1[1] as usize, ..sc_path::default()};
 //    }
 //    dp.agc.is_key_pair_created_and_valid_for_generation = false; // this is the antagonist of: acos5_pkcs15_create_key: dp.is_key_pair_created_and_valid_for_generation = true;
-        card.drv_data = Box::into_raw(dp) as p_void;
+        Box::leak(dp);
+        // card.drv_data = Box::into_raw(dp) as p_void;
     }
     else if SC_PKCS15_TYPE_SKEY_GENERIC == object.type_ {
         /* called from unwrapping a RSA_WRAPPED_AES_KEY */

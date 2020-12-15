@@ -6,7 +6,7 @@ use std::ptr::null_mut;
 // use std::slice::from_raw_parts;
 
 use opensc_sys::opensc::{SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_select_file, sc_read_binary,
-                         sc_delete_file, sc_create_file, sc_update_binary, sc_card_ctl, sc_transmit_apdu};
+                         sc_delete_file, sc_create_file, sc_update_binary, sc_card_ctl, sc_transmit_apdu, sc_card};
 use opensc_sys::types::{SC_AC_OP_DELETE, SC_AC_OP_DELETE_SELF, SC_AC_OP_CREATE_EF, SC_AC_OP_UPDATE, SC_APDU_CASE_1};
 use opensc_sys::pkcs15::{sc_pkcs15_card, SC_PKCS15_SKDF, SC_PKCS15_TYPE_SKEY, sc_pkcs15_skey_info,
                          SC_PKCS15_SEARCH_CLASS_PRKEY, SC_PKCS15_SEARCH_CLASS_PUBKEY,
@@ -21,7 +21,7 @@ use opensc_sys::log::{sc_dump_hex};
 
 use crate::constants_types::{SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4, GuardFile,
                              DataPrivate, file_id_from_path_value, file_id_se, SC_CARDCTL_ACOS5_GET_FREE_SPACE, p_void,
-                             build_apdu // , FCI
+                             build_apdu, CardCtlAlgoRefSymStore, SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE //, FCI
 };
 use crate::wrappers::{wr_do_log, wr_do_log_t, wr_do_log_rv, wr_do_log_sds};
 use crate::missing_exports::{find_df_by_type};
@@ -378,17 +378,23 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
 
 
 /* creates the first part of a sym key record entry; only 'key_len_bytes' key bytes need to be appended */
-fn prefix_sym_key(card_type: i32, rec_nr: u8, algorithm_type: u32, key_len_bytes: u8,
-                      ext_auth: bool, count_err_ext_auth: u8,
-                      int_auth: bool, count_use_int_auth: u16) -> Result<Vec<u8>, i32> {
+fn prefix_sym_key(card: &mut sc_card,
+                  rec_nr: u8,
+                  algorithm: u32, // e.g. SC_ALGORITHM_AES
+                  key_len_bytes: u8,
+                  ext_auth: bool,
+                  count_err_ext_auth: u8,
+                  int_auth: bool,
+                  count_use_int_auth: u16
+) -> Result<Vec<u8>, i32> {
     let mut res = Vec::with_capacity(38);
-    if ![SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4].contains(&card_type) {
+    if ![SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4].contains(&card.type_) {
         return Err(SC_ERROR_INVALID_ARGUMENTS);
     }
     if rec_nr==0 || rec_nr>30 {
         return Err(SC_ERROR_INVALID_ARGUMENTS);
     }
-    if ![SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES].contains(&algorithm_type) {
+    if ![SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES].contains(&algorithm) {
         return Err(SC_ERROR_INVALID_ARGUMENTS);
     }
     if ![8_u8, 16, 24, 32].contains(&key_len_bytes) {
@@ -397,7 +403,7 @@ fn prefix_sym_key(card_type: i32, rec_nr: u8, algorithm_type: u32, key_len_bytes
 
     res.push(0x80 | rec_nr);
     let mut key_type = 0;
-    if [SC_ALGORITHM_3DES, SC_ALGORITHM_DES].contains(&algorithm_type) || card_type==SC_CARD_TYPE_ACOS5_EVO_V4 {
+    if [SC_ALGORITHM_3DES, SC_ALGORITHM_DES].contains(&algorithm) || card.type_==SC_CARD_TYPE_ACOS5_EVO_V4 {
         if int_auth { key_type += 2; }
         if ext_auth { key_type += 1; }
     }
@@ -408,7 +414,12 @@ fn prefix_sym_key(card_type: i32, rec_nr: u8, algorithm_type: u32, key_len_bytes
         if ext_auth { res.push(count_err_ext_auth); }
     }
 
-    match algorithm_type {
+    let mut card_ctl_algo_ref_sym_store = CardCtlAlgoRefSymStore { card_type: card.type_, algorithm, key_len_bytes, value: 0 };
+    let rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE, &mut card_ctl_algo_ref_sym_store as *mut _ as p_void) };
+    assert_eq!(SC_SUCCESS, rv);
+    res.push(card_ctl_algo_ref_sym_store.value);
+/*
+    match algorithm {
         SC_ALGORITHM_AES => {
             if ![16, 24, 32].contains(&key_len_bytes) { return Err(-1); }
             match key_len_bytes {
@@ -432,14 +443,15 @@ fn prefix_sym_key(card_type: i32, rec_nr: u8, algorithm_type: u32, key_len_bytes
         },
         _ => unreachable!(),
     }
+*/
     Ok(res)
 }
 
-pub fn construct_sym_key_entry(card_type: i32, rec_nr: u8, algorithm_type: u32, key_len_bytes: u8,
+pub fn construct_sym_key_entry(card: &mut sc_card, rec_nr: u8, algorithm: u32, key_len_bytes: u8,
                       ext_auth: bool, count_err_ext_auth: u8,
                       int_auth: bool, count_use_int_auth: u16,
                       mrl: usize, key_bytes: &[u8]) -> Result<Vec<u8>, i32> {
-    let mut vec = prefix_sym_key(card_type, rec_nr, algorithm_type, key_len_bytes,
+    let mut vec = prefix_sym_key(card, rec_nr, algorithm, key_len_bytes,
                    ext_auth, count_err_ext_auth,
                    int_auth, count_use_int_auth)?;
     vec.extend_from_slice(key_bytes);
@@ -448,6 +460,8 @@ pub fn construct_sym_key_entry(card_type: i32, rec_nr: u8, algorithm_type: u32, 
     Ok(vec)
 }
 
+
+#[cfg(dont_test__this_signature_changed)]
 #[cfg(test)]
 mod tests {
     use super::*; /*{prefix_sym_key, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4}*/

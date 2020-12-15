@@ -97,7 +97,7 @@ use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_securit
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 use opensc_sys::opensc::{sc_update_record, SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM_TARGET_FILE,
                          SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, SC_SEC_OPERATION_UNWRAP,
-                         SC_ALGORITHM_AES_CBC_PAD //, SC_CARD_CAP_UNWRAP_KEY , SC_CARD_CAP_WRAP_KEY
+                         SC_ALGORITHM_AES_CBC_PAD//, SC_CARD_CAP_UNWRAP_KEY, SC_CARD_CAP_ONCARD_SESSION_OBJECTS, SC_CARD_CAP_WRAP_KEY
 //                         , SC_SEC_OPERATION_WRAP
 };
 
@@ -128,7 +128,8 @@ use opensc_sys::asn1::{sc_asn1_put_tag/*, sc_asn1_skip_tag, sc_asn1_read_tag, sc
 use opensc_sys::iso7816::{ISO7816_TAG_FCP_TYPE, ISO7816_TAG_FCP_LCS,  ISO7816_TAG_FCP, ISO7816_TAG_FCP_SIZE,
                           ISO7816_TAG_FCP_FID, ISO7816_TAG_FCP_DF_NAME};
 use opensc_sys::pkcs15::{sc_pkcs15_pubkey_rsa, sc_pkcs15_bignum, sc_pkcs15_encode_pubkey_rsa, sc_pkcs15_bind,
-                         sc_pkcs15_unbind, sc_pkcs15_auth_info, sc_pkcs15_get_objects, SC_PKCS15_TYPE_AUTH_PIN
+                         sc_pkcs15_unbind, sc_pkcs15_auth_info, sc_pkcs15_get_objects, SC_PKCS15_TYPE_AUTH_PIN,
+                         sc_pkcs15_id
                          /*,sc_pkcs15_object, sc_pkcs15_card*/}; // , SC_PKCS15_AODF
 use opensc_sys::sm::{SM_TYPE_CWA14890, SM_CMD_PIN, SM_CMD_PIN_VERIFY, SM_CMD_PIN_SET_PIN, SM_CMD_PIN_RESET,
                      SM_CMD_FILE_UPDATE, SM_CMD_FILE_DELETE};
@@ -169,7 +170,9 @@ use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEAN
                       SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
                       ValueTypeFiles, build_apdu, is_DFMF, p_void, SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile,
-                      file_id_from_path_value, file_id, file_id_se, FCI
+                      file_id_from_path_value, file_id, file_id_se, FCI,
+                      SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE, CardCtlAlgoRefSymStore, CRT_TAG_DST, CRT_TAG_CT,
+                      SC_SEC_OPERATION_GENERATE_ECCPRIVATE
                       /*,PKCS15_FILE_TYPE_ECCPRIVATEKEY, PKCS15_FILE_TYPE_ECCPUBLICKEY, READ*/};
 
 #[cfg(iup_user_consent)]
@@ -189,8 +192,9 @@ use no_cdecl::{select_file_by_path, enum_dir,
     generate_asym, encrypt_asym, get_files_hashmap_info, update_hashmap,
     /*, create_mf_file_system*/ convert_acl_array_to_bytes_tag_fcp_sac, get_sec_env_mod_len,
     ACL_CATEGORY_DF_MF, ACL_CATEGORY_EF_CHV, ACL_CATEGORY_KEY, ACL_CATEGORY_SE,
-    get_is_running_compute_signature, set_is_running_compute_signature,
-    common_read, common_update, acos5_supported_ec_curves, logout_pin, sym_en_decrypt
+    get_is_running_compute_signature, set_is_running_compute_signature, algo_ref_sym_store,
+    common_read, common_update, acos5_supported_ec_curves, logout_pin, sym_en_decrypt,
+    algo_ref_mse_sedo
 };
 
 mod path;
@@ -604,9 +608,9 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     if !ctx.app_name.is_null() {
         app_name = unsafe { CStr::from_ptr(ctx.app_name) }; // app_name: e.g. "pkcs15-init"
         log3if!(ctx,f,line!(), cstru!(b"The driver was loaded for application: %s\0"), app_name.as_ptr());
-//        println!("{}", String::from("The driver was loaded for application: ") + app_name.to_str().unwrap());
+        // println!("{}", String::from("The driver was loaded for application: ") + app_name.to_str().unwrap());
     }
-/* */
+
     /* Undo 'force_card_driver = acos5_external;'  if match_card reports 'no match' */
     for elem in &acos5_supported_atrs() {
         if elem.atr.is_null() {
@@ -620,8 +624,8 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
             break;
         }
     }
-/* */
-    card.cla  = 0x00;                                        // int      default APDU class (interindustry)
+
+    card.cla  = 0x00;  // int      default APDU class (interindustry)
     /* max_send_size  IS  treated as a constant (won't change) */
     card.max_send_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE; // 0x0FF; // 0x0FFFF for usb-reader, 0x0FF for chip/card;  Max Lc supported by the card
     /* max_recv_size  IS NOT  treated as a constant (it will be set temporarily to SC_READER_SHORT_APDU_MAX_RECV_SIZE
@@ -633,10 +637,10 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     card.caps    = SC_CARD_CAP_RNG | SC_CARD_CAP_USE_FCI_AC | SC_CARD_CAP_ISO7816_PIN_INFO;
     /* card.caps |= SC_CARD_CAP_PROTECTED_AUTHENTICATION_PATH   what exactly is this? */
     // #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-    // { card.caps |=  /*SC_CARD_CAP_WRAP_KEY | */ SC_CARD_CAP_UNWRAP_KEY; }
+    // { card.caps |=  SC_CARD_CAP_UNWRAP_KEY | SC_CARD_CAP_ONCARD_SESSION_OBJECTS; }
     /* The reader of USB CryptoMate64/CryptoMate Nano supports extended APDU, but the ACOS5-64 cards don't:
        Thus SC_CARD_CAP_APDU_EXT only for ACOS5-EVO TODO */
-
+// RSA
     /* it's possible to add SC_ALGORITHM_RSA_RAW, but then pkcs11-tool -t needs insecure
        --cfg dev_relax_signature_constraints_for_raw */
     let rsa_algo_flags = SC_ALGORITHM_ONBOARD_KEY_GEN | SC_ALGORITHM_RSA_PAD_PKCS1 /* | SC_ALGORITHM_RSA_RAW*/;
@@ -655,7 +659,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     let mut rv;
     let     rsa_key_len_from : u32 = if is_fips_mode { 2048 } else {  512 };
     let     rsa_key_len_step : u32 = if is_fips_mode { 1024 } else {  256 };
-    let     rsa_key_len_to   : u32 = if is_fips_mode { 3072 } else { 4096 };
+    let     rsa_key_len_to   : u32 = if is_fips_mode && card.type_==SC_CARD_TYPE_ACOS5_64_V3 { 3072 } else { 4096 };
     let mut rsa_key_len = rsa_key_len_from;
     /* TODO currently there is no support for public exponents differing from 0x10001 */
     while   rsa_key_len <= rsa_key_len_to {
@@ -665,7 +669,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
         }
         rsa_key_len += rsa_key_len_step;
     }
-
+// ECC
     if card.type_ == SC_CARD_TYPE_ACOS5_EVO_V4 {
         let flags = SC_ALGORITHM_ONBOARD_KEY_GEN | SC_ALGORITHM_ECDSA_RAW; /*| SC_ALGORITHM_ECDH_CDH_RAW |
                            SC_ALGORITHM_ECDSA_HASH_NONE | SC_ALGORITHM_ECDSA_HASH_SHA1*/
@@ -674,13 +678,14 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
             unsafe { _sc_card_add_ec_alg(card, elem.size, c_ulong::from(flags), c_ulong::from(ext_flags), &mut elem.curve_oid) };
         }
     }
-
+// DES 3DES
     /* ACOS5 is capable of DES, but I think we can just skip that insecure algo; and the next, 3DES/128 with key1==key3 should NOT be used */
 //    me_card_add_symmetric_alg(card, SC_ALGORITHM_DES,  64,  0);
 //    me_card_add_symmetric_alg(card, SC_ALGORITHM_3DES, 128, 0);
     /* there is no DES / 3DES support from opensc-pkcs11 binary ! */
     me_card_add_symmetric_alg(card, SC_ALGORITHM_3DES, 192, 0);
 
+// AES
     cfg_if::cfg_if! {
         if #[cfg(any(v0_17_0, v0_18_0, v0_19_0))] {
             let aes_algo_flags = 0;
@@ -741,6 +746,7 @@ cfg_if::cfg_if! {
         sym_key_file_id: 0,
         sym_key_rec_idx: 0,
         sym_key_rec_cnt: 0,
+        last_keygen_priv_id: sc_pkcs15_id::default(),
         #[cfg(iup_user_consent)]
         ui_ctx: ui_context::default(),
     } );
@@ -826,6 +832,7 @@ DataPrivate:                                                size_of: 1792, align
         Ok(_val) => (),
         Err(e) => return e,
     }
+// enum_dir
     let path_mf = unsafe { *sc_get_mf_path() };
     card.cache.current_path = path_mf;
     rv = enum_dir(card, &path_mf, true/*, 0*/); /* FIXME Doing to much here degrades performance, possibly for no value */
@@ -840,8 +847,9 @@ DataPrivate:                                                size_of: 1792, align
             return SC_ERROR_INVALID_CARD;
         }
     }
-    // final selection in acos5_init
+    // final selection in acos5_init  After the card powers up or resets, the MF is selected by default.
     unsafe { sc_select_file(card, &path_mf, null_mut()) }; // acos5_select_file: if !does_mf_exist { return SC_ERROR_NOT_ALLOWED; }
+// card.sm_ctx.info
     let sm_info = &mut card.sm_ctx.info;
 /*
 card.sm_ctx.module.ops  : handled by card.c:sc_card_sm_check/sc_card_sm_load
@@ -1208,6 +1216,15 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             {
                 let rm_serialnr = unsafe { &mut *(data_ptr as *mut sc_serial_number) };
                 *rm_serialnr = match get_serialnr(card) {
+                    Ok(val) => val,
+                    Err(e) => return e,
+                };
+                SC_SUCCESS
+            },
+        SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE =>
+            {
+                let rm_algo_ref_sym_store = unsafe { &mut *(data_ptr as *mut CardCtlAlgoRefSymStore) };
+                rm_algo_ref_sym_store.value = match algo_ref_sym_store(rm_algo_ref_sym_store.card_type, rm_algo_ref_sym_store.algorithm, rm_algo_ref_sym_store.key_len_bytes) {
                     Ok(val) => val,
                     Err(e) => return e,
                 };
@@ -2550,16 +2567,18 @@ Tokenunfo
         return rv;
     }
 
-    else if (SC_SEC_OPERATION_GENERATE_RSAPRIVATE == env_ref.operation ||
-             SC_SEC_OPERATION_GENERATE_RSAPUBLIC  == env_ref.operation)   &&
-             (env_ref.flags & SC_SEC_ENV_FILE_REF_PRESENT) > 0 &&
-             (env_ref.flags & SC_SEC_ENV_ALG_PRESENT) > 0 && env_ref.algorithm==SC_ALGORITHM_RSA
+    else if [SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC].contains(&env_ref.operation) &&
+            (env_ref.flags & SC_SEC_ENV_FILE_REF_PRESENT) > 0 &&
+            (env_ref.flags & SC_SEC_ENV_ALG_PRESENT) > 0 &&
+            [SC_ALGORITHM_RSA, SC_ALGORITHM_RSA].contains(&env_ref.algorithm)
     {
         assert!(env_ref.file_ref.len >= 2);
         let path_idx = env_ref.file_ref.len - 2;
-        let command = [0x00, 0x22, 0x01, 0xB6, 0x0A, 0x80, 0x01, 0x10, 0x81, 0x02,
+        let algo = algo_ref_mse_sedo(card.type_, if env_ref.algorithm==SC_ALGORITHM_RSA {SC_SEC_OPERATION_GENERATE_RSAPRIVATE} else {SC_SEC_OPERATION_GENERATE_ECCPRIVATE}, CRT_TAG_DST,
+                                     env_ref.algorithm, 0, 0, false, false).unwrap();
+        let command = [0x00, 0x22, 0x01, CRT_TAG_DST, 0x0A, 0x80, 0x01, algo, 0x81, 0x02,
             env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01,
-            if SC_SEC_OPERATION_GENERATE_RSAPRIVATE == env_ref.operation {0x40} else {0x80}];
+            if [SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_ECCPRIVATE].contains(&env_ref.operation) {0x40} else {0x80}];
         let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
 //    println!("rv: {}, apdu: {:?}", rv, apdu);
@@ -2572,14 +2591,15 @@ Tokenunfo
     }
 
     else if SC_SEC_OPERATION_SIGN == env_ref.operation   &&
-        env_ref.algorithm==SC_ALGORITHM_RSA && (env_ref.flags & SC_SEC_ENV_FILE_REF_PRESENT) > 0
+        [SC_ALGORITHM_RSA, SC_ALGORITHM_RSA].contains(&env_ref.algorithm) && (env_ref.flags & SC_SEC_ENV_FILE_REF_PRESENT) > 0
     {
         // TODO where is the decision taken to use PKCS#1 scheme padding?
-        let algo = if (env_ref.algorithm_flags & SC_ALGORITHM_RSA_PAD_ISO9796) == 0 {0x10_u8} else {0x11_u8};
+        assert!((env_ref.algorithm_flags & SC_ALGORITHM_RSA_PAD_ISO9796) == 0);
+        let mut algo = algo_ref_mse_sedo(card.type_, SC_SEC_OPERATION_SIGN, CRT_TAG_DST, env_ref.algorithm, 0, 0, false, false).unwrap();
         assert!(env_ref.file_ref.len >= 2);
         let path_idx = env_ref.file_ref.len - 2;
-        if SC_SEC_OPERATION_SIGN == env_ref.operation {
-            let command = [0x00, 0x22, 0x01, 0xB6, 0x0A, 0x80, 0x01, algo, 0x81, 0x02, env_ref.file_ref.value[path_idx],
+        // if SC_SEC_OPERATION_SIGN == env_ref.operation {
+            let command = [0x00, 0x22, 0x01, CRT_TAG_DST, 0x0A, 0x80, 0x01, algo, 0x81, 0x02, env_ref.file_ref.value[path_idx],
                 env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
             let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
             rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
@@ -2591,9 +2611,10 @@ Tokenunfo
                 log3ifr!(ctx,f,line!(), rv);
                 return rv;
             }
-        }
+        // }
         /* sign may need decrypt (for non-SHA1/SHA256 hashes), thus prepare for a CT as well */
-        let command = [0x00, 0x22, 0x01, 0xB8, 0x0A, 0x80, 0x01, 0x13, 0x81, 0x02,
+        algo = algo_ref_mse_sedo(card.type_, 0, CRT_TAG_CT, env_ref.algorithm, 0, 0, false, false).unwrap();//0x13;
+        let command = [0x00, 0x22, 0x01, CRT_TAG_CT, 0x0A, 0x80, 0x01, algo, 0x81, 0x02,
             env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
         let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
@@ -3235,7 +3256,7 @@ when pkcs1_strip_PSS_padding works
 //            encrypt_public_rsa(card, tmp_buf.as_ptr() /*out_ptr*/, /*data_len*/ tmp_buf.len()/*outlen*/);
         }
 
-        log3if!(ctx,f,line!(), cstru!(b"returning from acos5_compute_signature with: %d\0"), rv);
+//        log3if!(ctx,f,line!(), cstru!(b"returning from acos5_decipher with: %d\0"), rv);
 //        return rv;
     }
     log3ifr!(ctx,f,line!(), rv);

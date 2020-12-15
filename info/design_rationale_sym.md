@@ -27,7 +27,7 @@ repo at https://github.com/carblue/OpenSC-1/tree/sym_hw_encrypt
 
 5. The implementation was done with extensibility for other sym. algorithms in mind
 
-6. The implementation supports setting struct sc_security_env field algorithm_ref from TokenInfo.supportedAlgorithms and field flags |= SC_SEC_ENV_ALG_REF_PRESENT (if applicable), i.e. the card secific algorithm/algorithm_flags encoding)
+6. The implementation supports setting struct sc_security_env field algorithm_ref from TokenInfo.supportedAlgorithms and field flags |= SC_SEC_ENV_ALG_REF_PRESENT (if applicable), i.e. the card specific algorithm/algorithm_flags encoding)
 
 7. The (essential) call stacks:
 ```
@@ -97,7 +97,7 @@ Acc. to http://docs.oasis-open.org/pkcs11/pkcs11-curr/v3.0/pkcs11-curr-v3.0.html
 
 the latter is special: A card driver that declares to support SC_ALGORITHM_AES_CBC_PAD, must do the padding before encrypt and padding-removal after decrypt, but not for any other (AES-ECB, AES-CBC).
 So the card driver functions implementing sc_card_operations:encrypt_sym/decrypt_sym must receive the parameter sc_security_env:algorithm_flags (and I added param. algorithm for future use, for possibly other algos to be added later)  
-Except for codeline  r = card_command(...  use_key/use_key_sym are identical. I don't know C well enough to save this code duplication. Any ideas?
+Except for codeline  r = card_command(...  use_key/use_key_sym are identical. I don't know C well enough to avoid this code duplication. Any ideas?
 
 9. The impl. works as expected (at least for me), but needs more testing and care for error conditions (a little bit disregard so far)
 
@@ -105,7 +105,7 @@ Except for codeline  r = card_command(...  use_key/use_key_sym are identical. I 
 src/main_RO_sym_encrypt.rs  and  
 src/main_RO_sym_decrypt.rs  
 
-which may be used by any card: It just relies on finding 1 AES key on card (may need slight adaption to find a specific one).
+which may be used by any card: It just relies on finding 1 AES key on card (may need slight adaption to find a specific one, e.g. by CKA_LABEL).
 The iv, plaintext_data etc. are arbitrarily assigned. Exchange mechanism CKM_AES_CBC_PAD in the mechanism struct by CKM_AES_CBC or CKM_AES_ECB for testing those.
 
 
@@ -113,7 +113,7 @@ The iv, plaintext_data etc. are arbitrarily assigned. Exchange mechanism CKM_AES
 who want to try `symmetric on-card/hardware crypto support in OpenSC`:  
 My OpenSC's fork, branch sym_hw_encrypt gets regularly rebased on current upstream OpenSC github master and presumably updated with refinements.  
 https://github.com/carblue/OpenSC-1/tree/sym_hw_encrypt  
-After release 0.21.0 is done, I treat everything from OpenSC github master as an imaginary version v0_22_0 in driver's sources.  
+After release 0.21.0 is done, I treat everything from OpenSC github master as an imaginary version v0_22_0 in acos5 driver's sources.  
 So, first You need to compile OpenSC from sources in my branch sym_hw_encrypt, and install:  
 I, personally on Kubuntu, deviate from https://github.com/OpenSC/OpenSC/wiki/Compiling-and-Installing-on-Unix-flavors like this in the last 3 lines:  
 ```
@@ -126,7 +126,7 @@ sudo checkinstall
 
 opensc-tool -i will report:  OpenSC 0.22.0-sym_hw_encrypt
 
-Any non-ACOS5 card driver capable/willing to support sym. hw crypto needs to implement struct sc_card_operations 's functions `encrypt_sym` and `decrypt_sym`, otherwise they are NULL from libopensc/iso7816.c: iso_ops / sc_get_iso7816_driver
+Any card driver capable/willing to support sym. hw crypto needs to implement struct sc_card_operations 's functions `encrypt_sym` and `decrypt_sym`, otherwise they are NULL (no support) from libopensc/iso7816.c: iso_ops / sc_get_iso7816_driver
 
 ACOS5 card / driver acos5_external users:  
 The compiler switch --cfg sym_hw_encrypt must be activated in the following 3 files (i.e. remove leading // in respective line):  
@@ -134,4 +134,4 @@ opensc-sys/build.rs
 acos5/build.rs  
 acos5_pkcs15/build.rs
 
-Delete folder target and file Cargo.lock, finally re-build the driver
+Delete (acos_root_downloaded/) folder target and file Cargo.lock, finally re-build the driver

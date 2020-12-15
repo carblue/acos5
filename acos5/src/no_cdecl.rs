@@ -26,7 +26,7 @@ use std::os::raw::{c_char, c_ulong};
 use std::ffi::{/*CString,*/ CStr};
 use std::fs;//::{read/*, write*/};
 use std::ptr::{null_mut};
-use std::convert::{TryFrom, TryInto};
+use std::convert::{From, TryFrom, TryInto};
 use std::slice::from_raw_parts;
 
 use num_integer::Integer;
@@ -37,7 +37,7 @@ use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_
                          SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA, SC_SEC_ENV_KEY_REF_PRESENT,
                          SC_SEC_ENV_ALG_REF_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_get_iso7816_driver,
                          sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_check_apdu, sc_list_files,
-                         sc_set_security_env, sc_get_challenge, sc_get_mf_path, //sc_verify,
+                         sc_set_security_env, sc_get_challenge, sc_get_mf_path, SC_ALGORITHM_EC,//sc_verify,
                          SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_ALGORITHM_AES,
                          SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT, SC_PIN_STATE_UNKNOWN};
 #[cfg(not(v0_17_0))]
@@ -89,10 +89,13 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
                              SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
                              SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                              SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
-                             Acos5EcCurve, build_apdu, is_DFMF, p_void, // ATR_MASK_TCK,
+                             Acos5EcCurve, build_apdu, is_DFMF, p_void, ATR_MASK_TCK,
                              // ISO7816_RFU_TAG_FCP_SFI, ISO7816_RFU_TAG_FCP_SAC, ISO7816_RFU_TAG_FCP_SEID, ISO7816_RFU_TAG_FCP_SAE,
-                             GuardFile, // SC_CARD_TYPE_ACOS5_EVO_V4, NAME_V4, ATR_V4, ATR_V4_1C, ATR_V4_1F,
-                             file_id_from_path_value, file_id_se};
+                             GuardFile, SC_CARD_TYPE_ACOS5_EVO_V4, NAME_V4, ATR_V4_1F, //, ATR_V4, ATR_V4_1C
+                             file_id_from_path_value, file_id_se,
+                             CRT_TAG_HT, CRT_TAG_CCT, CRT_TAG_DST, CRT_TAG_CT,
+                             SC_SEC_OPERATION_GENERATE_ECCPRIVATE
+};
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, current_path_df, is_impossible_file_match};
 use crate::missing_exports::me_get_max_recv_size;
@@ -1166,7 +1169,7 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
 }
 
 #[must_use]
-pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 3]
+pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 4]
 {
     [
         sc_atr_table {
@@ -1202,6 +1205,7 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 3]
             flags: 0,
             card_atr: null_mut(),
         },
+*/
         sc_atr_table {
             atr:     cstru!(ATR_V4_1F).as_ptr(),
             atrmask: cstru!(ATR_MASK_TCK).as_ptr(),
@@ -1210,7 +1214,6 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 3]
             flags: 0,
             card_atr: null_mut(),
         },
-*/
         sc_atr_table::default(),
     ]
 }
@@ -1753,20 +1756,170 @@ Ok(0)
     }
 }
 
-
-#[allow(non_snake_case)]
-/* op_mode_cbc: true  => cbc
-   op_mode_cbc: false => ecb
-*/
-fn algo_ref_cos5_sym_MSE(algo: u32, op_mode_cbc: bool) -> u32
-{
-    match algo {
-        SC_ALGORITHM_3DES => if op_mode_cbc {2} else {0},
-        SC_ALGORITHM_DES  => if op_mode_cbc {3} else {1},
-        SC_ALGORITHM_AES  => if op_mode_cbc {6} else {4},
-        _                 => 0xFFFF_FFFF,
+// omitted signature verification
+pub fn algo_ref_mse_sedo(card_type: i32, // one of: SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4
+                         sec_operation: i32, // required only for CRT_TAG_DST: one of: SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_ECCPRIVATE
+                         sedo_tag: u8,   // one of: (CRT_TAG_AT, CRT_TAG_KAT,) CRT_TAG_HT, CRT_TAG_CCT, CRT_TAG_DST, CRT_TAG_CT
+                         algorithm: u32, // one of: SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES,
+                         byte_len: u8,   // one of: (key_len AES): 16,24,32  hash_len: 20, 28. 32, 48, 64
+                         ecies: u8,
+                         op_mode_cbc: bool, //  true  => cbc,  false => ecb
+                         cmac: bool,        //  true  => cmac, false => N/A  used in CCT only
+) -> Result<u8, i32>  {
+    match sedo_tag {
+        CRT_TAG_HT  =>  match byte_len {
+            /*SHA1*/        0x14 => match card_type {
+                                        SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x80),
+                                        _                         => Ok(0x20),
+                                    },
+            /*SHA256*/      0x20 => match card_type {
+                                        SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x82),
+                                        _                         => Ok(0x21),
+                                    },
+            /*SHA224*/      0x1C => match card_type {
+                                        SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x81),
+                                        _                         => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
+                                    },
+            /*SHA384*/      0x30 => match card_type {
+                                        SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x84),
+                                        _                         => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
+                                    },
+            /*SHA512*/      0x40 => match card_type {
+                                        SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x88),
+                                        _                         => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
+                                    },
+                            _    => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
+                        },
+        CRT_TAG_CCT =>  match algorithm {
+                           SC_ALGORITHM_AES  => match cmac {
+                                                    true => match card_type {
+                                                                SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x15),
+                                                                _                         => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
+                                                            },
+                                                    _    => match card_type {
+                                                                SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x15),
+                                                                _                         => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
+                                                            },
+                                                },
+                           SC_ALGORITHM_3DES => match cmac {
+                                                   true => match card_type {
+                                                                SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x15),
+                                                                _                         => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
+                                                            },
+                                                    _    => match card_type {
+                                                                SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x13),
+                                                                _                         => Ok(0x02),
+                                                            },
+                                                },
+                           SC_ALGORITHM_DES  => match card_type {
+                                                    SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x11),
+                                                    _                         => Ok(0x03),
+                                                },
+                           _                 => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
+                        },
+        CRT_TAG_DST =>  match algorithm {
+                            SC_ALGORITHM_RSA => match sec_operation {
+                                                    SC_SEC_OPERATION_SIGN => match card_type {
+                                                        SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x20),
+                                                        _                         => Ok(0x10),
+                                                    },
+                                                    SC_SEC_OPERATION_GENERATE_RSAPRIVATE => match card_type {
+                                                        SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x22),
+                                                        _                         => Ok(0x10),
+                                                    },
+                                                    _                             => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
+                                                },
+                            SC_ALGORITHM_EC  => match sec_operation {
+                                                    SC_SEC_OPERATION_SIGN => match card_type {
+                                                        SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x40),
+                                                        _                         => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
+                                                    },
+                                                    SC_SEC_OPERATION_GENERATE_ECCPRIVATE => match card_type {
+                                                        SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x42),
+                                                        _                         => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
+                                                    },
+                                                    _                             => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
+                                                },
+                            _                => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
+                        },
+        CRT_TAG_CT  =>  match algorithm {
+                            SC_ALGORITHM_RSA => match card_type {
+                                                    SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x24),
+                                                    _                         => Ok(0x12), // 0x13
+                                                },
+                            SC_ALGORITHM_EC  => match card_type {
+                                                    SC_CARD_TYPE_ACOS5_EVO_V4 => match ecies {
+                                                                                     1 => Ok(0),
+                                                                                     2 => Ok(0),
+                                                                                     3 => Ok(0),
+                                                                                     _ => Ok(0),
+                                                                                 },
+                                                    _                         => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
+                                                },
+                            SC_ALGORITHM_AES => match op_mode_cbc {
+                                                    true => match card_type {
+                                                                SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x15),
+                                                                _                         => Ok(0x06), // 0x07
+                                                            },
+                                                    _    => match card_type {
+                                                                SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x14),
+                                                                _                         => Ok(0x04), // 0x05
+                                                            },
+                                                },
+                            SC_ALGORITHM_3DES => match op_mode_cbc {
+                                                    true => match card_type {
+                                                                SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x13),
+                                                                _                         => Ok(0x02),
+                                                            },
+                                                    _    => match card_type {
+                                                                SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x12),
+                                                                _                         => Ok(0x00),
+                                                            },
+                                                },
+                            SC_ALGORITHM_DES => match op_mode_cbc {
+                                                    true => match card_type {
+                                                                SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x11),
+                                                                _                         => Ok(0x03),
+                                                            },
+                                                    _    => match card_type {
+                                                                SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x10),
+                                                                _                         => Ok(0x01),
+                                                            },
+                                                },
+                            _                => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
+                        },
+        _           =>  Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
     }
 }
+
+pub fn algo_ref_sym_store(card_type: i32, algorithm: u32, key_len_bytes: u8) -> Result<u8, i32>
+{
+    match algorithm {
+        SC_ALGORITHM_AES => {
+            if ![16, 24, 32].contains(&key_len_bytes) { return Err(-1); }
+            match key_len_bytes {
+                16 => Ok(if card_type==SC_CARD_TYPE_ACOS5_EVO_V4 {0x22} else {0x02 /*0x03, 0x01, 0x00*/}),
+                24 => Ok(if card_type==SC_CARD_TYPE_ACOS5_EVO_V4 {0x24} else {0x12 /*0x13*/}),
+                32 => Ok(if card_type==SC_CARD_TYPE_ACOS5_EVO_V4 {0x28} else {0x22 /*0x23*/}),
+                _  => Err(-1)
+            }
+        },
+        SC_ALGORITHM_3DES => {
+            if ![16, 24].contains(&key_len_bytes) { return Err(-1) }
+            match key_len_bytes {
+                16 => Ok(if card_type==SC_CARD_TYPE_ACOS5_EVO_V4 {0x12} else {0x04 /*0x00*/}),
+                24 => Ok(0x14),
+                _  => Err(-1)
+            }
+        },
+        SC_ALGORITHM_DES => {
+            if 8 != key_len_bytes { return Err(-1) }
+            Ok(if card_type==SC_CARD_TYPE_ACOS5_EVO_V4 {0x11} else {0x05 /*0x01*/})
+        },
+        _  => Err(-1)
+    }
+}
+
 
 ///
 /// # Errors
@@ -1892,11 +2045,12 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
         env = sc_security_env {
             operation: if crypt_sym.encrypt {SC_SEC_OPERATION_ENCIPHER_SYMMETRIC} else {SC_SEC_OPERATION_DECIPHER_SYMMETRIC},
             flags    : SC_SEC_ENV_KEY_REF_PRESENT | SC_SEC_ENV_ALG_REF_PRESENT | SC_SEC_ENV_ALG_PRESENT,
-            algorithm: if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else if crypt_sym.key_len==64 {SC_ALGORITHM_DES} else {SC_ALGORITHM_3DES},
+            algorithm: if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else if crypt_sym.key_len==8 {SC_ALGORITHM_DES} else {SC_ALGORITHM_3DES},
             key_ref: [crypt_sym.key_ref, 0,0,0,0,0,0,0],
             key_ref_len: 1,
-            algorithm_ref: algo_ref_cos5_sym_MSE(if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else if crypt_sym.key_len==64 {SC_ALGORITHM_DES} else {SC_ALGORITHM_3DES},
-                                                 crypt_sym.cbc),
+            algorithm_ref: algo_ref_mse_sedo(card.type_, 0, CRT_TAG_CT,
+                if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else if crypt_sym.key_len==8 {SC_ALGORITHM_DES} else {SC_ALGORITHM_3DES},
+                         0, 0, crypt_sym.cbc, false).unwrap().into(),
             ..sc_security_env::default()
         };
         #[cfg(not(v0_17_0))]
@@ -2273,8 +2427,9 @@ pub fn common_update(card: &mut sc_card,
 
 #[cfg(test)]
 mod tests {
-    use super::{convert_amdo_to_cla_ins_p1_p2_array,
-                trailing_blockcipher_padding_calculate, trailing_blockcipher_padding_get_length};
+    use super::{convert_amdo_to_cla_ins_p1_p2_array, algo_ref_mse_sedo, SC_SEC_OPERATION_SIGN,
+                trailing_blockcipher_padding_calculate, trailing_blockcipher_padding_get_length,
+                SC_ALGORITHM_RSA};
     use crate::constants_types::*;
 
     #[test]
@@ -2424,4 +2579,31 @@ mod tests {
         Ok(())
     }
     //TODO extend to check for AES block_size=16 bytes
+
+    #[test]
+    fn test_algo_ref_mse_sedo() -> Result<(), i32> {
+        let mut rsa_key_gen = algo_ref_mse_sedo(SC_CARD_TYPE_ACOS5_64_V2, SC_SEC_OPERATION_GENERATE_RSAPRIVATE, CRT_TAG_DST,
+                                                SC_ALGORITHM_RSA, 0, 0, false, false);
+        assert_eq!(rsa_key_gen, Ok(0x10));
+        rsa_key_gen = algo_ref_mse_sedo(SC_CARD_TYPE_ACOS5_EVO_V4, SC_SEC_OPERATION_GENERATE_RSAPRIVATE, CRT_TAG_DST,
+                                        SC_ALGORITHM_RSA, 0, 0, false, false);
+        assert_eq!(rsa_key_gen, Ok(0x22));
+
+        let mut rsa_sign = algo_ref_mse_sedo(SC_CARD_TYPE_ACOS5_64_V2, SC_SEC_OPERATION_SIGN, CRT_TAG_DST,
+                                                SC_ALGORITHM_RSA, 0, 0, false, false);
+        assert_eq!(rsa_sign, Ok(0x10));
+        rsa_sign = algo_ref_mse_sedo(SC_CARD_TYPE_ACOS5_EVO_V4, SC_SEC_OPERATION_SIGN, CRT_TAG_DST,
+                                             SC_ALGORITHM_RSA, 0, 0, false, false);
+        assert_eq!(rsa_sign, Ok(0x20));
+
+        let mut rsa_decipher = algo_ref_mse_sedo(SC_CARD_TYPE_ACOS5_64_V2, 0, CRT_TAG_CT,
+                                                SC_ALGORITHM_RSA, 0, 0, false, false);
+        assert_eq!(rsa_decipher, Ok(0x12));//0x13;
+        rsa_decipher = algo_ref_mse_sedo(SC_CARD_TYPE_ACOS5_EVO_V4, 0, CRT_TAG_CT,
+                                        SC_ALGORITHM_RSA, 0, 0, false, false);
+        assert_eq!(rsa_decipher, Ok(0x24));
+
+        Ok(())
+    }
+
 }

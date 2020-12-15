@@ -46,7 +46,7 @@ pub const SC_PKCS15_MAX_ACCESS_RULES  : usize = 8;
 
 // Debug since rustc 1.47.0 (18bf6b4f0 2020-10-07)
 #[repr(C)]
-#[derive(Debug, Copy, Clone /*,  PartialEq*/)]
+#[derive(/*Default,*/ Debug, Copy, Clone, PartialEq)]
 pub struct sc_pkcs15_id {
     pub value : [u8; SC_PKCS15_MAX_ID_SIZE],
     pub len : usize,
