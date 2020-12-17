@@ -1,4 +1,5 @@
 Design rationale for `symmetric on-card/hardware crypto support in OpenSC` and comments  
+This file is now identically also within:  
 repo at https://github.com/carblue/OpenSC-1/tree/sym_hw_encrypt  
 
 1. Its implemented in an imaginary OpenSC version  0.22.0-sym_hw_encrypt (which is my driver's way to address  OpenSC github master, i.e. all not yet released).
@@ -6,7 +7,7 @@ repo at https://github.com/carblue/OpenSC-1/tree/sym_hw_encrypt
 2. The implementation is limited to support only  
    - AES, as its the only sym. algo registered with PKCS#11 currently.  
      (e.g. the blocksize 16 is hardcoded),  and impl. is limited to  
-   - C_EncryptInit, C_Encrypt, C_DecryptInit, C_Decrypt.   (C_UnwrapKey, C_UnwrapKey are already supported by OpenSC, thanks to Hannu Honkanen)
+   - C_EncryptInit, C_Encrypt, C_DecryptInit, C_Decrypt.   (C_WrapKey, C_UnwrapKey are already supported by OpenSC, thanks to Hannu Honkanen)
 
    Actually the code was copied from existing code in same file(s), adapted as I deemed required.
 
@@ -19,8 +20,6 @@ repo at https://github.com/carblue/OpenSC-1/tree/sym_hw_encrypt
 #define SC_ALGORITHM_AES_CBC           0x02000000
 #define SC_ALGORITHM_AES_CBC_PAD       0x04000000
 #define SC_ALGORITHM_AES_FLAGS         0x0F000000
-
-(#define SC_ALGORITHM_ONBOARD_KEY_GEN  0x80000000)
 ```
    All 3 mechanisms CKM_AES_ECB, CKM_AES_CBC and SC_ALGORITHM_AES_CBC_PAD are supported and a card driver willing to support symmetric on-card crypto must declare at least 1 of them with _sc_card_add_symmetric_alg.  
    Nothing (in the impl.) precludes us from adding more  SC_ALGORITHM_AES_*, if required (it's just my card not supporting more), except that requires slight adaptions in mapping to  CKM_AES_*  back and forth.
@@ -95,17 +94,71 @@ Acc. to http://docs.oasis-open.org/pkcs11/pkcs11-curr/v3.0/pkcs11-curr-v3.0.html
 2.10.5 AES-CBC  
 2.10.6 AES-CBC with PKCS padding  
 
-the latter is special: A card driver that declares to support SC_ALGORITHM_AES_CBC_PAD, must do the padding before encrypt and padding-removal after decrypt, but not for any other (AES-ECB, AES-CBC).
-So the card driver functions implementing sc_card_operations:encrypt_sym/decrypt_sym must receive the parameter sc_security_env:algorithm_flags (and I added param. algorithm for future use, for possibly other algos to be added later)  
-Except for codeline  r = card_command(...  use_key/use_key_sym are identical. I don't know C well enough to avoid this code duplication. Any ideas?
+the latter is special: A card driver that declares to support SC_ALGORITHM_AES_CBC_PAD, must do the padding before encrypt and padding-removal after decrypt, but not for any other (AES-ECB, AES-CBC); for those, the calling PKCS#11 application is responsible to care for trailing padding to block_size and padding removal.  
+So the card driver functions implementing sc_card_operations:encrypt_sym/decrypt_sym must receive the parameter sc_security_env:algorithm_flags (and I added param. algorithm for future use, for possibly other algorithms to be added later)  
+Except for codeline  r = card_command(...  use_key/use_key_sym are identical. I don't know C well enough to avoid this code duplication, the difference is the function signature of 'card_command' being called. Any ideas?
 
-9. The impl. works as expected (at least for me), but needs more testing and care for error conditions (a little bit disregard so far)
+9. The impl. works as expected (at least for me), but needs more testing and care for error conditions (a little bit disregard so far).
 
-10. There is Rust code that I used for testing at https://github.com/carblue/acos5/tree/master/project_pkcs11_example_apps  
+
+10.
+# pkcs11-tool: testing sym. encrypt/decrypt was included, to be used with $ pkcs11-tool --test --login --pin ******** #  
+  Testing symmetric on-card/hardware crypto with pkcs11-tool --test  might not be the best idea, but for some inscrutable
+  reason I started to implement that first (possibly I didn't want to fiddle with program options):  
+  The reason is: Both the card and the  pkcs11-tool application must know the same AES key material, and that's not
+  solvable in a generic way, so the user must do something here prior to invocation of pkcs11-tool --test:  
+  Currently pkcs11-tool.c knows a hardcoded AES key, 32 content bytes with values 1..32 for any of AES/128, AES/192, AES/256 use cases:  
+  In the beginning of functions `encrypt_decrypt_sym_1` and `encrypt_decrypt_sym_2`: unsigned char	aes_key_256[32] = {0x01, 0x02 ... 0x1F, 0x20};
+  
+  There are 2 options:
+  1. Change pkcs11-tool.c source code's aes_key_256 to Your specific, actual AES key in those 2 locations.
+  2. If Your card/driver allows that, then import file aes_key_256.hex (it's located in sym_hw_encrypt's root folder) with something similar to  
+     $ pkcs15-init --store-secret-key aes_key_256.hex --secret-key-algorithm aes/256  --auth-id 01 --id 02 --verify-pin  
+     (--auth-id  and  --id  need to be adapted, possibly more options used or e.g. --secret-key-algorithm aes/192)
+
+
+  With that preparation, it works for me:  It should report something behind "Decryption (currently only for RSA)":  
+  Encryption: card/hardware encrypts, OpenSSL decrypts  
+  Decryption: OpenSSL encrypts, card/hardware decrypts  
+```
+$ pkcs11-tool --test --login --pin ********
+  ...
+  Decryption (currently only for RSA)
+  ...
+  Encryption (currently only for AES)
+    testing key 0 (AES3) 256 bit
+      AES-ECB: OK
+      AES-CBC: OK
+      AES-CBC-PAD: OK
+  Decryption (currently only for AES)
+    testing key 0 (AES3) 256 bit
+   -- mechanism can't be used to decrypt, skipping
+      AES-ECB: OK
+      AES-CBC: OK
+      AES-CBC-PAD: OK
+  No errors
+```
+
+  The impl. was done ad-hoc, may certainly need refinement, but it works (at least for me).  
+  There are many printf statements that may be activated/un-commented by a developer and allow good insight what's going on.  
+  Also the console output "Error Return some_unique_number" lets devs easily spot where something goes wrong.  
+  The original plaintext length is set to 481; /* cards with short APDU syntax should prove correct chaining handling with >= 240 */  
+  That's where my acos5_external driver currently still fails with mech_types SC_ALGORITHM_AES_CBC_PAD  and SC_ALGORITHM_AES_CBC, but it works for  
+  original plaintext length <240 , so it's my driver's bug
+
+
+  Option --decrypt_sym --input file          to be added by someone ?  
+         --encrypt_sym --input file          to be added by someone ?
+
+pkcs15-crypt: Not yet adapted for sym. encrypt/decrypt; to be added by someone ? With the testing code for pkcs11-tool --test   that should be easy to do ?
+
+
+11. There is Rust code as well, usable by any OpenSC supported card (capable of sym. encrypt/decrypt). I used that for testing:  
+https://github.com/carblue/acos5/tree/master/project_pkcs11_example_apps  
 src/main_RO_sym_encrypt.rs  and  
 src/main_RO_sym_decrypt.rs  
 
-which may be used by any card: It just relies on finding 1 AES key on card (may need slight adaption to find a specific one, e.g. by CKA_LABEL).
+It just relies on finding 1 AES key on card (may need slight adaption to find a specific one, e.g. by CKA_LABEL).
 The iv, plaintext_data etc. are arbitrarily assigned. Exchange mechanism CKM_AES_CBC_PAD in the mechanism struct by CKM_AES_CBC or CKM_AES_ECB for testing those.
 
 
