@@ -28,6 +28,8 @@ use crate::missing_exports::{find_df_by_type};
 #[cfg(not(target_os = "windows"))]
 use crate::tasn1_pkcs15_util::DirectoryRange;
 
+const INC : usize = 0x100;
+
 #[must_use]
 pub fn rsa_modulus_bits_canonical(rsa_modulus_bits: usize) -> usize { ((rsa_modulus_bits + 8) /256) *256 }
 
@@ -258,7 +260,6 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
     assert_eq!(SC_SUCCESS, rv);
     let key_pair_size_req = key_info.modulus_length/16 * 7 + 26; // min. is 250 bytes for RSA/512
     if  key_pair_size_req > card_free_space.try_into().unwrap() { return Err(SC_ERROR_NOT_ENOUGH_MEMORY); }
-    const INC : usize = 0x100;
     if unused_len < 80  &&  key_pair_size_req + INC <= card_free_space.try_into().unwrap() {
         /* TODO any enlargement only if it makes sense : get_free_space; in any case it MUST BE AVOIDED that EF.PrKDF gets deleted without being able to re-create it enlarged !!! */
         let file_priv = unsafe { &mut *file_priv };

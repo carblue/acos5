@@ -98,7 +98,7 @@ the latter is special: A card driver that declares to support SC_ALGORITHM_AES_C
 So the card driver functions implementing sc_card_operations:encrypt_sym/decrypt_sym must receive the parameter sc_security_env:algorithm_flags (and I added param. algorithm for future use, for possibly other algorithms to be added later)  
 Except for codeline  r = card_command(...  use_key/use_key_sym are identical. I don't know C well enough to avoid this code duplication, the difference is the function signature of 'card_command' being called. Any ideas?
 
-9. The impl. works as expected (at least for me), but needs more testing and care for error conditions (a little bit disregard so far).
+9. The impl. works as expected (at least for me), but needs more testing and care for error conditions (a little bit disregarded so far).
 
 
 10.
@@ -143,9 +143,10 @@ $ pkcs11-tool --test --login --pin ********
   There are many printf statements that may be activated/un-commented by a developer and allow good insight what's going on.  
   Also the console output "Error Return some_unique_number" lets devs easily spot where something goes wrong.  
   The original plaintext length is set to 481; /* cards with short APDU syntax should prove correct chaining handling with >= 240 */  
-  That's where my acos5_external driver currently still fails with mech_types SC_ALGORITHM_AES_CBC_PAD  and SC_ALGORITHM_AES_CBC, but it works for  
-  original plaintext length <240 , so it's my driver's bug
-
+  That's where my acos5_external driver did fail, solved now:
+  It turned out, that my ACOS5 V2.00 hardware claims to be capable of sym. decrypt, CBC in **chaining mode**, but actually it's not, and
+  ACOS5 V3.00 doesn't even claim that capability, so my driver needs to workaroung and call sc_set_security_env from within card->ops->decrypt_sym.
+  Thus `decrypt_sym` needs one more parameter from struct sc_security_env: field key_ref.
 
   Option --decrypt_sym --input file          to be added by someone ?  
          --encrypt_sym --input file          to be added by someone ?

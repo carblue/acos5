@@ -77,13 +77,8 @@ pub fn current_path_df(card: &mut sc_card) -> &[u8]
  */
 #[must_use]
 pub fn is_impossible_file_match(path_target: &sc_path) -> bool {
-    let len = path_target.len;
-    assert!(len>=2);
-    let file_id = u16::from_be_bytes([path_target.value[len-2], path_target.value[len-1]]);
-    match file_id {
-        0 | 0xFFFF => true,
-        _ => false,
-    }
+    assert!(path_target.len>=2);
+    matches!(file_id_from_path_value(&path_target.value[..path_target.len]), 0 | 0xFFFF)
 }
 
 /*

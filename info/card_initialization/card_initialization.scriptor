@@ -1,18 +1,18 @@
 #! /usr/bin/env scriptor
 
 # IMPORTANT MUST DO: Current SO_PIN must be adapted in line 23 (Verify SO_PIN) if it's different from  38 37 36 35 34 33 32 31  (which reads in ascii as character string: 87654321) !!!
-# IMPORTANT MUST DO: Either in line 31 or line 33 (or line 35)  the leading # must be removed
+# IMPORTANT MUST DO: Either in line 31 or line 33 (or line 35) or line 37  the leading # must be removed
 # Lines beginning with # are comments and don't get processed as APDU commands; spaces between bytes (all in hexadecimal representation) get ignored, but presumably are required by scriptor and improve readability
 # Recommended to read all comments once, before invocation by cd into/current/directory && chmod +x card_initialization.scriptor && ./card_initialization.scriptor
 
 # This script will set these new PIN bytes (change them after card initialization is done, OR NOW !!!):
-# new SO_PIN:   38 37 36 35 34 33 32 31 (which reads in ascii as character string: 87654321)  SO_PUK set to same value as SO_PIN,     SO_PIN/SO_PUK set at first/second appearance in line 75
-# new USER_PIN: 31 32 33 34 35 36 37 38 (which reads in ascii as character string: 12345678)  USER_PUK set to same value as USER_PIN, USER_PIN/USER_PUK set at first/second appearance in line 100
+# new SO_PIN:   38 37 36 35 34 33 32 31 (which reads in ascii as character string: 87654321)  SO_PUK set to same value as SO_PIN,     SO_PIN/SO_PUK set at first/second appearance in line 79
+# new USER_PIN: 31 32 33 34 35 36 37 38 (which reads in ascii as character string: 12345678)  USER_PUK set to same value as USER_PIN, USER_PIN/USER_PUK set at first/second appearance in line 104
 
-# This script will set 2 3DES/192 keys for Secure Messaging (the last 24 non-zero bytes in lines 106,107) (PREFERABLY CHANGE THEM NOW AND DO THE SAME IN opensc.conf for keyset...02...):
+# This script will set 2 3DES/192 keys for Secure Messaging (the last 24 non-zero bytes in lines 108,109) (PREFERABLY CHANGE THEM NOW AND DO THE SAME IN opensc.conf for keyset...02...):
 # Check for all of the 24 key bytes that they have odd parity == count of 1 in binary coded representation is NOT even, e.g. byte 0xBD=0b10111101 is disallowed, must be changed to 0xBC=0b10111100
-# line 106: this is the host/terminal key Kt for external authentication with an unlimited error counter
-# line 107: this is the card          key Kc for internal authentication with an unlimited usage counter
+# line 110: this is the host/terminal key Kt for external authentication with an unlimited error counter
+# line 111: this is the card          key Kc for internal authentication with an unlimited usage counter
 #   Done for EVO: Symmetric Key file  create with MRL=0x26==38 (32 byte AES key allowed for int. + ext. auth)
 #   TODO for EVO: EF.TokenInfo file supportedAlgorithms.algRef bytes for AES are different than those for V2.00/V3.00: Either remove this optional field or will need manual user editing
 #
@@ -26,16 +26,20 @@ reset
 80 30 00 00 00
 80 30 00 00 00
 
-## Possibly set Operation mode byte; depends on card type V2.00 or V3.00 (since EVO its called Configuration Mode Byte)
+## Possibly set Operation mode byte; depends on card type V2.00, V3.00 or V4.00 EVO (since EVO its called Configuration Mode Byte)
 ## If it's an ACOS5-64 V2.00 (Smart card or CryptoMate64) the next line's command sets 64K mode, which is the factory default for ACOS5-64 V2.00:
 #00 D6 C1 91 01 00
 ## If it's an ACOS5-64 V3.00 (Smart card or CryptoMate Nano) the next line's command sets 64K mode (recommended for V3.00 !):
 #00 D6 C1 91 01 02
 ## If it's an ACOS5-64 V3.00 (Smart card or CryptoMate Nano) the next line's command sets FIPS 140-2 Level 3-Compliant mode: Note that restrictions acc. reference manual apply with this setting (e.g. max. RSA/3072) !!!
 #00 D6 C1 91 01 00
+## If it's an ACOS5-EVO V4.X0 (Smart card or CryptoMate EVO) the next line's command sets non-FIPS mode (recommended), which is the factory default for ACOS5-EVO:
+#00 D6 C1 91 01 01
 
 # get free space in bytes i.e. initial free user-available EEPROM capacity:
 80 14 04 00 02
+# TODO EVO  192,000 == 0x02_EE_00
+#80 14 04 00 03
 # the response may be something like F6 15 90 00: first 2 bytes (are hexadecimal repr.) 0xF615 == 62,997 bytes; last 2 bytes are just the status word of response, and 0x9000 means: okay, no error occured
 
 # Overview: This file system structure will be created

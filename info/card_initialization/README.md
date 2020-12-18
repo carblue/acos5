@@ -60,11 +60,15 @@ opensc-tool --serial
 
 Some adjustion will be done for file 0x3F0041005032 PKCS#15 EF.TokenInfo by one of the
 V?_00_TokenInfo_file_customization.scriptor<br>
+The adaption is related to Your individual card's harware serial no. and token label, that will be part of how
+OpenSC refers to this hardware when communicating with You (e.g. asking for a User PIN)<br>
 1. Adapt the script referring to content (see explanation inside the script: comments).
 2. With Linux: Invoke for Your V2_00 or V3_00 hardware either ./V2_00_TokenInfo_file_customization.scriptor or
    ./V3_00_TokenInfo_file_customization.scriptor
 
 Some adjustion will be done for file 0x3F0041005031 PKCS#15 EF.ODF by ODF_file_customization.scriptor<br>
+The adaption is related to: Some performance gain can be achieved, if OpenSC doesn't need to analyse all PKCS#15
+directory files, because e.g. Your card has no Data Object files or no PUKDF_TRUSTED asym. keys etc.
 1. Adapt the script referring to content (see explanation inside the script: comments).
 2. With Linux: Invoke ./ODF_file_customization.scriptor
 
@@ -73,7 +77,7 @@ Set new PINs (e.g. with opensc-explorer)
 Add new content, e.g. RSA key pair (either with tool acos5_gui or the following command) and<br>
 read public RSA file content for e.g. placing that in Your GitHub settings and then test the ssh connection:<br>
 ```
-pkcs15-init --generate-key rsa/3072 --auth-id 01 --id 09 --label testkey --key-usage sign,decrypt
+pkcs15-init --generate-key rsa/4096 --auth-id 01 --id 09 --label testkey --key-usage sign,decrypt
 pkcs15-tool --read-ssh-key 09
 -- GitHub settings --
 ssh -T -I /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so git@github.com
@@ -89,6 +93,15 @@ $ pkcs15-init --store-secret-key aes_key_256.hex --secret-key-algorithm aes/256 
 Import a certificate for Your RSA key pair (not yet tested)  
 $ pkcs15-init --store-certificate some.cert.pem --auth-id ?? --id ?? --format pem --pin ??
 
+Besides what You always can do manually with a card with tools like scriptor or gscriptor, referring to secret keys
+(symmetric or asymmetric algorithm keys), the tandem of `card_initialization.scriptor` and acos5_external driver
+won't let You get out of the card (export) any secret key material.
+Getting secret key material into the card (import) is limited to symmetric algorithm keys, either by command  
+pkcs15-init --store-secret-key   or  
+unwrap an AES key into Your card (which was wrapped by one of Your public keys). That one (the latter) currently will be stored permanently,
+though there are plans to allow that temporarily as well (OpenSC has a flag for that: SC_CARD_CAP_ONCARD_SESSION_OBJECTS, since OpenSC version 0.20.0
+
+The difference is, that with CKA_TOKEN=FALSE (== SC_CARD_CAP_ONCARD_SESSION_OBJECTS enabled) OpenSC won't add an SKDF entry while unwrapping that key, but the driver will still write that key to card. That key effectively exists on card until the next symmetric algorithm key import occurs, which will overwrite into the record no. occupied before "temporarily".
 
 Foresight
 =========

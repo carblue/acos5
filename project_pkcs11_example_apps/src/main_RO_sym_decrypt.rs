@@ -119,11 +119,11 @@ fn main() -> Result<(), Error> {
     if !decrypted.is_empty() && mechanism.mechanism != CKM_AES_CBC_PAD /* && encrypted_data_was_padded*/ {
         // BLOCKCIPHER_PAD_TYPE_PKCS7
         let pad_byte = decrypted[decrypted.len()-1];
-        if pad_byte > 15 { return Err(Error::Pkcs11(CKR_ENCRYPTED_DATA_LEN_RANGE)) }
+        if pad_byte > 16 || pad_byte == 0  { return Err(Error::Pkcs11(CKR_ENCRYPTED_DATA_LEN_RANGE)) }
         let mut count_pad_byte : usize = 0;
         for &b in decrypted.iter().rev() {
             if b == pad_byte { count_pad_byte += 1 } else { break }
-            if count_pad_byte == 15 { break }
+            if count_pad_byte == 16 { break }
         }
         if count_pad_byte != pad_byte.into() { return Err(Error::Pkcs11(CKR_ENCRYPTED_DATA_LEN_RANGE)) }
         decrypted.truncate(decrypted.len()-count_pad_byte);

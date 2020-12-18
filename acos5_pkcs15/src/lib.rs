@@ -1132,7 +1132,7 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
 
     if SC_PKCS15_TYPE_PRKEY_RSA == object.type_ {
         let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-        dp.last_keygen_priv_id = unsafe { (&mut *(object.data as *mut sc_pkcs15_prkey_info)).id };
+        dp.last_keygen_priv_id = unsafe { (*(object.data as *mut sc_pkcs15_prkey_info)).id };
         card.drv_data = Box::into_raw(dp) as p_void;
     }
     else if SC_PKCS15_TYPE_PUBKEY_RSA == object.type_ {

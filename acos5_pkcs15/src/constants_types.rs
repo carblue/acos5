@@ -25,7 +25,8 @@ use std::ops::{Deref, DerefMut};
 use std::convert::{TryFrom/*, TryInto*/};
 use std::collections::HashMap;
 
-use opensc_sys::opensc::{sc_context, sc_security_env, sc_file_free, sc_bytes2apdu, SC_ALGORITHM_AES};
+use opensc_sys::opensc::{sc_context, sc_card, sc_security_env, sc_file_free, sc_bytes2apdu,
+                         SC_ALGORITHM_AES/*, SC_CARD_CAP_APDU_EXT*/};
 
 use opensc_sys::types::{sc_file, sc_apdu, sc_crt, sc_object_id, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
 use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUSTED,
@@ -228,15 +229,15 @@ pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
 ////pub const SC_SEC_OPERATION_ENCIPHER : i32 = 0x0009;
 pub const SC_SEC_OPERATION_GENERATE_RSAPRIVATE : i32 = 0x000A; // sc_set_security_env must know this related to file id
 pub const SC_SEC_OPERATION_GENERATE_RSAPUBLIC  : i32 = 0x000B; // sc_set_security_env must know this related to file id
-
 pub const SC_SEC_OPERATION_GENERATE_ECCPRIVATE : i32 = 0x000C; // sc_set_security_env must know this related to file id
 pub const SC_SEC_OPERATION_GENERATE_ECCPUBLIC  : i32 = 0x000D; // sc_set_security_env must know this related to file id
 
 pub const SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC  : i32 = 0x000E; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
-pub const SC_SEC_OPERATION_DECIPHER_RSAPRIVATE : i32 = 0x000F; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
+//b const SC_SEC_OPERATION_DECIPHER_RSAPRIVATE : i32 = 0x000F; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
+pub const SC_SEC_OPERATION_ENCIPHER_ECCPUBLIC  : i32 = 0x000F; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_ASYMMETRIC
 
-pub const SC_SEC_OPERATION_ENCIPHER_SYMMETRIC  : i32 = 0x0010; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
-pub const SC_SEC_OPERATION_DECIPHER_SYMMETRIC  : i32 = 0x0011; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
+// pub const SC_SEC_OPERATION_ENCIPHER_SYMMETRIC  : i32 = 0x0010; // to be substituted by SC_SEC_OPERATION_ENCIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
+// pub const SC_SEC_OPERATION_DECIPHER_SYMMETRIC  : i32 = 0x0011; // to be substituted by SC_SEC_OPERATION_DECIPHER and SC_SEC_ENV_KEY_REF_SYMMETRIC
 
 /*
 /*
@@ -307,6 +308,32 @@ pub const DELETE_SELF  : usize =  6;
 #[allow(non_camel_case_types)]
 pub type p_void = *mut c_void;
 
+/* For EVO only: new() switches to Extended APDU syntax, drop() switches back to Short APDU syntax */
+pub struct APDUShortExtendedSwitcher(u8);
+
+impl APDUShortExtendedSwitcher {
+    pub fn new(card: &mut sc_card) -> Self {
+//println!("New for APDUShortExtendedSwitcher");
+        if card.type_ == SC_CARD_TYPE_ACOS5_EVO_V4 {
+/* * /
+            card.caps |= SC_CARD_CAP_APDU_EXT;
+/ * */
+        }
+        APDUShortExtendedSwitcher(0)
+    }
+}
+
+impl Drop for APDUShortExtendedSwitcher {
+    fn drop(&mut self) {
+//println!("Drop for APDUShortExtendedSwitcher");
+/* * /
+        if card.type_ == SC_CARD_TYPE_ACOS5_EVO_V4 {
+            card.caps &= !SC_CARD_CAP_APDU_EXT;
+        }
+/ * */
+    }
+}
+
 /* Represents the FCI content, */
 #[derive(Debug, Clone, PartialEq)]
 pub struct FCI {
@@ -320,8 +347,8 @@ pub struct FCI {
     pub sae : Vec<u8>,
     pub seid : u16,
 
-    pub mrl : u8,
-    pub nor : u8,
+    pub mrl : u16,
+    pub nor : u16,
 }
 
 impl Default for FCI {
@@ -347,7 +374,9 @@ impl FCI {
             FCI { fdb, fid, size, lcsi, df_name, scb8, sae, seid, mrl, nor }
         }
     */
-    pub fn new_parsed(fci_bytes_sequence_body: &[u8]) -> Self {
+    #[allow(clippy::match_wild_err_arm)]
+    #[must_use]
+    pub fn new_parsed(card: &sc_card, fci_bytes_sequence_body: &[u8]) -> Self {
         let mut result = FCI::default();
         // let tlv_iter = TLV::new(fci_bytes_sequence_body);
         for tlv in TLV::new(fci_bytes_sequence_body) {
@@ -356,10 +385,16 @@ impl FCI {
                     let len = tlv.length();
                     assert!([1,2,5,6].contains(&len));
                     result.fdb = tlv.value()[0];
-                    if len > 2 {
-                        result.mrl = tlv.value()[3];
-                        result.nor = tlv.value()[usize::from(len)-1];
-                        result.size = u16::from(result.mrl) * u16::from(result.nor);
+                    // TODO adapt for EVO
+                    if len == 6 && card.type_==SC_CARD_TYPE_ACOS5_EVO_V4 {
+                        result.mrl = u16::from_be_bytes([tlv.value()[2], tlv.value()[3]]);
+                        result.nor = u16::from_be_bytes([tlv.value()[4], tlv.value()[5]]);
+                        result.size = result.mrl * result.nor;
+                    }
+                    else if len > 2 {
+                        result.mrl = tlv.value()[3].into();
+                        result.nor = tlv.value()[usize::from(len)-1].into();
+                        result.size = result.mrl * result.nor;
                     }
                 },
                 ISO7816_TAG_FCP_FID => {
@@ -590,7 +625,7 @@ impl Default for CardCtl_generate_crypt_asym {
 /* RSA key pair generation: using this allows specific input from acos5_gui and disabling file creation, while all calls will go via sc_pkcs15init_generate_key, i.e.
    acos5_gui will always call sc_card_ctl(SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT) prior to sc_card_ctl(SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST) */
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(/*Default,*/ Debug, Copy, Clone)]
 pub struct CardCtl_generate_inject_asym {
     pub rsa_pub_exponent : [u8; 16], // IN public exponent
     pub file_id_priv : u16,       // OUT  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5_external.profile,
@@ -733,13 +768,13 @@ pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, Opt
 // File Info originally:  {FDB, DCB, FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI}
 // File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,   LCSI}
 //                              ^ path len actually used
-//                                                     ^ misc.
+//                                                     ^            ^ misc., e.g. SE-file id for MF/DF
 //                                                                               ^ PKCS#15 file type or 0xFF, see PKCS15_FILE_TYPE_*
 #[repr(C)]
 #[derive(/*Debug, Copy,*/ Clone)]
 pub struct DataPrivate { // see settings in acos5_init
     #[cfg(not(target_os = "windows"))]
-    pub pkcs15_definitions : crate::tasn1_sys::asn1_node, // used only as asn1_node_const, except in asn1_delete_structure
+    pub pkcs15_definitions : crate::tasn1_sys::asn1_node, // used only as asn1_node_const, except in acos5_finish: asn1_delete_structure
     pub files : HashMap< KeyTypeFiles, ValueTypeFiles >,
     pub sec_env : sc_security_env, // remember the input of last call to acos5_64_set_security_env; especially algorithm_flags will be required in compute_signature
     pub agc : CardCtl_generate_crypt_asym,  // asym_generate_crypt_data
@@ -761,7 +796,7 @@ pub struct DataPrivate { // see settings in acos5_init
      */
     pub is_running_compute_signature : bool, /* acos5_64_decipher needs to know, whether it was called by acos5_64_compute_signature */
     pub is_running_cmd_long_response : bool,
-    pub rfu_align_pad3 : bool, // was is_unwrap_op_in_progress
+    pub is_cap_apdu_ext_enabled : bool, // was is_unwrap_op_in_progress
     pub rfu_align_pad2 : bool, // reserved future use, just inserted for alignment reason (fill the gap)
     pub sym_key_file_id : u16,
     pub sym_key_rec_idx : u8,
@@ -810,6 +845,7 @@ pub fn is_DFMF(fdb: u8) -> bool
 /// assert_eq!(apdu.resp,    rbuf.as_mut_ptr());
 /// assert_eq!(apdu.resplen, rbuf.len());
 /// ```
+#[must_use]
 pub fn build_apdu(ctx: &mut sc_context, cmd: &[u8], cse: i32, rbuf: &mut [u8]) -> sc_apdu {
     let mut apdu = sc_apdu::default();
     let rv = unsafe { sc_bytes2apdu(ctx, cmd.as_ptr(), cmd.len(), &mut apdu) };
@@ -822,6 +858,7 @@ pub fn build_apdu(ctx: &mut sc_context, cmd: &[u8], cse: i32, rbuf: &mut [u8]) -
     apdu
 }
 
+#[must_use]
 pub fn is_child_of(child: &ValueTypeFiles, parent: &ValueTypeFiles) -> bool {
     let pos = usize::from(parent.1[1]);
     assert!(pos < 16);
@@ -839,6 +876,7 @@ pub fn file_id_from_path_value(path_value: &[u8]) -> u16
     u16::from_be_bytes([path_value[len-2], path_value[len-1]])
 }
 
+#[must_use]
 pub fn file_id(file_info_bytes: [u8; 8]) ->u16 {
     u16::from_be_bytes([file_info_bytes[2], file_info_bytes[3]])
 }
@@ -848,6 +886,7 @@ pub fn file_id(file_info_bytes: [u8; 8]) ->u16 {
  for DF/MF its the id of an SE file
  for non-record based file types its the file size
 */
+#[must_use]
 pub fn file_id_se(file_info_bytes: [u8; 8]) ->u16 {
     u16::from_be_bytes([file_info_bytes[4], file_info_bytes[5]])
 }
@@ -886,7 +925,7 @@ pub fn file_id_se(file_info_bytes: [u8; 8]) ->u16 {
 pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Result<[u8; 8], i32>
 {
     let mut scb8 = [0_u8; 8]; // if AM has no 1 bit for a command/operation, then it's : always allowed
-    scb8[7] = 0xFF; // though not expected to be accidentally set, it get's overridden to NEVER: it's not used by ACOS
+    scb8[7] = 0xFF; // though not expected to be accidentally set, it gets overridden to NEVER: it's not used by ACOS
 
     if bytes_tag_fcp_sac.is_empty() {
         return Ok(scb8);

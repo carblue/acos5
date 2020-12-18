@@ -4,7 +4,7 @@
 
 Driver for Advanced Card Systems (ACS)  ACOS5 Smart Card V2.00 (CryptoMate64) and V3.00 (CryptoMate Nano),  
 as external modules operating within the OpenSC framework.  
-The new ACOS5-EVO (ACOS5 V4.00, V4.10, V4.20?): No support for the time being.  
+The new ACOS5-EVO (ACOS5 V4.00, V4.10, V4.20?): No support for the time being. Thats promising, the first major, real improvement of ACOS5 Smart Card V2.00.  
 The respective reference manual for Your hardware is available on request from: info@acs.com.hk
 
 Platforns supported: Those that the Rust compiler targets: [rustc platform-support](https://doc.rust-lang.org/nightly/rustc/platform-support.html "https://doc.rust-lang.org/nightly/rustc/platform-support.html").  

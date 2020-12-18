@@ -29,6 +29,8 @@
 
   As soon as Rust allows it, turn the function into a pub const
  */
+#![allow(clippy::unreadable_literal)]
+
 use crate::tasn1_sys::{asn1_static_node};
 
 #[allow(dead_code)]

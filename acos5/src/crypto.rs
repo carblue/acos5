@@ -317,6 +317,17 @@ mod tests {
         //println!("{:?}", std::str::from_utf8(&d).unwrap());
     }
 */
+
+    #[test]
+    fn test_multiple() {
+        assert_eq!(16, 22.prev_multiple_of(&8)); // equivalent: (integral_number / integral_step_size) * integral_step_size
+        assert_eq!(24, 22.next_multiple_of(&8)); // if integral_number % integral_step_size == 0 {integral_number}
+                                                       // else { (integral_number / integral_step_size +1) * integral_step_size }
+
+        assert_eq!(24, 24.prev_multiple_of(&8)); // no selection of smaller multiple !!
+        assert_eq!(24, 24.next_multiple_of(&8)); // no selection of larger  multiple !!
+    }
+
     #[test]
     fn test_des_ecb3_unpadded_8() {
         let data = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38];

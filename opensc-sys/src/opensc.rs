@@ -1217,12 +1217,12 @@ pub struct sc_card_operations {
     pub unwrap : Option< unsafe extern "C" fn (card: *mut sc_card, crgram: *const u8, crgram_len: usize) -> i32 >,
 
     #[cfg(sym_hw_encrypt)]
-    pub encrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, plaintext: *const u8, plaintext_len: usize,
-                                                    out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32) -> i32 >,
+    pub encrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, plaintext: *const u8, plaintext_len: usize, out: *mut u8, outlen: usize,
+                                                    algorithm: u32, algorithm_flags: u32, key_ref: *const [u8; 8]) -> i32 >,
 
     #[cfg(sym_hw_encrypt)]
-    pub decrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, crgram: *const u8, crgram_len: usize,
-                                                    out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32) -> i32 >,
+    pub decrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, crgram: *const u8, crgram_len: usize, out: *mut u8, outlen: usize,
+                                                    algorithm: u32, algorithm_flags: u32, key_ref: *const [u8; 8]) -> i32 >,
 }
 
 #[repr(C)]
@@ -1956,10 +1956,12 @@ pub fn sc_build_pin(buf: *mut u8, buflen: usize, pin: *mut sc_pin_cmd_pin, pad: 
 
 #[cfg(sym_hw_encrypt)]
 pub fn sc_encrypt_sym(card: *mut sc_card, plaintext: *const u8, plaintext_len: usize,
-    out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32) -> i32;
+    out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32,
+    key_ref: *const [u8; 8]) -> i32;
 #[cfg(sym_hw_encrypt)]
 pub fn sc_decrypt_sym(card: *mut sc_card, crgram: *const u8, crgram_len: usize,
-    out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32) -> i32;
+    out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32,
+    key_ref: *const [u8; 8]) -> i32;
 
 /********************************************************************/
 /*               ISO 7816-9 related functions                       */

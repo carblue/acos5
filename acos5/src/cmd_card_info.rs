@@ -147,7 +147,7 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
 ///
 /// # Errors
 #[allow(clippy::missing_errors_doc)]
-pub fn get_file_info(card: &mut sc_card, reference: u8) -> Result<[u8; 8], i32>
+pub fn get_file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> Result<[u8; 8], i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -308,19 +308,26 @@ pub fn get_op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 9, 0], SC_APDU_CASE_1, &mut[]);
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
-    rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
-    /* the reference manuals say: the response status word is 0x95NN, but actually it's 0x90NN for V3.00 */
-    if rv == SC_SUCCESS && (apdu.sw2 == 0 || apdu.sw2 == 1 || apdu.sw2 == 2 || apdu.sw2 == 16) {
-        /*  for SC_CARD_TYPE_ACOS5_64_V3: apdu.sw2:
-             0: FIPS 140-2 Level 3–Compliant Mode
+    let /*mut*/ rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+//    rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+    /* the reference manuals says: the response status word is 0x95NN, but actually for V2.00 and V3.00 it's 0x90NN */
+    if rv == SC_SUCCESS && (
+        (card.type_ == SC_CARD_TYPE_ACOS5_64_V3 && [0,1, 2,16].contains(&apdu.sw2)) ||
+        (card.type_ != SC_CARD_TYPE_ACOS5_64_V3 && [0,1].contains(&apdu.sw2)) )  {
+        /*
+            for SC_CARD_TYPE_ACOS5_EVO_V4: apdu.sw2:
+             0: 64K Mode (Non-FIPS)                (factory default) RECOMMENDED FOR THIS DRIVER !!!
              1: Emulated 32K Mode
-             2: 64K Mode
-            16: NSH-1 Mode
+
+            for SC_CARD_TYPE_ACOS5_64_V3: apdu.sw2:
+             0: FIPS 140-2 Level 3–Compliant Mode  (factory default)
+             1: Emulated 32K Mode
+             2: 64K Mode (Non-FIPS)                                  RECOMMENDED FOR THIS DRIVER !!!
+            16: NSH-1 Mode  the reference manual tells nothing about what is special with this mode
 
             for SC_CARD_TYPE_ACOS5_EVO_V4: apdu.sw2:
              0: FIPS 140-2 Level 3–Compliant Mode
-             1: Default Mode (Non-FIPS)
+             1: Default Mode (Non-FIPS)            (factory default) RECOMMENDED FOR THIS DRIVER !!!
         */
         Ok(u8::try_from(apdu.sw2).unwrap())
     }
