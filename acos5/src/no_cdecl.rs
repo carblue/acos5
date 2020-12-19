@@ -1732,7 +1732,7 @@ fn trailing_blockcipher_padding_get_length(
             let pad_byte = last_block_values[last_block_values.len()-1];
             let mut cnt = 1_u8;
             for (i, &b) in last_block_values[..usize::from(block_size-1)].iter().rev().enumerate() {
-                if b==pad_byte && i+1<usize::from(pad_byte) { cnt += 1 }
+                if b==pad_byte && i+1 < usize::from(pad_byte) { cnt += 1 }
                 else {break}
             }
             if cnt != pad_byte {return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG)}
@@ -1932,12 +1932,7 @@ fn vecu8_from_file(path_ptr: *const c_char) -> std::io::Result<Vec<u8>>
     fs::read(path_str)
 }
 
-
 /*
-fn do_workaround() {
-
-}
-
 7.4.3.6.  Symmetric Key Encrypt does    work with chaining for CryptoMate64;                               CryptoMate Nano say's, it doesn't support chaining
 7.4.3.7.  Symmetric Key Decrypt doesn't work with chaining for CryptoMate64, though it should per ref.man; CryptoMate Nano say's, it doesn't support chaining
 if inData is not a multiple of blockSize, then addPadding80 will be done and outData must be able to receive that
@@ -1946,6 +1941,11 @@ if inData is not a multiple of blockSize, then addPadding80 will be done and out
 /* Acc to ref. manual, V2.00 uses chaining, while V3.00 does not !
 https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Cipher_Block_Chaining_(CBC)
 
+*/
+/*
+TODO as of 2020-12-19: The input method `inbuf` (for OpenSC) got tested to be working correctly, for both CryptoMate64 and CryptoMate Nano
+including for messages > max_send_size
+but the other input methods `infile` and `indata` (for acos5_gui) still need to be checked !
 */
 #[allow(non_snake_case)]
 #[allow(clippy::too_many_lines)]
@@ -1969,12 +1969,24 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     }
     else if !crypt_sym.inbuf.is_null() {
         vec_in.extend_from_slice(unsafe { from_raw_parts(crypt_sym.inbuf, crypt_sym.indata_len) });
-        debug_assert_eq!(crypt_sym.indata_len, vec_in.len());
-        Len1 = crypt_sym.indata_len;
+        let len = vec_in.len();
+        assert!(len >= crypt_sym.block_size.into());
+        debug_assert_eq!(crypt_sym.indata_len, len);
+        if !crypt_sym.encrypt || ((crypt_sym.algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) > 0) {
+            Len1 = crypt_sym.indata_len; // for ECB and CBC this is Len2 ! Len1 is not known
+        }
+        else {
+            Len1 = crypt_sym.indata_len.saturating_sub(
+            usize:: from(trailing_blockcipher_padding_get_length(
+                crypt_sym.block_size,
+                crypt_sym.pad_type,
+                &vec_in[len.saturating_sub(crypt_sym.block_size.into()) .. len]
+            ).unwrap() ) );// -> Result<u8,i32>
+        }
         if crypt_sym.encrypt && (crypt_sym.algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) > 0 {
             debug_assert_eq!(BLOCKCIPHER_PAD_TYPE_PKCS7, crypt_sym.pad_type);
             vec_in.extend_from_slice(&trailing_blockcipher_padding_calculate(crypt_sym.block_size, crypt_sym.pad_type,
-                u8::try_from(vec_in.len()-vec_in.len().prev_multiple_of(&block_size)).unwrap()) );
+                u8::try_from(len-len.prev_multiple_of(&block_size)).unwrap()) );
 //println!("acos5_encrypt_sym {:02X?}", vec_in.as_slice());
         }
         indata_len = vec_in.len();
@@ -2133,11 +2145,6 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
                 }
             }
         }
-        // else if condition_weak {
-        // #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-        // {
-        //     do_workaround();
-        // }}
 
         if !crypt_sym.cbc || Len2-cnt <= max_send || condition_weak { apdu.cla = 0 }
         // if cnt < Len0 {

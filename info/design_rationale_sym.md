@@ -98,6 +98,9 @@ the latter is special: A card driver that declares to support SC_ALGORITHM_AES_C
 So the card driver functions implementing sc_card_operations:encrypt_sym/decrypt_sym must receive the parameter sc_security_env:algorithm_flags (and I added param. algorithm for future use, for possibly other algorithms to be added later)  
 Except for codeline  r = card_command(...  use_key/use_key_sym are identical. I don't know C well enough to avoid this code duplication, the difference is the function signature of 'card_command' being called. Any ideas?
 
+Also, there is sym.key file selection which is not required for ACOS5. That only needs to be select-located within the enclosing DF (then ACOS5 implicitely knows it's local sym.key file (iEF record-based)).
+
+
 9. The impl. works as expected (at least for me), but needs more testing and care for error conditions (a little bit disregarded so far).
 
 

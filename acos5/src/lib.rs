@@ -3425,8 +3425,8 @@ extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, pl
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     log3ifc!(ctx,cstru!(b"acos5_encrypt_sym\0"),line!());
-// println!("acos5_encrypt_sym input: algorithm: {:02X}, algorithm_flags: {:02X}, plaintext_len: {}, plaintext_len: {:02X?}",
-// algorithm, algorithm_flags, plaintext_len, unsafe { from_raw_parts(plaintext, plaintext_len) });
+//println!("acos5_encrypt_sym input: algorithm: {:02X}, algorithm_flags: {:02X}, key_ref[0]: {:02X}, plaintext_len: {}, plaintext: {:02X?}",
+//algorithm, algorithm_flags, unsafe{ (*_key_ref)[0] }, plaintext_len, unsafe { from_raw_parts(plaintext, plaintext_len) });
     // temporarily route via sym_en_decrypt
     let mut crypt_sym_data = CardCtl_crypt_sym {
         inbuf        : plaintext,
@@ -3440,9 +3440,7 @@ extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, pl
         encrypt      : true,
         .. CardCtl_crypt_sym::default()
     };
-    // sym_en_decrypt(card,  &mut crypt_sym_data)
-    let rv = sym_en_decrypt(card,  &mut crypt_sym_data);
-    if algorithm_flags!=SC_ALGORITHM_AES_CBC_PAD {i32::try_from(plaintext_len).unwrap()} else {rv}
+    sym_en_decrypt(card,  &mut crypt_sym_data)
 }
 
 
@@ -3458,8 +3456,8 @@ extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, crgram: *const u8, crgra
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     log3ifc!(ctx,cstru!(b"acos5_decrypt_sym\0"),line!());
-// println!("acos5_decrypt_sym input: algorithm: {:02X}, algorithm_flags: {:02X}, crgram_len: {}, crgram: {:02X?}",
-// algorithm, algorithm_flags, crgram_len, unsafe { from_raw_parts(crgram, crgram_len) });
+//println!("acos5_decrypt_sym input: algorithm: {:02X}, algorithm_flags: {:02X}, key_ref[0]: {:02X}, crgram_len: {}, crgram: {:02X?}",
+//algorithm, algorithm_flags, unsafe{ (*key_ref)[0] }, crgram_len, unsafe { from_raw_parts(crgram, crgram_len) });
     // temporarily route via sym_en_decrypt
     let mut crypt_sym_data = CardCtl_crypt_sym {
         inbuf        : crgram,
