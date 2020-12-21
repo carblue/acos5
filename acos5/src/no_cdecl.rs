@@ -96,7 +96,7 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
                              GuardFile, SC_CARD_TYPE_ACOS5_EVO_V4, NAME_V4, ATR_V4_1F, //, ATR_V4, ATR_V4_1C
                              file_id_from_path_value, file_id_se,
                              CRT_TAG_HT, CRT_TAG_CCT, CRT_TAG_DST, CRT_TAG_CT,
-                             SC_SEC_OPERATION_GENERATE_ECCPRIVATE //, APDUShortExtendedSwitcher
+                             SC_SEC_OPERATION_GENERATE_ECCPRIVATE, SC_SEC_OPERATION_GENERATE_ECCPUBLIC //, APDUShortExtendedSwitcher
 };
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, current_path_df, is_impossible_file_match};
@@ -1520,9 +1520,9 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
 
     if data.perform_mse {
         let mut senv = sc_security_env {
-            operation: SC_SEC_OPERATION_GENERATE_RSAPRIVATE,
+            operation: if data.key_curve_code==0 {SC_SEC_OPERATION_GENERATE_RSAPRIVATE} else {SC_SEC_OPERATION_GENERATE_ECCPRIVATE},
             flags    : SC_SEC_ENV_ALG_PRESENT | SC_SEC_ENV_FILE_REF_PRESENT,
-            algorithm: SC_ALGORITHM_RSA,
+            algorithm: if data.key_curve_code==0 {SC_ALGORITHM_RSA} else {SC_ALGORITHM_EC},
             file_ref: sc_path { len: 2, ..sc_path::default() }, // file_ref.value[0..2] = fidRSAprivate.getub2;
             ..sc_security_env::default()
         };
@@ -1534,9 +1534,9 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
         }
 
         let mut senv = sc_security_env {
-            operation: SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
+            operation: if data.key_curve_code==0 {SC_SEC_OPERATION_GENERATE_RSAPUBLIC} else {SC_SEC_OPERATION_GENERATE_ECCPUBLIC},
             flags    : SC_SEC_ENV_ALG_PRESENT | SC_SEC_ENV_FILE_REF_PRESENT,
-            algorithm: SC_ALGORITHM_RSA,
+            algorithm: if data.key_curve_code==0 {SC_ALGORITHM_RSA} else {SC_ALGORITHM_EC},
             file_ref: sc_path { len: 2, ..sc_path::default() }, // file_ref.value[0..2] = fidRSApublic.getub2;
             ..sc_security_env::default()
         };
@@ -1547,13 +1547,23 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym)
             return rv;
         }
     }
-    let mut command = [0_u8, 0x46, 0,0,18, data.key_len_code, data.key_priv_type_code, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
-    if data.do_generate_with_standard_rsa_pub_exponent { command[4] = 2; }
-    else { command[7..23].copy_from_slice(&data.rsa_pub_exponent); }
-    let mut apdu = build_apdu(ctx, &command[.. command.len() - if data.do_generate_with_standard_rsa_pub_exponent {16} else {0}], SC_APDU_CASE_3_SHORT, &mut[]);
+
+    if data.key_curve_code==0 {
+        let mut command = [0_u8, 0x46, 0,0,18, data.key_len_code, data.key_priv_type_code, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+        if data.do_generate_with_standard_rsa_pub_exponent { command[4] = 2; }
+        else { command[7..23].copy_from_slice(&data.rsa_pub_exponent); }
+        let mut apdu = build_apdu(ctx, &command[.. command.len() - if data.do_generate_with_standard_rsa_pub_exponent {16} else {0}], SC_APDU_CASE_3_SHORT, &mut[]);
 //log3if!(ctx,f,line!(), cstru!(b"%s\0"), unsafe {sc_dump_hex(command.as_ptr(), 7)});
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
-    rv = unsafe { sc_check_apdu(card, &apdu) };
+        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+        rv = unsafe { sc_check_apdu(card, &apdu) };
+    }
+    else {
+        let command = [0_u8, 0x46, 0,0,1, data.key_curve_code];
+        let mut apdu = build_apdu(ctx, &command[.. command.len()], SC_APDU_CASE_3_SHORT, &mut[]);
+//log3if!(ctx,f,line!(), cstru!(b"%s\0"), unsafe {sc_dump_hex(command.as_ptr(), 7)});
+        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+        rv = unsafe { sc_check_apdu(card, &apdu) };
+    }
     rv
 }
 

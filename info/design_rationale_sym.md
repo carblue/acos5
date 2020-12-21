@@ -148,7 +148,7 @@ $ pkcs11-tool --test --login --pin ********
   The original plaintext length is set to 481; /* cards with short APDU syntax should prove correct chaining handling with >= 240 */  
   That's where my acos5_external driver did fail, solved now:
   It turned out, that my ACOS5 V2.00 hardware claims to be capable of sym. decrypt, CBC in **chaining mode**, but actually it's not, and
-  ACOS5 V3.00 doesn't even claim that capability, so my driver needs to workaroung and call sc_set_security_env from within card->ops->decrypt_sym.
+  ACOS5 V3.00 doesn't even claim that capability, so my driver needs to workaround and call sc_set_security_env from within card->ops->decrypt_sym.
   Thus `decrypt_sym` needs one more parameter from struct sc_security_env: field key_ref.
 
   Option --decrypt_sym --input file          to be added by someone ?  

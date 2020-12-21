@@ -204,17 +204,18 @@ pub fn get_free_space(card: &mut sc_card) -> Result<u32, i32>
 ///
 /// # Errors
 #[allow(clippy::missing_errors_doc)]
-pub fn get_is_ident_self_okay(card: &mut sc_card) -> Result<bool, i32> // get_ident_self
+pub fn get_is_ident_self_okay(card: &mut sc_card, candidate_card_type: i32) -> Result<bool, i32> // get_ident_self
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
     let f = cstru!(b"get_is_ident_self_okay\0");
     log3ifc!(ctx,f,line!());
 
+    let card_type: i32 = if candidate_card_type !=0 {candidate_card_type} else {card.type_};
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 5, 0], SC_APDU_CASE_1, &mut[]);
     let rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
-    if apdu.sw1 == 0x95 && (card.type_>  SC_CARD_TYPE_ACOS5_64_V3 && apdu.sw2 == 0xC0 ||
-                            card.type_<= SC_CARD_TYPE_ACOS5_64_V3 && apdu.sw2 == 0x40) {
+    if apdu.sw1 == 0x95 && (card_type>  SC_CARD_TYPE_ACOS5_64_V3 && apdu.sw2 == 0xC0 ||
+                            card_type<= SC_CARD_TYPE_ACOS5_64_V3 && apdu.sw2 == 0x40) {
         Ok(true)
     }
     else {

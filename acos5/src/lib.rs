@@ -168,7 +168,7 @@ use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEAN
                       SC_CARDCTL_ACOS5_SDO_CREATE, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES,
                       SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET,
                       SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET, SC_CARD_TYPE_ACOS5_64_V2,
-                      SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_BASE, SC_CARD_TYPE_ACOS5_EVO_V4,
+                      SC_CARD_TYPE_ACOS5_64_V3/*, SC_CARD_TYPE_ACOS5_BASE*/, SC_CARD_TYPE_ACOS5_EVO_V4,
                       /*SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, */ // SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, // SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
@@ -269,7 +269,7 @@ mod   test_v2_v3;
 pub extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = unsafe { sc_get_version() };
     if cfg!(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))  { version_ptr }
-    else if cfg!(v0_22_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered: f443c39 ; sym_hw_encrypt: fd226cf
+    else if cfg!(v0_22_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered: f443c39 ; sym_hw_encrypt: 39b281f
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -502,7 +502,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
     }
 
     /* check for 'Identity Self' */
-    match get_is_ident_self_okay(card) {
+    match get_is_ident_self_okay(card, type_out) {
         Ok(val) => if !val { return 0; },
         Err(_e) => { return 0; },
     };
@@ -517,11 +517,12 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
     //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x02, 0x00,  0x40]  Cryptomate64  b"ACOS___@"
     //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x03, 0x01,  0x40]  CryptoMate Nano in op mode 64 K
     //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x03, 0x00,  0x40]  CryptoMate Nano in op mode FIPS
-    if rbuf_card_os_version[..5] != [0x41, 0x43, 0x4F, 0x53, 0x05] /*|| rbuf_card_os_version[7] != 0x40*/  ||
-        SC_CARD_TYPE_ACOS5_BASE + i32::from(rbuf_card_os_version[5]) != type_out {
+    if rbuf_card_os_version[..5] != [0x41, 0x43, 0x4F, 0x53, 0x05] { /*|| rbuf_card_os_version[7] != 0x40*/ // ||
+        // SC_CARD_TYPE_ACOS5_BASE + i32::from(rbuf_card_os_version[5]) != type_out {
         log3if!(ctx,f,line!(), cstru!(b"Card doesn't match: ACOS5 'Card OS Version'-check failed\0"));
         return 0;
     }
+
     /*  //optional checks
     match type_out {
         /* rbuf_card_os_version[5] is the major version */
@@ -1269,7 +1270,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_GET_IDENT_SELF =>
             {
                 let rm_is_hw_acos5 = unsafe { &mut *(data_ptr as *mut bool) };
-                *rm_is_hw_acos5 = match get_is_ident_self_okay(card) {
+                *rm_is_hw_acos5 = match get_is_ident_self_okay(card, 0) {
                     Ok(val) => val,
                     Err(e) => return e,
                 };
@@ -2589,6 +2590,7 @@ Tokenunfo
     {
         assert!(env_ref.file_ref.len >= 2);
         let path_idx = env_ref.file_ref.len - 2;
+
         let algo = algo_ref_mse_sedo(card.type_,
             if env_ref.algorithm==SC_ALGORITHM_RSA {SC_SEC_OPERATION_GENERATE_RSAPRIVATE}
             else {SC_SEC_OPERATION_GENERATE_ECCPRIVATE}, CRT_TAG_DST,

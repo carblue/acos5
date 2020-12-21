@@ -112,7 +112,7 @@ use opensc_sys::pkcs15::{sc_pkcs15_card, sc_pkcs15_object, sc_pkcs15_prkey, sc_p
                          SC_PKCS15_TYPE_PRKEY_RSA, SC_PKCS15_TYPE_PUBKEY_RSA, sc_pkcs15_auth_info, //sc_pkcs15_id,
                          SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_SKDF, SC_PKCS15_CDF, SC_PKCS15_CDF_TRUSTED,
                          SC_PKCS15_DODF, sc_pkcs15_read_pubkey, sc_pkcs15_free_pubkey, sc_pkcs15_der,
-                         SC_PKCS15_PRKEY_ACCESS_EXTRACTABLE,
+                         SC_PKCS15_PRKEY_ACCESS_EXTRACTABLE, SC_PKCS15_TYPE_PUBKEY_EC,
                          SC_PKCS15_PRKEY_USAGE_SIGN, SC_PKCS15_PRKEY_USAGE_DECRYPT, SC_PKCS15_TYPE_CLASS_MASK, SC_PKCS15_TYPE_SKEY,
                          SC_PKCS15_PRKEY_ACCESS_SENSITIVE, SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE, SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE, SC_PKCS15_PRKEY_ACCESS_LOCAL
 };
@@ -138,7 +138,8 @@ pub mod    macros;
 pub mod    constants_types; // shared file among modules acos5, acos5_pkcs15 and acos5_sm
 use crate::constants_types::{CARD_DRV_SHORT_NAME, CardCtl_generate_crypt_asym, DataPrivate, SC_CARDCTL_ACOS5_SDO_CREATE,
                              SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, SC_CARD_TYPE_ACOS5_64_V3, build_apdu, p_void,
-                             SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile, file_id_from_path_value};
+                             SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile, file_id_from_path_value,
+                             SC_CARD_TYPE_ACOS5_EVO_V4};
 
 pub mod    missing_exports; // this is NOT the same as in acos5
 use crate::missing_exports::{me_profile_get_file, me_pkcs15_dup_bignum/*, my_file_dup*/};
@@ -817,6 +818,13 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
     dp.agc.file_id_pub  = u16::try_from(file_pub.id).unwrap();
     dp.agc.key_len_code = u8::try_from(keybits / 128).unwrap();
 
+    dp.agc.key_curve_code = match key_info.field_length {
+        224 => if card.type_ < SC_CARD_TYPE_ACOS5_EVO_V4 {0} else {1},
+        256 => if card.type_ < SC_CARD_TYPE_ACOS5_EVO_V4 {0} else {2},
+        384 => if card.type_ < SC_CARD_TYPE_ACOS5_EVO_V4 {0} else {3},
+        521 => if card.type_ < SC_CARD_TYPE_ACOS5_EVO_V4 {0} else {4},
+        _   => 0,
+    };
     dp.agc.key_priv_type_code = match key_info.usage & BOTH {
         SC_PKCS15_PRKEY_USAGE_SIGN => 1,
         SC_PKCS15_PRKEY_USAGE_DECRYPT => 2,
@@ -965,10 +973,10 @@ extern "C" fn acos5_pkcs15_store_key(profile_ptr: *mut sc_profile, p15card_ptr: 
  *
  */
 extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
-                                               p15card_ptr: *mut sc_pkcs15_card,
-                                               p15object_ptr: *mut sc_pkcs15_object,
-                                               p15pubkey_ptr: *mut sc_pkcs15_pubkey) -> i32
-{ // TODO must handle create RSA key pair  And  generate sym. key !!!!!!
+                                        p15card_ptr: *mut sc_pkcs15_card,
+                                        p15object_ptr: *mut sc_pkcs15_object,
+                                        p15pubkey_ptr: *mut sc_pkcs15_pubkey) -> i32
+{ // TODO must handle create RSA key pair  And  generate ECC key pair
     if profile_ptr.is_null() || p15card_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null() || (*(*p15card_ptr).card).ctx.is_null() } ||
        p15object_ptr.is_null() || unsafe { (*p15object_ptr).data.is_null() } || p15pubkey_ptr.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
@@ -984,7 +992,9 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     let f  = cstru!(b"acos5_pkcs15_generate_key\0");
     log3ifc!(ctx,f,line!());
 
-    if SC_PKCS15_TYPE_PRKEY_RSA != object_priv.type_ {
+    if   SC_PKCS15_TYPE_PRKEY_RSA != object_priv.type_ &&
+        (SC_PKCS15_TYPE_PRKEY_EC  != object_priv.type_ || card.type_ != SC_CARD_TYPE_ACOS5_EVO_V4)
+    {
         log3if!(ctx,f,line!(), cstru!(b"Failed: Only RSA is supported\0"));
         return SC_ERROR_NOT_SUPPORTED;
     }
@@ -993,7 +1003,7 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     let mut agc = dp.agc;
 //    let is_key_pair_created_and_valid_for_generation = dp.agc.is_key_pair_created_and_valid_for_generation;
     let dp_files_value_ref = &dp.files[&dp.agc.file_id_pub];
-    let path_pub = sc_path { type_: SC_PATH_TYPE_PATH, value: dp_files_value_ref.0, len: dp_files_value_ref.1[1] as usize, ..sc_path::default()};
+    let path_pub = sc_path { type_: SC_PATH_TYPE_PATH, value: dp_files_value_ref.0, len: dp_files_value_ref.1[1].into(), ..sc_path::default()};
 /*
     log3if!(ctx,f,line!(), cstru!(b"key_info_priv.id: %s\0"), unsafe { sc_dump_hex(key_info_priv.id.value.as_ptr(), key_info_priv.id.len) });
     log3if!(ctx,f,line!(), cstru!(b"key_info_priv.usage: 0x%X\0"), key_info_priv.usage);
@@ -1015,7 +1025,8 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     log3if!(ctx,f,line!(), cstru!(b"p15pubkey.algorithm: 0x%X\0"), p15pubkey.algorithm);
     log3if!(ctx,f,line!(), cstru!(b"p15pubkey.alg_id:    %p\0"), p15pubkey.alg_id);
 */
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
 /*
     if !is_key_pair_created_and_valid_for_generation {
         rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
@@ -1026,28 +1037,36 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     //gen_keypair; the data get prepared in acos5_pkcs15_create_key
     rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, &mut agc as *mut CardCtl_generate_crypt_asym as p_void) };
     if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), cstru!(b"command 'Generate RSA Key Pair' failed\0"), rv);
+        log3ifr!(ctx,f,line!(), cstru!(b"command 'Generate Key Pair' failed\0"), rv);
         return rv;
     }
 
-    let mut key_info_pub = sc_pkcs15_pubkey_info { modulus_length: key_info_priv.modulus_length, path: path_pub, ..sc_pkcs15_pubkey_info::default() };
-    let object_pub = sc_pkcs15_object { type_: SC_PKCS15_TYPE_PUBKEY_RSA, data: &mut key_info_pub as
-        *mut sc_pkcs15_pubkey_info as p_void,  ..sc_pkcs15_object::default() };
+    let mut key_info_pub = sc_pkcs15_pubkey_info { path: path_pub, ..sc_pkcs15_pubkey_info::default() };
+    if agc.key_curve_code == 0 {
+        key_info_pub.modulus_length = key_info_priv.modulus_length;
+    }
+    else {
+        key_info_pub.field_length = key_info_priv.field_length;   /* EC in bits */
+    }
+    let object_pub = sc_pkcs15_object { type_:  if agc.key_curve_code == 0 {SC_PKCS15_TYPE_PUBKEY_RSA} else {SC_PKCS15_TYPE_PUBKEY_EC},
+        data: &mut key_info_pub as *mut sc_pkcs15_pubkey_info as p_void,  ..sc_pkcs15_object::default() };
     let mut p15pubkey2_ptr = null_mut();
     rv = unsafe { sc_pkcs15_read_pubkey(p15card_ptr, &object_pub, &mut p15pubkey2_ptr) };
     if rv != SC_SUCCESS {
         log3ifr!(ctx,f,line!(), cstru!(b"sc_pkcs15_read_pubkey failed\0"), rv);
-        return rv;
+        return rv
     }
     assert!(!p15pubkey2_ptr.is_null());
     unsafe {
         p15pubkey.algorithm = (*p15pubkey2_ptr).algorithm;
-        rv = me_pkcs15_dup_bignum(&mut p15pubkey.u.rsa.modulus,  &(*p15pubkey2_ptr).u.rsa.modulus);
-        if rv != SC_SUCCESS { return rv; }
-        rv = me_pkcs15_dup_bignum(&mut p15pubkey.u.rsa.exponent, &(*p15pubkey2_ptr).u.rsa.exponent);
-        if rv != SC_SUCCESS { return rv; }
+        if agc.key_curve_code == 0 {
+            rv = me_pkcs15_dup_bignum(&mut p15pubkey.u.rsa.modulus,  &(*p15pubkey2_ptr).u.rsa.modulus);
+            if rv != SC_SUCCESS { return rv; }
+            rv = me_pkcs15_dup_bignum(&mut p15pubkey.u.rsa.exponent, &(*p15pubkey2_ptr).u.rsa.exponent);
+            if rv != SC_SUCCESS { return rv; }
+        }
         sc_pkcs15_free_pubkey(p15pubkey2_ptr);
-    };
+    }
 
     rv = SC_SUCCESS;
     log3ifr!(ctx,f,line!(), rv);

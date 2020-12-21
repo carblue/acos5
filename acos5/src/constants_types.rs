@@ -589,6 +589,7 @@ pub struct CardCtl_generate_crypt_asym {
     pub file_id_pub  : u16,       // IN  if both are !=0, then the given values are preferred
     pub key_len_code : u8,   // cos5 specific encoding for modulus length: key_len_code*128==modulus length canonical in bits (canonical means neglecting that possibly some MSB are not set to 1)
     pub key_priv_type_code : u8,  // as required by cos5 Generate RSA Key Pair: allowed key-usage and standard/CRT format qualification
+    pub key_curve_code : u8,      // if !=0 then ECC; MAKE shurethis can only be set to != 0 by EVO only !!! required by cos5 Generate ECC Key Pair: Indicates which NIST recommended elliptic curves over prime fields to use in generating the key pair
 
     pub do_generate_rsa_crt : bool,         // whether RSA private key file shall be generated in ChineseRemainderTheorem-style
     pub do_generate_rsa_add_decrypt_for_sign : bool, // whether RSA private key file shall be generated adding decrypt capability iff sign is requested
@@ -611,9 +612,11 @@ impl Default for CardCtl_generate_crypt_asym {
             key_len_code: 0,
             key_priv_type_code: 0,
 
+            key_curve_code: 0, // -> RSA is selected !!!
+
             do_generate_rsa_crt: false,         // whether RSA private key file shall be generated in ChineseRemainderTheorem-style
             do_generate_rsa_add_decrypt_for_sign: false, // whether RSA private key file shall be generated adding decrypt iff sign is requested
-            do_generate_with_standard_rsa_pub_exponent: false, // whether RSA key pair will contain the "standard" public exponent e=0x010001==65537; otherwise the user supplied 16 byte exponent will be used
+            do_generate_with_standard_rsa_pub_exponent: true, // whether RSA key pair will contain the "standard" public exponent e=0x010001==65537; otherwise the user supplied 16 byte exponent will be used
                                                                // true: the standard exponent 0x10001 will be used
             do_create_files: true, // if this is set to true, then the files MUST exist and set in file_id_priv and file_id_pub
 //            is_key_pair_created_and_valid_for_generation: false,
@@ -644,7 +647,7 @@ impl Default for CardCtl_generate_inject_asym {
             file_id_pub: 0,
             do_generate_rsa_crt: false,
             do_generate_rsa_add_decrypt_for_sign: false,
-            do_generate_with_standard_rsa_pub_exponent: false,
+            do_generate_with_standard_rsa_pub_exponent: true,
             do_create_files: true,
         }
     }
@@ -777,7 +780,7 @@ pub struct DataPrivate { // see settings in acos5_init
     pub pkcs15_definitions : crate::tasn1_sys::asn1_node, // used only as asn1_node_const, except in acos5_finish: asn1_delete_structure
     pub files : HashMap< KeyTypeFiles, ValueTypeFiles >,
     pub sec_env : sc_security_env, // remember the input of last call to acos5_64_set_security_env; especially algorithm_flags will be required in compute_signature
-    pub agc : CardCtl_generate_crypt_asym,  // asym_generate_crypt_data
+    pub agc : CardCtl_generate_crypt_asym,  // generate_asym, encrypt_asym
     pub agi : CardCtl_generate_inject_asym, // asym_generate_inject_data
 //  pub sec_env_algo_flags : u32, // remember the padding scheme etc. selected for RSA; required in acos5_64_set_security_env
     pub time_stamp : std::time::Instant,
