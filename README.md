@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/carblue/acos5.svg?branch=master)](https://travis-ci.org/carblue/acos5)
 
-This project `acos5` gets supported by the JetBrain's Open Source Support Program.
+This project `acos5` gets supported by the JetBrain Open Source Support Program.
 [![alt text](jetbrains.png "I'm using and can gladly recommend CLion (+ Rust plugin)")](https://www.jetbrains.com/?from=acos5)
 
 # acos5
@@ -36,7 +36,7 @@ Mandatory:
 - [Libtasn1](https://www.gnu.org/software/libtasn1/ "https://www.gnu.org/software/libtasn1/") only for non-Windows (*nix) OS  
 
 Recommended:  
-- [pcsc-tools](http://ludovic.rousseau.free.fr/softwares/pcsc-tools/ "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/"), provides scriptor for card initialization, see [info/card_initialization/README.md](https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md "https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md")
+- [pcsc-tools](http://ludovic.rousseau.free.fr/softwares/pcsc-tools/ "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/"), provides `scriptor` for card initialization, see [info/card_initialization/README.md](https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md "https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md")
 ```
 sudo apt-get update
 sudo apt-get upgrade
@@ -50,6 +50,8 @@ Optional:
 The driver may be "configured" to include code for: User consent to use an RSA private key: A dialog window (provided by IUP)
 pops up every time when an RSA private key is requested to be used for sign, decrypt, unwrap. I recommend to use this feature for enhanced security, more in file   [conditional_compile_options](https://github.com/carblue/acos5/tree/master/conditional_compile_options.md "https://github.com/carblue/acos5/tree/master/conditional_compile_options.md"), referring to 'iup_user_consent'.
 It's just not mandatory due to the required additional installation, required editing of acos5_external/acos5/build.rs and editing opensc.conf: iup_user_consent_enabled = yes; the latter allows to have that feature compiled in, but disable it temporarily e.g. for pkcs11-tool --test  where it would be tedious to approve each RSA key usage. The pre-built IUP binaries are easy to install on Linux via sudo ./install (check for all dependencies satisfied with ldd libiup.so), or as usual, compile from sources.
+
+For CryptoMate EVO, this is required: Either libccid from https://salsa.debian.org/rousseau/CCID  version 1.4.34 - 24 January 2021  or upwards (which is probably not included in current distro packages),  or from https://github.com/acshk/acsccid, minimum version v1.1.7 (24/7/2019)
 
 This repo builds 2 dll/shared object libraries:  
 - libacos5.so/dylib/dll, which is a mandatory one, the driver in the narrow sense, and
@@ -118,7 +120,14 @@ The line "card_drivers = acos5_external, npa, internal;" is just an example from
 acos5_external,  
 to the list of drivers specified by default and remove a leading comment character # in this line, if there is any.  
 When using ACOS5 V2.00, it's also required for any OpenSC release version <= 0.19.0, to bypass the almost non-functional 'acos5' internal driver somehow, thus a painless start is by using  
-    card_drivers = acos5_external, default;
+    card_drivers = acos5_external, default;  
+
+The 3 lines starting with
+card_atr 3b:9e:96:80:01:41:05:  
+and ending with }  
+are required only for the EVO card/USB token for the time being (effectively that excludes the extended APDU mode that is possible only since the "EVO" card's hardware version (as alternative)).  
+You need to adapt the exact ATR content to what this invocation reports for Your card:  
+opensc-tool --atr
 
 ```
 app default {
@@ -150,6 +159,16 @@ app default {
 	#card_drivers = npa, internal;
 ...
 	card_drivers = acos5_external, npa, internal; # for a painless start use  card_drivers = acos5_external, default;
+...
+.........
+...
+	card_atr 3b:9e:96:80:01:41:05:42:00:00:00:00:00:00:00:00:00:90:00:1f {
+		force_protocol = t0;
+	}
+
+	card_atr 3b:9e:96:80:01:41:05:43:00:00:00:00:00:00:00:00:00:90:00:1e {
+		force_protocol = t0;
+	}
 ...
 .........
 	# PKCS #15

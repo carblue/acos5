@@ -168,7 +168,7 @@ use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEAN
                       SC_CARDCTL_ACOS5_SDO_CREATE, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES,
                       SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET,
                       SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET, SC_CARD_TYPE_ACOS5_64_V2,
-                      SC_CARD_TYPE_ACOS5_64_V3/*, SC_CARD_TYPE_ACOS5_BASE*/, SC_CARD_TYPE_ACOS5_EVO_V4,
+                      SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_BASE, SC_CARD_TYPE_ACOS5_EVO_V4,
                       /*SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, */ // SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, // SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
@@ -269,7 +269,7 @@ mod   test_v2_v3;
 pub extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = unsafe { sc_get_version() };
     if cfg!(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))  { version_ptr }
-    else if cfg!(v0_22_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered: f443c39 ; sym_hw_encrypt: 39b281f
+    else if cfg!(v0_22_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered: 66e5600 ; sym_hw_encrypt: 39b281f
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -493,8 +493,8 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
             let idx_acos5_atrs = unsafe { _sc_match_atr(card, acos5_atrs.as_ptr(),     &mut type_out) };
         }
     }
-////println!("idx_acos5_atrs: {}, card.type_: {}, type_out: {}, &card.atr.value[..19]: {:X?}\n", idx_acos5_atrs, card.type_, type_out, &card.atr.value[..19]);
-    card.type_ = 0;
+////println!("idx_acos5_atrs: {}, card.type_: {}, type_out: {}, &card.atr.value[..20]: {:X?}\n", idx_acos5_atrs, card.type_, type_out, &card.atr.value[..20]);
+//    if type_out == SC_CARD_TYPE_ACOS5_EVO_V4 { card.caps |= SC_CARD_CAP_APDU_EXT; }
 
     if idx_acos5_atrs < 0 || idx_acos5_atrs+2 > i32::try_from(acos5_atrs.len()).unwrap() {
         log3if!(ctx,f,line!(), cstru!(b"Card doesn't match: Differing ATR\0"));
@@ -517,8 +517,10 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
     //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x02, 0x00,  0x40]  Cryptomate64  b"ACOS___@"
     //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x03, 0x01,  0x40]  CryptoMate Nano in op mode 64 K
     //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x03, 0x00,  0x40]  CryptoMate Nano in op mode FIPS
-    if rbuf_card_os_version[..5] != [0x41, 0x43, 0x4F, 0x53, 0x05] { /*|| rbuf_card_os_version[7] != 0x40*/ // ||
-        // SC_CARD_TYPE_ACOS5_BASE + i32::from(rbuf_card_os_version[5]) != type_out {
+    //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x04, 0x20,  0xC0]  CryptoMate EVO revision 2 in op mode
+    //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x04, 0x30,  0xC0]  CryptoMate EVO revision 3 in op mode
+    if rbuf_card_os_version[..5] != [0x41, 0x43, 0x4F, 0x53, 0x05]  /*|| rbuf_card_os_version[7] != 0x40*/  ||
+        SC_CARD_TYPE_ACOS5_BASE + i32::from(rbuf_card_os_version[5]) != type_out {
         log3if!(ctx,f,line!(), cstru!(b"Card doesn't match: ACOS5 'Card OS Version'-check failed\0"));
         return 0;
     }
@@ -849,9 +851,10 @@ DataPrivate:                                                size_of: 1792, align
     if rv != SC_SUCCESS { return rv; } // enum_dir returns SC_SUCCESS also for does_mf_exist==false
     // #[cfg(sanity)]
     {
-        let dp= unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
         let does_mf_exist = dp.does_mf_exist;
-        card.drv_data = Box::into_raw(dp) as p_void;
+        Box::leak(dp);
+        // card.drv_data = Box::into_raw(dp) as p_void;
         if !does_mf_exist {
             let _rv = sanity_check(card, app_name);
             return SC_ERROR_INVALID_CARD;

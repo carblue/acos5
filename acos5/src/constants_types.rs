@@ -83,11 +83,13 @@ pub const SC_CARD_TYPE_ACOS5_EVO_V4 : i32 = 16005; // = SC_CARD_TYPE_ACOS5_BASE 
 //  const ATR_V1      : &[u8; 57] = b"3b:be:18:00:00:41:05:01:00:00:00:00:00:00:00:00:00:90:00\0"; // *NOT* supported: ACOS5 Card (ACOS5-32 V1.00)
 pub const ATR_V2      : &[u8; 57] = b"3b:be:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00\0"; // Using reader with a card: ACS CryptoMate64 00 00
 pub const ATR_V3      : &[u8; 57] = b"3b:be:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00\0"; // Using reader with a card: ACS CryptoMate (T2) 00 00 ; reported by my CryptoMate Nano
-pub const ATR_V4      : &[u8; 57] = b"3b:9e:96:80:01:41:05:40:00:00:00:00:00:00:00:00:00:90:00\0";    // unverified currently
-pub const ATR_V4_1C   : &[u8; 60] = b"3b:9e:96:80:01:41:05:41:00:00:00:00:00:00:00:00:00:90:00:1c\0"; // unverified currently
-pub const ATR_V4_1F   : &[u8; 60] = b"3b:9e:96:80:01:41:05:42:00:00:00:00:00:00:00:00:00:90:00:1f\0"; // Using reader with a card: ACS CryptoMate EVO 00 00
+/* TODO check ATRs of different EVO card hardware: contact / contactless / combi */
+pub const ATR_V4_0    : &[u8; 57] = b"3b:9e:96:80:01:41:05:40:00:00:00:00:00:00:00:00:00:90:00\0";    // unverified currently
+pub const ATR_V4_1    : &[u8; 60] = b"3b:9e:96:80:01:41:05:41:00:00:00:00:00:00:00:00:00:90:00:1c\0"; // unverified currently
+pub const ATR_V4_2    : &[u8; 60] = b"3b:9e:96:80:01:41:05:42:00:00:00:00:00:00:00:00:00:90:00:1f\0"; // Using reader with a card: ACS CryptoMate EVO 00 00
+pub const ATR_V4_3    : &[u8; 60] = b"3b:9e:96:80:01:41:05:43:00:00:00:00:00:00:00:00:00:90:00:1e\0"; // Using reader with a card: ACS CryptoMate EVO 00 00
 pub const ATR_MASK    : &[u8; 57] = b"FF:FF:00:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF\0";
-pub const ATR_MASK_TCK: &[u8; 60] = b"FF:FF:00:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF:00\0";
+pub const ATR_MASK_TCK: &[u8; 60] = b"FF:FF:00:FF:FF:FF:FF:F0:00:00:00:00:00:00:00:00:00:FF:FF:00\0";
 pub const NAME_V2  : &[u8; 43] = b"ACOS5-64 V2.00: Smart Card or CryptoMate64\0";
 pub const NAME_V3  : &[u8; 46] = b"ACOS5-64 V3.00: Smart Card or CryptoMate Nano\0";
 pub const NAME_V4  : &[u8; 50] = b"ACOS5-EVO V4.X0: Smart Card EVO or CryptoMate EVO\0";
@@ -334,7 +336,7 @@ impl Drop for APDUShortExtendedSwitcher {
     }
 }
 
-/* Represents the FCI content, */
+/* Represents the FCI content, File Control Information */
 #[derive(Debug, Clone, PartialEq)]
 pub struct FCI {
     pub fdb : u8,

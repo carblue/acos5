@@ -93,7 +93,7 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
                              SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
                              Acos5EcCurve, build_apdu, is_DFMF, p_void, ATR_MASK_TCK,
                              // ISO7816_RFU_TAG_FCP_SFI, ISO7816_RFU_TAG_FCP_SAC, ISO7816_RFU_TAG_FCP_SEID, ISO7816_RFU_TAG_FCP_SAE,
-                             GuardFile, SC_CARD_TYPE_ACOS5_EVO_V4, NAME_V4, ATR_V4_1F, //, ATR_V4, ATR_V4_1C
+                             GuardFile, SC_CARD_TYPE_ACOS5_EVO_V4, NAME_V4, ATR_V4_1, ATR_V4_2, ATR_V4_3, //, ATR_V4
                              file_id_from_path_value, file_id_se,
                              CRT_TAG_HT, CRT_TAG_CCT, CRT_TAG_DST, CRT_TAG_CT,
                              SC_SEC_OPERATION_GENERATE_ECCPRIVATE, SC_SEC_OPERATION_GENERATE_ECCPUBLIC //, APDUShortExtendedSwitcher
@@ -1171,7 +1171,7 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
 }
 
 #[must_use]
-pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 4]
+pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 6]
 {
     [
         sc_atr_table {
@@ -1199,17 +1199,25 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 4]
             flags: 0,
             card_atr: null_mut(),
         },
+*/
         sc_atr_table {
-            atr:     cstru!(ATR_V4_1C).as_ptr(),
+            atr:     cstru!(ATR_V4_1).as_ptr(),
             atrmask: cstru!(ATR_MASK_TCK).as_ptr(),
             name:    cstru!(NAME_V4).as_ptr(),
             type_: SC_CARD_TYPE_ACOS5_EVO_V4,
             flags: 0,
             card_atr: null_mut(),
         },
-*/
         sc_atr_table {
-            atr:     cstru!(ATR_V4_1F).as_ptr(),
+            atr:     cstru!(ATR_V4_2).as_ptr(),
+            atrmask: cstru!(ATR_MASK_TCK).as_ptr(),
+            name:    cstru!(NAME_V4).as_ptr(),
+            type_: SC_CARD_TYPE_ACOS5_EVO_V4,
+            flags: 0,
+            card_atr: null_mut(),
+        },
+        sc_atr_table {
+            atr:     cstru!(ATR_V4_3).as_ptr(),
             atrmask: cstru!(ATR_MASK_TCK).as_ptr(),
             name:    cstru!(NAME_V4).as_ptr(),
             type_: SC_CARD_TYPE_ACOS5_EVO_V4,

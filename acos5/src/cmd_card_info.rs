@@ -155,8 +155,7 @@ pub fn get_file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> R
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0; 8];
-    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 2, reference+ if card.type_>SC_CARD_TYPE_ACOS5_64_V3 {1} else {0}, 8],
-                              SC_APDU_CASE_2_SHORT, &mut rbuf);
+    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 2, reference, 8], SC_APDU_CASE_2_SHORT, &mut rbuf);
     let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.resplen == rbuf.len() {
@@ -312,6 +311,7 @@ pub fn get_op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
     let /*mut*/ rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
 //    rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     /* the reference manuals says: the response status word is 0x95NN, but actually for V2.00 and V3.00 it's 0x90NN */
+    /* the reference manuals says: the response status word is 0x95NN, and it actually is for V4 */
     if rv == SC_SUCCESS && (
         (card.type_ == SC_CARD_TYPE_ACOS5_64_V3 && [0,1, 2,16].contains(&apdu.sw2)) ||
         (card.type_ != SC_CARD_TYPE_ACOS5_64_V3 && [0,1].contains(&apdu.sw2)) )  {

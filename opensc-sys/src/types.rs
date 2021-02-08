@@ -324,10 +324,27 @@ pub const SC_FILE_EF_CYCLIC              : u32 =  0x06;
 pub const SC_FILE_EF_CYCLIC_TLV          : u32 =  0x07;
 
 /* File status flags */
-pub const SC_FILE_STATUS_ACTIVATED   : u32 =  0x00;
-pub const SC_FILE_STATUS_INVALIDATED : u32 =  0x01;
-pub const SC_FILE_STATUS_CREATION    : u32 =  0x02; /* Full access in this state,
-      (at least for SetCOS 4.4 */
+/* ISO7816-4: Unless otherwise specified, the security attributes are valid for the operational state.*/
+pub const SC_FILE_STATUS_ACTIVATED : u32       = 0x00; /* ISO7816-4: Operational state (activated)   (5, 7) */
+pub const SC_FILE_STATUS_INVALIDATED : u32     = 0x01; /* ISO7816-4: Operational state (deactivated) (4, 6) */
+
+/* Full access in this state, (at least for SetCOS 4.4 ) */
+pub const SC_FILE_STATUS_CREATION : u32        = 0x02; /* ISO7816-4: Creation state, (1) */
+
+pub const SC_FILE_STATUS_INITIALISATION : u32  = 0x03; /* ISO7816-4: Initialisation state, (3) */
+pub const SC_FILE_STATUS_NO_INFO : u32         = 0x04; /* ISO7816-4: No information given, (0) */
+pub const SC_FILE_STATUS_TERMINATION : u32     = 0x0c; /* ISO7816-4: Termination state (12,13,14,15) */
+pub const SC_FILE_STATUS_PROPRIETARY : u32     = 0xf0; /* ISO7816-4: codes > 15 */
+
+/* reserved for future use by ISO/IEC */
+pub const SC_FILE_STATUS_RFU_2 : u32           = 0x07; /* ISO7816-4: (0x02) */
+pub const SC_FILE_STATUS_RFU_8 : u32           = 0x08; /* ISO7816-4: (0x08) */
+pub const SC_FILE_STATUS_RFU_9 : u32           = 0x09; /* ISO7816-4: (0x09) */
+pub const SC_FILE_STATUS_RFU_10 : u32          = 0x0a; /* ISO7816-4: (0x0a) */
+pub const SC_FILE_STATUS_RFU_11 : u32          = 0x0b; /* ISO7816-4: (0x0b) */
+
+pub const SC_FILE_STATUS_UNKNOWN : u32         = 0xff; /* if tag 0x8A is missing, there is no information about LCSB */
+
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq)]

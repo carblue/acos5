@@ -30,10 +30,10 @@ fn parse_version_string(input: &str) -> String {
 fn main() {
     let version;
     /* OpenSC version detection */
-    match Library::new(if cfg!(unix) {"libopensc.so"}
+    match unsafe { Library::new(if cfg!(unix) {"libopensc.so"}
                        else if cfg!(macos) {"libopensc.dylib"}
                        else if cfg!(windows) {"opensc"}
-                       else {"unknown_library_opensc"} )
+                       else {"unknown_library_opensc"} ) }
     {
         Ok(lib_dyn) =>
             unsafe {
@@ -46,8 +46,8 @@ fn main() {
             match &e {
                 Error::DlOpen { desc: _ } => { println!("libloading DlOpen opensc: {}", e); },
                 Error::DlOpenUnknown => { println!("libloading DlOpenUnknown opensc: {}", e); },
-                Error::LoadLibraryW { source: _ } => { println!("libloading LoadLibraryW opensc: {}", e); },
-                Error::LoadLibraryWUnknown => { println!("libloading LoadLibraryWUnknown opensc: {}", e); },
+                Error::LoadLibraryExW { source: _ } => { println!("libloading LoadLibraryW opensc: {}", e); },
+                Error::LoadLibraryExWUnknown => { println!("libloading LoadLibraryWUnknown opensc: {}", e); },
                 _ => { println!("libloading opensc: {}", e); },
             }
             unreachable!(); // intentionally panic if OpenSC is not installed or detectable this way
