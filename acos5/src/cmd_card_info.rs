@@ -22,8 +22,8 @@
 
 use std::convert::TryFrom;
 
-use opensc_sys::opensc::{sc_card, sc_transmit_apdu, sc_check_sw};
-use opensc_sys::types::{sc_serial_number, SC_MAX_SERIALNR, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT};
+use opensc_sys::opensc::{sc_card, sc_transmit_apdu, sc_check_sw, SC_PROTO_T1};
+use opensc_sys::types::{sc_serial_number, SC_MAX_SERIALNR, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_2_EXT};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_CARD_CMD_FAILED, SC_ERROR_INVALID_ARGUMENTS};
 
 use crate::constants_types::{build_apdu, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3};
@@ -231,11 +231,13 @@ pub fn get_cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
+    let active_protocol = unsafe { &mut *card.reader }.active_protocol;
     let f = cstru!(b"get_cos_version\0");
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0; 8];
-    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 6, 0, 8], SC_APDU_CASE_2_SHORT, &mut rbuf);
+    let mut apdu = if active_protocol!=SC_PROTO_T1 { build_apdu(ctx, &[0x80, 0x14, 6, 0, 8], SC_APDU_CASE_2_SHORT, &mut rbuf) }
+                   else                            { build_apdu(ctx, &[0x80, 0x14, 6, 0, 0,0,8], SC_APDU_CASE_2_EXT, &mut rbuf) };
     let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.resplen == rbuf.len() {

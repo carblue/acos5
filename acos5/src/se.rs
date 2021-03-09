@@ -605,8 +605,7 @@ pub fn se_parse_sae(vec_sac_info_opt: &mut Option<Vec<SACinfo>>, value_bytes_tag
         assert_eq!(0x80, tlv.tag() & 0xF0);
         assert_eq!((tlv.tag() & 0x0F).count_ones(), tlv.length().into());
         assert_eq!(4, tlv.tag() & 4); // ins must be included
-        let mut sae_info = SAEinfo::default();
-        sae_info.tag_AMDO = tlv.tag();
+        let mut sae_info = SAEinfo { tag_AMDO: tlv.tag(), ..SAEinfo::default() };
         let cla_ins_p1_p2 = match convert_amdo_to_cla_ins_p1_p2_array(tlv.tag(), tlv.value()) {
             Ok(cla_ins_p1_p2)  => cla_ins_p1_p2,
             Err(e)      => return Err(e),

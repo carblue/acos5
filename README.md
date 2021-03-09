@@ -7,7 +7,8 @@ This project `acos5` gets supported by the JetBrain Open Source Support Program.
 
 Driver for Advanced Card Systems (ACS)  ACOS5 Smart Card V2.00 (CryptoMate64) and V3.00 (CryptoMate Nano),  
 as external modules operating within the OpenSC framework.  
-The new ACOS5-EVO (ACOS5 V4.X0): Will soon be supported, work in progress. That's promising, the first major, real improvement of ACOS5 Smart Card V2.00.  
+The new ACOS5-EVO (ACOS5 V4.X0): Will possibly be supported soon, work in progress. Currently all my 3 tokens emit errors on the CCID level, thus it's not clear whether my hardware/firmeware is misbehaving or whether there is a more general problem with "EVO". Has anybody evidence that it works at all )e.g. with the ACS toolchain?  
+That's promising, the first major, real improvement of ACOS5 Smart Card V2.00.  
 The respective reference manual for Your hardware is available on request from: info@acs.com.hk
 
 Platforns supported: Those that the Rust compiler targets: [rustc platform-support](https://doc.rust-lang.org/nightly/rustc/platform-support.html "https://doc.rust-lang.org/nightly/rustc/platform-support.html").  
@@ -15,7 +16,7 @@ Platforms tested: Those that I use:
 Linux/Kubuntu 18.04.5/20.04.1 LTS (extensively tested, everything implemented works as expected),  
 Windows 10 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: SM and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Note that, for the time being, after all this annoying, time consuming hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow i.a. for sanity-check).
 
-Release tags get added irregularly, mainly i.o. to refer to something from acos5_gui. If Your interest is in this driver only, then master's HEAD has the best code for You.
+Release tags get added irregularly, mainly i.o. to refer to something from `acos5_gui` (as a minimum driver release requirement). In any case, master's HEAD has the best driver code for You.
 
 
 Motivation:  
@@ -36,7 +37,7 @@ Mandatory:
 - [Libtasn1](https://www.gnu.org/software/libtasn1/ "https://www.gnu.org/software/libtasn1/") only for non-Windows (*nix) OS  
 
 Recommended:  
-- [pcsc-tools](http://ludovic.rousseau.free.fr/softwares/pcsc-tools/ "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/"), provides `scriptor` for card initialization, see [info/card_initialization/README.md](https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md "https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md")
+- [pcsc-tools](http://ludovic.rousseau.free.fr/softwares/pcsc-tools/ "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/"), provides `scriptor` for card initialization as a batch run of commands, see [info/card_initialization/README.md](https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md "https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md")
 ```
 sudo apt-get update
 sudo apt-get upgrade
@@ -49,7 +50,7 @@ Optional:
 
 The driver may be "configured" to include code for: User consent to use an RSA private key: A dialog window (provided by IUP)
 pops up every time when an RSA private key is requested to be used for sign, decrypt, unwrap. I recommend to use this feature for enhanced security, more in file   [conditional_compile_options](https://github.com/carblue/acos5/tree/master/conditional_compile_options.md "https://github.com/carblue/acos5/tree/master/conditional_compile_options.md"), referring to 'iup_user_consent'.
-It's just not mandatory due to the required additional installation, required editing of acos5_external/acos5/build.rs and editing opensc.conf: iup_user_consent_enabled = yes; the latter allows to have that feature compiled in, but disable it temporarily e.g. for pkcs11-tool --test  where it would be tedious to approve each RSA key usage. The pre-built IUP binaries are easy to install on Linux via sudo ./install (check for all dependencies satisfied with ldd libiup.so), or as usual, compile from sources.
+It's just not mandatory due to the required additional installation, required editing of acos5_external/acos5/build.rs and editing opensc.conf: iup_user_consent_enabled = yes; the latter allows to have that feature compiled in, but disable it temporarily e.g. for pkcs11-tool --test  where it would be tedious to approve each single RSA key usage. The pre-built IUP binaries are easy to install on Linux via sudo ./install (check for all dependencies satisfied with ldd libiup.so), or as usual, compile from sources.
 
 For CryptoMate EVO, this is required: Either libccid from https://salsa.debian.org/rousseau/CCID  version 1.4.34 - 24 January 2021  or upwards (which is probably not included in current distro packages),  or from https://github.com/acshk/acsccid, minimum version v1.1.7 (24/7/2019)
 
@@ -79,7 +80,7 @@ So this is the point: It would be graceful to react upon limits/rules violations
 So, if anybody wants to contribute, removing these rough edges is an easy way to start.  
 And if the driver is "impolite" currently, it's most likely something about card content, that is different from expected according to PKCS#15 / ISO/IEC 7816-15 / OpenSC. It's tough for outsiders to spot from OpenSC code: What is the exact requirement for ASN.1 content of PKCS#15 files. Maybe it's easier to read from [PKCS15.asn](https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn "https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn"), which is specifically crafted/modified from a module pkcs-15v1_1.asn found by a web search, for compatibility with OpenSC version 0.19.0 ? - 0.21.0, libtasn1 and ACOS5. It's also internally used by the driver in non-Windows builds.
 
-Akin to the www with it's broken links phenomenon, that may happen with a smart card as well: A lot in PKCS#15 and ACOS5 depends on "pointing to", and that may easily be broken by software bugs or ?. Thus I plan to integrate detection code for this kind of errors and more, for pkcs15-init --sanity-check  
+Akin to the www with it's broken links phenomenon, that may happen with a smart card as well: A lot in PKCS#15 and ACOS5 depends on "pointing to", and that may easily be broken by software bugs or ?. Thus I plan to integrate detection code for this kind of card content errors and more, for pkcs15-init --sanity-check  
 Thus a sanity-check without any errors found should prevent the driver from becoming "impolite" or reporting errors.  
 
 ## Steps towards driver binary builds and setup
@@ -190,12 +191,12 @@ app default {
 ```
 
 ### Appetizer: Using SSH with keys from Your cryptographic smart card/USB token with GitHub  
-Its assumed You have a local git repository, want to push to Your own or other's remote repository hosted on github,
+Its assumed You have a local git repository, and want to push to Your or other's remote repository hosted at github,
 and haven’t yet done that via SSH.  
 Also, to be explicit, its assumed You don't yet have an RSA keypair for authentication with GitHub,
 so let's create that first:  
 I like the max. modulus bit length that my CryptoMate64 allows: 4096 bit, and use the 'standard' public exponent 0x10001.
-We need to specify some more info for PKCS#15: The key pair will have the (new unique) iD 01, be protected by authId 01
+We need to specify some more info for PKCS#15: The key pair will have the (new unique, hex.) iD 01, be protected by authId 01
 (i.e. there is an authentication object defined in my EF.AODF with iD 01; in my case it refers to the user pin, that must be verified before RSA
 private key usage gets allowed for cryptographic operations, or key file allowed to be updated; reading of the newly created private key file will 
 never be allowed, but be allowed without any constraint for the public key file).
@@ -217,7 +218,8 @@ User PIN [User] required.
 Please enter User PIN [User]: 
 $
 
-Let's visualize what OpenSC appended to our EF.PrKDF:
+Let's visualize what OpenSC appended to our EF.PrKDF file:
+
 name: privateRSAKey  type: SEQUENCE
   name: commonObjectAttributes  type: SEQUENCE
     name: label  type: UTF8_STR  value: github_key
@@ -237,7 +239,8 @@ name: privateRSAKey  type: SEQUENCE
           name: path  type: OCT_STR  value: 3f0041005000
     name: modulusLength  type: INTEGER  value: 0x1000
     
-and appended to our EF.PuKDF:
+and appended to our EF.PuKDF file:
+
 name: publicRSAKey  type: SEQUENCE
   name: commonObjectAttributes  type: SEQUENCE
     name: label  type: UTF8_STR  value: github_key

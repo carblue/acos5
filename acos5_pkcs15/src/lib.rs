@@ -41,7 +41,7 @@ Place it to /usr/share/opensc/ (where all the other OpenSC .profile files like p
 
 But the OpenSC framework doesn't provide configurability for all possible options a card may come up with; that's why i.a. card-specific tools like /usr/bin/iasecc-tool do exist and I provide such a tool for cos5
  in carblue/acos5_gui: E.g. concerning above RSA key pair generation, it provides optionally restricting a RSA private key to be sign-only or decrypt-only. This is not the same as declared by key attributes via PKCS#15, which is just information without commitment. The cos5 option is a commitment: a sign-only generated private key will fail to decrypt anything passed by OpenSC to the driver in order to decrypt. It's usable only to compute a signature with corresponding cos5 command based on a hash, but unusable using cos5 command for decrypting (the distinction here is 'purpose', disregarding that the underlying math operation - raw RSA exponentiation - is the same).
- 
+
 This library provides all the PKCS#15 related functionality, that is specific to ACOS5
 The OpenSC category pkcs15init presumably got it's name because the bulk of functions is required by a card initialization from scratch for a PKCS#15 compliant card
 */
@@ -183,7 +183,7 @@ const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 /// In this example, cfg!(v0_22_0) will then match that
 ///
 /// @return   The OpenSC release/imaginary version, that this driver implementation supports
-#[allow(clippy::same_functions_in_if_condition)]
+#[allow(clippy::if_same_then_else)]
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     if cfg!(v0_17_0) || cfg!(v0_18_0) || cfg!(v0_19_0) || cfg!(v0_20_0) || cfg!(v0_21_0) { unsafe { sc_get_version() } }
@@ -193,8 +193,8 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-pub extern "C" fn sc_module_init(name: *const c_char) -> p_void {
-    if !name.is_null() && unsafe { CStr::from_ptr(name) } == cstru!(CARD_DRV_SHORT_NAME) {
+pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> p_void {
+    if !name.is_null() && CStr::from_ptr(name) == cstru!(CARD_DRV_SHORT_NAME) {
         acos5_get_pkcs15init_ops as p_void
     }
     else {
@@ -318,7 +318,7 @@ extern "C" fn acos5_pkcs15_create_dir(profile_ptr: *mut sc_profile, p15card_ptr:
                       (SC_PKCS15_SKDF, cstru!(b"PKCS15-SKDF\0")),   (SC_PKCS15_DODF, cstru!(b"PKCS15-DODF\0")),
                       (SC_PKCS15_CDF, cstru!(b"PKCS15-CDF\0")),     (SC_PKCS15_CDF_TRUSTED, cstru!(b"PKCS15-CDF-TRUSTED\0"))];
 
-    if df.id == /* 0x4100 0x5015*/ 0x4100 as i32 {
+    if df.id == /* 0x4100 0x5015*/ 0x4100_i32 {
         log3if!(ctx,f,line!(), cstru!(b"Select (%X)\0"), df.id);
         /*let mut rv =*/ unsafe { sc_select_file(card, &df.path, null_mut()) };
 
@@ -447,7 +447,7 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     key_info.modulus_length = rsa_modulus_bits_canonical(key_info.modulus_length);
 
     let keybits = key_info.modulus_length;
-    if keybits < 512 || keybits > 4096 || (keybits % 256) > 0 {
+    if !(512..=4096).contains(&keybits) || (keybits % 256) > 0 {
         rv = SC_ERROR_INVALID_ARGUMENTS;
         log3ifr!(ctx,f,line!(), cstru!(b"Invalid RSA modulus size requested\0"), rv);
         return rv;

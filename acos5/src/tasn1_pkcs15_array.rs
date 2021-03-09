@@ -34,6 +34,7 @@
 use crate::tasn1_sys::{asn1_static_node};
 
 #[allow(dead_code)]
+#[allow(clippy::too_many_lines)]
 pub fn tasn1_pkcs15_definitions() -> [asn1_static_node; 634] { [
     asn1_static_node::new_value_null(cstru!(b"PKCS15\0"), 536875024),
     asn1_static_node::new_name_value_null(1610612748),

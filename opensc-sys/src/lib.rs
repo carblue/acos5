@@ -67,11 +67,11 @@
 //! That is designed to fail, if the version is lower than 0.17.0, the min. supported version of this binding.
 //!
 //! Run e.g. opensc-tool -i\
-//! OpenSC 0.20.0 [gcc  7.4.0]\
+//! OpenSC 0.21.0 [gcc  9.3.0]
 //! Enabled features: locking zlib readline openssl pcsc(libpcsclite.so.1)
 //!
 //! The important pieces of information here are:\
-//! 1. The release version of my OpenSC binary is 0.20.0, thus covered by this binding.\
+//! 1. The release version of my OpenSC binary is 0.21.0, thus covered by this binding.\
 //! 2. A dependency on openssl is given by the binary, i.e. #define ENABLE_OPENSSL 1  was used in config.h\
 //! 3. Sadly the other required info is not reported, thus run:  `cargo test test_struct_sizeof -- --nocapture`
 //!    That will check the variable struct sizes of list_t and sc_card (and more) for x86_64 Linux/Windows against
@@ -81,8 +81,8 @@
 //!    of opensc-tool.
 //!    Once the test passes, the opensc-sys binding is ready to be used.
 //!
-//! Not selecting any OpenSC release versions 0.17.0 - 0.20.0, is treated as unsupported, except:
-//! That's experimental only: Take OpenSC master branch, change config.h to the next/imaginary version (currently 0.21.0)
+//! Not selecting any OpenSC release versions 0.17.0 - 0.21.0, is treated as unsupported, except:
+//! That's experimental only: Take OpenSC master branch, change configure.ac to read  define([PACKAGE_VERSION_MINOR], [22]) , the next/imaginary version (currently 0.22.0)
 //! and build from source.
 //! At irregular intervals only I check master's implications for the binding. E.g. there was a commit (effective since
 //! OpenSC release versions 0.18.0), that changed parsing of

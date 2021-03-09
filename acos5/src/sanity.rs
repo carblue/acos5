@@ -36,6 +36,7 @@ fn select_mf(card: &mut sc_card) -> Result<i32, i32> {
 }
 
 #[cold]
+#[allow(clippy::too_many_lines)]
 pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -145,17 +146,17 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
             else {
                 println!("\n[X] DF/MF {:04X} mandatory security environment (SE) file {:04X} seems to be okay (content checked next).", key_dfmf, child_id);
                 let mut index_used : HashSet<u8> = HashSet::with_capacity(14);
-                for &b in val.2.unwrap().iter() {
+                for &b in &val.2.unwrap() {
                     if ![0, 255].contains(&b) {
                         index_used.insert(b);
                     }
                 }
-                for (_key_child, val_child) in &dp.files {
+                for val_child in dp.files.values() {
                     if is_DFMF(val_child.1[0]) || val_child.1[1] != val.1[1]+2  {
                         continue;
                     }
                     if is_child_of(val_child, val) {
-                        for &b in val_child.2.unwrap().iter() {
+                        for &b in &val_child.2.unwrap() {
                             if ![0, 255].contains(&b) {
                                 index_used.insert(b);
                             }

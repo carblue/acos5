@@ -111,7 +111,7 @@ pub fn my_file_dup(dest: &mut *mut sc_file, src: &sc_file) {
 
     unsafe {
         // memcpy(&newf->path, &src->path, sizeof(struct sc_path));
-        copy_nonoverlapping(&src.path, &mut newf.path, std::mem::size_of::<sc_path>());
+        copy_nonoverlapping(&src.path, &mut newf.path, 1 /*std::mem::size_of::<sc_path>()*/);
         // memcpy(&newf->name, &src->name, sizeof(src->name));
         copy_nonoverlapping(src.name.as_ptr(), newf.name.as_mut_ptr(), SC_MAX_AID_SIZE);
     }
@@ -137,7 +137,7 @@ pub fn my_file_dup(dest: &mut *mut sc_file, src: &sc_file) {
 */
     newf.record_length = src.record_length;
     newf.record_count  = src.record_count;
-return;
+// return;
     // if (sc_file_set_sec_attr(newf, src.sec_attr, src.sec_attr_len) < 0)
     // goto err;
     // if (sc_file_set_prop_attr(newf, src.prop_attr, src.prop_attr_len) < 0)

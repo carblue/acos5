@@ -3,6 +3,7 @@
 use std::collections::HashSet;
 use std::convert::{TryFrom, TryInto};
 use std::ptr::null_mut;
+use std::cmp::Ordering;
 // use std::slice::from_raw_parts;
 
 use opensc_sys::opensc::{SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_select_file, sc_read_binary,
@@ -92,6 +93,7 @@ pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mu
 }
 
 /* find unused file id s, i.e. not listed in EF.PrKDF, EF.PuKDF (, EF.PuKDF_TRUSTED) */
+#[allow(clippy::missing_errors_doc)]
 pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
 {
     if p15card.card.is_null() || unsafe { (*p15card.card).ctx.is_null() } {
@@ -114,7 +116,7 @@ pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
         }
         /* Enumerate the DF's, so p15card->obj_list is populated. */
         unsafe {
-            if !p15card.ops.parse_df.is_none() { p15card.ops.parse_df.unwrap()(p15card, df); }
+            if p15card.ops.parse_df.is_some() { p15card.ops.parse_df.unwrap()(p15card, df); }
             else                               { sc_pkcs15_parse_df(p15card, df); }
         }
         df = df_ref.next;
@@ -209,6 +211,7 @@ pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
 }
 
 #[allow(dead_code)]
+#[allow(clippy::missing_errors_doc)]
 #[cfg(not(target_os = "windows"))]
 pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs15_card, key_info: &sc_pkcs15_prkey_info) -> Result<(), i32> {
     if p15card.card.is_null() || unsafe { (*p15card.card).ctx.is_null() } {
@@ -448,6 +451,7 @@ fn prefix_sym_key(card: &mut sc_card,
     Ok(res)
 }
 
+#[allow(clippy::missing_errors_doc)]
 pub fn construct_sym_key_entry(card: &mut sc_card, rec_nr: u8, algorithm: u32, key_len_bytes: u8,
                       ext_auth: bool, count_err_ext_auth: u8,
                       int_auth: bool, count_use_int_auth: u16,
@@ -456,8 +460,11 @@ pub fn construct_sym_key_entry(card: &mut sc_card, rec_nr: u8, algorithm: u32, k
                    ext_auth, count_err_ext_auth,
                    int_auth, count_use_int_auth)?;
     vec.extend_from_slice(key_bytes);
-    if      mrl < vec.len() { return Err(SC_ERROR_CARD_CMD_FAILED); }
-    else if mrl > vec.len() { vec.resize_with(mrl, Default::default); }
+    match mrl.cmp(&vec.len()) {
+        Ordering::Less    => return Err(SC_ERROR_CARD_CMD_FAILED),
+        Ordering::Greater => vec.resize_with(mrl, Default::default),
+        Ordering::Equal   => (),
+    }
     Ok(vec)
 }
 

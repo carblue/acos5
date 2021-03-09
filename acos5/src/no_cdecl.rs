@@ -295,7 +295,7 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
     log3if!(ctx,f,line!(), fmt_1, card.cache.current_path.type_,
         unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)});
 */
-    log3if!(ctx,f,line!(), cstru!(b"called with file_out: %p\n\0"), if let Some(p)=file_out {p} else {null_mut()} );
+    log3if!(ctx,f,line!(), cstru!(b"called with file_out: %p\n\0"), file_out.as_mut().map_or_else(null_mut, |p| *p) /*if let Some(p)=file_out {p} else {null_mut()}*/ );
 
     /*
         if (card == NULL || in_path_ref == NULL) {
@@ -798,9 +798,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
             card.drv_data = Box::into_raw(dp) as p_void;
             return SC_SUCCESS;
         }
-        else {
-            assert_eq!(rv, SC_SUCCESS);
-        }
+        assert_eq!(rv, SC_SUCCESS);
         if path_ref.len == 16 {
             fmt  = cstru!(b"### enum_dir: couldn't visit all files due to OpenSC path.len limit.\
  Such deep file system structures are not recommended, nor supported by cos5 with file access control! ###\0");
@@ -939,6 +937,7 @@ This MUST match exactly how *mut sc_acl_entry are added in acos5_process_fci or 
 */
 ///
 /// # Errors
+#[allow(clippy::too_many_lines)]
 #[allow(clippy::missing_errors_doc)]
 pub fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl: &[*mut sc_acl_entry; SC_MAX_AC_OPS], acl_category: u8) -> Result<[u8; 8], i32>
 {
@@ -1811,15 +1810,9 @@ pub fn algo_ref_mse_sedo(card_type: i32, // one of: SC_CARD_TYPE_ACOS5_64_V2, SC
                             _    => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
                         },
         CRT_TAG_CCT =>  match algorithm {
-                           SC_ALGORITHM_AES  => match cmac {
-                                                    true => match card_type {
-                                                                SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x15),
-                                                                _                         => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
-                                                            },
-                                                    _    => match card_type {
-                                                                SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x15),
-                                                                _                         => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
-                                                            },
+                           SC_ALGORITHM_AES  => match card_type {
+                                                    SC_CARD_TYPE_ACOS5_EVO_V4 => Ok(0x15),
+                                                    _                         => Err(SC_ERROR_KEYPAD_MSG_TOO_LONG),
                                                 },
                            SC_ALGORITHM_3DES => match cmac {
                                                    true => match card_type {

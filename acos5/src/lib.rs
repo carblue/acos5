@@ -76,22 +76,25 @@ use std::convert::TryInto;
 
 // use ::function_name::named;
 
-use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_security_env, sc_pin_cmd_data,
-                         sc_get_iso7816_driver, sc_get_mf_path, sc_file_set_prop_attr,
-                         sc_transmit_apdu, sc_check_sw, SC_CARD_CAP_RNG, SC_CARD_CAP_USE_FCI_AC,
-                         SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_ALGORITHM_RSA,
-                         SC_ALGORITHM_ONBOARD_KEY_GEN, SC_ALGORITHM_RSA_RAW, SC_SEC_OPERATION_SIGN,
-                         SC_SEC_OPERATION_DECIPHER, SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_DERIVE,
-                         SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK,
-                         SC_ALGORITHM_RSA_PAD_PKCS1, SC_ALGORITHM_RSA_PAD_ISO9796, SC_ALGORITHM_RSA_HASH_NONE,
-                         SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT, SC_SEC_ENV_ALG_PRESENT,
-                         SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR, sc_select_file,
-                         SC_CARD_CAP_ISO7816_PIN_INFO, SC_ALGORITHM_AES, sc_read_binary, sc_get_version,
-                         SC_ALGORITHM_ECDSA_RAW, SC_ALGORITHM_EXT_EC_NAMEDCURVE, SC_CARD_CAP_APDU_EXT,
-                         SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM, SC_ALGORITHM_EC
-//                         SC_ALGORITHM_ECDH_CDH_RAW, SC_ALGORITHM_ECDSA_HASH_NONE, SC_ALGORITHM_ECDSA_HASH_SHA1,
-//                         SC_ALGORITHM_EXT_EC_UNCOMPRESES,
-//                         ,sc_pin_cmd_pin, sc_pin_cmd//, sc_update_binary, sc_path_set, sc_verify
+use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_security_env,
+    sc_pin_cmd_data,
+    sc_get_iso7816_driver, sc_get_mf_path, sc_file_set_prop_attr, sc_select_file, sc_read_binary,
+    sc_transmit_apdu, sc_check_sw, sc_get_version,
+    SC_ALGORITHM_RSA_HASH_NONE, SC_ALGORITHM_ECDSA_RAW, SC_CARD_CAP_RNG, SC_CARD_CAP_USE_FCI_AC,
+    SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_ALGORITHM_RSA,
+    SC_ALGORITHM_ONBOARD_KEY_GEN, SC_ALGORITHM_RSA_RAW, SC_SEC_OPERATION_SIGN,
+    SC_SEC_OPERATION_DECIPHER, SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_DERIVE,
+    SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK,
+    SC_ALGORITHM_RSA_PAD_PKCS1, SC_ALGORITHM_RSA_PAD_ISO9796,
+    SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT, SC_SEC_ENV_ALG_PRESENT,
+    SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR,
+    SC_CARD_CAP_ISO7816_PIN_INFO, SC_ALGORITHM_AES,
+    SC_ALGORITHM_EXT_EC_NAMEDCURVE, SC_CARD_CAP_APDU_EXT,
+    SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM, SC_ALGORITHM_EC,
+    SC_PROTO_T1
+//  SC_ALGORITHM_ECDH_CDH_RAW, SC_ALGORITHM_ECDSA_HASH_NONE, SC_ALGORITHM_ECDSA_HASH_SHA1,
+//  SC_ALGORITHM_EXT_EC_UNCOMPRESES,
+//  ,sc_pin_cmd_pin, sc_pin_cmd//, sc_update_binary, sc_path_set, sc_verify
 };
 // #[cfg(not(v0_17_0))]
 // use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
@@ -140,6 +143,10 @@ use opensc_sys::sm::{SM_TYPE_CWA14890, SM_CMD_PIN, SM_CMD_PIN_VERIFY, SM_CMD_PIN
 
 #[macro_use]
 mod macros;
+
+#[cfg(card_initialization)]
+mod card_initialization;
+// use card_initialization::{};
 
 mod cmd_card_info;
 use cmd_card_info::{get_cos_version, get_count_files_curr_df, get_file_info, get_free_space, get_is_fips_compliant,
@@ -264,12 +271,12 @@ mod   test_v2_v3;
 /// In this example, cfg!(v0_22_0) will then match that
 ///
 /// @return   The OpenSC release/imaginary version, that this driver implementation supports
-#[allow(clippy::same_functions_in_if_condition)]
+#[allow(clippy::if_same_then_else)]
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = unsafe { sc_get_version() };
     if cfg!(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))  { version_ptr }
-    else if cfg!(v0_22_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered: 66e5600 ; sym_hw_encrypt: 39b281f
+    else if cfg!(v0_22_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered: 5b42a62 ; sym_hw_encrypt: 39b281f
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -283,8 +290,8 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 /// This function should not be called before the horsemen are ready.
 //#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-pub extern "C" fn sc_module_init(name: *const c_char) -> p_void {
-    if !name.is_null() && unsafe { CStr::from_ptr(name) } == cstru!(CARD_DRV_SHORT_NAME) {
+pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> p_void {
+    if !name.is_null() && CStr::from_ptr(name) == cstru!(CARD_DRV_SHORT_NAME) {
         acos5_get_card_driver as p_void
     }
     else {
@@ -470,11 +477,12 @@ TODO how to set opensc.conf, such that a minimum of trials to match atr is done
 //#[named]
 extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
 {
-    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
+    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || unsafe { (*card_ptr).reader.is_null() } {
         return 0;
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
+    let reader = unsafe { &mut *card.reader };
     // let f_cstring = CString::new(function_name!()).expect("CString::new failed");
     let f = cstru!(b"acos5_match_card\0"); // = f_cstring.as_c_str();
     log3if!(ctx,f,line!(), cstru!(b"called. Try to match card with ATR %s\0"),
@@ -493,24 +501,28 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
             let idx_acos5_atrs = unsafe { _sc_match_atr(card, acos5_atrs.as_ptr(),     &mut type_out) };
         }
     }
+////println!("reader.supported_protocols: {}, reader.active_protocol: {}\n", reader.supported_protocols, reader.active_protocol);
 ////println!("idx_acos5_atrs: {}, card.type_: {}, type_out: {}, &card.atr.value[..20]: {:X?}\n", idx_acos5_atrs, card.type_, type_out, &card.atr.value[..20]);
-//    if type_out == SC_CARD_TYPE_ACOS5_EVO_V4 { card.caps |= SC_CARD_CAP_APDU_EXT; }
-
     if idx_acos5_atrs < 0 || idx_acos5_atrs+2 > i32::try_from(acos5_atrs.len()).unwrap() {
         log3if!(ctx,f,line!(), cstru!(b"Card doesn't match: Differing ATR\0"));
         return 0;
     }
 
+    if type_out == SC_CARD_TYPE_ACOS5_EVO_V4 && reader.active_protocol == SC_PROTO_T1 {
+        card.caps |= SC_CARD_CAP_APDU_EXT;
+    }
+//println!("card.caps: {:X}\n", card.caps);
+
     /* check for 'Identity Self' */
     match get_is_ident_self_okay(card, type_out) {
-        Ok(val) => if !val { return 0; },
-        Err(_e) => { return 0; },
+        Ok(val) => if !val { log3if!(ctx,f,line!(), cstru!(b"Card doesn't match: get_is_ident_self_okay: SW2 different from expected!\0")); return 0 },
+        Err(_e) => { log3if!(ctx,f,line!(), cstru!(b"Card doesn't match: get_is_ident_self_okay failed!\0")); return 0 },
     };
 
     /* check for 'Card OS Version' */
     let rbuf_card_os_version = match get_cos_version(card) {
         Ok(val) => val,
-        Err(e) => return e,
+        Err(_e) => { log3if!(ctx,f,line!(), cstru!(b"Card doesn't match: get_cos_version failed!\0")); return 0 },
     };
 
 ////println!("rbuf_card_os_version: {:X?}", &rbuf_card_os_version[..]);
@@ -519,8 +531,8 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
     //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x03, 0x00,  0x40]  CryptoMate Nano in op mode FIPS
     //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x04, 0x20,  0xC0]  CryptoMate EVO revision 2 in op mode
     //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x04, 0x30,  0xC0]  CryptoMate EVO revision 3 in op mode
-    if rbuf_card_os_version[..5] != [0x41, 0x43, 0x4F, 0x53, 0x05]  /*|| rbuf_card_os_version[7] != 0x40*/  ||
-        SC_CARD_TYPE_ACOS5_BASE + i32::from(rbuf_card_os_version[5]) != type_out {
+    if rbuf_card_os_version[..5] != [0x41, 0x43, 0x4F, 0x53, 0x05]  ||
+        SC_CARD_TYPE_ACOS5_BASE + i32::from(rbuf_card_os_version[5]) != type_out   /*|| rbuf_card_os_version[7] != 0x40*/ {
         log3if!(ctx,f,line!(), cstru!(b"Card doesn't match: ACOS5 'Card OS Version'-check failed\0"));
         return 0;
     }
@@ -1952,7 +1964,7 @@ extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
         dp_files_value.1[0] = fci.fdb;
         dp_files_value.1[2..4].copy_from_slice(&fci.fid.to_be_bytes());
         if  file.type_!= SC_FILE_TYPE_DF && file.ef_structure != SC_FILE_EF_TRANSPARENT {
-            dp_files_value.1[4..6].copy_from_slice( &[fci.mrl as u8, fci.nor as u8] );
+            dp_files_value.1[4..6].copy_from_slice( &[u8::try_from(fci.mrl).unwrap(), u8::try_from(fci.nor).unwrap()] );
         }
         else {
             dp_files_value.1[4..6].copy_from_slice(&u16::try_from(file.size).unwrap().to_be_bytes());
@@ -2500,7 +2512,7 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
         log3ifr!(ctx,f,line!(), rv);
         return rv;
     }
-    assert!(modulus_length>=512 && modulus_length<=4096);
+    assert!((512..=4096).contains(&modulus_length));
     let mlbyte = usize::try_from(modulus_length).unwrap()/8; /* key modulus_length in byte (expected to be a multiple of 32)*/
     let le_total = mlbyte + 21;
     log3if!(ctx,f,line!(), cstru!(b"read public key(ref:%i; modulus_length:%i; modulus_bytes:%zu)\0"), key_reference,
@@ -2622,7 +2634,7 @@ Tokenunfo
         let path_idx = env_ref.file_ref.len - 2;
         let mut algo = algo_ref_mse_sedo(card.type_, SC_SEC_OPERATION_SIGN, CRT_TAG_DST,
             env_ref.algorithm, 0, false, false).unwrap();
-        let command = [0x00, 0x22, 0x01, CRT_TAG_DST, 0x0A, 0x80, 0x01, algo, 0x81, 0x02,
+        let mut command = [0x00, 0x22, 0x01, CRT_TAG_DST, 0x0A, 0x80, 0x01, algo, 0x81, 0x02,
             env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
         let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
@@ -2637,7 +2649,7 @@ Tokenunfo
         /* sign may need decrypt (for non-SHA1/SHA256 hashes), thus prepare for a CT as well */
         algo = algo_ref_mse_sedo(card.type_, 0, CRT_TAG_CT,
             env_ref.algorithm, 0, false, false).unwrap();
-        let command = [0x00, 0x22, 0x01, CRT_TAG_CT, 0x0A, 0x80, 0x01, algo, 0x81, 0x02,
+        command = [0x00, 0x22, 0x01, CRT_TAG_CT, 0x0A, 0x80, 0x01, algo, 0x81, 0x02,
             env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
         let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
@@ -2732,9 +2744,7 @@ Tokenunfo
                     log3ifr!(ctx,f,line!(), rv);
                     return rv;
                 }
-                else {
-                    cbc =  env_ref.algorithm_flags != SC_ALGORITHM_AES_ECB;
-                }
+                cbc =  env_ref.algorithm_flags != SC_ALGORITHM_AES_ECB;
             }
        }
 
@@ -2801,7 +2811,7 @@ pub const SC_SEC_ENV_PARAM_DES_CBC           : u32 = 4;
         }
 
         vec[ 4] = u8::try_from(vec.len()-5).unwrap();
-        vec[10] = u8::try_from(env_ref_algorithm_ref).unwrap();
+        vec[10] = env_ref_algorithm_ref;
         vec[13] = env_ref.key_ref[0];
 
         let mut apdu = build_apdu(ctx, &vec, SC_APDU_CASE_3_SHORT, &mut[]);
@@ -3105,32 +3115,28 @@ Trick: cache last security env setting, retrieve file id (priv) and deduce key l
 00 22 01 B8 0A 80 01 13 81 02 41 F3 95 01 40 ."........A...@
 */
                     }
-                    else {
-                        /* */
-                        if [35, 51].contains(&vec_in.len()) /* TODO && &vec_in[0..15] != digestAlgorithm_ripemd160*/ {
-                            if (vec_in.len() == 35 && vec_in[0..15] == digestAlgorithm_sha1) ||
-                               (vec_in.len() == 51 && vec_in[0..19] == digestAlgorithm_sha256)
-                            {
-                                vec_in.as_slice()
-                            }
-                            else {
-                                return e;
-                            }
-                        }
-                        /* */
-                        else if e != SC_ERROR_WRONG_PADDING || vec_in[vec_in.len() - 1] != 0xbc {
-                            log3ifr!(ctx,f,line!(), cstru!(b"Error: (input is neither EMSA-PKCS1-v1_5 nor EMSA-PSS \
-                                encoded) returning with\0"), e);
-                            return e;
+                    if [35, 51].contains(&vec_in.len()) /* TODO && &vec_in[0..15] != digestAlgorithm_ripemd160*/ {
+                        if (vec_in.len() == 35 && vec_in[0..15] == digestAlgorithm_sha1) ||
+                           (vec_in.len() == 51 && vec_in[0..19] == digestAlgorithm_sha256)
+                        {
+                            vec_in.as_slice()
                         }
                         else {
-                            return -1;
-                            /* forward to acos5_decipher only, if this is really secure; a pss padding can't be detected unambiguously */
-//                          set_is_running_compute_signature(card, true);
-//                          return acos5_decipher(card, data_ref_ptr, data_len, out_ptr, outlen);
+                            return e;
                         }
                     }
-/* */
+                    /* */
+                    else if e != SC_ERROR_WRONG_PADDING || vec_in[vec_in.len() - 1] != 0xbc {
+                        log3ifr!(ctx,f,line!(), cstru!(b"Error: (input is neither EMSA-PKCS1-v1_5 nor EMSA-PSS \
+                            encoded) returning with\0"), e);
+                        return e;
+                    }
+                    else {
+                        return -1;
+                        /* forward to acos5_decipher only, if this is really secure; a pss padding can't be detected unambiguously */
+//                      set_is_running_compute_signature(card, true);
+//                      return acos5_decipher(card, data_ref_ptr, data_len, out_ptr, outlen);
+                    }
                 }
             }
         };
