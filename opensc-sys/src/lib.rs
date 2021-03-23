@@ -253,7 +253,7 @@
 #![cfg_attr(feature = "cargo-clippy", warn(clippy::pedantic))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::doc_markdown))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::module_name_repetitions))]
- 
+
 
 // for FILE and free
 extern crate libc;
@@ -616,7 +616,7 @@ mod tests {
 
                 assert_eq!(spo, 2776);
                 assert_eq!(sca,  160);
-                assert_eq!(sf,   456);
+                assert_eq!(sf,   464);
                 assert_eq!(sccc,  32);
                 #[cfg(any(target_pointer_width = "32", windows))]
                     { assert_eq!(ip,   792); }

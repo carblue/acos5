@@ -1,19 +1,19 @@
 [![Build Status](https://travis-ci.org/carblue/acos5.svg?branch=master)](https://travis-ci.org/carblue/acos5)
 
-This project `acos5` gets supported by the JetBrain Open Source Support Program.
+This project `acos5` gets supported by the JetBrains Open Source Support Program.
 [![alt text](jetbrains.png "I'm using and can gladly recommend CLion (+ Rust plugin)")](https://www.jetbrains.com/?from=acos5)
 
 # acos5
 
 Driver for Advanced Card Systems (ACS)  ACOS5 Smart Card V2.00 (CryptoMate64) and V3.00 (CryptoMate Nano),  
 as external modules operating within the OpenSC framework.  
-The new ACOS5-EVO (ACOS5 V4.X0): Will possibly be supported soon, work in progress. Currently all my 3 tokens emit errors on the CCID level, thus it's not clear whether my hardware/firmeware is misbehaving or whether there is a more general problem with "EVO". Has anybody evidence that it works at all )e.g. with the ACS toolchain?  
+The new ACOS5-EVO (ACOS5 V4.X0): Will possibly be supported soon, work in progress. Currently all my 3 tokens emit errors on the CCID level, thus it's not clear whether my hardware/firmeware is misbehaving or whether there is a more general problem with "EVO". Has anybody evidence that it works at all) e.g. with the ACS toolchain?  
 That's promising, the first major, real improvement of ACOS5 Smart Card V2.00.  
 The respective reference manual for Your hardware is available on request from: info@acs.com.hk
 
 Platforns supported: Those that the Rust compiler targets: [rustc platform-support](https://doc.rust-lang.org/nightly/rustc/platform-support.html "https://doc.rust-lang.org/nightly/rustc/platform-support.html").  
 Platforms tested: Those that I use:  
-Linux/Kubuntu 18.04.5/20.04.1 LTS (extensively tested, everything implemented works as expected),  
+Linux/Kubuntu 20.04.2 LTS (extensively tested, everything implemented works as expected),  
 Windows 10 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: SM and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Note that, for the time being, after all this annoying, time consuming hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow i.a. for sanity-check).
 
 Release tags get added irregularly, mainly i.o. to refer to something from `acos5_gui` (as a minimum driver release requirement). In any case, master's HEAD has the best driver code for You.
@@ -103,7 +103,8 @@ Thus a sanity-check without any errors found should prevent the driver from beco
    `opensc-tool --serial`
 4. In case build errors or other errors occur:
    You have a copy of the opensc-sys binding on Your system in directory opensc-sys.  
-   If there are build errors, then go to that folder and issue `cargo test test_struct_sizeof -- --nocapture`  
+   If there are build errors, then go to that folder and issue  
+   `cargo test test_struct_sizeof -- --nocapture`  
    Likely that fails then, and an error reason is found by asking why didn't that find the library libopensc.so or does the version reported differ, or ?, or as the worst case:  
    OpenSC was built with different settings/switches than the binding requires/assumes.  
    Other errors occur: Likely the opensc.conf file is incorrect.  
@@ -115,20 +116,18 @@ The required opensc.conf entries:
 The location of opensc.conf on Linux: /etc/opensc/opensc.conf.  
 The location of opensc.conf on Windows: C:\Program Files\OpenSC Project\OpenSC\opensc.conf.  
 Since recently, OpenSC installs a very short opensc.conf. The long version (that I'm using and referring to here) is in github's/tarball's etc/opensc.conf.example.in  
-......... just denotes, there is other opensc.conf content before this line  
+......... just denotes, there is/might be other opensc.conf content before this line  
 Content within ... (excluded) must be adapted (/something/like/path/to/acos5/target/releaseORdebug/) and added, otherwise there will be no support for ACOS5.  
 The line "card_drivers = acos5_external, npa, internal;" is just an example from OpenSC version 0.17.0 opensc.conf: It means: Just prepend  
 acos5_external,  
 to the list of drivers specified by default and remove a leading comment character # in this line, if there is any.  
 When using ACOS5 V2.00, it's also required for any OpenSC release version <= 0.19.0, to bypass the almost non-functional 'acos5' internal driver somehow, thus a painless start is by using  
-    card_drivers = acos5_external, default;  
+    card_drivers = acos5_external, default;  # this excludes all internal drivers, and the default driver does just nothing, so it would fail in a determined way as last resort, if driver acos5_external doesn't match 
 
 The 3 lines starting with
 card_atr 3b:9e:96:80:01:41:05:  
 and ending with }  
 are required only for the EVO card/USB token for the time being (effectively that excludes the extended APDU mode that is possible only since the "EVO" card's hardware version (as alternative)).  
-You need to adapt the exact ATR content to what this invocation reports for Your card:  
-opensc-tool --atr
 
 ```
 app default {
@@ -163,6 +162,10 @@ app default {
 ...
 .........
 ...
+	card_atr 3b:9e:96:80:01:41:05:41:00:00:00:00:00:00:00:00:00:90:00:1c {
+		force_protocol = t0;
+	}
+
 	card_atr 3b:9e:96:80:01:41:05:42:00:00:00:00:00:00:00:00:00:90:00:1f {
 		force_protocol = t0;
 	}

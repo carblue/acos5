@@ -120,6 +120,8 @@ pub const SC_ALGORITHM_RSA       : u32 = 0;
 pub const SC_ALGORITHM_DSA       : u32 = 1;
 pub const SC_ALGORITHM_EC        : u32 = 2;
 pub const SC_ALGORITHM_GOSTR3410 : u32 = 3;
+pub const SC_ALGORITHM_EDDSA     : u32 = 4;
+pub const SC_ALGORITHM_XEDDSA    : u32 = 5;
 
 /* Symmetric algorithms */
 pub const SC_ALGORITHM_DES       : u32 = 64;
@@ -328,6 +330,10 @@ pub const SC_ALGORITHM_ECDSA_HASHES        : u32 = SC_ALGORITHM_ECDSA_HASH_SHA1 
                                                    SC_ALGORITHM_ECDSA_HASH_SHA256 |
                                                    SC_ALGORITHM_ECDSA_HASH_SHA384 |
                                                    SC_ALGORITHM_ECDSA_HASH_SHA512;
+
+/* EdDSA algorithms */
+pub const SC_ALGORITHM_EDDSA_RAW           : u32 = 0x0040_0000;
+pub const SC_ALGORITHM_XEDDSA_RAW          : u32 = 0x0080_0000;
 
 /* define mask of all algorithms that can do raw */
 #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
@@ -2235,8 +2241,14 @@ pub fn sc_card_find_rsa_alg(card: *mut sc_card,
     key_length: u32) -> *mut sc_algorithm_info;
 pub fn sc_card_find_ec_alg(card: *mut sc_card,
     field_length: u32, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+fn sc_card_find_eddsa_alg(card: *mut sc_card,
+                          field_length: u32, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+fn sc_card_find_xeddsa_alg(card: *mut sc_card,
+                           field_length: u32, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
 fn sc_card_find_gostr3410_alg(card: *mut sc_card,
-    key_length: u32) -> *mut sc_algorithm_info;
+                              key_length: u32) -> *mut sc_algorithm_info;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 fn sc_card_find_alg(card: *mut sc_card,
     algorithm: u32, key_length: u32, param: *mut c_void) -> *mut sc_algorithm_info;

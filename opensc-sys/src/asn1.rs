@@ -424,7 +424,10 @@ fn sc_asn1_utf8string_to_ascii(buf: *const u8, buflen: usize, outbuf: *mut u8, o
 /// @param outlen  IN  Length of receiving buffer array\
 /// @return        Number of bits decoded (<=8*outlen)\
 /// @test available
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))]
 pub fn sc_asn1_decode_bit_string(inbuf: *const u8, inlen: usize, outbuf: p_void, outlen: usize) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+pub fn sc_asn1_decode_bit_string(inbuf: *const u8, inlen: usize, outbuf: p_void, outlen: usize, strict: i32) -> i32;
 
 /* non-inverting version */
 
@@ -436,7 +439,10 @@ pub fn sc_asn1_decode_bit_string(inbuf: *const u8, inlen: usize, outbuf: p_void,
 /// @param outlen  IN  Length of receiving buffer array\
 /// @return        Number of bits decoded (<=8*outlen)\
 /// @test available
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))]
 pub fn sc_asn1_decode_bit_string_ni(inbuf: *const u8, inlen: usize, outbuf: p_void, outlen: usize) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+pub fn sc_asn1_decode_bit_string_ni(inbuf: *const u8, inlen: usize, outbuf: p_void, outlen: usize, strict: i32) -> i32;
 
 /// Decodes DER integer bytes (max 4) to i32
 ///
@@ -938,8 +944,16 @@ mod tests {
     fn test_sc_asn1_decode_bit_string2() {
         let array_in      = [0x06_u8, 0x20, 0x40];
         let mut array_out = [0_u8, 0];
-        let rv = unsafe { sc_asn1_decode_bit_string(array_in.as_ptr(), array_in.len(),
-                                                    array_out.as_mut_ptr() as p_void, array_out.len()) };
+        cfg_if::cfg_if! {
+            if #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))] {
+                let rv = unsafe { sc_asn1_decode_bit_string(array_in.as_ptr(), array_in.len(),
+                                                            array_out.as_mut_ptr() as p_void, array_out.len()) };
+            }
+            else {
+                let rv = unsafe { sc_asn1_decode_bit_string(array_in.as_ptr(), array_in.len(),
+                                                            array_out.as_mut_ptr() as p_void, array_out.len(), 1) };
+            }
+        }
         assert_eq!(rv, 10);
         assert!(usize::try_from(rv).unwrap()<=(array_in.len()-1)*8-usize::from(array_in[0]));
         assert_eq!(array_out, [4, 2]);
@@ -949,8 +963,16 @@ mod tests {
     fn test_sc_asn1_decode_bit_string1() {
         let array_in      = [0x06_u8, 0xC0];
         let mut array_out = [0_u8, 0];
-        let rv = unsafe { sc_asn1_decode_bit_string(array_in.as_ptr(), array_in.len(),
-            array_out.as_mut_ptr() as p_void, array_out.len()) };
+        cfg_if::cfg_if! {
+            if #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))] {
+                let rv = unsafe { sc_asn1_decode_bit_string(array_in.as_ptr(), array_in.len(),
+                                                            array_out.as_mut_ptr() as p_void, array_out.len()) };
+             }
+            else {
+                let rv = unsafe { sc_asn1_decode_bit_string(array_in.as_ptr(), array_in.len(),
+                                                            array_out.as_mut_ptr() as p_void, array_out.len(), 1) };
+            }
+        }
         assert_eq!(rv, 2);
         assert!(usize::try_from(rv).unwrap()<=(array_in.len()-1)*8-usize::from(array_in[0]));
         assert_eq!(array_out, [3, 0]);
@@ -960,8 +982,16 @@ mod tests {
     fn test_sc_asn1_decode_bit_string_ni() {
         let array_in      = [0x06_u8, 0xC0];
         let mut array_out = [0_u8, 0];
-        let rv = unsafe { sc_asn1_decode_bit_string_ni(array_in.as_ptr(), array_in.len(),
-            array_out.as_mut_ptr() as p_void, array_out.len()) };
+        cfg_if::cfg_if! {
+            if #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))] {
+                let rv = unsafe { sc_asn1_decode_bit_string_ni(array_in.as_ptr(), array_in.len(),
+                                                               array_out.as_mut_ptr() as p_void, array_out.len()) };
+             }
+            else {
+                let rv = unsafe { sc_asn1_decode_bit_string_ni(array_in.as_ptr(), array_in.len(),
+                                                               array_out.as_mut_ptr() as p_void, array_out.len(), 1) };
+            }
+        }
         assert_eq!(rv, 2);
         assert!(usize::try_from(rv).unwrap()<=(array_in.len()-1)*8-usize::from(array_in[0]));
         assert_eq!(array_out, [0xC0, 0]);

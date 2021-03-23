@@ -276,7 +276,7 @@ mod   test_v2_v3;
 pub extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = unsafe { sc_get_version() };
     if cfg!(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))  { version_ptr }
-    else if cfg!(v0_22_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered: 5b42a62 ; sym_hw_encrypt: 39b281f
+    else if cfg!(v0_22_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered: 5f9085f ; sym_hw_encrypt: 39b281f
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -1148,7 +1148,8 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
     let fdb = dp_files_value.1[0];
     let size = file_id_se(dp_files_value.1);
     let scb_erase = dp_files_value.2.unwrap()[1];
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
 ////println!("idx: {}, count: {}, flags: {}, fdb: {}, size: {}, scb_erase: {}", idx, count, flags, fdb, size, scb_erase);
     if ![1, 9].contains(&fdb) || idx >= size {
         return SC_ERROR_INVALID_ARGUMENTS;
@@ -1866,7 +1867,8 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
     if numfiles > 0 {
         let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
         let is_running_init = dp.is_running_init;
-        card.drv_data = Box::into_raw(dp) as p_void;
+        Box::leak(dp);
+        // card.drv_data = Box::into_raw(dp) as p_void;
 
         /* collect the IDs of files in the currently selected directory, restrict to max. 255, because addressing has 1 byte only */
         for i  in 0..u8::try_from(numfiles).unwrap() {

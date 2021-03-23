@@ -361,13 +361,15 @@ pub struct sc_file {
     pub id           : i32,  /* file identifier (2 bytes) */
     pub sid          : i32,  /* short EF identifier (1 byte) */
     pub acl          : [*mut sc_acl_entry; SC_MAX_AC_OPS], /* Access Control List */
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+    acl_inactive     : i32,  /* if set, the card access control mechanism is not active */
 
     #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-    pub record_length : i32, /* In case of fixed-length or cyclic EF */
+    pub record_length : i32,   /* max. length in case of record-oriented EF */
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-    pub record_length : usize, /* In case of fixed-length or cyclic EF */
+    pub record_length : usize, /* max. length in case of record-oriented EF */
     #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-    pub record_count  : i32, /* Valid, if not transparent EF or DF */
+    pub record_count  : i32,   /* Valid, if not transparent EF or DF */
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     pub record_count  : usize, /* Valid, if not transparent EF or DF */
 

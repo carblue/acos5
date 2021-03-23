@@ -173,6 +173,14 @@ fn _sc_card_add_symmetric_alg(card: *mut sc_card, algorithm: u32, key_length: u3
 pub fn _sc_card_add_rsa_alg(card: *mut sc_card, key_length: u32, flags: c_ulong, exponent: c_ulong) -> i32;
 pub fn _sc_card_add_ec_alg(card: *mut sc_card, key_length: u32, flags: c_ulong, ext_flags: c_ulong,
                            curve_oid: *mut sc_object_id) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+fn _sc_card_add_eddsa_alg(card: *mut sc_card, key_length: u32,
+                              flags: c_ulong, ext_flags: c_ulong,
+                              curve_oid: *mut sc_object_id) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+fn _sc_card_add_xeddsa_alg(card: *mut sc_card, key_length: u32,
+                               flags: c_ulong, ext_flags: c_ulong,
+                               curve_oid: *mut sc_object_id) -> i32;
 
 /********************************************************************/
 /*                 pkcs1 padding/encoding functions                 */

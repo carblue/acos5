@@ -19,6 +19,8 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
+#![allow(non_snake_case)]
+
 use std::os::raw::{c_char, c_ulong, c_void};
 #[cfg(v0_17_0)]
 use std::os::raw::c_ulonglong;
@@ -311,7 +313,6 @@ pub struct sc_pkcs15_gost_parameters {
     pub cipher : sc_object_id,
 }
 
-#[allow(non_snake_case)]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_pubkey_ec {
@@ -319,13 +320,27 @@ pub struct sc_pkcs15_pubkey_ec {
     pub ecpointQ : sc_pkcs15_u8, /* This is NOT DER, just value and length */
 }
 
-#[allow(non_snake_case)]
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct sc_pkcs15_pubkey_eddsa {
+    pub pubkey: sc_pkcs15_u8,
+}
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_prkey_ec {
     pub params : sc_ec_parameters,
     pub privateD : sc_pkcs15_bignum, /* note this is bignum */
     pub ecpointQ : sc_pkcs15_u8, /* This is NOT DER, just value and length */
+}
+
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct sc_pkcs15_prkey_eddsa {
+    pub pubkey : sc_pkcs15_u8,
+    pub value : sc_pkcs15_u8,
 }
 
 #[repr(C)]
@@ -349,6 +364,8 @@ pub union sc_pkcs15_pubkey__bindgen_ty_1 {
     pub rsa : sc_pkcs15_pubkey_rsa,
     pub dsa : sc_pkcs15_pubkey_dsa,
     pub ec  : sc_pkcs15_pubkey_ec,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+    pub eddsa : sc_pkcs15_pubkey_eddsa,
     pub gostr3410 : sc_pkcs15_pubkey_gostr3410,
 //    _bindgen_union_align : [ u64 ; 26usize ] ,
 }
@@ -374,6 +391,8 @@ pub union sc_pkcs15_prkey__bindgen_ty_1 {
     pub rsa : sc_pkcs15_prkey_rsa,
     pub dsa : sc_pkcs15_prkey_dsa,
     pub ec  : sc_pkcs15_prkey_ec,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+    pub eddsa : sc_pkcs15_prkey_eddsa,
     pub gostr3410 : sc_pkcs15_prkey_gostr3410,
     pub secret : sc_pkcs15_skey,
 // _bindgen_union_align : [ u64 ; 26usize ],
@@ -669,12 +688,16 @@ pub const SC_PKCS15_TYPE_PRKEY_RSA        : u32 =  0x101;
 pub const SC_PKCS15_TYPE_PRKEY_DSA        : u32 =  0x102;
 pub const SC_PKCS15_TYPE_PRKEY_GOSTR3410  : u32 =  0x103;
 pub const SC_PKCS15_TYPE_PRKEY_EC         : u32 =  0x104;
+pub const SC_PKCS15_TYPE_PRKEY_EDDSA      : u32 =  0x105;
+pub const SC_PKCS15_TYPE_PRKEY_XEDDSA     : u32 =  0x106;
 
 pub const SC_PKCS15_TYPE_PUBKEY           : u32 =  0x200;
 pub const SC_PKCS15_TYPE_PUBKEY_RSA       : u32 =  0x201;
 pub const SC_PKCS15_TYPE_PUBKEY_DSA       : u32 =  0x202;
 pub const SC_PKCS15_TYPE_PUBKEY_GOSTR3410 : u32 =  0x203;
 pub const SC_PKCS15_TYPE_PUBKEY_EC        : u32 =  0x204;
+pub const SC_PKCS15_TYPE_PUBKEY_EDDSA     : u32 =  0x205;
+pub const SC_PKCS15_TYPE_PUBKEY_XEDDSA    : u32 =  0x206;
 
 pub const SC_PKCS15_TYPE_SKEY             : u32 =  0x300;
 pub const SC_PKCS15_TYPE_SKEY_GENERIC     : u32 =  0x301; // this seems to cover i.a. AES
@@ -866,7 +889,6 @@ pub struct sc_pkcs15_profile_indication {
 pub type sc_pkcs15_profile_indication_t = sc_pkcs15_profile_indication;
 */
 
-#[allow(non_snake_case)]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_tokeninfo {
@@ -1083,6 +1105,9 @@ pub fn sc_pkcs15_decode_pubkey_ec(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pu
 pub fn sc_pkcs15_encode_pubkey_ec(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_ec, arg3: *mut *mut u8,
                                   arg4: *mut usize) -> i32;
 
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+pub fn sc_pkcs15_encode_pubkey_eddsa(arg1: *mut sc_context,
+                                     arg2: *mut sc_pkcs15_pubkey_eddsa, arg3: *mut *mut u8, arg4: *mut usize) -> i32;
 
 pub fn sc_pkcs15_decode_pubkey(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey, arg3: *const u8,
                                arg4: usize) -> i32;
@@ -1444,6 +1469,18 @@ pub fn sc_pkcs15emu_add_ec_prkey(p15card: *mut sc_pkcs15_card, arg2: *const sc_p
                                  arg3: *const sc_pkcs15_prkey_info) -> i32;
 pub fn sc_pkcs15emu_add_ec_pubkey(p15card: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object,
                                   arg3: *const sc_pkcs15_pubkey_info) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+fn sc_pkcs15emu_add_eddsa_prkey(p15card: *mut sc_pkcs15_card,
+                                arg2: *const sc_pkcs15_object, arg3: *const sc_pkcs15_prkey_info) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+fn sc_pkcs15emu_add_eddsa_pubkey(p15card: *mut sc_pkcs15_card,
+                                 arg2: *const sc_pkcs15_object, arg3: *const sc_pkcs15_pubkey_info) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+fn sc_pkcs15emu_add_xeddsa_prkey(p15card: *mut sc_pkcs15_card,
+                                 arg2: *const sc_pkcs15_object, arg3: *const sc_pkcs15_prkey_info) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+fn sc_pkcs15emu_add_xeddsa_pubkey(p15card: *mut sc_pkcs15_card,
+                                  arg2: *const sc_pkcs15_object, arg3: *const sc_pkcs15_pubkey_info) -> i32;
 pub fn sc_pkcs15emu_add_x509_cert(p15card: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object,
                                   arg3: *const sc_pkcs15_cert_info) -> i32;
 pub fn sc_pkcs15emu_add_data_object(p15card: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object,
