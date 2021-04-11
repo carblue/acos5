@@ -22,6 +22,7 @@ fn main() {
 
     /* other conditional compilation settings */
     println!("cargo:rustc-cfg=log"); // enables driver log output to file debug_file, set in opensc.conf (e.g. debug_file = "/tmp/opensc-debug.log";). Otherwise the driver will be almost quiet referring that
+//     println("cargo:rustc-cfg=card_initialization"); // enables card initialization code
     { // in the following lines of this block ({...}), remove either all leading // if You want that feature compiled in, or none to keep that inactive
 //        println!("cargo:rustc-cfg=iup_user_consent"); // enables driver to ask for user consent prior to using RSA private keys (for sign, decrypt); DO ENABLE ONLY together with the 2 following lines relating to IUP
 //        println!("cargo:rustc-link-lib=dylib=iup"); // specifies linking libiup.so/dylib or compiling on Windows with import library iup.lib

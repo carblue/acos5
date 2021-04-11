@@ -94,7 +94,7 @@ Message in debug_file: successfully loaded pkcs15init driver 'acos5-external'
 use libc::{free}; // strlen
 //use pkcs11::types::{CKM_DES_ECB, CKM_DES3_ECB, CKM_AES_ECB};
 
-use std::os::raw::{c_char};
+use std::os::raw::{c_char, c_void};
 use std::ffi::CStr;
 use std::ptr::{null_mut};
 // use std::collections::HashSet;
@@ -137,7 +137,7 @@ pub mod    macros;
 
 pub mod    constants_types; // shared file among modules acos5, acos5_pkcs15 and acos5_sm
 use crate::constants_types::{CARD_DRV_SHORT_NAME, CardCtl_generate_crypt_asym, DataPrivate, SC_CARDCTL_ACOS5_SDO_CREATE,
-                             SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, SC_CARD_TYPE_ACOS5_64_V3, build_apdu, p_void,
+                             SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, SC_CARD_TYPE_ACOS5_64_V3, build_apdu,
                              SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile, file_id_from_path_value,
                              SC_CARD_TYPE_ACOS5_EVO_V4};
 
@@ -178,24 +178,25 @@ const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 /// Its accuracy depends on how closely the opensc-sys binding and driver code has covered the possible
 /// differences in API and behavior (this function mentions the last OpenSC commit covered).
 /// master will be handled as an imaginary new version release:
-/// E.g. while currently the latest release is 0.21.0, build OpenSC from source such that it reports imaginary
-/// version 0.22.0 (change config.h after ./configure and before make)
-/// In this example, cfg!(v0_22_0) will then match that
+/// E.g. while currently the latest release is 0.22.0, build OpenSC from source such that it reports imaginary
+/// version 0.23.0 (change configure.ac; define([PACKAGE_VERSION_MINOR], [23]) )
+/// In this example, cfg!(v0_23_0) will then match that
 ///
 /// @return   The OpenSC release/imaginary version, that this driver implementation supports
 #[allow(clippy::if_same_then_else)]
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
-    if cfg!(v0_17_0) || cfg!(v0_18_0) || cfg!(v0_19_0) || cfg!(v0_20_0) || cfg!(v0_21_0) { unsafe { sc_get_version() } }
-    else if cfg!(v0_22_0)  { unsafe { sc_get_version() } } // experimental only:  Latest OpenSC github master commit covered: f8af905 ; sym_hw_encrypt: dadfed3
+    let version_ptr = unsafe { sc_get_version() };
+    if cfg!(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))  { version_ptr }
+    // else if cfg!(v0_23_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered: 991bb8a ; sym_hw_encrypt: 39b281f
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> p_void {
+pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> *mut c_void {
     if !name.is_null() && CStr::from_ptr(name) == cstru!(CARD_DRV_SHORT_NAME) {
-        acos5_get_pkcs15init_ops as p_void
+        acos5_get_pkcs15init_ops as *mut c_void
     }
     else {
         null_mut()
@@ -438,7 +439,7 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         Ok((ax, ay)) => (ax, ay),
         Err(e) => return e,
     };
-    let key_info = unsafe { &mut *(object.data as *mut sc_pkcs15_prkey_info) };
+    let key_info = unsafe { &mut *object.data.cast::<sc_pkcs15_prkey_info>() };
     if ![SC_PKCS15_TYPE_PRKEY_RSA, SC_PKCS15_TYPE_PRKEY_EC].contains(&object.type_) ||
         (key_info.usage & (SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT)) == 0 {
         log3if!(ctx,f,line!(), cstru!(b"Failed: Only RSA and ECC is supported\0"));
@@ -584,7 +585,7 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     let app_name = unsafe { CStr::from_ptr(ctx.app_name) }; // app_name: "pkcs15-init"
 //    println!("app_name: {:?}", app_name);
 //
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     if app_name == cstru!(b"acos5_gui \0") {
         dp.agc.do_create_files = dp.agi.do_create_files;
         if !dp.agc.do_create_files && dp.agi.file_id_priv!=0 && dp.agi.file_id_pub!=0 {
@@ -615,10 +616,10 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     }
     let do_create_files = dp.agc.do_create_files;
     file_priv.size = 5 + keybits/16 * if dp.agc.do_generate_rsa_crt {5} else {2};
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
 //
     if !file_priv.prop_attr.is_null() {
-        unsafe { free(file_priv.prop_attr as p_void) }; // file->prop_attr = malloc(len);
+        unsafe { free(file_priv.prop_attr.cast::<c_void>()) }; // file->prop_attr = malloc(len);
         file_priv.prop_attr = null_mut();
     }
 
@@ -716,10 +717,10 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
     #[cfg(rsa_key_gen_verbose)]
     { println!("This file id will be chosen for the public  RSA key:  {:X}", file_pub.id); }
     if app_name == cstru!(b"acos5_gui \0") {
-        let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         dp.agi.file_id_priv = u16::try_from(file_priv.id).unwrap();
         dp.agi.file_id_pub  = u16::try_from(file_pub.id).unwrap();
-        card.drv_data = Box::into_raw(dp) as p_void;
+        card.drv_data = Box::into_raw(dp).cast::<c_void>();
     }
     // TODO don't leak old file_pub.acl[SC_AC_OP_READ]
     file_pub.acl[SC_AC_OP_READ as usize] = 0x2 as *mut sc_acl_entry; // ALWAYS allowed to be read
@@ -772,7 +773,7 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
     /* actual file creation on card */
 /* */
     if do_create_files {
-        rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_CREATE, file_priv as *mut _ as p_void) };
+        rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_CREATE, (file_priv as *mut sc_file).cast::<c_void>()) };
         if rv < 0 {
             log3ifr!(ctx,f,line!(), cstru!(b"create file_priv failed\0"), rv);
             return rv;
@@ -792,7 +793,7 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
         rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_priv, i32::try_from(SC_AC_OP_UPDATE).unwrap()) };
         if rv != SC_SUCCESS { return rv; }
 
-        rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_CREATE, file_pub as *mut sc_file as p_void) };
+        rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_CREATE, (file_pub as *mut sc_file).cast::<c_void>()) };
         if rv < 0 {
             log3ifr!(ctx,f,line!(), cstru!(b"create file_pub failed\0"), rv);
             return rv;
@@ -813,7 +814,7 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
         rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_pub, i32::try_from(SC_AC_OP_UPDATE).unwrap()) };
         if rv != SC_SUCCESS { return rv; }
     }
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     dp.agc.file_id_priv = u16::try_from(file_priv.id).unwrap();
     dp.agc.file_id_pub  = u16::try_from(file_pub.id).unwrap();
     dp.agc.key_len_code = u8::try_from(keybits / 128).unwrap();
@@ -841,7 +842,7 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
 //    dp.agc.is_key_pair_created_and_valid_for_generation = true;
     dp.agc.perform_mse = true;
     /* setting of dp.agc  is complete, ready for generation */
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
 
     rv = SC_SUCCESS;
     log3ifr!(ctx,f,line!(), rv);
@@ -887,7 +888,7 @@ extern "C" fn acos5_pkcs15_store_key(profile_ptr: *mut sc_profile, p15card_ptr: 
     let key = unsafe { &mut *key_ptr };
     let skey_algo = key.algorithm;
     let skey = unsafe { &mut key.u.secret };
-    let skey_info = unsafe { &mut *(object.data as *mut sc_pkcs15_skey_info) };
+    let skey_info = unsafe { &mut *object.data.cast::<sc_pkcs15_skey_info>() };
     log3ifc!(ctx,f,line!());
     if skey.data.is_null() || skey.data_len == 0 || skey_info.value_len/8 != skey.data_len {
         return SC_ERROR_INVALID_ARGUMENTS;
@@ -923,14 +924,14 @@ extern "C" fn acos5_pkcs15_store_key(profile_ptr: *mut sc_profile, p15card_ptr: 
     skey_info.key_reference = 0x80 | skey_info.path.index;
     skey_info.path.value[skey_info.path.len..skey_info.path.len+2].copy_from_slice(&file_id_sym_keys.to_be_bytes());
     skey_info.path.len += 2;
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let mrl = dp.files[&file_id_sym_keys].1[4];
 //      let nor = dp.files[&file_id_sym_keys].1[5];
     // dp.is_unwrap_op_in_progress = true;
     dp.sym_key_file_id = file_id_sym_keys;
     dp.sym_key_rec_idx = u8::try_from(skey_info.path.index).unwrap();
     dp.sym_key_rec_cnt = mrl;
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
 
     skey_info.path.count = i32::from(mrl);//0x25;
 // println!("skey_info: {:?}", *skey_info);
@@ -986,7 +987,7 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     let card = unsafe { &mut *(*p15card_ptr).card };
     let ctx = unsafe { &mut *card.ctx };
     let object_priv = unsafe { &mut *p15object_ptr};
-    let key_info_priv = unsafe { &mut *(object_priv.data as *mut sc_pkcs15_prkey_info) };
+    let key_info_priv = unsafe { &mut *object_priv.data.cast::<sc_pkcs15_prkey_info>() };
     let p15pubkey = unsafe { &mut *p15pubkey_ptr };
     let mut rv;// = SC_ERROR_UNKNOWN;
     let f  = cstru!(b"acos5_pkcs15_generate_key\0");
@@ -999,7 +1000,7 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
         return SC_ERROR_NOT_SUPPORTED;
     }
 //    let keybits = rsa_modulus_bits_canonical(key_info_priv.modulus_length);
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let mut agc = dp.agc;
 //    let is_key_pair_created_and_valid_for_generation = dp.agc.is_key_pair_created_and_valid_for_generation;
     let dp_files_value_ref = &dp.files[&dp.agc.file_id_pub];
@@ -1026,7 +1027,7 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     log3if!(ctx,f,line!(), cstru!(b"p15pubkey.alg_id:    %p\0"), p15pubkey.alg_id);
 */
     Box::leak(dp);
-    // card.drv_data = Box::into_raw(dp) as p_void;
+    // card.drv_data = Box::into_raw(dp) as *mut c_void;
 /*
     if !is_key_pair_created_and_valid_for_generation {
         rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
@@ -1035,7 +1036,7 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     }
 */
     //gen_keypair; the data get prepared in acos5_pkcs15_create_key
-    rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, &mut agc as *mut CardCtl_generate_crypt_asym as p_void) };
+    rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, (&mut agc as *mut CardCtl_generate_crypt_asym).cast::<c_void>()) };
     if rv != SC_SUCCESS {
         log3ifr!(ctx,f,line!(), cstru!(b"command 'Generate Key Pair' failed\0"), rv);
         return rv;
@@ -1049,7 +1050,7 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
         key_info_pub.field_length = key_info_priv.field_length;   /* EC in bits */
     }
     let object_pub = sc_pkcs15_object { type_:  if agc.key_curve_code == 0 {SC_PKCS15_TYPE_PUBKEY_RSA} else {SC_PKCS15_TYPE_PUBKEY_EC},
-        data: &mut key_info_pub as *mut sc_pkcs15_pubkey_info as p_void,  ..sc_pkcs15_object::default() };
+        data: (&mut key_info_pub as *mut sc_pkcs15_pubkey_info).cast::<c_void>(),  ..sc_pkcs15_object::default() };
     let mut p15pubkey2_ptr = null_mut();
     rv = unsafe { sc_pkcs15_read_pubkey(p15card_ptr, &object_pub, &mut p15pubkey2_ptr) };
     if rv != SC_SUCCESS {
@@ -1150,12 +1151,12 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
     }
 
     if SC_PKCS15_TYPE_PRKEY_RSA == object.type_ {
-        let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-        dp.last_keygen_priv_id = unsafe { (*(object.data as *mut sc_pkcs15_prkey_info)).id };
-        card.drv_data = Box::into_raw(dp) as p_void;
+        let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
+        dp.last_keygen_priv_id = unsafe { (*object.data.cast::<sc_pkcs15_prkey_info>() ).id };
+        card.drv_data = Box::into_raw(dp).cast::<c_void>();
     }
     else if SC_PKCS15_TYPE_PUBKEY_RSA == object.type_ {
-        let key_info = unsafe { &mut *(object.data as *mut sc_pkcs15_pubkey_info) };
+        let key_info = unsafe { &mut *object.data.cast::<sc_pkcs15_pubkey_info>() };
 /*
     log3if!(ctx,f,line!(), cstru!(b"object.label: %s\0"),   object.label.as_ptr()); // pkcs15-init -G rsa/3072 -a 01 -i 08 -l testkey -u sign,decrypt
     log3if!(ctx,f,line!(), cstru!(b"object.flags: 0x%X\0"), object.flags); // 0x2: SC_PKCS15_CO_FLAG_MODIFIABLE
@@ -1190,7 +1191,7 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
         key_info.modulus_length = rsa_modulus_bits_canonical(key_info.modulus_length);
         key_info.access_flags = SC_PKCS15_PRKEY_ACCESS_EXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_LOCAL;
         key_info.native = 1;
-        let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
 /**/
         /* FIXME temporarily solve issue https://github.com/OpenSC/OpenSC/issues/2184 here, later improve OpenSC code */
         if key_info.id != dp.last_keygen_priv_id {
@@ -1209,7 +1210,7 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
     }
     else if SC_PKCS15_TYPE_SKEY_GENERIC == object.type_ {
         /* called from unwrapping a RSA_WRAPPED_AES_KEY */
-        let key_info = unsafe { &mut *(object.data as *mut sc_pkcs15_skey_info) };
+        let key_info = unsafe { &mut *object.data.cast::<sc_pkcs15_skey_info>() };
         key_info.access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE;
         // key_info.key_reference;
 
@@ -1381,7 +1382,7 @@ extern "C" fn acos5_pkcs15_sanity_check(_profile: *mut sc_profile, p15card: *mut
        info if there are SE file records unused so far
     */
     // TODO check data race condition for dp
-    let dp = unsafe { Box::from_raw(card_ref.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card_ref.drv_data.cast::<DataPrivate>()) };
 
 //    let mut path3908 = sc_path::default();
     /* DF/MF must point to existing SE-File with correct FDB==0x1C */

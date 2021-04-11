@@ -310,24 +310,25 @@ pub const DELETE_SELF  : usize =  6;
 #[allow(non_camel_case_types)]
 pub type p_void = *mut c_void;
 
+/*
 /* For EVO only: new() switches to Extended APDU syntax, drop() switches back to Short APDU syntax */
-pub struct APDUShortExtendedSwitcher(u8);
+pub struct ApduShortExtendedSwitcher(u8);
 
-impl APDUShortExtendedSwitcher {
+impl ApduShortExtendedSwitcher {
     pub fn new(card: &mut sc_card) -> Self {
-//println!("New for APDUShortExtendedSwitcher");
+//println!("New for ApduShortExtendedSwitcher");
         if card.type_ == SC_CARD_TYPE_ACOS5_EVO_V4 {
 /* * /
             card.caps |= SC_CARD_CAP_APDU_EXT;
 / * */
         }
-        APDUShortExtendedSwitcher(0)
+        ApduShortExtendedSwitcher(0)
     }
 }
 
-impl Drop for APDUShortExtendedSwitcher {
+impl Drop for ApduShortExtendedSwitcher {
     fn drop(&mut self) {
-//println!("Drop for APDUShortExtendedSwitcher");
+//println!("Drop for ApduShortExtendedSwitcher");
 /* * /
         if card.type_ == SC_CARD_TYPE_ACOS5_EVO_V4 {
             card.caps &= !SC_CARD_CAP_APDU_EXT;
@@ -335,10 +336,11 @@ impl Drop for APDUShortExtendedSwitcher {
 / * */
     }
 }
+*/
 
 /* Represents the FCI content, File Control Information */
 #[derive(Debug, Clone, PartialEq)]
-pub struct FCI {
+pub struct Fci {
     pub fdb : u8,
     pub fid : u16,
     pub size : u16,
@@ -353,7 +355,7 @@ pub struct FCI {
     pub nor : u16,
 }
 
-impl Default for FCI {
+impl Default for Fci {
     fn default() -> Self {
         Self {
             fdb: 0,
@@ -370,18 +372,19 @@ impl Default for FCI {
     }
 }
 
-impl FCI {
+impl Fci {
     /*
         pub fn new(fdb: u8, fid : u16, size: u16, lcsi: u8, df_name: Vec<u8>, scb8: [u8; 8], sae: Vec<u8>, seid : u16, mrl: u8, nor: u8) -> Self {
-            FCI { fdb, fid, size, lcsi, df_name, scb8, sae, seid, mrl, nor }
+            Fci { fdb, fid, size, lcsi, df_name, scb8, sae, seid, mrl, nor }
         }
     */
     #[allow(clippy::match_wild_err_arm)]
+    #[allow(clippy::missing_panics_doc)]
     #[must_use]
     pub fn new_parsed(card: &sc_card, fci_bytes_sequence_body: &[u8]) -> Self {
-        let mut result = FCI::default();
-        // let tlv_iter = TLV::new(fci_bytes_sequence_body);
-        for tlv in TLV::new(fci_bytes_sequence_body) {
+        let mut result = Fci::default();
+        // let tlv_iter = Tlv::new(fci_bytes_sequence_body);
+        for tlv in Tlv::new(fci_bytes_sequence_body) {
             match tlv.tag() {
                 ISO7816_TAG_FCP_TYPE => {
                     let len = tlv.length();
@@ -439,7 +442,7 @@ impl FCI {
 }
 
 #[derive(Debug, Clone)]
-pub struct TLV<'a> {
+pub struct Tlv<'a> {
     tag: u8,
     length: u8,
     value: &'a [u8],
@@ -447,7 +450,7 @@ pub struct TLV<'a> {
     rem: &'a [u8],
 }
 
-impl<'a> TLV<'a> {
+impl<'a> Tlv<'a> {
     #[must_use]
     pub fn new(input: &'a[u8]) -> Self {
         Self { tag: 0, length: 0, value: input, rem: input }
@@ -467,8 +470,8 @@ impl<'a> TLV<'a> {
     }
 }
 
-impl<'a> Iterator for TLV<'a> {
-    type Item = TLV<'a>;
+impl<'a> Iterator for Tlv<'a> {
+    type Item = Tlv<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.rem.is_empty() {
@@ -716,6 +719,7 @@ impl Default for CardCtl_crypt_sym {
 
 /////////////////////////////////////////////////////////////////////////////////
 /* Stores 1 record of Security Environment File, intended to be placed in a Vec, stored with the DF */
+#[allow(clippy::upper_case_acronyms)]
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct SACinfo /*SeInfo*/ {
@@ -751,6 +755,7 @@ pub struct SCDO { // for SCDO_TAGs Always_Deny ..AuthT every scdo content is in 
 
 /* Stores SAE information for an instruction from <AMDO><SCDO> simple-TLV, intended to be placed in a Vec, stored with the DF
    TODO SCDO Tags 0xA0 and 0xAF are not yet covered */
+#[allow(clippy::upper_case_acronyms)]
 #[allow(non_snake_case)]
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
@@ -850,6 +855,7 @@ pub fn is_DFMF(fdb: u8) -> bool
 /// assert_eq!(apdu.resp,    rbuf.as_mut_ptr());
 /// assert_eq!(apdu.resplen, rbuf.len());
 /// ```
+#[allow(clippy::missing_panics_doc)]
 #[must_use]
 pub fn build_apdu(ctx: &mut sc_context, cmd: &[u8], cse: i32, rbuf: &mut [u8]) -> sc_apdu {
     let mut apdu = sc_apdu::default();
@@ -863,6 +869,7 @@ pub fn build_apdu(ctx: &mut sc_context, cmd: &[u8], cse: i32, rbuf: &mut [u8]) -
     apdu
 }
 
+#[allow(clippy::missing_panics_doc)]
 #[must_use]
 pub fn is_child_of(child: &ValueTypeFiles, parent: &ValueTypeFiles) -> bool {
     let pos = usize::from(parent.1[1]);
@@ -873,6 +880,7 @@ pub fn is_child_of(child: &ValueTypeFiles, parent: &ValueTypeFiles) -> bool {
 }
 
 /* The following 2 functions take the file id from the last valid path component */
+#[allow(clippy::missing_panics_doc)]
 #[must_use]
 pub fn file_id_from_path_value(path_value: &[u8]) -> u16
 {
@@ -927,6 +935,7 @@ pub fn file_id_se(file_info_bytes: [u8; 8]) ->u16 {
 ///
 /// # Errors
 #[allow(clippy::missing_errors_doc)]
+#[allow(clippy::missing_panics_doc)]
 pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Result<[u8; 8], i32>
 {
     let mut scb8 = [0_u8; 8]; // if AM has no 1 bit for a command/operation, then it's : always allowed

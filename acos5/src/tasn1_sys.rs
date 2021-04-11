@@ -233,10 +233,10 @@ pub struct asn1_static_node_st {
 
 impl asn1_static_node_st {
     pub fn new(name: &std::ffi::CStr, type_: c_uint, value: &std::ffi::CStr) -> Self {
-        Self { name: name.as_ptr(), type_, value: value.as_ptr() as *const c_void }
+        Self { name: name.as_ptr(), type_, value: value.as_ptr().cast::<c_void>() }
     }
     pub fn new_name_null(type_: c_uint, value: &std::ffi::CStr) -> Self {
-        Self { name: null(), type_, value: value.as_ptr() as *const c_void }
+        Self { name: null(), type_, value: value.as_ptr().cast::<c_void>() }
     }
     pub fn new_value_null(name: &std::ffi::CStr, type_: c_uint) -> Self {
         Self { name: name.as_ptr(), type_, value: null() }

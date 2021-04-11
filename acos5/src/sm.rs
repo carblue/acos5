@@ -30,7 +30,7 @@ TODO There is a lot of code duplication here: Abstract as much as possible for t
 use libc::{free, strlen};
 use num_integer::Integer;
 
-use std::os::raw::{c_char, c_ulong};
+use std::os::raw::{c_char, c_ulong, c_void};
 use std::ffi::CString;
 use std::ptr::{null, null_mut};
 use std::slice::from_raw_parts;
@@ -53,7 +53,7 @@ use opensc_sys::log::{sc_dump_hex}; /*, SC_LOG_DEBUG_NORMAL, SC_LOG_DEBUG_SM*/
 use opensc_sys::scconf::{scconf_block, scconf_find_blocks, scconf_get_str};
 
 use crate::constants_types::{ACOS5_OBJECT_REF_LOCAL, ACOS5_OBJECT_REF_MAX, CARD_DRV_SHORT_NAME, DataPrivate, build_apdu,
-                             p_void, SC_CARD_TYPE_ACOS5_EVO_V4};
+                             /*p_void,*/ SC_CARD_TYPE_ACOS5_EVO_V4};
 use crate::crypto::{DES_KEY_SZ, DES_KEY_SZ_u8, des_ecb3_unpadded_8, des_ede3_cbc_pad_80_mac, des_ede3_cbc_pad_80,
                     DES_set_odd_parity, DES_cblock, Encrypt, Decrypt};
 use crate::no_cdecl::{authenticate_external, authenticate_internal};
@@ -148,7 +148,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
         if blocks_ptr.is_null() { continue; }
         sm_conf_block = unsafe { *blocks_ptr }; // blocks[0];
 
-        unsafe { free(blocks_ptr as p_void) };
+        unsafe { free(blocks_ptr.cast::<c_void>()) };
         if !sm_conf_block.is_null() { break; }
     }
 
@@ -191,9 +191,9 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
 ////            sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "keyset::enc(%"SC_FORMAT_LEN_SIZE_T"u) %s", strlen(value), value);
     log3if!(ctx,f,line!(), cstru!(b"keyset::enc(%zu) %s\0"), unsafe { strlen(value) }, value);
     if unsafe { strlen(value) } == 3*DES_KEY_SZ {
-        cwa_keyset.enc.copy_from_slice(unsafe { from_raw_parts(value as *const u8, 2*DES_KEY_SZ) });
+        cwa_keyset.enc.copy_from_slice(unsafe { from_raw_parts(value.cast::<u8>(), 2*DES_KEY_SZ) });
         cwa_session.icc.k[..DES_KEY_SZ].copy_from_slice(unsafe { from_raw_parts(
-            value.add(2*DES_KEY_SZ) as *const u8, DES_KEY_SZ) });
+            value.add(2*DES_KEY_SZ).cast::<u8>(), DES_KEY_SZ) });
     }
     else {
         hex_len = hex.len();
@@ -237,9 +237,9 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
 ////sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "keyset::mac(%"SC_FORMAT_LEN_SIZE_T"u) %s", strlen(value), value);
     log3if!(ctx,f,line!(), cstru!(b"keyset::mac(%zu) %s\0"), unsafe { strlen(value) }, value);
     if unsafe { strlen(value) } == 3*DES_KEY_SZ {
-        cwa_keyset.mac.copy_from_slice(unsafe { from_raw_parts(value as *const u8, 2*DES_KEY_SZ) });
+        cwa_keyset.mac.copy_from_slice(unsafe { from_raw_parts(value.cast::<u8>(), 2*DES_KEY_SZ) });
         cwa_session.ifd.k[..DES_KEY_SZ].copy_from_slice(unsafe {
-            from_raw_parts(value.add(2*DES_KEY_SZ) as *const u8, DES_KEY_SZ) });
+            from_raw_parts(value.add(2*DES_KEY_SZ).cast::<u8>(), DES_KEY_SZ) });
     }
     else   {
         hex_len = hex.len();
@@ -369,8 +369,8 @@ fn sm_cwa_initialize(card: &mut sc_card/*, sm_info: &mut sm_info, _rdata: &mut s
     assert_eq!(3 * DES_KEY_SZ, sess_mac_buf.len());
     for i in 0..3 {
         unsafe {
-            DES_set_odd_parity(sess_enc_buf.as_mut_ptr().add(i*8) as *mut DES_cblock);
-            DES_set_odd_parity(sess_mac_buf.as_mut_ptr().add(i*8) as *mut DES_cblock);
+            DES_set_odd_parity(sess_enc_buf.as_mut_ptr().add(i*8).cast::<DES_cblock>());
+            DES_set_odd_parity(sess_mac_buf.as_mut_ptr().add(i*8).cast::<DES_cblock>());
         }
     }
     unsafe {
@@ -406,7 +406,7 @@ fn sm_manage_keyset(card: &mut sc_card) -> i32
 /* */
         #[cfg(not(target_os = "windows"))]
         if card.sm_ctx.info.current_aid.len == 0 {
-            let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+            let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
             assert!(!dp.pkcs15_definitions.is_null());
             Box::leak(dp);
             // card.drv_data = Box::into_raw(dp) as p_void;
@@ -448,12 +448,12 @@ fn sm_manage_initialize(card: &mut sc_card) -> i32
     let f = cstru!(b"sm_manage_initialize\0");
     log3ifc!(ctx,f,line!());
 
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let last_sm_cmd = dp.sm_cmd;
     dp.sm_cmd = card.sm_ctx.info.cmd;
     let last_time_stamp = dp.time_stamp;
     dp.time_stamp = std::time::Instant::now();
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
 
 //println!("elapsed ms: {}, last_sm_cmd: {:X}, this_sm_cmd: {:X}", last_time_stamp.elapsed().as_millis(), last_sm_cmd, card.sm_ctx.info.cmd);
     if  last_sm_cmd==0 || last_sm_cmd!=card.sm_ctx.info.cmd ||
@@ -465,9 +465,10 @@ fn sm_manage_initialize(card: &mut sc_card) -> i32
             log3if!(ctx,f,line!(),cstru!(b"Error: #################### SM initializing failed ####################\0"));
         }
 
-        let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         dp.time_stamp = std::time::Instant::now();
-        card.drv_data = Box::into_raw(dp) as p_void;
+        card.drv_data = Box::into_raw(dp).cast::<c_void>()
+        ;
         rv
     }
     else {

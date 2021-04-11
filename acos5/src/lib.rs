@@ -65,7 +65,7 @@ it has a child DF that has been selected.
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::if_not_else))]
 
 
-use std::os::raw::{c_char, c_ulong/*, c_void*/};
+use std::os::raw::{c_char, c_ulong, c_void};
 use std::ffi::{CStr/*, CString*/};
 use std::ptr::{copy_nonoverlapping, null_mut, null};
 use std::collections::HashMap;
@@ -179,8 +179,8 @@ use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEAN
                       /*SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, */ // SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, // SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                       SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
-                      ValueTypeFiles, build_apdu, is_DFMF, p_void, SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile,
-                      file_id_from_path_value, file_id, file_id_se, FCI,
+                      ValueTypeFiles, build_apdu, is_DFMF, SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile, p_void,
+                      file_id_from_path_value, file_id, file_id_se, Fci,
                       SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE, CardCtlAlgoRefSymStore, CRT_TAG_DST, CRT_TAG_CT,
                       SC_SEC_OPERATION_GENERATE_ECCPRIVATE, SC_SEC_OPERATION_GENERATE_ECCPUBLIC,
                       SC_SEC_OPERATION_ENCIPHER_ECCPUBLIC
@@ -266,17 +266,17 @@ mod   test_v2_v3;
 /// Its accuracy depends on how closely the opensc-sys binding and driver code has covered the possible
 /// differences in API and behavior (this function mentions the last OpenSC commit covered).
 /// master will be handled as an imaginary new version release:
-/// E.g. while currently the latest release is 0.21.0, build OpenSC from source such that it reports imaginary
-/// version 0.22.0 (change config.h after ./configure and before make)
-/// In this example, cfg!(v0_22_0) will then match that
+/// E.g. while currently the latest release is 0.22.0, build OpenSC from source such that it reports imaginary
+/// version 0.23.0 (change configure.ac; define([PACKAGE_VERSION_MINOR], [23]) )
+/// In this example, cfg!(v0_23_0) will then match that
 ///
 /// @return   The OpenSC release/imaginary version, that this driver implementation supports
 #[allow(clippy::if_same_then_else)]
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = unsafe { sc_get_version() };
-    if cfg!(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))  { version_ptr }
-    else if cfg!(v0_22_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered: 5f9085f ; sym_hw_encrypt: 39b281f
+    if cfg!(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))  { version_ptr }
+    // else if cfg!(v0_23_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered: 991bb8a ; sym_hw_encrypt: 39b281f
     else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -290,9 +290,9 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 /// This function should not be called before the horsemen are ready.
 //#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
-pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> p_void {
+pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> *mut c_void {
     if !name.is_null() && CStr::from_ptr(name) == cstru!(CARD_DRV_SHORT_NAME) {
-        acos5_get_card_driver as p_void
+        acos5_get_card_driver as *mut c_void
     }
     else {
         null_mut()
@@ -786,7 +786,7 @@ println!("address of dp.sec_env:            {:p}", &dp.sec_env);
 //address of dp.sec_env:            0x55cb0bebc548
 */
 
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
 
 /*
 println!("offset_of pkcs15_definitions:               {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, pkcs15_definitions),   offset_of!(DataPrivate, files)-offset_of!(DataPrivate, pkcs15_definitions), std::mem::size_of::<asn1_node>(), std::mem::align_of::<asn1_node>());
@@ -863,7 +863,7 @@ DataPrivate:                                                size_of: 1792, align
     if rv != SC_SUCCESS { return rv; } // enum_dir returns SC_SUCCESS also for does_mf_exist==false
     // #[cfg(sanity)]
     {
-        let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         let does_mf_exist = dp.does_mf_exist;
         Box::leak(dp);
         // card.drv_data = Box::into_raw(dp) as p_void;
@@ -905,7 +905,7 @@ cfg_if::cfg_if! {
     }
 }
 
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     dp.files.shrink_to_fit();
     dp.is_running_init = false;
 
@@ -919,7 +919,7 @@ cfg_if::cfg_if! {
             log3ifr!(ctx,f,line!(), cstru!(b"set_ui_ctx failed.\0"), rv);
         }
     }
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
 
     log3ifr!(ctx,f,line!(), rv);
     rv
@@ -954,7 +954,7 @@ extern "C" fn acos5_finish(card_ptr: *mut sc_card) -> i32
         assert_eq!(SC_SUCCESS, rv);
 
         assert!(!file_x.is_null());
-        let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         let scb8 = dp.files[&0x4102].2.unwrap();
         card.drv_data = Box::into_raw(dp) as p_void;
 
@@ -1090,10 +1090,10 @@ println!("sc_update_binary: rv: {}", rv);
     assert!(!card.drv_data.is_null(), "drv_data is null");
     cfg_if::cfg_if! {
         if #[cfg(target_os = "windows")] {
-            let     dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+            let     dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         }
         else {
-            let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+            let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
             if !dp.pkcs15_definitions.is_null() {
                 unsafe { asn1_delete_structure(&mut dp.pkcs15_definitions) };
             }
@@ -1143,7 +1143,7 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
     log3ifc!(ctx,f,line!());
 
     let file_id = file_id_from_cache_current_path(card);
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let dp_files_value = &dp.files[&file_id];
     let fdb = dp_files_value.1[0];
     let size = file_id_se(dp_files_value.1);
@@ -1240,7 +1240,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             SC_ERROR_NOT_SUPPORTED, // see sc_pkcs15init_bind
         SC_CARDCTL_GET_SERIALNR =>
             {
-                let rm_serialnr = unsafe { &mut *(data_ptr as *mut sc_serial_number) };
+                let rm_serialnr = unsafe { &mut *data_ptr.cast::<sc_serial_number>() };
                 *rm_serialnr = match get_serialnr(card) {
                     Ok(val) => val,
                     Err(e) => return e,
@@ -1249,7 +1249,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             },
         SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE =>
             {
-                let rm_algo_ref_sym_store = unsafe { &mut *(data_ptr as *mut CardCtlAlgoRefSymStore) };
+                let rm_algo_ref_sym_store = unsafe { &mut *data_ptr.cast::<CardCtlAlgoRefSymStore>() };
                 rm_algo_ref_sym_store.value = match algo_ref_sym_store(rm_algo_ref_sym_store.card_type, rm_algo_ref_sym_store.algorithm, rm_algo_ref_sym_store.key_len_bytes) {
                     Ok(val) => val,
                     Err(e) => return e,
@@ -1258,7 +1258,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             },
         SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF =>
             {
-                let rm_count_files_curr_df = unsafe { &mut *(data_ptr as *mut u16) };
+                let rm_count_files_curr_df = unsafe { &mut *data_ptr.cast::<u16>() };
                 *rm_count_files_curr_df = match get_count_files_curr_df(card) {
                     Ok(val) => val,
                     Err(e) => return e,
@@ -1267,7 +1267,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             },
         SC_CARDCTL_ACOS5_GET_FILE_INFO =>
             {
-                let rm_file_info = unsafe { &mut *(data_ptr as *mut CardCtlArray8) };
+                let rm_file_info = unsafe { &mut *data_ptr.cast::<CardCtlArray8>() };
                 rm_file_info.value = match get_file_info(card, rm_file_info.reference) {
                     Ok(val) => val,
                     Err(e) => return e,
@@ -1276,7 +1276,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             },
         SC_CARDCTL_ACOS5_GET_FREE_SPACE =>
             {
-                let rm_free_space = unsafe { &mut *(data_ptr as *mut u32) };
+                let rm_free_space = unsafe { &mut *data_ptr.cast::<u32>() };
                 *rm_free_space = match get_free_space(card) {
                     Ok(val) => val,
                     Err(e) => return e,
@@ -1285,7 +1285,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             },
         SC_CARDCTL_ACOS5_GET_IDENT_SELF =>
             {
-                let rm_is_hw_acos5 = unsafe { &mut *(data_ptr as *mut bool) };
+                let rm_is_hw_acos5 = unsafe { &mut *data_ptr.cast::<bool>() };
                 *rm_is_hw_acos5 = match get_is_ident_self_okay(card, 0) {
                     Ok(val) => val,
                     Err(e) => return e,
@@ -1294,7 +1294,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             },
         SC_CARDCTL_ACOS5_GET_COS_VERSION =>
             {
-                let rm_cos_version = unsafe { &mut *(data_ptr as *mut [u8; 8]) };
+                let rm_cos_version = unsafe { &mut *data_ptr.cast::<[u8; 8]>() };
                 *rm_cos_version = match get_cos_version(card) {
                     Ok(val) => val,
                     Err(e) => return e,
@@ -1306,7 +1306,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE =>
             {
                 if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return SC_ERROR_NO_CARD_SUPPORT; }
-                let rm_manufacture_date = unsafe { &mut *(data_ptr as *mut u32) };
+                let rm_manufacture_date = unsafe { &mut *data_ptr.cast::<u32>() };
                 *rm_manufacture_date = match get_manufacture_date(card) {
                     Ok(val) => val,
                     Err(e) => return e,
@@ -1316,7 +1316,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_GET_ROM_SHA1 =>
             {
                 if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return SC_ERROR_NO_CARD_SUPPORT; }
-                let rm_rom_sha1 = unsafe { &mut *(data_ptr as *mut [u8; 20]) };
+                let rm_rom_sha1 = unsafe { &mut *data_ptr.cast::<[u8; 20]>() };
                 *rm_rom_sha1 = match get_rom_sha1(card) {
                     Ok(val) => val,
                     Err(e) => return e,
@@ -1326,7 +1326,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE =>
             {
                 if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return SC_ERROR_NO_CARD_SUPPORT; }
-                let rm_op_mode_byte = unsafe { &mut *(data_ptr as *mut u8) };
+                let rm_op_mode_byte = unsafe { &mut *data_ptr.cast::<u8>() };
                 *rm_op_mode_byte = match get_op_mode_byte(card) {
                     Ok(val) => val,
                     Err(e) => return e,
@@ -1336,7 +1336,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE =>
             {
                 if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return SC_ERROR_NO_CARD_SUPPORT; }
-                let rm_is_fips_compliant = unsafe { &mut *(data_ptr as *mut bool) };
+                let rm_is_fips_compliant = unsafe { &mut *data_ptr.cast::<bool>() };
                 *rm_is_fips_compliant = match get_is_fips_compliant(card) {
                     Ok(val) => val,
                     Err(e) => return e,
@@ -1346,7 +1346,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE =>
             {
                 if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return SC_ERROR_NO_CARD_SUPPORT; }
-                let rm_pin_auth_state = unsafe { &mut *(data_ptr as *mut CardCtlAuthState) };
+                let rm_pin_auth_state = unsafe { &mut *data_ptr.cast::<CardCtlAuthState>() };
                 rm_pin_auth_state.value = match get_is_pin_authenticated(card, rm_pin_auth_state.reference) {
                     Ok(val) => val,
                     Err(e) => return e,
@@ -1356,7 +1356,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE =>
             {
                 if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return SC_ERROR_NO_CARD_SUPPORT; }
-                let rm_key_auth_state = unsafe { &mut *(data_ptr as *mut CardCtlAuthState) };
+                let rm_key_auth_state = unsafe { &mut *data_ptr.cast::<CardCtlAuthState>() };
                 rm_key_auth_state.value = match get_is_key_authenticated(card, rm_key_auth_state.reference) {
                     Ok(val) => val,
                     Err(e) => return e,
@@ -1365,7 +1365,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             },
         SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO =>
             {
-                let rm_files_hashmap_info = unsafe { &mut *(data_ptr as *mut CardCtlArray32) };
+                let rm_files_hashmap_info = unsafe { &mut *data_ptr.cast::<CardCtlArray32>() };
                 rm_files_hashmap_info.value = match get_files_hashmap_info(card, rm_files_hashmap_info.key) {
                     Ok(val) => val,
                     Err(e) => return e,
@@ -1394,31 +1394,32 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_SDO_CREATE =>
-                acos5_create_file(card, data_ptr as *mut sc_file),
+                acos5_create_file(card, data_ptr.cast::<sc_file>()),
         SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET =>
             {
-                let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-                unsafe { *(data_ptr as *mut CardCtl_generate_inject_asym) = dp.agi };
-                card.drv_data = Box::into_raw(dp) as p_void;
+                let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
+                unsafe { *data_ptr.cast::<CardCtl_generate_inject_asym>() = dp.agi };
+                Box::leak(dp);
+                // card.drv_data = Box::into_raw(dp) as p_void;
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET =>
             {
-                let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
-                dp.agi = unsafe { *(data_ptr as *mut CardCtl_generate_inject_asym) };
-                card.drv_data = Box::into_raw(dp) as p_void;
+                let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
+                dp.agi = unsafe { *data_ptr.cast::<CardCtl_generate_inject_asym>() };
+                card.drv_data = Box::into_raw(dp).cast::<c_void>();
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES =>
             /* suppose select_file, authenticate, (possibly setting MSE) etc. was done already */
-            generate_asym(card, unsafe { &mut *(data_ptr as *mut CardCtl_generate_crypt_asym) }),
+            generate_asym(card, unsafe { &mut *data_ptr.cast::<CardCtl_generate_crypt_asym>() }),
         SC_CARDCTL_ACOS5_ENCRYPT_ASYM =>
             /* suppose select_file, authenticate, (possibly setting MSE) etc. was done already */
-            encrypt_asym(card, unsafe { &mut *(data_ptr as *mut CardCtl_generate_crypt_asym) }, false),
+            encrypt_asym(card, unsafe { &mut *data_ptr.cast::<CardCtl_generate_crypt_asym>() }, false),
         SC_CARDCTL_ACOS5_ENCRYPT_SYM |
         SC_CARDCTL_ACOS5_DECRYPT_SYM     =>
             {
-                let crypt_sym_data = unsafe { &mut *(data_ptr as *mut CardCtl_crypt_sym) };
+                let crypt_sym_data = unsafe { &mut *data_ptr.cast::<CardCtl_crypt_sym>() };
                 if !((crypt_sym_data.outdata_len > 0) ^ !crypt_sym_data.outfile.is_null())  ||
                    !((crypt_sym_data.indata_len  > 0) ^ !crypt_sym_data.infile.is_null())   ||
                    ![8_u8, 16].contains(&crypt_sym_data.block_size)  ||
@@ -1464,13 +1465,13 @@ extern "C" fn acos5_select_file(card_ptr: *mut sc_card, path_ptr: *const sc_path
     }
     let target_file_id = file_id_from_path_value(&path_ref.value[..path_ref.len]); // wrong result for SC_PATH_TYPE_DF_NAME, but doesn't matter
 
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     dp.sm_cmd = 0;
     let does_mf_exist = dp.does_mf_exist;
     let does_file_exist = dp.files.contains_key(&target_file_id);
     let force_process_fci = !dp.is_running_init && file_out_ptr.is_null() &&
         ( path_ref.type_==SC_PATH_TYPE_DF_NAME || (does_file_exist && dp.files[&target_file_id].2.is_none()) );
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
     if !does_mf_exist { return SC_ERROR_NOT_ALLOWED; }
     // if !does_file_exist { return SC_ERROR_FILE_NOT_FOUND; }
     let file_opt = unsafe { file_out_ptr.as_mut() };
@@ -1653,7 +1654,7 @@ extern "C" fn acos5_logout(card_ptr: *mut sc_card) -> i32
                                                                   p15objects.as_mut_ptr(), 10) } ).unwrap();
     for &item in p15objects.iter().take(nn_objs) {
         assert!(unsafe { !item.is_null() && !(*item).data.is_null() });
-        let auth_info_ref = unsafe { &*( (*item).data as *mut sc_pkcs15_auth_info) };
+        let auth_info_ref = unsafe { &* (*item).data.cast::<sc_pkcs15_auth_info>() };
 //        apdu.p2 = u8::try_from(unsafe { auth_info_ref.attrs.pin.reference }).unwrap();
         rv = logout_pin(card, u8::try_from(unsafe { auth_info_ref.attrs.pin.reference }).unwrap());
         if rv != SC_SUCCESS {
@@ -1684,7 +1685,7 @@ extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) 
     let rv;
     log3ifc!(ctx,f,line!());
 
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     if dp.files.contains_key(&(u16::try_from(file.id).unwrap())) {
         Box::leak(dp);
         // card.drv_data = Box::into_raw(dp) as p_void;
@@ -1713,7 +1714,7 @@ extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) 
     }
     else {
         let file_ref : &sc_file = file;
-        let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         dp.files.insert(u16::try_from(file_ref.id).unwrap(),
                         (file_ref.path.value, [0, 0, 0, 0, 0, 0, 0xFF, 1], None, None, None));
         let mut x = dp.files.get_mut(&(u16::try_from(file_ref.id).unwrap())).unwrap();
@@ -1732,7 +1733,7 @@ extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) 
         else { // MF/DF
             x.1[4..6].copy_from_slice(&u16::try_from(file_ref.id+3).unwrap().to_be_bytes());
         }
-        card.drv_data = Box::into_raw(dp) as p_void;
+        card.drv_data = Box::into_raw(dp).cast::<c_void>();
 
         log3if!(ctx,f,line!(), cstru!(b"file_id %04X added to hashmap\0"), file_ref.id);
     }
@@ -1762,7 +1763,7 @@ extern "C" fn acos5_delete_file(card_ptr: *mut sc_card, path_ref_ptr: *const sc_
                         else                 { file_id_from_path_value(&path_ref.value[..path_ref.len]) };
 ////println!("file_id: {:X}", file_id);
 
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     if !dp.files.contains_key(&file_id) {
 println!("file_id: {:X} is not a key of hashmap dp.files", file_id);
         Box::leak(dp);
@@ -1783,7 +1784,7 @@ println!("file_id: {:X} is not a key of hashmap dp.files", file_id);
         if rv != SC_SUCCESS {
             return rv;
         }
-        let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         scb_delete_self = dp.files[&file_id].2.unwrap()[6];
         Box::leak(dp);
         // card.drv_data = Box::into_raw(dp) as p_void;
@@ -1818,10 +1819,10 @@ println!("file_id: {:X} is not a key of hashmap dp.files", file_id);
         log3if!(ctx,f,line!(), cstru!(b"acos5_delete_file failed. rv: %d\0"), rv);
     }
     else {
-        let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         let rm_result = dp.files.remove(&file_id);
         assert!(rm_result.is_some());
-        card.drv_data = Box::into_raw(dp) as p_void;
+        card.drv_data = Box::into_raw(dp).cast::<c_void>();
         assert!(card.cache.current_path.len > 2);
         card.cache.current_path.len   -= 2;
 //println!("acos5_delete_file  card.cache.current_path: {:X?}", &card.cache.current_path.value[..card.cache.current_path.len]);
@@ -1865,7 +1866,7 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
         Err(e) => return e,
     };
     if numfiles > 0 {
-        let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         let is_running_init = dp.is_running_init;
         Box::leak(dp);
         // card.drv_data = Box::into_raw(dp) as p_void;
@@ -1887,10 +1888,10 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
             };
 
             if is_running_init {
-                let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+                let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
                 let predecessor = dp.files.insert(file_id(rbuf),
                                                   ([0; SC_MAX_PATH_SIZE], rbuf, None, None, None));
-                card.drv_data = Box::into_raw(dp) as p_void;
+                card.drv_data = Box::into_raw(dp).cast::<c_void>();
                 if predecessor.is_some() {
                     let rv = SC_ERROR_NOT_ALLOWED;
                     log3ifr!(ctx,f,line!(), cstru!(b"### Duplicate file id disallowed by the driver ! ###\0"), rv);
@@ -1938,7 +1939,7 @@ extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
     rv = unsafe { (*(*sc_get_iso7816_driver()).ops).process_fci.unwrap()(card, file, buf_ref_ptr, buflen) };
     assert_eq!(rv, SC_SUCCESS);
 
-    let fci = FCI::new_parsed(card, unsafe { from_raw_parts(buf_ref_ptr, buflen) });
+    let fci = Fci::new_parsed(card, unsafe { from_raw_parts(buf_ref_ptr, buflen) });
 
     // perform some corrective actions
     if  file.type_ == 0 && fci.fdb == FDB_SE_FILE {
@@ -1954,7 +1955,7 @@ extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
     /* Map from scb8 to file.acl array */
     map_scb8_to_acl(card, file, fci.scb8, fci.fdb);
 
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     assert!(dp.files.contains_key(&fci.fid));
     let dp_files_value = dp.files.get_mut(&fci.fid).unwrap();
 //println!("on entry; dp_files_value: {:X?}", dp_files_value);
@@ -1993,13 +1994,13 @@ extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
 //            println!("fci.fid: {:X}, fci.sae: {:X?}", fci.fid, fci.sae);
             dp_files_value.4 = match se_parse_sae(&mut dp_files_value.3, &fci.sae) {
                 Ok(val) => Some(val),
-                Err(e) => { card.drv_data = Box::into_raw(dp) as p_void; return e},
+                Err(e) => { card.drv_data = Box::into_raw(dp).cast::<c_void>(); return e},
             }
         }
     }
 
 //println!("on exit;  dp_files_value: {:X?}", dp_files_value);
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
     SC_SUCCESS
 } // acos5_process_fci
 
@@ -3308,7 +3309,7 @@ extern "C" fn acos5_unwrap(card_ptr: *mut sc_card, crgram: *const u8, crgram_len
     let klen = vec.len();
     assert!([16, 24, 32].contains(&klen));
 //println!("\n\nUnwrapped {} key bytes: {:X?}\n", klen, vec);
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     if true /* dp.rfu_align_pad3  dp.is_unwrap_op_in_progress */ {
         assert!(usize::from(dp.sym_key_rec_cnt) >= klen+3);
         vec.reserve_exact(usize::from(dp.sym_key_rec_cnt));
@@ -3323,7 +3324,8 @@ extern "C" fn acos5_unwrap(card_ptr: *mut sc_card, crgram: *const u8, crgram_len
         unsafe { sc_update_record(card, u32::from(dp.sym_key_rec_idx), vec.as_ptr(), vec.len(), 0) };
         // dp.is_unwrap_op_in_progress = false;
     }
-    card.drv_data = Box::into_raw(dp) as p_void;
+    Box::leak(dp);
+    // card.drv_data = Box::into_raw(dp) as p_void;
 
     log3ifr!(ctx,f,line!(), rv);
     rv

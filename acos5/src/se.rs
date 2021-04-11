@@ -87,7 +87,7 @@ SC_AC_OP_GENERATE, SC_MAX_CRTS_IN_SE};
 use opensc_sys::errors::{SC_SUCCESS};
 use opensc_sys::asn1::{sc_asn1_read_tag, SC_ASN1_TAG_EOC};
 
-use crate::constants_types::{DataPrivate, FDB_RSA_KEY_EF, FDB_SE_FILE, FDB_SYMMETRIC_KEY_EF, SACinfo, SAEinfo, TLV,
+use crate::constants_types::{DataPrivate, FDB_RSA_KEY_EF, FDB_SE_FILE, FDB_SYMMETRIC_KEY_EF, SACinfo, SAEinfo, Tlv,
                              is_DFMF, FDB_ECC_KEY_EF, UPDATE, CRYPTO, DELETE_SELF, CREATE_EF, CREATE_DF,
                              file_id_from_path_value /*, p_void*/};
 use crate::path::{current_path_df};
@@ -159,6 +159,7 @@ pub fn map_scb8_to_acl(card: &mut sc_card, file: &mut sc_file, scb8: [u8; 8], fd
  *                     in associated Sec. Env. file, or it's an encoding of either SC_AC_NONE or SC_AC_NEVER
  * @param  op    IN    the operation that @param scb refers to, e.g. SC_AC_OP_READ
  */
+#[allow(clippy::needless_return)]
 fn se_file_add_acl_entry(card: &mut sc_card, file: &mut sc_file, scb: u8, op: u32)
 {
 //    assert!(!card.ctx.is_null());
@@ -322,7 +323,7 @@ SCB: 81; [80 01 01  A4 09 83 01 81 83 01 01 95 01 88]                           
 pub fn se_get_references(card: &mut sc_card, file_id: u16, se_reference: u8, search_template: &sc_crt, skip_usage: bool) -> Vec<u32>
 {
     let mut result : Vec<u32> = Vec::with_capacity(8); //SC_AC_KEY_REF_NONE;
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     if dp.files.contains_key(&file_id) {
         let dp_files_value = &dp.files[&file_id];
         let fdb        = dp_files_value.1[0];
@@ -389,7 +390,7 @@ pub fn se_get_references(card: &mut sc_card, file_id: u16, se_reference: u8, sea
 pub fn se_get_is_scb_suitable_for_sm_has_ct(card: &mut sc_card, file_id: u16, se_reference: u8) -> (bool, bool)
 {
     let mut result = (false /*is_suitable_for_sm*/, false /*has_ct*/);
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     if dp.files.contains_key(&file_id) {
         let dp_files_value = &dp.files[&file_id];
         let fdb        = dp_files_value.1[0];
@@ -462,7 +463,7 @@ pub fn se_get_sae_scb(card: &mut sc_card, cla_ins_p1_p2: [u8; 4]) -> u8
     let mut scb = 0;
     let file_id_dir = file_id_from_path_value(current_path_df(card));
 
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     assert!(dp.files.contains_key(&file_id_dir));
     if let Some(vec_sae_info) = &dp.files[&file_id_dir].4 {
         for sae_info in vec_sae_info {
@@ -595,7 +596,7 @@ pub fn se_parse_sae(vec_sac_info_opt: &mut Option<Vec<SACinfo>>, value_bytes_tag
     let mut vec_sae_info = Vec::with_capacity(6);
 //    let mut rem = value_bytes_tag_fcp_sae;
     assert!(value_bytes_tag_fcp_sae.len()<=32);
-    let mut tlv = TLV::new(value_bytes_tag_fcp_sae);
+    let mut tlv = Tlv::new(value_bytes_tag_fcp_sae);
     loop {
         tlv = match tlv.next() {
             Some(item) => item,

@@ -1,6 +1,6 @@
 use libc::{strcmp, calloc, memcpy/*, memcmp,*/};
 
-use std::os::raw::{c_char};
+use std::os::raw::{c_char, c_void};
 use std::ptr::copy_nonoverlapping;
 //use std::ffi::{CStr};
 
@@ -12,8 +12,8 @@ use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_FILE_NOT_FOUND, SC_ERROR_OUT_OF_ME
 use opensc_sys::pkcs15::{sc_pkcs15_bignum, sc_pkcs15_card, sc_pkcs15_df};
 //use opensc_sys::log::{sc_dump_hex};
 
-use crate::constants_types::p_void;
 use std::ptr::null_mut;
+//use crate::constants_types::p_void;
 //use crate::wrappers::*;
 
 fn me_profile_find_file(profile: &mut sc_profile, _path: *const sc_path, name: *const c_char) -> *mut file_info
@@ -75,6 +75,7 @@ fn me_profile_find_file(profile: &mut sc_profile, _path: *const sc_path, name: *
 }
 
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
+#[allow(clippy::missing_panics_doc)]
 pub fn me_profile_get_file(profile: &mut sc_profile, name: *const c_char, ret: *mut *mut sc_file) -> i32
 {
     if name.is_null() || ret.is_null() { return SC_ERROR_INVALID_ARGUMENTS; }
@@ -167,11 +168,11 @@ acos5_pkcs15/src/lib.rs:685:    unsafe { sc_file_dup(*guard_file_pub, file_priv)
 pub fn me_pkcs15_dup_bignum(dst: &mut sc_pkcs15_bignum, src: &sc_pkcs15_bignum) -> i32
 {
      if !src.data.is_null() && src.len > 0  {
-        dst.data = unsafe { calloc(1, src.len) } as *mut u8;
+        dst.data = unsafe { calloc(1, src.len) }.cast::<u8>();
         if dst.data.is_null() {
             return SC_ERROR_OUT_OF_MEMORY;
         }
-        unsafe { memcpy(dst.data as p_void, src.data as p_void, src.len) };
+        unsafe { memcpy(dst.data.cast::<c_void>(), src.data as *const c_void, src.len) };
         dst.len = src.len;
     }
 

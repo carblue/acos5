@@ -22,7 +22,7 @@
 //#![feature(const_fn)]
 #![allow(clippy::match_wild_err_arm)]
 
-use std::os::raw::{c_char, c_ulong};
+use std::os::raw::{c_char, c_ulong, c_void};
 use std::ffi::{/*CString,*/ CStr};
 use std::fs;//::{read/*, write*/};
 use std::ptr::{null_mut};
@@ -91,7 +91,7 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
                              /*SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, */ // SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
                              SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, //SC_SEC_OPERATION_ENCIPHER_SYMMETRIC,
                              SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
-                             Acos5EcCurve, build_apdu, is_DFMF, p_void, ATR_MASK_TCK,
+                             Acos5EcCurve, build_apdu, is_DFMF, ATR_MASK_TCK, // p_void,
                              // ISO7816_RFU_TAG_FCP_SFI, ISO7816_RFU_TAG_FCP_SAC, ISO7816_RFU_TAG_FCP_SEID, ISO7816_RFU_TAG_FCP_SAE,
                              GuardFile, SC_CARD_TYPE_ACOS5_EVO_V4, NAME_V4, ATR_V4_1, ATR_V4_2, ATR_V4_3, //, ATR_V4
                              file_id_from_path_value, file_id_se,
@@ -251,9 +251,9 @@ fn logout_key(card: &mut sc_card, reference: u8) -> i32 {
     if reference == 0  ||  reference & 0x7F > 31 {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     dp.sm_cmd = 0;
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x8A, 0, reference], SC_APDU_CASE_1, &mut[]);
     let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
@@ -552,7 +552,7 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Op
             file_id = if path_ref.value[0..2] == [0x3F_u8, 0xFF][..] {file_id_from_path_value(current_path_df(card))}
                       else {u16::from_be_bytes([path_ref.value[0], path_ref.value[1]])};
         }
-        let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         assert!(dp.files.contains_key(&file_id));
         let dp_files_value = &dp.files[&file_id];
         card.cache.current_path.value = dp_files_value.0;
@@ -678,7 +678,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
     log3if!(ctx,f,line!(), fmt, unsafe {sc_dump_hex(path_ref.value.as_ptr(), path_ref.len)});
 
     let file_id = file_id_from_path_value(&path_ref.value[..path_ref.len]);
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let mut dp_files_value = dp.files.get_mut(&file_id).unwrap();
     let fdb = dp_files_value.1[0];
     dp_files_value.0    = path_ref.value;
@@ -686,7 +686,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
     /* assumes meaningful values in dp_files_value.1 */
     let mrl = usize::from(dp_files_value.1[4]); // MRL: Max. Record Length; this is correct only if the file is record-based
     let nor  = u32::from(dp_files_value.1[5]);   // NOR: Number Of Records
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
 
     let is_se_file_only =  fdb == FDB_SE_FILE && only_se_df;
     let is_ef_dir =  file_id == 0x2F00  &&  path_ref.len == 4;
@@ -778,12 +778,12 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
         assert!(path_ref.len >= 4);
         let file_id_dir = u16::from_be_bytes([path_ref.value[path_ref.len-4], path_ref.value[path_ref.len-3]]);
 
-        let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         assert!(dp.files.contains_key(&file_id_dir));
         dp_files_value = dp.files.get_mut(&file_id_dir).unwrap(); // &mut tuple
         /* DF's SAE processing was done already, i.e. dp_files_value.3 may be Some */
         dp_files_value.3.get_or_insert(Vec::new()).extend_from_slice(&vec_sac_info);
-        card.drv_data = Box::into_raw(dp) as p_void;
+        card.drv_data = Box::into_raw(dp).cast::<c_void>();
     }
     else if is_DFMF(fdb)
     {
@@ -793,9 +793,9 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
         let guard_file = GuardFile::new(&mut file);
         let mut rv = unsafe { sc_select_file(card, path_ref, *guard_file) };
         if rv < 0 && path_ref.len==2 && path_ref.value[0]==0x3F && path_ref.value[1]==0 {
-            let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+            let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
             dp.does_mf_exist = false;
-            card.drv_data = Box::into_raw(dp) as p_void;
+            card.drv_data = Box::into_raw(dp).cast::<c_void>();
             return SC_SUCCESS;
         }
         assert_eq!(rv, SC_SUCCESS);
@@ -835,7 +835,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
         let rv = unsafe { sc_select_file(card, path_ref, *guard_file) };
         assert_eq!(rv, SC_SUCCESS);
 /*
-        let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         if let Some(x) = dp.files.get_mut(&file_id) {
             /* how to distinguish RSAPUB from RSAPRIV without reading ? Assume unconditionally allowed to read: RSAPUB*/
             if fdb == FDB_RSA_KEY_EF {
@@ -845,7 +845,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
                 (*x).1[6] = if (*x).2.unwrap()[0] == 0 {PKCS15_FILE_TYPE_ECCPUBLICKEY} else {PKCS15_FILE_TYPE_ECCPRIVATEKEY};
             }
         }
-        card.drv_data = Box::into_raw(dp) as p_void;
+        card.drv_data = Box::into_raw(dp).cast::<c_void>();
 */
     }
     // log3ifr!(ctx,f,line!(), SC_SUCCESS);
@@ -863,7 +863,7 @@ fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*,
     assert!(path_ref.len >= 2);
     let file_id = file_id_from_path_value(&path_ref.value[..path_ref.len]);
 
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let dp_files_value = &dp.files[&file_id];
     let fdb = dp_files_value.1[0];
     let is_none_2 = dp_files_value.2.is_none();
@@ -1258,14 +1258,14 @@ pub /*const*/ fn acos5_supported_ec_curves() -> [Acos5EcCurve; 4]
 
 pub fn set_is_running_cmd_long_response(card: &mut sc_card, value: bool)
 {
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     dp.is_running_cmd_long_response = value;
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
 }
 
 pub fn get_is_running_cmd_long_response(card: &mut sc_card) -> bool
 {
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let result = dp.is_running_cmd_long_response;
     Box::leak(dp);
     // card.drv_data = Box::into_raw(dp) as p_void;
@@ -1274,14 +1274,14 @@ pub fn get_is_running_cmd_long_response(card: &mut sc_card) -> bool
 
 pub fn set_is_running_compute_signature(card: &mut sc_card, value: bool)
 {
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     dp.is_running_compute_signature = value;
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
 }
 
 pub fn get_is_running_compute_signature(card: &mut sc_card) -> bool
 {
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let result = dp.is_running_compute_signature;
     Box::leak(dp);
     // card.drv_data = Box::into_raw(dp) as p_void;
@@ -1291,9 +1291,9 @@ pub fn get_is_running_compute_signature(card: &mut sc_card) -> bool
 /*
 pub fn set_rsa_caps(card: &mut sc_card, value: u32)
 {
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     dp.rsa_caps = value;
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
 }
 */
 
@@ -1302,7 +1302,7 @@ pub fn set_rsa_caps(card: &mut sc_card, value: u32)
 #[must_use]
 fn get_rsa_caps(card: &mut sc_card) -> u32
 {
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let result = dp.rsa_caps;
     Box::leak(dp);
     // card.drv_data = Box::into_raw(dp) as p_void;
@@ -1311,17 +1311,17 @@ fn get_rsa_caps(card: &mut sc_card) -> u32
 
 pub fn set_sec_env(card: &mut sc_card, value: &sc_security_env)
 {
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     dp.sec_env = *value;
     // if sc_get_encoding_flags evaluates: secure algorithm flags == 0x0, then set SC_ALGORITHM_RSA_RAW
 //    dp.sec_env.algorithm_flags = std::cmp::max(dp.sec_env.algorithm_flags, SC_ALGORITHM_RSA_PAD_PKCS1);
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
     set_sec_env_mod_len(card, value);
 }
 
 pub fn get_sec_env(card: &mut sc_card) -> sc_security_env
 {
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let result = dp.sec_env;
     Box::leak(dp);
     // card.drv_data = Box::into_raw(dp) as p_void;
@@ -1330,7 +1330,7 @@ pub fn get_sec_env(card: &mut sc_card) -> sc_security_env
 
 pub fn get_sec_env_mod_len(card: &mut sc_card) -> usize
 {
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let result = usize::from(dp.sec_env_mod_len);
     Box::leak(dp);
     // card.drv_data = Box::into_raw(dp) as p_void;
@@ -1339,7 +1339,7 @@ pub fn get_sec_env_mod_len(card: &mut sc_card) -> usize
 
 fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
 {
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     dp.sec_env_mod_len = 0;
     if env_ref.algorithm==SC_ALGORITHM_RSA && (env_ref.flags & SC_SEC_ENV_FILE_REF_PRESENT) > 0 {
         assert!(env_ref.file_ref.len >= 2);
@@ -1369,7 +1369,7 @@ fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
         }}
 //println!("\nfile_id: 0x{:X}, file_size: {}, modulusLenBytes: {}", file_id, file_size, dp.sec_env_mod_len);
     }
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
 }
 //std::cmp::min(512,outlen)
 
@@ -2102,7 +2102,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
                 assert_eq!(crypt_sym.iv_len, block_size);
                 let sec_env_param = sc_sec_env_param {
                     param_type: SC_SEC_ENV_PARAM_IV,
-                    value: crypt_sym.iv.as_mut_ptr() as p_void,
+                    value: crypt_sym.iv.as_mut_ptr().cast::<c_void>(),
                     value_len: u32::try_from(crypt_sym.iv_len).unwrap()
                 };
                 senv.params[0] = sec_env_param;
@@ -2166,7 +2166,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
             /* correct IV for next loop cycle */
             if condition_weak {
                 crypt_sym.iv.copy_from_slice(unsafe { from_raw_parts(indata_ptr.add(cnt + apdu.datalen - block_size), block_size) });
-//                senv.params[0].value = unsafe { indata_ptr.add(cnt + apdu.datalen - block_size) as p_void };
+//                senv.params[0].value = unsafe { indata_ptr.add(cnt + apdu.datalen - block_size) }.cast::<c_void>();
             }
         }
         // }
@@ -2266,6 +2266,7 @@ wr_do_log_sds(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv: i32/*,
 ///
 /// # Errors
 #[allow(clippy::missing_errors_doc)]
+#[allow(clippy::missing_panics_doc)]
 pub fn get_files_hashmap_info(card: &mut sc_card, key: u16) -> Result<[u8; 32], i32>
 {
     assert!(!card.ctx.is_null());
@@ -2274,7 +2275,7 @@ pub fn get_files_hashmap_info(card: &mut sc_card, key: u16) -> Result<[u8; 32], 
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0_u8; 32];
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
 /*
 A0 2F 30 0E 0C 05 45 43 6B 65 79 03 02 06 C0 04 01 01 30 0F 04 01 09 03 03 06 20 40 03 02 03 B8 02 01 09 A1 0C 30 0A 30 08 04 06 3F 00 41 00 41 F9
 A0 2C 30 0B 0C 05 45 43 6B 65 79 03 02 06 40 30 0F 04 01 09 03 03 06 02 00 03 02 03 09 02 01 09 A1 0C 30 0A 30 08 04 06 3F 00 41 00 41 39
@@ -2299,7 +2300,8 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
         }
     }
     else {
-        card.drv_data = Box::into_raw(dp) as p_void;
+        Box::leak(dp);
+        // card.drv_data = Box::into_raw(dp) as p_void;
         return Err(SC_ERROR_FILE_NOT_FOUND);
     }
 
@@ -2330,7 +2332,7 @@ pub fn update_hashmap(card: &mut sc_card) {
     let rv = enum_dir_gui(card, unsafe { &*sc_get_mf_path() });
     assert_eq!(rv, SC_SUCCESS);
 
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let fmt1  = cstru!(b"key: %04X, val.1: %s\0");
     let fmt2  = cstru!(b"key: %04X, val.2: %s\0");
     for (key, val) in &dp.files {
@@ -2364,7 +2366,7 @@ pub fn common_read(card: &mut sc_card,
     log3ifc!(ctx,f,line!());
 
     let file_id = file_id_from_cache_current_path(card);
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let x = &dp.files[&file_id];
     let fdb      = x.1[0];
     assert!(x.2.is_some());
@@ -2426,7 +2428,7 @@ pub fn common_update(card: &mut sc_card,
     log3ifc!(ctx,f,line!());
 
     let file_id = file_id_from_cache_current_path(card);
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let x = &dp.files[&file_id];
     let fdb      = x.1[0];
     assert!(x.2.is_some());

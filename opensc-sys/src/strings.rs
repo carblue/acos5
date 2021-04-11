@@ -26,6 +26,7 @@ use crate::opensc::sc_context;
 use crate::pkcs15::sc_pkcs15_card;
 
 #[allow(non_camel_case_types)]
+#[allow(clippy::upper_case_acronyms)]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub enum ui_str {

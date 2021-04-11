@@ -51,7 +51,7 @@ pub fn current_path_df(card: &mut sc_card) -> &[u8]
     debug_assert_eq!(card.cache.current_path.value[1], 0);
     let file_id = u16::from_be_bytes([card.cache.current_path.value[len-2], card.cache.current_path.value[len-1]]);
 
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     assert!(dp.files.contains_key(&file_id));
     let fdb = dp.files[&file_id].1[0];
     Box::leak(dp);

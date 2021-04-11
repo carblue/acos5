@@ -34,6 +34,7 @@ see file src/libopensc/libopensc.exports
 2. In the meantime, for the external driver, that code must be duplicated here in Rust
 */
 
+use std::os::raw::{c_void};
 use std::convert::{TryFrom, TryInto};
 use std::slice;
 
@@ -70,7 +71,7 @@ use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL, 
 
 use opensc_sys::types::{sc_object_id};
 
-use crate::constants_types::p_void;
+//use crate::constants_types::p_void;
 //use crate::wrappers::*;
 
 /// An equivalent copy of: src/libopensc/card.c:  size_t sc_get_max_recv_size(const sc_card_t *card)
@@ -123,8 +124,8 @@ pub fn me_get_max_send_size(card: &sc_card) -> usize
 
 fn me_card_add_algorithm(card: &mut sc_card, info: &sc_algorithm_info) -> i32
 {
-    let p_ptr = unsafe { libc::realloc(card.algorithms as p_void, usize::try_from(card.algorithm_count + 1).unwrap() *
-        std::mem::size_of::<sc_algorithm_info>()) } as *mut sc_algorithm_info;
+    let p_ptr = unsafe { libc::realloc(card.algorithms.cast::<c_void>(), usize::try_from(card.algorithm_count + 1).unwrap() *
+        std::mem::size_of::<sc_algorithm_info>()) }.cast::<sc_algorithm_info>();
 
     if p_ptr.is_null() {
         return SC_ERROR_OUT_OF_MEMORY;

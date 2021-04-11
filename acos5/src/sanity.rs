@@ -129,7 +129,7 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
         // analyze_PKCS15_TokenInfo_5032(card);
     }
     / * */
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     for (&key_dfmf, val) in &dp.files {
         if is_DFMF(val.1[0]) {
             let child_id = file_id_se(val.1);

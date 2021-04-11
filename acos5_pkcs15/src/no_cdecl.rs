@@ -1,5 +1,6 @@
 //use libc::strlen;
 //use std::ffi::CStr;
+use std::os::raw::{c_void};
 use std::collections::HashSet;
 use std::convert::{TryFrom, TryInto};
 use std::ptr::null_mut;
@@ -21,7 +22,7 @@ use opensc_sys::errors::{SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_CARD_CMD_FAILED, S
 use opensc_sys::log::{sc_dump_hex};
 
 use crate::constants_types::{SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4, GuardFile,
-                             DataPrivate, file_id_from_path_value, file_id_se, SC_CARDCTL_ACOS5_GET_FREE_SPACE, p_void,
+                             DataPrivate, file_id_from_path_value, file_id_se, SC_CARDCTL_ACOS5_GET_FREE_SPACE, //p_void,
                              build_apdu, CardCtlAlgoRefSymStore, SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE //, FCI
 };
 use crate::wrappers::{wr_do_log, wr_do_log_t, wr_do_log_rv, wr_do_log_sds};
@@ -34,6 +35,7 @@ const INC : usize = 0x100;
 #[must_use]
 pub fn rsa_modulus_bits_canonical(rsa_modulus_bits: usize) -> usize { ((rsa_modulus_bits + 8) /256) *256 }
 
+#[allow(clippy::missing_panics_doc)]
 pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mut u16) -> i32
 {
     if p15card.card.is_null() || unsafe { (*p15card.card).ctx.is_null() } {
@@ -65,7 +67,7 @@ pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mu
             // log3if!(ctx,f,line!(), cstru!(b"obj_list.label: %s\0"),        obj_list.label.as_ptr());
             // log3if!(ctx,f,line!(), cstru!(b"obj_list.flags: %X\0"),        obj_list.flags);
             // log3if!(ctx,f,line!(), cstru!(b"obj_list.content.len: %zu\0"), obj_list.content.len);
-            let skey_info = unsafe { &*(obj_list.data as *mut sc_pkcs15_skey_info) };
+            let skey_info = unsafe { &*obj_list.data.cast::<sc_pkcs15_skey_info>() };
             // log3if!(ctx,f,line!(), cstru!(b"skey_info.id.len: %zu\0"),       skey_info.id.len);
             // log3if!(ctx,f,line!(), cstru!(b"skey_info.id: %s\0"),
             //     unsafe { sc_dump_hex(skey_info.id.value.as_ptr(), skey_info.id.len) });
@@ -94,6 +96,7 @@ pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mu
 
 /* find unused file id s, i.e. not listed in EF.PrKDF, EF.PuKDF (, EF.PuKDF_TRUSTED) */
 #[allow(clippy::missing_errors_doc)]
+#[allow(clippy::missing_panics_doc)]
 pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
 {
     if p15card.card.is_null() || unsafe { (*p15card.card).ctx.is_null() } {
@@ -143,7 +146,7 @@ pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
             assert!(!obj_list.data.is_null());
 //log3if!(ctx,f,line!(), cstru!(b"obj_list.type_: %X\0"),        obj_list.type_);
 //log3if!(ctx,f,line!(), cstru!(b"obj_list.label: %s\0"),        obj_list.label.as_ptr());
-            let prkey_info = unsafe { &*(obj_list.data as *mut sc_pkcs15_prkey_info) };
+            let prkey_info = unsafe { &*obj_list.data.cast::<sc_pkcs15_prkey_info>() };
 //log3if!(ctx,f,line!(), cstru!(b"prkey_info.path: %s\0"),
 //    unsafe { sc_dump_hex(prkey_info.path.value.as_ptr(), prkey_info.path.len) });
             let y = file_id_from_path_value(&prkey_info.path.value[..prkey_info.path.len]);
@@ -171,7 +174,7 @@ pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
             assert!(!obj_list.data.is_null());
 //log3if!(ctx,f,line!(), cstru!(b"obj_list.type_: %X\0"),        obj_list.type_);
 //log3if!(ctx,f,line!(), cstru!(b"obj_list.label: %s\0"),        obj_list.label.as_ptr());
-            let pukey_info = unsafe { &*(obj_list.data as *mut sc_pkcs15_pubkey_info) };
+            let pukey_info = unsafe { &*obj_list.data.cast::<sc_pkcs15_pubkey_info>() };
 //log3if!(ctx,f,line!(), cstru!(b"pukey_info.path: %s\0"),
 //    unsafe { sc_dump_hex(pukey_info.path.value.as_ptr(), pukey_info.path.len) });
             let y = file_id_from_path_value(&pukey_info.path.value[..pukey_info.path.len]);
@@ -212,6 +215,7 @@ pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
 
 #[allow(dead_code)]
 #[allow(clippy::missing_errors_doc)]
+#[allow(clippy::missing_panics_doc)]
 #[cfg(not(target_os = "windows"))]
 pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs15_card, key_info: &sc_pkcs15_prkey_info) -> Result<(), i32> {
     if p15card.card.is_null() || unsafe { (*p15card.card).ctx.is_null() } {
@@ -237,7 +241,7 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
     let file_priv_id = file_id_from_path_value(&df_path_priv.value[..df_path_priv.len]);
     let file_pub_id  = file_id_from_path_value( &df_path_pub.value[..df_path_pub.len]);
 //    let file_parent_id = file_id_from_path_value(&df_path_parent.value[..df_path_parent.len]);
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     // let dp_files_value = &dp.files[&file_priv_id];
     let size_priv : usize = file_id_se(dp.files[&file_priv_id].1).into();
     let size_pub  : usize = file_id_se(dp.files[&file_pub_id].1).into();
@@ -259,7 +263,7 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
     let unused_len = DirectoryRange::new(&rbuf_priv).unused_len();
 //println!("SC_PKCS15_PRKDF: unused_len: {} of available {},\nfile_priv: {:X?}", unused_len, rv, unsafe {*file_priv});
     let mut card_free_space : u32 = 0;
-    rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FREE_SPACE, &mut card_free_space  as *mut _ as p_void) };
+    rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FREE_SPACE, (&mut card_free_space  as *mut u32).cast::<c_void>()) };
     assert_eq!(SC_SUCCESS, rv);
     let key_pair_size_req = key_info.modulus_length/16 * 7 + 26; // min. is 250 bytes for RSA/512
     if  key_pair_size_req > card_free_space.try_into().unwrap() { return Err(SC_ERROR_NOT_ENOUGH_MEMORY); }
@@ -324,7 +328,7 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
     if rv != size_pub.try_into().unwrap()  { return Err(-1); }
     let unused_len = DirectoryRange::new(&rbuf_pub).unused_len();
 //println!("SC_PKCS15_PUKDF: unused_len: {} of available {},\nfile_pub: {:X?}", unused_len, rv, unsafe {*file_pub});
-    rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FREE_SPACE, &mut card_free_space  as *mut _ as p_void) };
+    rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FREE_SPACE, (&mut card_free_space  as *mut u32).cast::<c_void>()) };
     assert_eq!(SC_SUCCESS, rv);
     if  key_pair_size_req > card_free_space.try_into().unwrap() { return Err(SC_ERROR_NOT_ENOUGH_MEMORY); }
     if unused_len < 80  &&  key_pair_size_req + INC <= card_free_space.try_into().unwrap() {
@@ -419,7 +423,7 @@ fn prefix_sym_key(card: &mut sc_card,
     }
 
     let mut card_ctl_algo_ref_sym_store = CardCtlAlgoRefSymStore { card_type: card.type_, algorithm, key_len_bytes, value: 0 };
-    let rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE, &mut card_ctl_algo_ref_sym_store as *mut _ as p_void) };
+    let rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE, (&mut card_ctl_algo_ref_sym_store as *mut CardCtlAlgoRefSymStore).cast::<c_void>()) };
     assert_eq!(SC_SUCCESS, rv);
     res.push(card_ctl_algo_ref_sym_store.value);
 /*

@@ -28,7 +28,7 @@ use opensc_sys::opensc::{sc_card, sc_format_path, sc_path_set, sc_select_file, s
 use opensc_sys::types::{sc_path, sc_aid, SC_PATH_TYPE_PATH, SC_MAX_AID_SIZE, SC_MAX_PATH_SIZE};
 use opensc_sys::errors::SC_SUCCESS;
 
-use crate::constants_types::{DataPrivate, p_void, PKCS15_FILE_TYPE_APPDF, PKCS15_FILE_TYPE_DIR,
+use crate::constants_types::{DataPrivate, PKCS15_FILE_TYPE_APPDF, PKCS15_FILE_TYPE_DIR, //p_void,
                              PKCS15_FILE_TYPE_TOKENINFO,
                              PKCS15_FILE_TYPE_ODF,
                              PKCS15_FILE_TYPE_PRKDF,
@@ -172,7 +172,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
     if card.app_count>0 && !card.app[0].is_null() {
 // println!("card.app[0]: {:X?}", unsafe { *card.app[0] });
     }
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let pkcs15_definitions = dp.pkcs15_definitions;
     let size : usize = file_id_se(dp.files[&0x2F00].1).into();
     Box::leak(dp);
@@ -202,7 +202,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
         let rbuf2 = &rbuf[range];
         let mut error_description = [0x00 as c_char; 129];
         /* decode DER data from file 0x3F002F00 into structure "PKCS15.DIRRecord" */
-        asn1_result = unsafe { asn1_der_decoding(*guard_structure, rbuf2.as_ptr() as *const c_void,
+        asn1_result = unsafe { asn1_der_decoding(*guard_structure, rbuf2.as_ptr().cast::<c_void>(),
                                                  rbuf2.len().try_into().unwrap(), error_description.as_mut_ptr()) };
 
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
@@ -211,7 +211,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
         }
 //println!("ready to inspect");
         let mut name = cstru!(b"aid\0"); // OCTET STRING  MANDATORY
-        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), aid_buf.as_mut_ptr() as *mut c_void, &mut aid_len) };
+        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), aid_buf.as_mut_ptr().cast::<c_void>(), &mut aid_len) };
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
             println!("asn1_result (asn1_read_value  aid): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
             continue;
@@ -225,7 +225,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
         name = cstru!(b"path\0"); // OCTET STRING  MANDATORY
         let mut buf = [0_u8; SC_MAX_PATH_SIZE];
         let mut outlen = i32::try_from(buf.len()).unwrap();
-        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr() as *mut c_void, &mut outlen) };
+        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &mut outlen) };
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
             println!("asn1_result (asn1_read_value  path): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
             continue;
@@ -236,18 +236,18 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
         let file_id_app = file_id_from_path_value(buf_slice);
 //println!("path of application directory: 0x{:X?}, fid: 0x{:X}", buf_slice, file_id_app);
 
-        let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         let dp_files_value_2F00 = dp.files.get_mut(&0x2F00).unwrap();
         dp_files_value_2F00.1[6] = PKCS15_FILE_TYPE_DIR;
         let dp_files_value_app = &dp.files[&file_id_app];
         assert!(is_DFMF(dp_files_value_app.1[0]));
         assert_eq!(buf_slice, &dp_files_value_app.0[..dp_files_value_app.1[1].into()]);
-        card.drv_data = Box::into_raw(dp) as p_void;
+        card.drv_data = Box::into_raw(dp).cast::<c_void>();
 
         name = cstru!(b"label\0"); // UTF8String  OPTIONAL
         let mut buf_str = [0_u8; 64];
         outlen = i32::try_from(buf_str.len()).unwrap();
-        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf_str.as_mut_ptr() as *mut c_void, &mut outlen) };
+        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf_str.as_mut_ptr().cast::<c_void>(), &mut outlen) };
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
             println!("asn1_result (asn1_read_value  label): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
         }
@@ -256,10 +256,10 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
 // println!("label of application directory: {}", String::from_utf8(x.to_vec()).unwrap_or_default());
         }
 
-        let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+        let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         name = cstru!(b"ddo.odfPath.path\0"); // OCTET STRING  OPTIONAL
         outlen = i32::try_from(buf.len()).unwrap();
-        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr() as *mut c_void, &mut outlen) };
+        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &mut outlen) };
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
             //println!("asn1_result (asn1_read_value  ddo.odfPath.path): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
             let dp_files_value_5031 = &dp.files[&0x5031];
@@ -285,7 +285,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
 
         name = cstru!(b"ddo.tokenInfoPath.path\0"); // OCTET STRING  OPTIONAL
         outlen = i32::try_from(buf.len()).unwrap();
-        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr() as *mut c_void, &mut outlen) };
+        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &mut outlen) };
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
             //println!("asn1_result (asn1_read_value  ddo.tokenInfoPath.path): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
             let dp_files_value_5032 = &dp.files[&0x5032];
@@ -311,7 +311,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
 
         let dp_files_value_app = dp.files.get_mut(&file_id_app).unwrap();
         dp_files_value_app.1[6] = PKCS15_FILE_TYPE_APPDF;
-        card.drv_data = Box::into_raw(dp) as p_void;
+        card.drv_data = Box::into_raw(dp).cast::<c_void>();
         /* return the first detected aid */
         if aid.len == 0   &&  aid.value == [0_u8; SC_MAX_AID_SIZE] &&
            aid_len != 0   &&  aid_buf   != [0_u8; SC_MAX_AID_SIZE]
@@ -353,7 +353,7 @@ pub fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
     let mut vec_appdf : Vec<FidPath> = Vec::with_capacity(4);
     let mut vec_FidPkcs15Type : Vec<FidPkcs15Type> = Vec::with_capacity(9);
 
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let pkcs15_definitions = dp.pkcs15_definitions;
     if pkcs15_definitions.is_null() { Box::leak(dp); return; }
 
@@ -408,7 +408,7 @@ pub fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
             let rbuf2 = &rbuf[range];
 // println!("range: {:?}, rbuf2: {:X?}", range, rbuf2);
             let mut error_description = [0x00 as c_char; 129];
-            asn1_result = unsafe { asn1_der_decoding(*guard_structure, rbuf2.as_ptr() as *const c_void,
+            asn1_result = unsafe { asn1_der_decoding(*guard_structure, rbuf2.as_ptr().cast::<c_void>(),
                 rbuf2.len().try_into().unwrap(), error_description.as_mut_ptr()) };
 
             if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
@@ -420,7 +420,7 @@ pub fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
                 let mut buf = [0_u8; SC_MAX_PATH_SIZE];
                 let mut outlen = i32::try_from(buf.len()).unwrap();
                 asn1_result = unsafe { asn1_read_value(structure, get_arr(type_).as_ptr(),
-                                                       buf.as_mut_ptr() as *mut c_void, &mut outlen) };
+                                                       buf.as_mut_ptr().cast::<c_void>(), &mut outlen) };
                 if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
                     //println!("asn1_result (asn1_read_value  path): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
                     continue;
@@ -449,12 +449,12 @@ pub fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
     Box::leak(dp);
     // card.drv_data = Box::into_raw(dp) as p_void;
 
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     for FidPkcs15Type(fid, pkcs15_type) in &vec_FidPkcs15Type {
         let mut dp_files_value = dp.files.get_mut(fid).unwrap();
         dp_files_value.1[6] = *pkcs15_type;
     }
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
     for elem in vec_FidPkcs15Type {
         if does_pkcs15type_need_filemarking(elem.1) {
             analyze_PKCS15_PKCS15Objects(card, elem)
@@ -572,7 +572,7 @@ fn get_arr1<'a>(idx_0: u8, idx_1: u8) -> &'a CStr {
 }
 
 //println!("elem: FidPkcs15Type: {:X?}", elem);
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let pkcs15_definitions = dp.pkcs15_definitions;
     if pkcs15_definitions.is_null() { Box::leak(dp); return; }
     let mut vec_FidPkcs15Type : Vec<FidPkcs15Type> = Vec::with_capacity(32);
@@ -599,7 +599,7 @@ fn get_arr1<'a>(idx_0: u8, idx_1: u8) -> &'a CStr {
         let rbuf2 = &rbuf[range.clone()];
 // println!("range: {:?}, rbuf2: {:X?}", range, rbuf2);
         let mut error_description = [0x00 as c_char; 129];
-        asn1_result = unsafe { asn1_der_decoding(*guard_structure, rbuf2.as_ptr() as *const c_void,
+        asn1_result = unsafe { asn1_der_decoding(*guard_structure, rbuf2.as_ptr().cast::<c_void>(),
                                rbuf2.len().try_into().unwrap(), error_description.as_mut_ptr()) };
 
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
@@ -611,7 +611,7 @@ fn get_arr1<'a>(idx_0: u8, idx_1: u8) -> &'a CStr {
             let mut buf = [0_u8; SC_MAX_PATH_SIZE];
             let mut outlen = i32::try_from(buf.len()).unwrap();
             asn1_result = unsafe { asn1_read_value(structure, get_arr1(elem.1, idx_1).as_ptr(),
-                                                   buf.as_mut_ptr() as *mut c_void, &mut outlen) };
+                                                   buf.as_mut_ptr().cast::<c_void>(), &mut outlen) };
             if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
                 //println!("asn1_result (asn1_read_value  get_arr1()): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
                 continue;
@@ -624,12 +624,12 @@ fn get_arr1<'a>(idx_0: u8, idx_1: u8) -> &'a CStr {
     }
     Box::leak(dp);
 //println!("vec_FidPkcs15Type: {:X?}", vec_FidPkcs15Type);
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     for FidPkcs15Type(fid, pkcs15_type) in &vec_FidPkcs15Type {
         let mut dp_files_value = dp.files.get_mut(fid).unwrap();
         dp_files_value.1[6] = *pkcs15_type;
     }
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
 }
 
 /*
@@ -650,7 +650,7 @@ pub fn analyze_PKCS15_TokenInfo_5032(card: &mut sc_card) {
     let mut vec_appdf : Vec<FidPath> = Vec::with_capacity(4);
     // let mut vec_FidPkcs15Type : Vec<FidPkcs15Type> = Vec::with_capacity(9);
 
-    let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let pkcs15_definitions = dp.pkcs15_definitions;
     if pkcs15_definitions.is_null() { Box::leak(dp); return; }
     // let fmt1  = cstru!(b"key: %04X, val.1: %s\0");
@@ -732,7 +732,7 @@ pub fn analyze_PKCS15_TokenInfo_5032(card: &mut sc_card) {
                                         // println!("buf_str of EF(TokenInfo): 0x{:X?}", buf_slice);
                                         let x = &buf_str[..outlen.try_into().unwrap()];
                                         println!("label EF(TokenInfo): {}", String::from_utf8(x.to_vec()).unwrap_or_default());
-                                        // let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+                                        // let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
                                         // if file_id > 0 {
                                         //     let dp_files_value = dp.files.get(&file_id).unwrap();
                                         //     let path_obj = &dp_files_value.0[0..dp_files_value.1[1].into()];
@@ -751,14 +751,14 @@ pub fn analyze_PKCS15_TokenInfo_5032(card: &mut sc_card) {
             } //  if val.1[6] == PKCS15_FILE_TYPE_ODF // for each PKCS15_FILE_TYPE_ODF
         } // for (_, val) in &dp.files
     } // for FidPath(fid, path_app) in vec_appdf      // for each application
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
 /*
-    let mut dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+    let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     for FidPkcs15Type(fid, pkcs15_type) in vec_FidPkcs15Type {
         let mut dp_files_value = dp.files.get_mut(&fid).unwrap();
         dp_files_value.1[6] = pkcs15_type;
     }
-    card.drv_data = Box::into_raw(dp) as p_void;
+    card.drv_data = Box::into_raw(dp).cast::<c_void>();
 */
 }
 */
