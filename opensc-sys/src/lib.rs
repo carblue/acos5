@@ -638,7 +638,6 @@ mod tests {
                 // testing v0_23_0 verified with Windows 10:    ?
                 // testing v0_23_0 verified with Kubuntu 20.04: ?,  for latest commit  ?
                 println!("For OpenSC 0.23.0 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
-                    size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
                     size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
                     size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \
                     size_of::<sc_pkcs15_card>: {}, size_of::<sc_file>: {}, size_of::<scconf_context>: {}, size_of::<sc_pkcs15init_prkeyargs>: {}, \
