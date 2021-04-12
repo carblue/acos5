@@ -1,9 +1,9 @@
+# acos5  
 [![Build Status](https://travis-ci.org/carblue/acos5.svg?branch=master)](https://travis-ci.org/carblue/acos5)
 
-This project `acos5` gets supported by the JetBrains Open Source Support Program.
-[![alt text](jetbrains.png "I'm using and can gladly recommend CLion (+ Rust plugin)")](https://www.jetbrains.com/?from=acos5)
+<a href="https://www.jetbrains.com/?from=acos5"><img src="jetbrains.png" height="40px"/></a>
 
-# acos5
+Made with CLion. Thanks to JetBrains for supporting open source!
 
 Driver for Advanced Card Systems (ACS)  ACOS5 Smart Card V2.00 (CryptoMate64) and V3.00 (CryptoMate Nano),  
 as external modules operating within the OpenSC framework.  
