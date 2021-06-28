@@ -145,9 +145,10 @@ pub mod    missing_exports; // this is NOT the same as in acos5
 use crate::missing_exports::{me_profile_get_file, me_pkcs15_dup_bignum/*, my_file_dup*/};
 
 pub mod    no_cdecl; // this is NOT the same as in acos5
-use crate::no_cdecl::{rsa_modulus_bits_canonical, first_of_free_indices, construct_sym_key_entry, free_fid_asym,
-                      check_enlarge_prkdf_pukdf
-}; /*call_dynamic_update_hashmap, call_dynamic_sm_test,*/
+use crate::no_cdecl::{rsa_modulus_bits_canonical, first_of_free_indices, construct_sym_key_entry, free_fid_asym}; /*call_dynamic_update_hashmap, call_dynamic_sm_test,*/
+
+#[cfg(not(target_os = "windows"))]
+use crate::no_cdecl::{check_enlarge_prkdf_pukdf};
 
 cfg_if::cfg_if! {
     if #[cfg(not(target_os = "windows"))] {
