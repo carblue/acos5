@@ -2,15 +2,17 @@ language: rust
 rust:
   - stable
 
-dist: focal
+#dist: focal
+dist: jammy
 sudo: required
 #dist: bionic  # see https://docs.travis-ci.com/user/reference/bionic/ bionic supplies OpenSC version 0.17.0
-#dist: focal  # see https://docs.travis-ci.com/user/reference/focal/    focal supplies OpenSC version 0.20.0-3; current is version 0.20.0  libopensc.so.6
+#dist: focal  # see https://docs.travis-ci.com/user/reference/focal/    focal supplies OpenSC version 0.20.0-3; libopensc.so.6
+#dist: jammy  # see https://docs.travis-ci.com/user/reference/jammy/    jammy supplies OpenSC version 0.22.0  ; /usr/lib/x86_64-linux-gnu/libopensc.so.8
 
 before_install:
   - sudo apt-get install -y opensc opensc-pkcs11 libtasn1-6-dev
   - ls -lh /usr/lib/x86_64-linux-gnu/libopensc*
-  - sudo ln -s -T /usr/lib/x86_64-linux-gnu/libopensc.so.6 /usr/lib/x86_64-linux-gnu/libopensc.so
+  - sudo ln -s -T /usr/lib/x86_64-linux-gnu/libopensc.so.8 /usr/lib/x86_64-linux-gnu/libopensc.so
   - sudo ldconfig
   - ls -lh /usr/lib/x86_64-linux-gnu/libopensc*
   - opensc-tool -i
