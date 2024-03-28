@@ -143,8 +143,8 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
     for elem in &ctx.conf_blocks {
         if (*elem).is_null() { break; }
         let blocks_ptr = unsafe { scconf_find_blocks(ctx.conf, *elem,
-            cstru!(/*b"secure_messaging\0"*/ b"card_driver\0").as_ptr(),
-        /*sm_info.config_section.as_ptr()*/ cstru!(CARD_DRV_SHORT_NAME).as_ptr()) };
+            /*b"secure_messaging\0"*/ c"card_driver".as_ptr(),
+        /*sm_info.config_section.as_ptr()*/ CARD_DRV_SHORT_NAME.as_ptr()) };
         if blocks_ptr.is_null() { continue; }
         sm_conf_block = unsafe { *blocks_ptr }; // blocks[0];
 
@@ -523,7 +523,7 @@ pub fn sm_common_read(card: &mut sc_card,
     let count = std::cmp::min(buf.len(), 255);
     let len_read = std::cmp::min(if has_ct {239_u8} else {240_u8},u8::try_from(count).unwrap());
 ////println!("len_read : {}", len_read);
-    let len_read2 : u8 = len_read.next_multiple_of(&DES_KEY_SZ_u8);// padding added if required
+    let len_read2 : u8 = len_read.next_multiple_of(DES_KEY_SZ_u8);// padding added if required
 ////println!("len_read2: {}", len_read2);
     debug_assert!(len_read2.is_multiple_of(&DES_KEY_SZ_u8));
     assert!(len_read2 <= 240);
@@ -637,7 +637,7 @@ pub fn sm_common_update(card: &mut sc_card,
     let count = std::cmp::min(buf.len(), 255);
     let len_update = std::cmp::min(if has_ct {232_u8} else {240_u8/*checked*/},u8::try_from(count).unwrap());
 ////println!("len_update : {}", len_update);
-    let len_update2 = len_update.next_multiple_of(&DES_KEY_SZ_u8); // padding added if required
+    let len_update2 = len_update.next_multiple_of(DES_KEY_SZ_u8); // padding added if required
 ////println!("len_update2: {}", len_update2);
     debug_assert!(len_update2.is_multiple_of(&DES_KEY_SZ_u8));
     assert!(len_update2 <= 240);
@@ -890,7 +890,7 @@ fn sm_create_file(card: &mut sc_card,
     let len_update = std::cmp::min(if has_ct {232_u8} else {240_u8},u8::try_from(buf.len()).unwrap());
     assert!(buf.len()<= usize::from(len_update));
 ////println!("len_update : {}", len_update);
-    let len_update2 = len_update.next_multiple_of(&DES_KEY_SZ_u8); // padding added if required
+    let len_update2 = len_update.next_multiple_of(DES_KEY_SZ_u8); // padding added if required
 ////println!("len_update2: {}", len_update2);
     debug_assert!(len_update2.is_multiple_of(&DES_KEY_SZ_u8));
     assert!(len_update2 <= 240);
@@ -1004,7 +1004,7 @@ pub fn sm_pin_cmd(card: &mut sc_card,
                                                            usize::try_from(pin_cmd_data.pin2.len).unwrap()) });
     }
 ////println!("len_pin : {}", len_pin);
-    let len2_pin : u8 = len_pin.next_multiple_of(&DES_KEY_SZ_u8); // padding added if required
+    let len2_pin : u8 = len_pin.next_multiple_of(DES_KEY_SZ_u8); // padding added if required
 ////println!("len2_pin: {}", len2_pin);
     debug_assert!(len2_pin.is_multiple_of(&DES_KEY_SZ_u8));
 //    assert!(len2_pin <= DES_KEY_SZ_u8);

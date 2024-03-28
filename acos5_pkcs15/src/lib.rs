@@ -196,7 +196,7 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> *mut c_void {
-    if !name.is_null() && CStr::from_ptr(name) == cstru!(CARD_DRV_SHORT_NAME) {
+    if !name.is_null() && CStr::from_ptr(name) == CARD_DRV_SHORT_NAME {
         acos5_get_pkcs15init_ops as *mut c_void
     }
     else {
@@ -572,7 +572,7 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         return SC_ERROR_INCONSISTENT_PROFILE;//LOG_FUNC_RETURN(ctx, SC_ERROR_INCONSISTENT_PROFILE);
     }
     assert!(!file_priv.is_null());
-    let mut file_priv = unsafe { &mut *file_priv };
+    let file_priv = unsafe { &mut *file_priv };
     assert_eq!(file_priv.path.type_, SC_PATH_TYPE_PATH);
     assert!(file_priv.path.len >= 4 && file_priv.path.len<=16);
 //file_priv.acl[SC_AC_OP_READ as usize] = 0x1 as *mut sc_acl_entry;
@@ -710,7 +710,7 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
     if file_pub.is_null() {
         return SC_ERROR_OUT_OF_MEMORY;
     }
-    let mut file_pub = unsafe { &mut *file_pub };
+    let file_pub = unsafe { &mut *file_pub };
     file_pub.size = 21 + keybits/8;
     // file_pub.path.value[file_pub.path.len-1] += 0x30;
     file_pub.path.value[file_pub.path.len-2..file_pub.path.len].copy_from_slice(&ay.to_be_bytes());

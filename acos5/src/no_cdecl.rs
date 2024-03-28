@@ -39,8 +39,8 @@ use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_
                          sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_check_apdu, sc_list_files,
                          sc_set_security_env, sc_get_challenge, sc_get_mf_path, SC_ALGORITHM_EC,//sc_verify,
                          SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_ALGORITHM_AES,
-                         SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT, SC_PIN_STATE_UNKNOWN,
-                         SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM};
+                         SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT, SC_PIN_STATE_UNKNOWN};
+//                         ,SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM
 //#[cfg(not(v0_17_0))]
 //use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
@@ -425,7 +425,7 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
         if apdu.resplen == 0 {
             /* For some cards 'SELECT' MF or DF_NAME do not return FCI. */
             if select_mf>0 || pathtype == SC_PATH_TYPE_DF_NAME {
-                let mut file = match unsafe { sc_file_new() }  {
+                let file = match unsafe { sc_file_new() }  {
                     ptr if ptr.is_null() => {
                         r = SC_ERROR_OUT_OF_MEMORY;
                         log3ifr!(ctx,f,line!(), r);
@@ -451,7 +451,7 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
     match unsafe { *apdu.resp } {
         ISO7816_TAG_FCI |
         ISO7816_TAG_FCP => {
-            let mut file : &mut sc_file = match unsafe { sc_file_new() }  {
+            let file : &mut sc_file = match unsafe { sc_file_new() }  {
                 ptr if ptr.is_null() => {
                     r = SC_ERROR_OUT_OF_MEMORY;
                     log3ifr!(ctx,f,line!(), r);
@@ -1176,7 +1176,7 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 6]
         sc_atr_table {
             atr:     cstru!(ATR_V2).as_ptr(),
             atrmask: cstru!(ATR_MASK).as_ptr(),
-            name:    cstru!(NAME_V2).as_ptr(),
+            name:    NAME_V2.as_ptr(),
             type_: SC_CARD_TYPE_ACOS5_64_V2,
             flags: 0,
             card_atr: null_mut(),
@@ -1184,7 +1184,7 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 6]
         sc_atr_table {
             atr:     cstru!(ATR_V3).as_ptr(),
             atrmask: cstru!(ATR_MASK).as_ptr(),
-            name:    cstru!(NAME_V3).as_ptr(),
+            name:    NAME_V3.as_ptr(),
             type_: SC_CARD_TYPE_ACOS5_64_V3,
             flags: 0,
             card_atr: null_mut(),
@@ -1193,7 +1193,7 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 6]
         sc_atr_table {
             atr:     cstru!(ATR_V4).as_ptr(),
             atrmask: cstru!(ATR_MASK).as_ptr(),
-            name:    cstru!(NAME_V4).as_ptr(),
+            name:    NAME_V4.as_ptr(),
             type_: SC_CARD_TYPE_ACOS5_EVO_V4,
             flags: 0,
             card_atr: null_mut(),
@@ -1202,7 +1202,7 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 6]
         sc_atr_table {
             atr:     cstru!(ATR_V4_1).as_ptr(),
             atrmask: cstru!(ATR_MASK_TCK).as_ptr(),
-            name:    cstru!(NAME_V4).as_ptr(),
+            name:    NAME_V4.as_ptr(),
             type_: SC_CARD_TYPE_ACOS5_EVO_V4,
             flags: 0,
             card_atr: null_mut(),
@@ -1210,7 +1210,7 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 6]
         sc_atr_table {
             atr:     cstru!(ATR_V4_2).as_ptr(),
             atrmask: cstru!(ATR_MASK_TCK).as_ptr(),
-            name:    cstru!(NAME_V4).as_ptr(),
+            name:    NAME_V4.as_ptr(),
             type_: SC_CARD_TYPE_ACOS5_EVO_V4,
             flags: 0,
             card_atr: null_mut(),
@@ -1218,7 +1218,7 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 6]
         sc_atr_table {
             atr:     cstru!(ATR_V4_3).as_ptr(),
             atrmask: cstru!(ATR_MASK_TCK).as_ptr(),
-            name:    cstru!(NAME_V4).as_ptr(),
+            name:    NAME_V4.as_ptr(),
             type_: SC_CARD_TYPE_ACOS5_EVO_V4,
             flags: 0,
             card_atr: null_mut(),
@@ -2018,7 +2018,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     // let Len1 = indata_len;
     let Len0 =  Len1.prev_multiple_of(&block_size); // (Len1/block_size) * block_size;
     let Len2 = (Len1+ if crypt_sym.encrypt && [BLOCKCIPHER_PAD_TYPE_PKCS7].contains(&crypt_sym.pad_type) {1} else {0}).
-        next_multiple_of(&block_size); // i.e. 1,,block_size bytes get added for encryption if acc. padding was selected
+        next_multiple_of(block_size); // i.e. 1,,block_size bytes get added for encryption if acc. padding was selected
     if !crypt_sym.encrypt {
         assert_eq!(Len1, Len0);
         assert_eq!(Len1, Len2);
@@ -2072,7 +2072,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     if crypt_sym.perform_mse || condition_weak {
         /* Security Environment */
         senv = sc_security_env {
-            operation: if crypt_sym.encrypt {SC_SEC_OPERATION_ENCRYPT_SYM} else {SC_SEC_OPERATION_DECRYPT_SYM},
+            operation: 7,// TODO if crypt_sym.encrypt {SC_SEC_OPERATION_ENCRYPT_SYM} else {SC_SEC_OPERATION_DECRYPT_SYM},
             flags    : SC_SEC_ENV_KEY_REF_PRESENT | SC_SEC_ENV_ALG_REF_PRESENT | SC_SEC_ENV_ALG_PRESENT,
             algorithm: if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else if crypt_sym.key_len==8 {SC_ALGORITHM_DES} else {SC_ALGORITHM_3DES},
             key_ref: [crypt_sym.key_ref, 0,0,0,0,0,0,0],

@@ -614,7 +614,7 @@ fn me_find_library_sm(ctx: &mut sc_context, name: &CStr) -> Result<String, i32>
 /* call into the driver library */
 pub fn call_dynamic_update_hashmap(card: &mut sc_card) -> lib::Result<()> {
     let ctx : &mut sc_context = unsafe { &mut *card.ctx };
-    let drv_module_path_name = me_find_library_driver(ctx, cstru!(CARD_DRV_SHORT_NAME));
+    let drv_module_path_name = me_find_library_driver(ctx, CARD_DRV_SHORT_NAME);
 //    println!("driver's module_path_name: {}", drv_module_path_name);
 //              driver's module_path_name: "$HOME/RustProjects/acos5/target/debug/libacos5.so"
     let lib = lib::Library::new(OsStr::new(&drv_module_path_name))?;
@@ -631,7 +631,7 @@ pub fn call_dynamic_sm_test(ctx: &mut sc_context, info: *mut sm_info, out: *mut 
 //    println!("sm module_path_name: {}", sm_module_path_name);
 //            sm module_path_name: $HOME/RustProjects/acos5_sm/target/debug/libacos5_sm.so
 //    me_find_library_sm: SM module 'libacos5_sm.so' in  '$HOME/RustProjects/acos5_sm/target/debug'
-//    println!("driver's module_path_name: {:?}", me_find_library_driver(ctx, cstru!(CARD_DRV_SHORT_NAME) ) );
+//    println!("driver's module_path_name: {:?}", me_find_library_driver(ctx, CARD_DRV_SHORT_NAME) );
 //    "$HOME/RustProjects/acos5_sm/target/debug/libacos5_sm.so"
     /*
     app default {

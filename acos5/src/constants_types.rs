@@ -24,6 +24,7 @@ use std::os::raw::{c_char, c_uchar, c_ulong, c_void};
 use std::ops::{Deref, DerefMut};
 use std::convert::{TryFrom/*, TryInto*/};
 use std::collections::HashMap;
+use std::ffi::CStr;
 
 use opensc_sys::opensc::{sc_context, sc_card, sc_security_env, sc_file_free, sc_bytes2apdu,
                          SC_ALGORITHM_AES/*, SC_CARD_CAP_APDU_EXT*/};
@@ -90,12 +91,12 @@ pub const ATR_V4_2    : &[u8; 60] = b"3b:9e:96:80:01:41:05:42:00:00:00:00:00:00:
 pub const ATR_V4_3    : &[u8; 60] = b"3b:9e:96:80:01:41:05:43:00:00:00:00:00:00:00:00:00:90:00:1e\0"; // Using reader with a card: ACS CryptoMate EVO 00 00
 pub const ATR_MASK    : &[u8; 57] = b"FF:FF:00:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF\0";
 pub const ATR_MASK_TCK: &[u8; 60] = b"FF:FF:00:FF:FF:FF:FF:F0:00:00:00:00:00:00:00:00:00:FF:FF:00\0";
-pub const NAME_V2  : &[u8; 43] = b"ACOS5-64 V2.00: Smart Card or CryptoMate64\0";
-pub const NAME_V3  : &[u8; 46] = b"ACOS5-64 V3.00: Smart Card or CryptoMate Nano\0";
-pub const NAME_V4  : &[u8; 50] = b"ACOS5-EVO V4.X0: Smart Card EVO or CryptoMate EVO\0";
+pub const NAME_V2  : &CStr = c"ACOS5-64 V2.00: Smart Card or CryptoMate64";
+pub const NAME_V3  : &CStr = c"ACOS5-64 V3.00: Smart Card or CryptoMate Nano";
+pub const NAME_V4  : &CStr = c"ACOS5-EVO V4.X0: Smart Card EVO or CryptoMate EVO";
 
-pub const CARD_DRV_NAME       : &[u8; 92] = b"'acos5_external', supporting ACOS5 Smart Card V2.00 (CryptoMate64), V3.00 (CryptoMate Nano)\0";
-pub const CARD_DRV_SHORT_NAME : &[u8; 15] =  b"acos5_external\0";
+pub const CARD_DRV_NAME       : &CStr = c"'acos5_external', supporting ACOS5 Smart Card V2.00 (CryptoMate64), V3.00 (CryptoMate Nano)";
+pub const CARD_DRV_SHORT_NAME : &CStr = c"acos5_external";
 
 //pub const CRATE               : &[u8;   6] = b"acos5\0"; // search acos5 mention in debug log file; each function should at least log CALLED, except small helpers or code that is clearly covered by only one possible surrounding function's called
 //pub const CALLED              : &[u8;   7] = b"called\0";
@@ -222,10 +223,10 @@ pub const SC_SEC_OPERATION_DERIVE       : i32 = 0x0004;
 pub const SC_SEC_OPERATION_WRAP         : i32 = 0x0005;
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub const SC_SEC_OPERATION_UNWRAP       : i32 = 0x0006;
-#[cfg(sym_hw_encrypt)]
-pub const SC_SEC_OPERATION_ENCRYPT_SYM  : i32 = 0x0007;
-#[cfg(sym_hw_encrypt)]
-pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
+//#[cfg(sym_hw_encrypt)]
+//pub const SC_SEC_OPERATION_ENCRYPT_SYM  : i32 = 0x0007;
+//#[cfg(sym_hw_encrypt)]
+//pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
 
 */
 ////pub const SC_SEC_OPERATION_ENCIPHER : i32 = 0x0009;
@@ -968,7 +969,7 @@ pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Resul
 cfg_if::cfg_if! {
     if #[cfg(iup_user_consent)] {
         use libc::{free};
-        use opensc_sys::opensc::{sc_card/*, SC_CTX_FLAG_DISABLE_POPUPS*/};
+        //use opensc_sys::opensc::{sc_card/*, SC_CTX_FLAG_DISABLE_POPUPS*/};
         use opensc_sys::errors::{SC_ERROR_KEYPAD_MSG_TOO_LONG, SC_ERROR_NOT_ALLOWED};
         use opensc_sys::scconf::{scconf_find_blocks, scconf_get_bool/*, scconf_get_str*/};
 
@@ -1030,8 +1031,8 @@ cfg_if::cfg_if! {
                 if elem.is_null() { break; }
 
                 let blocks_ptr = unsafe { scconf_find_blocks(ctx.conf, *elem,
-                                                             cstru!(b"card_driver\0").as_ptr(),
-                                                             cstru!(CARD_DRV_SHORT_NAME).as_ptr()) };
+                                                             c"card_driver".as_ptr(),
+                                                             CARD_DRV_SHORT_NAME.as_ptr()) };
                 if blocks_ptr.is_null() { continue; }
                 let blk_ptr = unsafe { *blocks_ptr };
 

@@ -1,20 +1,16 @@
 # acos5  
 [![Build Status](https://travis-ci.org/carblue/acos5.svg?branch=master)](https://travis-ci.org/carblue/acos5)
 
-<a href="https://www.jetbrains.com/?from=acos5"><img src="jetbrains.png" height="40px"/></a>
-
-Made with CLion. Thanks to JetBrains for supporting open source!
-
 Driver for Advanced Card Systems (ACS)  ACOS5 Smart Card V2.00 (CryptoMate64) and V3.00 (CryptoMate Nano),  
-as external modules operating within the OpenSC framework.  
-The new ACOS5-EVO (ACOS5 V4.X0): Will possibly be supported soon, work in progress. Currently all my 3 tokens emit errors on the CCID level, thus it's not clear whether my hardware/firmeware is misbehaving or whether there is a more general problem with "EVO". Has anybody evidence that it works at all) e.g. with the ACS toolchain?  
-That's promising, the first major, real improvement of ACOS5 Smart Card V2.00.  
+as external modules, operating within the OpenSC software framework.
+Maybe if once [pcsc-tools](http://ludovic.rousseau.free.fr/softwares/pcsc-tools/ "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/") will support ACOS5-EVO / CryptoMate EVO, I might continue work on supporting that in driver's code as well.
+
 The respective reference manual for Your hardware is available on request from: info@acs.com.hk
 
 Platforns supported: Those that the Rust compiler targets: [rustc platform-support](https://doc.rust-lang.org/nightly/rustc/platform-support.html "https://doc.rust-lang.org/nightly/rustc/platform-support.html").  
 Platforms tested: Those that I use:  
-Linux/Kubuntu 20.04.2 LTS (extensively tested, everything implemented works as expected),  
-Windows 10 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: SM and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Note that, for the time being, after all this annoying, time consuming hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow i.a. for sanity-check).
+Linux/Kubuntu 22.04 LTS (extensively tested, everything implemented works as expected),  
+Windows 11 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: SM and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Note that, for the time being, after all this annoying, time consuming hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow i.a. for sanity-check).
 
 Release tags get added irregularly, mainly i.o. to refer to something from `acos5_gui` (as a minimum driver release requirement). In any case, master's HEAD has the best driver code for You.
 
@@ -22,13 +18,15 @@ Release tags get added irregularly, mainly i.o. to refer to something from `acos
 Motivation:  
 For platform-independent, serious use of a cryptographic token from software like Firefox, Thunderbird, ssh etc., a [PKCS#11](https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11 "https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11") implementing library is required.  
 There is none known to me for ACOS5 that is open-source, nothing in this regard downloadable from ACS for free, instead, one has to pay a lot more for a proprietary ACS PKCS#11 library (bundled with some other software) than for a single hardware token.  
-The only open-source software downloadable from ACS is [acsccid](https://github.com/acshk/acsccid "https://github.com/acshk/acsccid"), a PC/SC driver for Linux/Mac OS X. PC/SC or WinSCard (Windows) is just the basic layer on which a PKCS#11 library can build upon. I never installed acsccid for production use of my CryptoMate64 and CryptoMate Nano, hence the debian/Ubuntu-supplied [ccid](https://ccid.apdu.fr/ "https://ccid.apdu.fr/") seems to be sufficient (if it's new enough to list those cards as supported ones: [shouldwork](https://ccid.apdu.fr/ccid/shouldwork.html "https://ccid.apdu.fr/ccid/shouldwork.html")).  
+The only open-source software downloadable from ACS is [acsccid](https://github.com/acshk/acsccid "https://github.com/acshk/acsccid"), a PC/SC driver for Linux/Mac OS X. PC/SC or WinSCard (Windows) is just the basic layer on which a PKCS#11 library can build upon. I never installed acsccid for production use of my CryptoMate64 and CryptoMate Nano, hence the debian/ubuntu-supplied [ccid](https://ccid.apdu.fr/ "https://ccid.apdu.fr/") seems to be sufficient (if it's new enough to list those cards as supported ones: [shouldwork](https://ccid.apdu.fr/ccid/shouldwork.html "https://ccid.apdu.fr/ccid/shouldwork.html")).  
 So be careful what You get from ACS when it's called driver. Perhaps You get something that is behind the "File Upon Request" barrier.
 
-[OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki") supplies i.a. a PKCS#11 implementing open-source library if it get's augmented by a hardware specific driver, which is missing currently for ACOS5 in OpenSC v0.22.0, and the one available in previous versions was rudimentary/incomplete.
+[OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki") supplies i.a. a PKCS#11 implementing open-source library (onepin-opensc-pkcs11.so/opensc-pkcs11.so) if it get's augmented by a hardware specific driver, which is missing currently for ACOS5 smart cards in OpenSC v0.25.0, and the one available in previous versions was rudimentary/incomplete; hence excluded for good reasons.
 
-With this repo's components 'acos5' and 'acos5_pkcs15' as plug-ins, OpenSC supports some ACOS5 hardware as well. (Fortunately OpenSC allows such plug-ins as - in OpenSC lingo - external modules/shared libraries/DLL).  
+With this repo's components 'acos5' and 'acos5_pkcs15' as plug-ins, OpenSC now supports some ACOS5 hardware as well. (Fortunately OpenSC allows such plug-ins as - in OpenSC lingo - external modules/shared libraries/DLL).  
 External modules need some configuration once in opensc.conf, such that they get 'registered' and used by OpenSC software, explained below.
+
+For some reason (that I don't recall now) I didn't decide for [openCryptoki](https://www.ibm.com/docs/en/linux-on-systems?topic=stack-opencryptoki-overview "https://www.ibm.com/docs/en/linux-on-systems?topic=stack-opencryptoki-overview") (which also consists of an implementation of the PKCS #11 API), but it looks like it would have been an eligible alternative for me to implement ACOS5 hardware specific stuff for an open-source PKCS#11 library [github/opencryptoki](https://github.com/opencryptoki/opencryptoki "https://github.com/opencryptoki/opencryptoki").
 
 Prerequisite installations  
 Mandatory:  
@@ -43,7 +41,7 @@ sudo apt-get update
 sudo apt-get upgrade
 sudo apt-get install opensc opensc-pkcs11 openssl pcscd libssl-dev libtasn1-6-dev build-essential pcsc-tools
 ```
-**If that doesn't install a symbolic link libopensc.so, then this must be done manually**
+**If that doesn't install a symbolic link libopensc.so, then this must be done manually. See also file travis.yml**
 
 Optional:  
 - [IUP](https://webserver2.tecgraf.puc-rio.br/iup/en/download.html "https://webserver2.tecgraf.puc-rio.br/iup/en/download.html") from [pre-build binaries](https://sourceforge.net/projects/iup/files/ "https://sourceforge.net/projects/iup/files/") in ...Libraries sub-folder   
@@ -52,14 +50,12 @@ The driver may be "configured" to include code for: User consent to use an RSA p
 pops up every time when an RSA private key is requested to be used for sign, decrypt, unwrap. I recommend to use this feature for enhanced security, more in file   [conditional_compile_options](https://github.com/carblue/acos5/tree/master/conditional_compile_options.md "https://github.com/carblue/acos5/tree/master/conditional_compile_options.md"), referring to 'iup_user_consent'.
 It's just not mandatory due to the required additional installation, required editing of acos5_external/acos5/build.rs and editing opensc.conf: iup_user_consent_enabled = yes; the latter allows to have that feature compiled in, but disable it temporarily e.g. for pkcs11-tool --test  where it would be tedious to approve each single RSA key usage. The pre-built IUP binaries are easy to install on Linux via sudo ./install (check for all dependencies satisfied with ldd libiup.so), or as usual, compile from sources.
 
-For CryptoMate EVO, this is required: Either libccid from https://salsa.debian.org/rousseau/CCID  version 1.4.34 - 24 January 2021  or upwards (which is probably not included in current distro packages),  or from https://github.com/acshk/acsccid, minimum version v1.1.7 (24/7/2019)
-
 This repo builds 2 dll/shared object libraries:  
 - libacos5.so/dylib/dll, which is a mandatory one, the driver in the narrow sense, and
 - libacos5_pkcs15.so/dylib/dll, which is theoretically optional, but very likely required if the token isn't used read-only; e.g. storing/generating keys on-card requires this.  
 In the following I won't make any distinction anymore and call both 'the driver' for ACOS5.
 
-This repo also builds a library from the included opensc-sys binding for internal use. It's the basic building block for the driver components in order to be able to call into the libopensc library, the backbone/workhorse of OpenSC.  
+This repo also builds a library from the included opensc-sys binding for internal use. It's the basic building block for the driver components in order to be able to call into the libopensc.so library, the backbone/workhorse of OpenSC.  
 The minimal OpenSC version supported is 0.17.0  
 
 All these builds will be tied to the OpenSC version installed, so that installation must be done first. Then, for all 3 builds there are files build.rs which get processed prior to the remaining build and control how that will be done (conditional compilation, see [conditional_compile_options](https://github.com/carblue/acos5/tree/master/conditional_compile_options.md "https://github.com/carblue/acos5/tree/master/conditional_compile_options.md")). The first one will detect the OpenSC version installed, adapt the opensc_sys binding to that version and pass the version info to the other builds.
@@ -78,7 +74,7 @@ If a manually added 'Symmetric Key' is not listed in SKDF, then it does not exis
 
 So this is the point: It would be graceful to react upon limits/rules violations with error returns and respective error messages in opensc-debug.log, but all too often the driver isn't yet that polite and just deliberately aborts ("panic" in Rust lingo, due to an assert violation).
 So, if anybody wants to contribute, removing these rough edges is an easy way to start.  
-And if the driver is "impolite" currently, it's most likely something about card content, that is different from expected according to PKCS#15 / ISO/IEC 7816-15 / OpenSC. It's tough for outsiders to spot from OpenSC code: What is the exact requirement for ASN.1 content of PKCS#15 files. Maybe it's easier to read from [PKCS15.asn](https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn "https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn"), which is specifically crafted/modified from a module pkcs-15v1_1.asn found by a web search, for compatibility with OpenSC version 0.19.0 ? - 0.22.0, libtasn1 and ACOS5. It's also internally used by the driver in non-Windows builds.
+And if the driver is "impolite" currently, it's most likely something about card content, that is different from expected according to PKCS#15 / ISO/IEC 7816-15 / OpenSC. It's tough for outsiders to spot from OpenSC code: What is the exact requirement for ASN.1 content of PKCS#15 files. Maybe it's easier to read from [PKCS15.asn](https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn "https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn"), which is specifically crafted/modified from a module pkcs-15v1_1.asn found by a web search, for compatibility with OpenSC version 0.19.0 ? - 0.25.0, libtasn1 and ACOS5. It's also internally used by the driver in non-Windows builds.
 
 Akin to the www with it's broken links phenomenon, that may happen with a smart card as well: A lot in PKCS#15 and ACOS5 depends on "pointing to", and that may easily be broken by software bugs or ?. Thus I plan to integrate detection code for this kind of card content errors and more, for pkcs15-init --sanity-check  
 Thus a sanity-check without any errors found should prevent the driver from becoming "impolite" or reporting errors.  
@@ -96,7 +92,7 @@ Thus a sanity-check without any errors found should prevent the driver from beco
 
 2. Copy acos5_pkcs15/acos5_external.profile to the directory where all the other .profile files installed by OpenSC are located, for Linux probably in /usr/share/opensc/ or /usr/local/share/opensc/, for Windows something like C:/Program Files/OpenSC Project/OpenSC/profiles.  
 
-3. Adapt opensc.conf (see below). Also, in the beginning, switch on logging by a setting `debug=3;`  
+3. Adapt opensc.conf (see below). Also, in the beginning, switch on logging by a setting `debug=3;` and for debug_file set the file name receiving the logging output.  
    If all the above went well, the log file will have an entry within it's first 4 lines, reporting: "load_dynamic_driver: successfully loaded card driver 'acos5_external'".  
    Check that by issuing: `opensc-tool --info`  
    The last command should have successfully loaded card driver 'acos5_external', but it didn't yet use it. The next will do so (and also check for disallowed duplicate file ids):  
@@ -123,11 +119,6 @@ acos5_external,
 to the list of drivers specified by default and remove a leading comment character # in this line, if there is any.  
 When using ACOS5 V2.00, it's also required for any OpenSC release version <= 0.19.0, to bypass the almost non-functional 'acos5' internal driver somehow, thus a painless start is by using  
     card_drivers = acos5_external, default;  # this excludes all internal drivers, and the default driver does just nothing, so it would fail in a determined way as last resort, if driver acos5_external doesn't match 
-
-The 3 lines starting with
-card_atr 3b:9e:96:80:01:41:05:  
-and ending with }  
-are required only for the EVO card/USB token for the time being (effectively that excludes the extended APDU mode that is possible only since the "EVO" card's hardware version (as alternative)).  
 
 ```
 app default {
@@ -159,20 +150,6 @@ app default {
 	#card_drivers = npa, internal;
 ...
 	card_drivers = acos5_external, npa, internal; # for a painless start use  card_drivers = acos5_external, default;
-...
-.........
-...
-	card_atr 3b:9e:96:80:01:41:05:41:00:00:00:00:00:00:00:00:00:90:00:1c {
-		force_protocol = t0;
-	}
-
-	card_atr 3b:9e:96:80:01:41:05:42:00:00:00:00:00:00:00:00:00:90:00:1f {
-		force_protocol = t0;
-	}
-
-	card_atr 3b:9e:96:80:01:41:05:43:00:00:00:00:00:00:00:00:00:90:00:1e {
-		force_protocol = t0;
-	}
 ...
 .........
 	# PKCS #15

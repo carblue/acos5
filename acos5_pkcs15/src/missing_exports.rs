@@ -108,7 +108,7 @@ pub fn my_file_dup(dest: &mut *mut sc_file, src: &sc_file) {
     let newf : *mut sc_file = unsafe { sc_file_new() }; // initializes all its bits to zero, then file.magic = SC_FILE_MAGIC;
     if  newf.is_null() { return; }
     *dest = newf;
-    let mut newf = unsafe { &mut *newf };
+    let newf = unsafe { &mut *newf };
 
     unsafe {
         // memcpy(&newf->path, &src->path, sizeof(struct sc_path));

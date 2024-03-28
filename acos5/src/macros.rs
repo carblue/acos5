@@ -50,13 +50,3 @@ macro_rules! log3ifr {
 macro_rules! log3ifc {
     ($a:expr, $b:expr, $c:expr)                                               => (wr_do_log     ($a, $b, $c,  cstru!(b"called\0")));
 }
-
-
-/*
-
-macro_rules! offset_of {
-    ($ty:ty, $field:ident) => {
-        unsafe { &(*(0 as *const $ty)).$field as *const _ as usize }
-    }
-}
-*/

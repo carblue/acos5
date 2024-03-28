@@ -89,12 +89,14 @@ use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_securit
     SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR,
     SC_CARD_CAP_ISO7816_PIN_INFO, SC_ALGORITHM_AES,
     SC_ALGORITHM_EXT_EC_NAMEDCURVE, SC_CARD_CAP_APDU_EXT,
-    SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM, SC_ALGORITHM_EC,
+    SC_ALGORITHM_EC,
     SC_PROTO_T1
 //  SC_ALGORITHM_ECDH_CDH_RAW, SC_ALGORITHM_ECDSA_HASH_NONE, SC_ALGORITHM_ECDSA_HASH_SHA1,
 //  SC_ALGORITHM_EXT_EC_UNCOMPRESES,
 //  ,sc_pin_cmd_pin, sc_pin_cmd//, sc_update_binary, sc_path_set, sc_verify
 };
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+use opensc_sys::opensc::{SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM};
 // #[cfg(not(v0_17_0))]
 // use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
 //#[cfg(not(any(v0_17_0, v0_18_0)))]
@@ -290,7 +292,7 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 //#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> *mut c_void {
-    if !name.is_null() && CStr::from_ptr(name) == cstru!(CARD_DRV_SHORT_NAME) {
+    if !name.is_null() && CStr::from_ptr(name) == CARD_DRV_SHORT_NAME {
         acos5_get_card_driver as *mut c_void
     }
     else {
@@ -411,6 +413,12 @@ static struct sc_card_operations iso_ops = {
         #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
         unwrap:                None, //Some(acos5_unwrap),            // NULL
 
+//        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+//        pub encrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, plaintext: *const u8, plaintext_len: usize, out: *mut u8, outlen: *mut usize) -> i32 >,
+
+//        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+//        pub decrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, EncryptedData: *const u8, EncryptedDataLen: usize, out: *mut u8, outlen: *mut usize) -> i32 >,
+
         #[cfg(all(sym_hw_encrypt, not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))))]
         encrypt_sym:           Some(acos5_encrypt_sym),       // NULL
         #[cfg(all(sym_hw_encrypt, not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))))]
@@ -434,8 +442,8 @@ static struct sc_card_operations iso_ops = {
     } );
 
     let b_sc_card_driver = Box::new( sc_card_driver {
-        name:       cstru!(CARD_DRV_NAME).as_ptr(),
-        short_name: cstru!(CARD_DRV_SHORT_NAME).as_ptr(),
+        name:       CARD_DRV_NAME.as_ptr(),
+        short_name: CARD_DRV_SHORT_NAME.as_ptr(),
         ops:        Box::into_raw(b_sc_card_operations),
         ..sc_card_driver::default()
     } );
@@ -1716,7 +1724,7 @@ extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) 
         let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         dp.files.insert(u16::try_from(file_ref.id).unwrap(),
                         (file_ref.path.value, [0, 0, 0, 0, 0, 0, 0xFF, 1], None, None, None));
-        let mut x = dp.files.get_mut(&(u16::try_from(file_ref.id).unwrap())).unwrap();
+        let x = dp.files.get_mut(&(u16::try_from(file_ref.id).unwrap())).unwrap();
         x.1[0] = u8::try_from(file_ref.type_).unwrap();
         x.1[1] = u8::try_from(file_ref.path.len).unwrap();
         x.1[2] = file_ref.path.value[file_ref.path.len-2];
@@ -2712,7 +2720,7 @@ Tokenunfo
     }
 
     else if cfg!(all(sym_hw_encrypt, not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))) &&
-        [SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM].contains(&env_ref.operation)  &&
+//        [SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM].contains(&env_ref.operation)  &&
         (env_ref.flags & SC_SEC_ENV_KEY_REF_PRESENT) > 0 &&
         (env_ref.flags & SC_SEC_ENV_ALG_PRESENT) > 0
         // (env_ref.flags & SC_SEC_ENV_ALG_REF_PRESENT) > 0  // FIXME relax and don't require this
@@ -3216,9 +3224,19 @@ Trick: cache last security env setting, retrieve file id (priv) and deduce key l
               | SC_ALGORITHM_RSA_HASH_NONE   is *NOT* required for ssh for version:
               v0_20_0  (sec_env_algo_flags: 0x102, even if there is no rsa_algo_flags |= SC_ALGORITHM_RSA_HASH_NONE;)
             */
-            rv = unsafe { sc_pkcs1_encode(ctx, c_ulong::from(sec_env_algo_flags | SC_ALGORITHM_RSA_HASH_NONE), digest_info.as_ptr(),
-                                          digest_info.len(), vec.as_mut_ptr(), &mut vec_len, vec_len *
-                                          if cfg!(any(v0_17_0, v0_18_0, v0_19_0)) {1} else {8}) };
+
+            cfg_if::cfg_if! {
+                if #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))] {
+                    rv = unsafe { sc_pkcs1_encode(ctx, c_ulong::from(sec_env_algo_flags | SC_ALGORITHM_RSA_HASH_NONE), digest_info.as_ptr(),
+                                                 digest_info.len(), vec.as_mut_ptr(), &mut vec_len, vec_len *
+                                                 if cfg!(any(v0_17_0, v0_18_0, v0_19_0)) { 1 } else { 8 }) };
+                }
+                else {
+                    rv = unsafe { sc_pkcs1_encode(ctx, c_ulong::from(sec_env_algo_flags | SC_ALGORITHM_RSA_HASH_NONE), digest_info.as_ptr(),
+                                                  digest_info.len(), vec.as_mut_ptr(), &mut vec_len, vec_len * 8, null_mut()) };
+                }
+            }
+
             if rv != SC_SUCCESS {
                 return rv;
             }
@@ -3372,6 +3390,7 @@ extern "C" fn acos5_append_record(card_ptr: *mut sc_card, buf_ptr: *const u8, co
 /* read_binary is also responsible for get_key and takes appropriate actions, such that get_key is NOT publicly available
    OpenSC doesn't know the difference (fdb 1 <-> 9): It always calls for transparent files: read_binary
    shall be called solely by sc_read_binary, which cares for dividing into chunks !! */
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0))]
 extern "C" fn acos5_read_binary(card_ptr: *mut sc_card, idx: u32,
                                 buf_ptr: *mut u8, count: usize, flags: c_ulong) -> i32
 {
@@ -3385,7 +3404,36 @@ extern "C" fn acos5_read_binary(card_ptr: *mut sc_card, idx: u32,
     common_read(card, idx, buf, flags, true)
 }
 
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+extern "C" fn acos5_read_binary(card_ptr: *mut sc_card, idx: u32,
+                                buf_ptr: *mut u8, count: usize, flags: *mut c_ulong) -> i32
+{
+    if card_ptr.is_null() || buf_ptr.is_null() || count==0 {
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+    let idx = u16::try_from(idx).unwrap();
+    let count = u16::try_from(count).unwrap();
+    let card = unsafe { &mut *card_ptr };
+    let buf      = unsafe { from_raw_parts_mut(buf_ptr, usize::from(count)) };
+    common_read(card, idx, buf, flags, true)
+}
+
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0))]
 extern "C" fn acos5_read_record(card_ptr: *mut sc_card, rec_nr: u32,
+                                buf_ptr: *mut u8, count: usize, _flags: c_ulong) -> i32
+{
+    if card_ptr.is_null() || buf_ptr.is_null() || count==0 /* || count>255*/ {
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+////    assert!(rec_nr>0); // TODO deactivated because opensc-tool is buggy
+    let rec_nr = u16::try_from(rec_nr).unwrap();
+    let count = u16::try_from(count).unwrap();
+    let card = unsafe { &mut *card_ptr };
+    let buf      = unsafe { from_raw_parts_mut(buf_ptr, usize::from(count)) };
+    common_read(card, rec_nr, buf, SC_RECORD_BY_REC_NR, false)
+}
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+extern "C" fn acos5_read_record(card_ptr: *mut sc_card, rec_nr: u32, _idx: u32,
                                 buf_ptr: *mut u8, count: usize, _flags: c_ulong) -> i32
 {
     if card_ptr.is_null() || buf_ptr.is_null() || count==0 /* || count>255*/ {
@@ -3412,7 +3460,22 @@ extern "C" fn acos5_update_binary(card_ptr: *mut sc_card, idx: u32,
     common_update(card, idx, buf, flags, true)
 }
 
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0))]
 extern "C" fn acos5_update_record(card_ptr: *mut sc_card, rec_nr: u32,
+                                  buf_ptr: *const u8, count: usize, _flags: c_ulong) -> i32
+{
+    if card_ptr.is_null() || buf_ptr.is_null() || count==0 {
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+    assert!(rec_nr>0);
+    let rec_nr = u16::try_from(rec_nr).unwrap();
+    let count = u16::try_from(count).unwrap();
+    let card = unsafe { &mut *card_ptr };
+    let buf      = unsafe { from_raw_parts(buf_ptr, usize::from(count)) };
+    common_update(card, rec_nr, buf, SC_RECORD_BY_REC_NR, false)
+}
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+extern "C" fn acos5_update_record(card_ptr: *mut sc_card, rec_nr: u32, idx: u32,
                                   buf_ptr: *const u8, count: usize, _flags: c_ulong) -> i32
 {
     if card_ptr.is_null() || buf_ptr.is_null() || count==0 {

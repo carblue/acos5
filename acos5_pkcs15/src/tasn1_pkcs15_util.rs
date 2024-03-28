@@ -451,7 +451,7 @@ pub fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
 
     let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     for FidPkcs15Type(fid, pkcs15_type) in &vec_FidPkcs15Type {
-        let mut dp_files_value = dp.files.get_mut(fid).unwrap();
+        let dp_files_value = dp.files.get_mut(fid).unwrap();
         dp_files_value.1[6] = *pkcs15_type;
     }
     card.drv_data = Box::into_raw(dp).cast::<c_void>();
@@ -626,7 +626,7 @@ fn get_arr1<'a>(idx_0: u8, idx_1: u8) -> &'a CStr {
 //println!("vec_FidPkcs15Type: {:X?}", vec_FidPkcs15Type);
     let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     for FidPkcs15Type(fid, pkcs15_type) in &vec_FidPkcs15Type {
-        let mut dp_files_value = dp.files.get_mut(fid).unwrap();
+        let dp_files_value = dp.files.get_mut(fid).unwrap();
         dp_files_value.1[6] = *pkcs15_type;
     }
     card.drv_data = Box::into_raw(dp).cast::<c_void>();
