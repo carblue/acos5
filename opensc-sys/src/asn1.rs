@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 // Binding state: tabs: OKAY, header is OKAY (except pub const type checks), checkAPI15-19: OKAY, checkEXPORTS15-19: OKAY, compareD18-19: missing, doc: == tests,
@@ -531,6 +531,11 @@ pub fn sc_asn1_sig_value_sequence_to_rs(ctx: *mut sc_context, r#in: *mut u8, inl
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub fn sc_asn1_sig_value_sequence_to_rs(ctx: *mut sc_context, r#in: *const u8, inlen: usize,
                                         buf: *mut u8, buflen: usize) -> i32;
+
+/* ECDSA signature decoding*/
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+pub fn sc_asn1_decode_ecdsa_signature(ctx: *mut sc_context, data: *const u8, datalen: usize,
+                                      fieldsize: usize, out: *mut *mut u8, outlen: usize) -> i32;
 } // extern "C"
 
 /* long form tags use these */

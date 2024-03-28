@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -88,6 +88,17 @@ pub const SM_SMALL_CHALLENGE_LEN : usize = 8;
 pub const SM_GP_SECURITY_NO   : u32 = 0x00;
 pub const SM_GP_SECURITY_MAC  : u32 = 0x01;
 pub const SM_GP_SECURITY_ENC  : u32 = 0x03;
+
+/* As in OpenSSL include/openssl/des.h */
+
+cfg_if::cfg_if! {
+    if #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))] {
+        #[allow(non_camel_case_types)]
+        pub type sm_des_cblock       = [u8; 8]; // typedef             unsigned char sm_des_cblock[8];
+        #[allow(non_camel_case_types)]
+        pub type sm_const_des_cblock = [u8; 8]; // typedef /* const */ unsigned char sm_const_des_cblock[8];
+   }
+}
 
 /* Global Platform (SCP01) data types */
 /*

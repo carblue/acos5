@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /**
@@ -60,7 +60,7 @@ use crate::simclist::list_attributes_s;
 
 /*
    WARNING
-   The OpenSC API exhibits a lot of inconsistencies refering to types
+   The OpenSC API exhibits a lot of inconsistencies referring to types
    E.g. SC_SEC_OPERATION_* all have positive values, but the main usage field sc_security_env.operation is typed i32,
    that's why that group of constants (all originating from #define) is typed here i32 as well
 
@@ -75,14 +75,20 @@ pub const SC_SEC_OPERATION_AUTHENTICATE : i32 = 0x0003;
 pub const SC_SEC_OPERATION_DERIVE       : i32 = 0x0004;
 cfg_if::cfg_if! {
     if #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))] {
-        pub const SC_SEC_OPERATION_WRAP     : i32 = 0x0005;
-        pub const SC_SEC_OPERATION_UNWRAP   : i32 = 0x0006;
+        pub const SC_SEC_OPERATION_WRAP         : i32 = 0x0005;
+        pub const SC_SEC_OPERATION_UNWRAP       : i32 = 0x0006;
+    }
+}
+cfg_if::cfg_if! {
+    if #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))] {
+        pub const SC_SEC_OPERATION_ENCRYPT_SYM  : i32 = 0x0007;
+        pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
     }
 }
 // cfg_if::cfg_if! {
 //     if #[cfg(sym_hw_encrypt)] {
-        pub const SC_SEC_OPERATION_ENCRYPT_SYM  : i32 = 0x0007;
-        pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
+//        pub const SC_SEC_OPERATION_ENCRYPT_SYM  : i32 = 0x0007;
+//        pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
 //     }
 // }
 
@@ -117,6 +123,7 @@ cfg_if::cfg_if! {
 
 /* PK algorithms */
 pub const SC_ALGORITHM_RSA       : u32 = 0;
+#[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))]
 pub const SC_ALGORITHM_DSA       : u32 = 1;
 pub const SC_ALGORITHM_EC        : u32 = 2;
 pub const SC_ALGORITHM_GOSTR3410 : u32 = 3;
@@ -177,8 +184,11 @@ cfg_if::cfg_if! {
     else if #[cfg(v0_20_0)] {
         pub const SC_ALGORITHM_RSA_PADS : u32 = 0x0000_001F; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
     }
-    else {
+    else if #[cfg(any(v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
         pub const SC_ALGORITHM_RSA_PADS : u32 = 0x0000_003F; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
+    }
+    else /* v0_25_0 */ {
+        pub const SC_ALGORITHM_RSA_PADS : u32 = 0x0000_00FF; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
     }
 }
 
@@ -197,14 +207,22 @@ cfg_if::cfg_if! {
     https://tools.ietf.org/html/rfc8017#page-62\
     Not OpenSC, but the card/driver will pad according to EMSA-PKCS1-v1_5; EMSA = Encoding Method for Signature with Appendix
     before signing */
-pub const SC_ALGORITHM_RSA_PAD_PKCS1   : u32 = 0x0000_0002; /* PKCS#1 v1.5 padding */
 pub const SC_ALGORITHM_RSA_PAD_ANSI    : u32 = 0x0000_0004;
 pub const SC_ALGORITHM_RSA_PAD_ISO9796 : u32 = 0x0000_0008;
 #[cfg(not(any(v0_17_0, v0_18_0)))]
 pub const SC_ALGORITHM_RSA_PAD_PSS     : u32 = 0x0000_0010; /* PKCS#1 v2.0 PSS */
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
 pub const SC_ALGORITHM_RSA_PAD_OAEP    : u32 = 0x0000_0020; /* PKCS#1 v2.0 OAEP */
-
+cfg_if::cfg_if! {
+    if #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
+        pub const SC_ALGORITHM_RSA_PAD_PKCS1   : u32 = 0x0000_0002; /* PKCS#1 v1.5 padding */
+    }
+    else {
+        pub const SC_ALGORITHM_RSA_PAD_PKCS1_TYPE_01  : u32 = 0x0000_0040; /* PKCS#1 v1.5 padding type 1 */
+        pub const SC_ALGORITHM_RSA_PAD_PKCS1_TYPE_02  : u32 = 0x0000_0080; /* PKCS#1 v1.5 padding type 2 */
+        pub const SC_ALGORITHM_RSA_PAD_PKCS1	      : u32 = SC_ALGORITHM_RSA_PAD_PKCS1_TYPE_01 | SC_ALGORITHM_RSA_PAD_PKCS1_TYPE_02; /* PKCS#1 v1.5 (type 1 or 2) */
+    }
+}
 /* If the card is willing to produce a cryptogram with the following
  * hash values, set these flags accordingly.  The interpretation of the hash
  * flags depends on the algorithm and padding chosen: for RSA, the hash flags
@@ -410,7 +428,10 @@ impl Default for sc_supported_algo_info {
 pub struct sc_sec_env_param {
     pub param_type : u32,   /* e.g. SC_SEC_ENV_PARAM_IV */
     pub value : *mut c_void,
+    #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub value_len  : u32,
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub value_len  : usize,
 }
 /*
 #[doc(hidden)]
@@ -436,10 +457,20 @@ impl Default for sc_sec_env_param {
 pub struct sc_security_env {
     pub flags           : c_ulong,    /* e.g. SC_SEC_ENV_KEY_REF_SYMMETRIC, ... */
     pub operation       : i32,      /* SC_SEC_OPERATION */
-    pub algorithm       : u32,     /* if used, set flag SC_SEC_ENV_ALG_PRESENT */
-    pub algorithm_flags : u32,     /* e.g. SC_ALGORITHM_RSA_RAW  or SC_ALGORITHM_AES_CBC_PAD */
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+    pub algorithm       : u32,  /* if used, set flag SC_SEC_ENV_ALG_PRESENT */
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+    pub algorithm_flags : u32,  /* e.g. SC_ALGORITHM_RSA_RAW  or SC_ALGORITHM_AES_CBC_PAD */
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+    pub algorithm_ref   : u32,  /* if used, set flag SC_SEC_ENV_ALG_REF_PRESENT */
 
-    pub algorithm_ref   : u32,     /* if used, set flag SC_SEC_ENV_ALG_REF_PRESENT */
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub algorithm       : c_ulong,  /* if used, set flag SC_SEC_ENV_ALG_PRESENT */
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub algorithm_flags : c_ulong,  /* e.g. SC_ALGORITHM_RSA_RAW  or SC_ALGORITHM_AES_CBC_PAD */
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub algorithm_ref   : c_ulong,  /* if used, set flag SC_SEC_ENV_ALG_REF_PRESENT */
+
     pub file_ref        : sc_path,    /* if used, set flag SC_SEC_ENV_FILE_REF_PRESENT */
     pub key_ref : [u8; 8],  /* if used, set flag SC_SEC_ENV_KEY_REF_PRESENT */
     pub key_ref_len : usize,
@@ -481,7 +512,10 @@ impl Default for sc_security_env {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_algorithm_id {
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub algorithm : u32,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub algorithm : c_ulong,
     pub oid : sc_object_id,
     pub params : *mut c_void,
 }
@@ -544,7 +578,10 @@ pub struct sc_algorithm_info__union_sc_rsa_info {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_algorithm_info__union_sc_ec_info {
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub ext_flags : u32,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub ext_flags : c_ulong,
     pub params : sc_ec_parameters,
 }
 
@@ -569,8 +606,14 @@ impl Default for sc_algorithm_info__union {
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_algorithm_info {
     pub algorithm  : u32,
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub key_length : u32,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub key_length : usize,
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub flags      : u32,    /* e.g. SC_ALGORITHM_RSA_RAW  or SC_ALGORITHM_AES_CBC_PAD, see struct sc_security_env, field algorithm_flags */
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub flags      : c_ulong,    /* e.g. SC_ALGORITHM_RSA_RAW  or SC_ALGORITHM_AES_CBC_PAD, see struct sc_security_env, field algorithm_flags */
 
     pub u : sc_algorithm_info__union,
 }
@@ -758,7 +801,10 @@ pub struct sc_pin_cmd_pin {
     pub prompt : *const c_char, /* Prompt to display */
 
     pub data : *const u8, /* PIN, set to NULL when using pin pad */
-    pub len : i32, /* set to -1 to get pin from pin pad */
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+    pub len : i32, /* set to 0 when using pin pad */
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub len : usize, /* set to 0 when using pin pad */
 
     pub min_length    : usize, /* min length of PIN */
     pub max_length    : usize, /* max length of PIN */
@@ -1046,13 +1092,17 @@ pub struct sc_card_operations {
      * @param  idx    index within the file with the data to read
      * @param  buf    buffer to the read data
      * @param  count  number of bytes to read
-     * @param  flags  flags for the READ BINARY command (currently not used)
+     * @param  flags  flags for the READ BINARY command (optional)
      * @return number of bytes read or an error code
      *
      * @see sc_read_binary()
      */
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0))]
     pub read_binary   : Option< unsafe extern "C" fn (card: *mut sc_card, idx: u32,
                                                       buf: *mut u8, count: usize, flags: c_ulong) -> i32 >,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+    pub read_binary   : Option< unsafe extern "C" fn (card: *mut sc_card, idx: u32,
+                                                      buf: *mut u8, count: usize, flags: *mut c_ulong) -> i32 >,
 
     /**
      * @brief Write data to a binary EF with a single command
@@ -1103,13 +1153,21 @@ pub struct sc_card_operations {
                                                       count: usize, flags: c_ulong) -> i32 >,
 
     /* rec_nr: assuming OpenSC has the convention to start rec_nr from 1 to NOR */
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0))]
     pub read_record   : Option< unsafe extern "C" fn (card: *mut sc_card, rec_nr: u32,
+                                                      buf:   *mut u8, count: usize, flags: c_ulong) -> i32 >,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+    pub read_record   : Option< unsafe extern "C" fn (card: *mut sc_card, rec_nr: u32, idx: u32,
                                                       buf:   *mut u8, count: usize, flags: c_ulong) -> i32 >,
     pub write_record  : Option< unsafe extern "C" fn (card: *mut sc_card, rec_nr: u32,
                                                       buf: *const u8, count: usize, flags: c_ulong) -> i32 >,
     pub append_record : Option< unsafe extern "C" fn (card: *mut sc_card,
                                                       buf: *const u8, count: usize, flags: c_ulong) -> i32 >,
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0))]
     pub update_record : Option< unsafe extern "C" fn (card: *mut sc_card, rec_nr: u32,
+                                                      buf: *const u8, count: usize, flags: c_ulong) -> i32 >,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+    pub update_record : Option< unsafe extern "C" fn (card: *mut sc_card, rec_nr: u32, idx: u32,
                                                       buf: *const u8, count: usize, flags: c_ulong) -> i32 >,
 
     /* select_file: Does the equivalent of SELECT FILE command specified
@@ -1125,6 +1183,16 @@ pub struct sc_card_operations {
      */
     pub get_response : Option< unsafe extern "C" fn (card: *mut sc_card, count: *mut usize,
                                                      buf: *mut u8) -> i32 >,
+    /**
+     * Get random data from the card
+     *
+     * Implementation of this call back is optional and may be NULL.
+     *
+     * @param  card   struct sc_card object on which to issue the command
+     * @param  buf    buffer to be filled with random data
+     * @param  count  number of random bytes to initialize
+     * @return number of random bytes successfully initialized (i.e. `count` or less bytes) or an error code
+     */
     pub get_challenge : Option< unsafe extern "C" fn (card: *mut sc_card,
                                                       buf: *mut u8, count: usize) -> i32 >,
 
@@ -1222,6 +1290,12 @@ pub struct sc_card_operations {
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     pub unwrap : Option< unsafe extern "C" fn (card: *mut sc_card, crgram: *const u8, crgram_len: usize) -> i32 >,
 
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+    pub encrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, plaintext: *const u8, plaintext_len: usize, out: *mut u8, outlen: *mut usize) -> i32 >,
+
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+    pub decrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, EncryptedData: *const u8, EncryptedDataLen: usize, out: *mut u8, outlen: *mut usize) -> i32 >,
+/*
     #[cfg(sym_hw_encrypt)]
     pub encrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, plaintext: *const u8, plaintext_len: usize, out: *mut u8, outlen: usize,
                                                     algorithm: u32, algorithm_flags: u32, key_ref: *const [u8; 8]) -> i32 >,
@@ -1229,6 +1303,7 @@ pub struct sc_card_operations {
     #[cfg(sym_hw_encrypt)]
     pub decrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, crgram: *const u8, crgram_len: usize, out: *mut u8, outlen: usize,
                                                     algorithm: u32, algorithm_flags: u32, key_ref: *const [u8; 8]) -> i32 >,
+*/
 }
 
 #[repr(C)]
@@ -1305,12 +1380,19 @@ pub const SC_CTX_FLAG_DISABLE_POPUPS        : c_ulong = 0x0000_0010;  // since o
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub const SC_CTX_FLAG_DISABLE_COLORS        : c_ulong = 0x0000_0020;  // since opensc source release v0.20.0
 
+// typedef struct ossl3ctx ossl3ctx_t; // since v0_24_0 : see also  opensc-0.xy.0/src/libopensc/sc-ossl-compat.h
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_context {
     pub conf : *mut scconf_context,
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0))]
     pub conf_blocks : [*mut scconf_block; 3],
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+    pub conf_blocks : [*mut scconf_block; 4],
     pub app_name : *mut c_char,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+    pub exe_path : *mut c_char,
     pub debug : i32,
     #[cfg(any(v0_17_0, v0_18_0))]
     pub reopen_log_file : i32,        // only in opensc source release v0.17.0 and v0.18.0
@@ -1331,7 +1413,12 @@ pub struct sc_context {
     pub thread_ctx : *mut sc_thread_context,
     pub mutex : *mut c_void,
 
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+    pub ossl3ctx : *mut c_void, // ossl3ctx_t * ; // ifdef ENABLE_OPENSSL
+
     pub magic : u32,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub disable_hw_pkcs1_padding : i32,
 }
 /*
 #[doc(hidden)]
@@ -1346,6 +1433,8 @@ impl Default for sc_context {
             conf: null_mut(),
             conf_blocks: [null_mut(); 3],
             app_name: null_mut(),
+            #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+            exe_path: null_mut(),
             debug: 0,
             #[cfg(any(v0_17_0, v0_18_0))]
             reopen_log_file : 0,
@@ -1496,6 +1585,10 @@ pub struct sc_context_param {
     pub flags : c_ulong,
     /** mutex functions to use (optional) */
     pub thread_ctx : *mut sc_thread_context,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+    pub debug : i32,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+    pub debug_file : *mut FILE,
 }
 /*
 #[doc(hidden)]
@@ -1579,9 +1672,20 @@ pub fn sc_ctx_get_reader(ctx: *mut sc_context, i: u32) -> *mut sc_reader;
  * @param  ctx   pointer to a sc_context
  * @param  pcsc_context_handle pointer to the  new context_handle to use
  * @param  pcsc_card_handle pointer to the new card_handle to use
- * @return SC_SUCCESS on success and an error code otherwise.
+ * @return SC_SUCCESS or 1 on success and an error code otherwise.
+*		a return of 1 indicates to call reinit_card_for, as
+*		the reader has changed.
  */
 pub fn sc_ctx_use_reader(ctx: *mut sc_context, pcsc_context_handle: *mut c_void, pcsc_card_handle: *mut c_void) -> i32;
+
+/**
+ * detect if the given handles are referencing `reader`
+ *
+ * 0 -> handles also point to `reader`
+ * 1 -> handles don't point to `reader`, but to a different reader
+ */
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+fn pcsc_check_reader_handles(ctx: *mut sc_context, reader: *mut sc_reader, pcsc_context_handle: *mut c_void, pcsc_card_handle: *mut c_void) -> i32;
 
 /**
  * Returns a pointer to the specified sc_reader object
@@ -1771,8 +1875,12 @@ pub fn sc_list_files(card: *mut sc_card, buf: *mut u8, buflen: usize) -> i32;
  * @param  flags  flags for the READ BINARY command (currently not used)
  * @return number of bytes read or an error code
  */
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0))]
 pub fn sc_read_binary(card: *mut sc_card, idx: u32, buf: *mut u8,
-    count: usize, flags: c_ulong) -> i32;
+                      count: usize, flags: c_ulong) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+pub fn sc_read_binary(card: *mut sc_card, idx: u32, buf: *mut u8,
+                      count: usize, flags: *mut c_ulong) -> i32;
 /**
  * Write data to a binary EF
  * @param  card   struct sc_card object on which to issue the command
@@ -1822,13 +1930,18 @@ extern "C" {
  * Reads a record from the current (i.e. selected) file.
  * @param  card    struct sc_card object on which to issue the command
  * @param  rec_nr  SC_READ_RECORD_CURRENT or a record number starting from 1
+ * @param  idx     index within the record with the data to read
  * @param  buf     Pointer to a buffer for storing the data
  * @param  count   Number of bytes to read
  * @param  flags   flags (may contain a short file id of a file to select)
  * @retval number of bytes read or an error value
  */
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0))]
 pub fn sc_read_record(card: *mut sc_card, rec_nr: u32, buf: *mut u8,
-    count: usize, flags: c_ulong) -> i32;
+                      count: usize, flags: c_ulong) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+pub fn sc_read_record(card: *mut sc_card, rec_nr: u32, idx: u32, buf: *mut u8,
+                      count: usize, flags: c_ulong) -> i32;
 
 /**
  * Writes data to a record from the current (i.e. selected) file.
@@ -1855,13 +1968,18 @@ pub fn sc_append_record(card: *mut sc_card, buf: *const u8, count: usize,
  * Updates the data of a record from the current (i.e. selected) file.
  * @param  card    struct sc_card object on which to issue the command
  * @param  rec_nr  SC_READ_RECORD_CURRENT or a record number starting from 1
+ * @param  idx     index within the record with the data to read
  * @param  buf     buffer with to the new data to be written
  * @param  count   number of bytes to update
  * @param  flags   flags (may contain a short file id of a file to select)
  * @retval number of bytes written or an error value
  */
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0))]
 pub fn sc_update_record(card: *mut sc_card, rec_nr: u32, buf: *const u8,
     count: usize, flags: c_ulong) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+pub fn sc_update_record(card: *mut sc_card, rec_nr: u32, idx: u32, buf: *const u8,
+                        count: usize, flags: c_ulong) -> i32;
 pub fn sc_delete_record(card: *mut sc_card, rec_nr: u32) -> i32;
 /* get/put data functions */
 
@@ -1873,7 +1991,7 @@ pub fn sc_put_data(card: *mut sc_card, arg2: u32, arg3: *const u8, arg4: usize) 
 /**
  * Gets challenge from the card (normally random data).
  * @param  card    struct sc_card object on which to issue the command
- * @param  rndout  buffer for the returned random challenge
+ * @param  rndout  buffer for the returned random challenge. Note that the buffer may be only partially initialized on error.
  * @param  len     length of the challenge
  * @return SC_SUCCESS on success and an error code otherwise
  */
@@ -1939,7 +2057,7 @@ pub fn sc_compute_signature(card: *mut sc_card, data: *const u8, data_len: usize
 /// @param  buflen  IN    pin data's length\
 /// @param  tries_left  OUTIF\
 /// @return SC_SUCCESS on success, SC_ERROR
-pub fn sc_verify(card: *mut sc_card, type_: u32, ref_: i32, buf: *const u8, buflen: usize,
+pub fn sc_verify(card: *mut sc_card, type_: u32, ref_: i32, pin: *const u8, pinlen: usize,
                  tries_left: *mut i32) -> i32;
 
 /**
@@ -1960,6 +2078,14 @@ pub fn sc_reset_retry_counter(card: *mut sc_card, type_: u32,
     newref: *const u8, newlen: usize) -> i32;
 pub fn sc_build_pin(buf: *mut u8, buflen: usize, pin: *mut sc_pin_cmd_pin, pad: i32) -> i32;
 
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+pub fn sc_encrypt_sym(card: *mut sc_card, Data: *const u8, DataLen: usize, out: *mut u8, outlen: *mut usize) -> i32;
+
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+pub fn sc_decrypt_sym(card: *mut sc_card, EncryptedData: *const u8, EncryptedDataLen: usize,
+                      out: *mut u8, outlen: *mut usize) -> i32;
+
+/*
 #[cfg(sym_hw_encrypt)]
 pub fn sc_encrypt_sym(card: *mut sc_card, plaintext: *const u8, plaintext_len: usize,
     out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32,
@@ -1968,6 +2094,7 @@ pub fn sc_encrypt_sym(card: *mut sc_card, plaintext: *const u8, plaintext_len: u
 pub fn sc_decrypt_sym(card: *mut sc_card, crgram: *const u8, crgram_len: usize,
     out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32,
     key_ref: *const [u8; 8]) -> i32;
+*/
 
 /********************************************************************/
 /*               ISO 7816-9 related functions                       */
@@ -2216,6 +2343,12 @@ fn sc_mem_alloc_secure(ctx: *mut sc_context, len: usize) -> *mut c_void;  // rem
 pub fn sc_mem_secure_alloc(len: usize) -> *mut c_void;  // added since opensc source release v0.20.0
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub fn sc_mem_secure_free(ptr: *mut c_void, len: usize);  // added since opensc source release v0.20.0
+/*  added since opensc source release v0.23.0
+#define sc_mem_secure_clear_free(ptr, len) do { \
+sc_mem_clear(ptr, len); \
+sc_mem_secure_free(ptr, len); \
+} while (0);
+*/
 pub fn sc_mem_reverse(buf: *mut u8, len: usize) -> i32;
 
 pub fn sc_get_cache_dir(ctx: *mut sc_context, buf: *mut c_char, bufsize: usize) -> i32;
@@ -2237,23 +2370,42 @@ pub fn sc_update_dir(card: *mut sc_card, app: *mut sc_app_info) -> i32;
 fn sc_invalidate_cache(card: *mut sc_card);  // added since opensc source release v0.18.0
 pub fn sc_print_cache(card: *mut sc_card);
 
-pub fn sc_card_find_rsa_alg(card: *mut sc_card,
-    key_length: u32) -> *mut sc_algorithm_info;
-pub fn sc_card_find_ec_alg(card: *mut sc_card,
-    field_length: u32, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
-fn sc_card_find_eddsa_alg(card: *mut sc_card,
-                          field_length: u32, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
-fn sc_card_find_xeddsa_alg(card: *mut sc_card,
-                           field_length: u32, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
-fn sc_card_find_gostr3410_alg(card: *mut sc_card,
-                              key_length: u32) -> *mut sc_algorithm_info;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+cfg_if::cfg_if! {
+    if #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
+        pub fn sc_card_find_rsa_alg(card: *mut sc_card, key_length: u32) -> *mut sc_algorithm_info;
+        pub fn sc_card_find_ec_alg(card: *mut sc_card, field_length: u32, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
+            fn sc_card_find_gostr3410_alg(card: *mut sc_card, key_length: u32) -> *mut sc_algorithm_info;
+    }
+    else {
+        pub fn sc_card_find_rsa_alg(card: *mut sc_card, key_length: usize) -> *mut sc_algorithm_info;
+        pub fn sc_card_find_ec_alg(card: *mut sc_card, field_length: usize, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
+            fn sc_card_find_gostr3410_alg(card: *mut sc_card, key_length: usize) -> *mut sc_algorithm_info;
+    }
+}
+
+cfg_if::cfg_if! {
+    if #[cfg(any(v0_22_0, v0_23_0, v0_24_0))] {
+        fn sc_card_find_eddsa_alg(card: *mut sc_card,
+                                  field_length: u32, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
+        fn sc_card_find_xeddsa_alg(card: *mut sc_card,
+                                   field_length: u32, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
+        }
+    else if #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))] {
+        fn sc_card_find_eddsa_alg(card: *mut sc_card,
+                                  field_length: usize, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
+        fn sc_card_find_xeddsa_alg(card: *mut sc_card,
+                                   field_length: usize, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
+    }
+}
+#[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
 fn sc_card_find_alg(card: *mut sc_card,
-    algorithm: u32, key_length: u32, param: *mut c_void) -> *mut sc_algorithm_info;
+                    algorithm: u32, key_length: u32, param: *mut c_void) -> *mut sc_algorithm_info;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+fn sc_card_find_alg(card: *mut sc_card,
+                    algorithm: u32, key_length: usize, param: *mut c_void) -> *mut sc_algorithm_info;
 
 pub fn sc_match_atr_block(ctx: *mut sc_context, driver: *mut sc_card_driver, atr: *mut sc_atr) -> *mut scconf_block;
+
 /**
  * Get CRC-32 digest
  * @param value pointer to data used for CRC calculation

@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 use std::os::raw::{c_char, c_void};
@@ -152,6 +152,7 @@ pub struct sc_profile {
     pub pin_attempts : u32,
     pub puk_attempts : u32,
     pub rsa_access_flags : u32,
+    #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))]
     pub dsa_access_flags : u32,
 
     pub pkcs15 : sc_profile__bindgen_ty_1,

@@ -16,8 +16,8 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
- */
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+*/
 
 #![allow(non_snake_case)]
 
@@ -283,6 +283,7 @@ pub struct sc_pkcs15_prkey_rsa {
     pub dmq1 : sc_pkcs15_bignum,
 }
 
+#[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_pubkey_dsa {
@@ -292,6 +293,7 @@ pub struct sc_pkcs15_pubkey_dsa {
     pub g : sc_pkcs15_bignum,
 }
 
+#[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_prkey_dsa {
@@ -362,6 +364,7 @@ pub struct sc_pkcs15_prkey_gostr3410 {
 #[derive(/*Debug,*/ Copy, Clone)]
 pub union sc_pkcs15_pubkey__bindgen_ty_1 {
     pub rsa : sc_pkcs15_pubkey_rsa,
+    #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))]
     pub dsa : sc_pkcs15_pubkey_dsa,
     pub ec  : sc_pkcs15_pubkey_ec,
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
@@ -373,7 +376,10 @@ pub union sc_pkcs15_pubkey__bindgen_ty_1 {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_pkcs15_pubkey {
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub algorithm : i32,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub algorithm : c_ulong,
     pub alg_id : *mut sc_algorithm_id,
 
     /* Decoded key */
@@ -389,6 +395,7 @@ pub type sc_pkcs15_pubkey_t = sc_pkcs15_pubkey;
 #[derive(/*Debug,*/ Copy, Clone)]
 pub union sc_pkcs15_prkey__bindgen_ty_1 {
     pub rsa : sc_pkcs15_prkey_rsa,
+    #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))]
     pub dsa : sc_pkcs15_prkey_dsa,
     pub ec  : sc_pkcs15_prkey_ec,
     #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
@@ -401,7 +408,10 @@ pub union sc_pkcs15_prkey__bindgen_ty_1 {
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
 pub struct sc_pkcs15_prkey {
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub algorithm : u32,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub algorithm : c_ulong,
 /* TODO do we need:    struct sc_algorithm_id * alg_id; */
 
     pub u : sc_pkcs15_prkey__bindgen_ty_1,
@@ -605,7 +615,7 @@ pub struct sc_pkcs15_prkey_info {
     pub native : i32,
     pub key_reference : i32,
     /* convert to union if other types are supported */
-    pub modulus_length : usize, /* RSA in bits; Attention: This seems to get set according to MSB set */
+    pub modulus_length : usize, /* RSA, in bits; Attention: This seems to get set according to MSB set */
     pub field_length : usize,   /* EC in bits */
 
     pub algo_refs : [u32; SC_MAX_SUPPORTED_ALGORITHMS] ,
@@ -685,6 +695,7 @@ pub const SC_PKCS15_TYPE_CLASS_MASK       : u32 =  0xF00;
 
 pub const SC_PKCS15_TYPE_PRKEY            : u32 =  0x100;
 pub const SC_PKCS15_TYPE_PRKEY_RSA        : u32 =  0x101;
+#[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))]
 pub const SC_PKCS15_TYPE_PRKEY_DSA        : u32 =  0x102;
 pub const SC_PKCS15_TYPE_PRKEY_GOSTR3410  : u32 =  0x103;
 pub const SC_PKCS15_TYPE_PRKEY_EC         : u32 =  0x104;
@@ -693,6 +704,7 @@ pub const SC_PKCS15_TYPE_PRKEY_XEDDSA     : u32 =  0x106;
 
 pub const SC_PKCS15_TYPE_PUBKEY           : u32 =  0x200;
 pub const SC_PKCS15_TYPE_PUBKEY_RSA       : u32 =  0x201;
+#[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))]
 pub const SC_PKCS15_TYPE_PUBKEY_DSA       : u32 =  0x202;
 pub const SC_PKCS15_TYPE_PUBKEY_GOSTR3410 : u32 =  0x203;
 pub const SC_PKCS15_TYPE_PUBKEY_EC        : u32 =  0x204;
@@ -981,6 +993,15 @@ pub const SC_PKCS15_TOKEN_EID_COMPLIANT   : u32 =  0x08;
 
 /* flags suitable for struct sc_pkcs15_card */
 pub const SC_PKCS15_CARD_FLAG_EMULATED : u32 = 0x0200_0000;
+//#define SC_PKCS15_CARD_FLAG_EMULATED			0x02000000
+
+/* suitable for struct sc_pkcs15_card.opts.use_file_cache */
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+pub const SC_PKCS15_OPTS_CACHE_NO_FILES     : u32 = 0;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+pub const SC_PKCS15_OPTS_CACHE_PUBLIC_FILES : u32 = 1;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+pub const SC_PKCS15_OPTS_CACHE_ALL_FILES    : u32 = 2;
 
 /* suitable for struct sc_pkcs15_card.opts.private_certificate */
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
@@ -1002,97 +1023,113 @@ pub const SC_X509_ENCIPHER_ONLY       : u32 =  0x0080; // dito
 pub const SC_X509_DECIPHER_ONLY       : u32 =  0x0100; // dito
 
 extern "C" {
-
-/* sc_pkcs15_bind:  Binds a card object to a PKCS #15 card object
+    /* sc_pkcs15_bind:  Binds a card object to a PKCS #15 card object
  * and initializes a new PKCS #15 card object.  Will return
  * SC_ERROR_PKCS15_APP_NOT_FOUND, if the card hasn't got a
  * valid PKCS #15 file structure. */
-pub fn sc_pkcs15_bind(card: *mut sc_card, aid: *mut sc_aid, pkcs15_card: *mut *mut sc_pkcs15_card) -> i32;
+    pub fn sc_pkcs15_bind(card: *mut sc_card, aid: *mut sc_aid, pkcs15_card: *mut *mut sc_pkcs15_card) -> i32;
 
-/* sc_pkcs15_unbind:  Releases a PKCS #15 card object, and frees any
+    /* sc_pkcs15_unbind:  Releases a PKCS #15 card object, and frees any
  * memory allocations done on the card object. */
-pub fn sc_pkcs15_unbind(card: *mut sc_pkcs15_card) -> i32;
+    pub fn sc_pkcs15_unbind(card: *mut sc_pkcs15_card) -> i32;
 
-pub fn sc_pkcs15_bind_internal(p15card: *mut sc_pkcs15_card, aid: *mut sc_aid) -> i32;
+    pub fn sc_pkcs15_bind_internal(p15card: *mut sc_pkcs15_card, aid: *mut sc_aid) -> i32;
 
-pub fn sc_pkcs15_get_objects(p15card: *mut sc_pkcs15_card, type_: u32, ret: *mut *mut sc_pkcs15_object,
-                             ret_count: usize) -> i32;
+    pub fn sc_pkcs15_get_objects(p15card: *mut sc_pkcs15_card, type_: u32, ret: *mut *mut sc_pkcs15_object,
+                                 ret_count: usize) -> i32;
 
-pub fn sc_pkcs15_get_objects_cond(p15card: *mut sc_pkcs15_card, type_: u32,
-            func: Option< unsafe extern "C" fn (arg1: *mut sc_pkcs15_object, arg2: *mut c_void) -> i32 >,
-            func_arg: *mut c_void, ret: *mut *mut sc_pkcs15_object, ret_count: usize) -> i32;
+    pub fn sc_pkcs15_get_objects_cond(p15card: *mut sc_pkcs15_card, type_: u32,
+                                      func: Option<unsafe extern "C" fn(arg1: *mut sc_pkcs15_object, arg2: *mut c_void) -> i32>,
+                                      func_arg: *mut c_void, ret: *mut *mut sc_pkcs15_object, ret_count: usize) -> i32;
 
-pub fn sc_pkcs15_find_object_by_id(p15card: *mut sc_pkcs15_card, arg2: u32, arg3: *const sc_pkcs15_id,
-    arg4: *mut *mut sc_pkcs15_object) -> i32;
+    pub fn sc_pkcs15_find_object_by_id(p15card: *mut sc_pkcs15_card, arg2: u32, arg3: *const sc_pkcs15_id,
+                                       arg4: *mut *mut sc_pkcs15_object) -> i32;
 
-pub fn sc_pkcs15_card_new() -> *mut sc_pkcs15_card;
+    pub fn sc_pkcs15_card_new() -> *mut sc_pkcs15_card;
 
-pub fn sc_pkcs15_card_free(p15card: *mut sc_pkcs15_card);
+    pub fn sc_pkcs15_card_free(p15card: *mut sc_pkcs15_card);
 
-pub fn sc_pkcs15_card_clear(p15card: *mut sc_pkcs15_card);
+    pub fn sc_pkcs15_card_clear(p15card: *mut sc_pkcs15_card);
 
-#[cfg(    any(         v0_18_0, v0_19_0))]
+    #[cfg(any(v0_18_0, v0_19_0))]
     fn sc_pkcs15_tokeninfo_new() -> *mut sc_pkcs15_tokeninfo;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub fn sc_pkcs15_tokeninfo_new() -> *mut sc_pkcs15_tokeninfo;
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+    pub fn sc_pkcs15_tokeninfo_new() -> *mut sc_pkcs15_tokeninfo;
 
-#[cfg(    any(         v0_18_0, v0_19_0))]
+    #[cfg(any(v0_18_0, v0_19_0))]
     fn sc_pkcs15_free_tokeninfo(tokeninfo: *mut sc_pkcs15_tokeninfo);
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub fn sc_pkcs15_free_tokeninfo(tokeninfo: *mut sc_pkcs15_tokeninfo);
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+    pub fn sc_pkcs15_free_tokeninfo(tokeninfo: *mut sc_pkcs15_tokeninfo);
 
-pub fn sc_pkcs15_decipher(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, flags: c_ulong,
-                          in_: *const u8 , inlen: usize, out: *mut u8, outlen: usize) -> i32;
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))]
+    pub fn sc_pkcs15_decipher(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, flags: c_ulong,
+                              in_: *const u8, inlen: usize, out: *mut u8, outlen: usize) -> i32;
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+    pub fn sc_pkcs15_decipher(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, flags: c_ulong,
+                              in_: *const u8, inlen: usize, out: *mut u8, outlen: usize, pMechanism: *mut c_void) -> i32;
 
-#[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-pub fn sc_pkcs15_derive(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, flags: c_ulong,
-                        r#in: *const u8, inlen: usize, out: *mut u8, poutlen: *mut c_ulong) -> i32;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub fn sc_pkcs15_derive(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, flags: c_ulong,
-                        r#in: *const u8, inlen: usize, out: *mut u8, poutlen: *mut usize) -> i32;
+    #[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
+    pub fn sc_pkcs15_derive(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, flags: c_ulong,
+                            r#in: *const u8, inlen: usize, out: *mut u8, poutlen: *mut c_ulong) -> i32;
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+    pub fn sc_pkcs15_derive(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, flags: c_ulong,
+                            r#in: *const u8, inlen: usize, out: *mut u8, poutlen: *mut usize) -> i32;
 
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub fn sc_pkcs15_unwrap(p15card: *mut sc_pkcs15_card,
-                        key: *const sc_pkcs15_object,
-                        target_key: *mut sc_pkcs15_object,
-                        flags: c_ulong,
-                        in_: *const u8, inlen: usize,
-                        param: *const u8, paramlen: usize) -> i32;
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+    pub fn sc_pkcs15_unwrap(p15card: *mut sc_pkcs15_card,
+                            key: *const sc_pkcs15_object,
+                            target_key: *mut sc_pkcs15_object,
+                            flags: c_ulong,
+                            in_: *const u8, inlen: usize,
+                            param: *const u8, paramlen: usize) -> i32;
 
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-pub fn sc_pkcs15_wrap(p15card: *mut sc_pkcs15_card,
-                      key: *const sc_pkcs15_object,
-                      target_key: *mut sc_pkcs15_object,
-                      flags: c_ulong,
-                      cryptogram: *mut u8, crgram_len: *mut usize,
-                      param: *const u8, paramlen: usize) -> i32;
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+    pub fn sc_pkcs15_wrap(p15card: *mut sc_pkcs15_card,
+                          key: *const sc_pkcs15_object,
+                          target_key: *mut sc_pkcs15_object,
+                          flags: c_ulong,
+                          cryptogram: *mut u8, crgram_len: *mut usize,
+                          param: *const u8, paramlen: usize) -> i32;
 
-pub fn sc_pkcs15_compute_signature(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, alg_flags: c_ulong,
-                                   in_: *const u8, inlen: usize, out: *mut u8, outlen: usize) -> i32;
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))]
+    pub fn sc_pkcs15_compute_signature(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, alg_flags: c_ulong,
+                                       in_: *const u8, inlen: usize, out: *mut u8, outlen: usize) -> i32;
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+    pub fn sc_pkcs15_compute_signature(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, alg_flags: c_ulong,
+                                       in_: *const u8, inlen: usize, out: *mut u8, outlen: usize, pMechanism: *mut c_void) -> i32;
 
-#[cfg(sym_hw_encrypt)]
-pub fn sc_pkcs15_encrypt_sym(p15card: *mut sc_pkcs15_card, skey_obj: *const sc_pkcs15_object, flags: c_ulong,
-                             in_: *const u8, inlen: usize, out: *mut u8, outlen: usize) -> i32;
+    fn sc_pkcs15_encrypt_sym(p15card: *mut sc_pkcs15_card, obj: *const sc_pkcs15_object, flags: c_ulong,
+                             in_: *const u8, inlen: usize, out: *mut u8, outlen: *mut usize,
+                             param: *const u8, paramlen: usize) -> i32;
 
-#[cfg(sym_hw_encrypt)]
-pub fn sc_pkcs15_decrypt_sym(p15card: *mut sc_pkcs15_card, skey_obj: *const sc_pkcs15_object, flags: c_ulong,
-                             in_: *const u8, inlen: usize, out: *mut u8, outlen: usize) -> i32;
+    fn sc_pkcs15_decrypt_sym(p15card: *mut sc_pkcs15_card, obj: *const sc_pkcs15_object, flags: c_ulong,
+                             in_: *const u8, inlen: usize, out: *mut u8, outlen: *mut usize,
+                             param: *const u8, paramlen: usize) -> i32;
+/*
+    #[cfg(sym_hw_encrypt)]
+    pub fn sc_pkcs15_encrypt_sym(p15card: *mut sc_pkcs15_card, skey_obj: *const sc_pkcs15_object, flags: c_ulong,
+                                 in_: *const u8, inlen: usize, out: *mut u8, outlen: usize) -> i32;
 
-pub fn sc_pkcs15_read_pubkey(p15card: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object,
-                             arg3: *mut *mut sc_pkcs15_pubkey) -> i32;
+    #[cfg(sym_hw_encrypt)]
+    pub fn sc_pkcs15_decrypt_sym(p15card: *mut sc_pkcs15_card, skey_obj: *const sc_pkcs15_object, flags: c_ulong,
+                                 in_: *const u8, inlen: usize, out: *mut u8, outlen: usize) -> i32;
+*/
+    pub fn sc_pkcs15_read_pubkey(p15card: *mut sc_pkcs15_card, arg2: *const sc_pkcs15_object,
+                                 arg3: *mut *mut sc_pkcs15_pubkey) -> i32;
 
-pub fn sc_pkcs15_decode_pubkey_rsa(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_rsa, arg3: *const u8,
-                                   arg4: usize) -> i32;
+    pub fn sc_pkcs15_decode_pubkey_rsa(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_rsa, arg3: *const u8,
+                                       arg4: usize) -> i32;
 
-pub fn sc_pkcs15_encode_pubkey_rsa(ctx: *mut sc_context, rsa_key: *const sc_pkcs15_pubkey_rsa, out: *mut *mut u8,
-                                   out_len: *mut usize) -> i32; // API_CHANGED
+    pub fn sc_pkcs15_encode_pubkey_rsa(ctx: *mut sc_context, rsa_key: *const sc_pkcs15_pubkey_rsa, out: *mut *mut u8,
+                                       out_len: *mut usize) -> i32; // API_CHANGED
 
-pub fn sc_pkcs15_decode_pubkey_dsa(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_dsa, arg3: *const u8,
-                                   arg4: usize) -> i32;
+    #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))]
+    pub fn sc_pkcs15_decode_pubkey_dsa(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_dsa, arg3: *const u8,
+                                           arg4: usize) -> i32;
 
-pub fn sc_pkcs15_encode_pubkey_dsa(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_dsa, arg3: *mut *mut u8,
-                                   arg4: *mut usize) -> i32;
-
+    #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))]
+    pub fn sc_pkcs15_encode_pubkey_dsa(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_dsa, arg3: *mut *mut u8,
+                                           arg4: *mut usize) -> i32;
 pub fn sc_pkcs15_decode_pubkey_gostr3410(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_gostr3410,
                                          arg3: *const u8, arg4: usize) -> i32;
 
@@ -1141,10 +1178,18 @@ fn sc_pkcs15_encode_prkey(arg1: *mut sc_context, arg2: *mut sc_pkcs15_prkey, arg
 
 pub fn sc_pkcs15_free_prkey(prkey: *mut sc_pkcs15_prkey);
 
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+pub fn sc_pkcs15_erase_prkey(prkey: *mut sc_pkcs15_prkey);
+
 pub fn sc_pkcs15_free_key_params(params: *mut sc_pkcs15_key_params);
 
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))]
 pub fn sc_pkcs15_read_data_object(p15card: *mut sc_pkcs15_card, info: *const sc_pkcs15_data_info,
-                                  data_object_out:  *mut *mut sc_pkcs15_data) -> i32;
+                                  data_object_out: *mut *mut sc_pkcs15_data) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+pub fn sc_pkcs15_read_data_object(p15card: *mut sc_pkcs15_card, info: *const sc_pkcs15_data_info,
+                                  private_obj: i32,
+                                  data_object_out: *mut *mut sc_pkcs15_data) -> i32;
 
 pub fn sc_pkcs15_find_data_object_by_id(p15card: *mut sc_pkcs15_card, id: *const sc_pkcs15_id,
                                         out: *mut *mut sc_pkcs15_object) -> i32;
@@ -1157,7 +1202,12 @@ pub fn sc_pkcs15_find_data_object_by_name(p15card: *mut sc_pkcs15_card, app_labe
 
 pub fn sc_pkcs15_free_data_object(data_object: *mut sc_pkcs15_data);
 
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))]
 pub fn sc_pkcs15_read_certificate(card: *mut sc_pkcs15_card, info: *const sc_pkcs15_cert_info,
+                                  cert: *mut *mut sc_pkcs15_cert) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+pub fn sc_pkcs15_read_certificate(card: *mut sc_pkcs15_card, info: *const sc_pkcs15_cert_info,
+                                  private_obj: i32,
                                   cert: *mut *mut sc_pkcs15_cert) -> i32;
 
 pub fn sc_pkcs15_free_certificate(cert: *mut sc_pkcs15_cert);
@@ -1167,8 +1217,12 @@ pub fn sc_pkcs15_find_cert_by_id(card: *mut sc_pkcs15_card, id: *const sc_pkcs15
 
 pub fn sc_pkcs15_get_name_from_dn(ctx: *mut sc_context, dn: *const u8, dn_len: usize, type_: *const sc_object_id,
                                   name: *mut *mut u8, name_len: *mut usize) -> i32;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+#[cfg(any(v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
 fn sc_pkcs15_map_usage(cert_usage: u32, algorithm: i32,
+                       pub_usage_ptr: *mut u32, pr_usage_ptr: *mut u32,
+                       allow_nonrepudiation: i32) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+fn sc_pkcs15_map_usage(cert_usage: u32, algorithm: c_ulong,
                        pub_usage_ptr: *mut u32, pr_usage_ptr: *mut u32,
                        allow_nonrepudiation: i32) -> i32;
 
@@ -1330,11 +1384,18 @@ pub fn sc_pkcs15_free_data_info(data: *mut sc_pkcs15_data_info);
 
 pub fn sc_pkcs15_free_auth_info(auth_info: *mut sc_pkcs15_auth_info);
 
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+pub fn sc_pkcs15_free_skey_info(key: *mut sc_pkcs15_skey_info);
+
 pub fn sc_pkcs15_free_object(obj: *mut sc_pkcs15_object);
 
 /* Generic file i/o */
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))]
 pub fn sc_pkcs15_read_file(p15card : *mut sc_pkcs15_card, path: *const sc_path, buf: *mut *mut u8,
                            buflen: *mut usize) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+pub fn sc_pkcs15_read_file(p15card : *mut sc_pkcs15_card, path: *const sc_path, buf: *mut *mut u8,
+                           buflen: *mut usize, private_data: i32) -> i32;
 
 /* Caching functions */
 pub fn sc_pkcs15_read_cached_file(p15card: *mut sc_pkcs15_card, path: *const sc_path, buf: *mut *mut u8,

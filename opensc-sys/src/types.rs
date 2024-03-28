@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 // Binding state: tabs:    ?, header:    ? (except pub const type checks), checkAPI15-19:    ?, checkEXPORTS15-19:    ?, compareD17-18:    ?, doc:    ?, tests:    ?
@@ -52,6 +52,8 @@ pub const SC_MAX_PATH_STRING_SIZE       : usize = SC_MAX_PATH_SIZE * 2 + 3;
 pub const SC_MAX_SDO_ACLS               : usize =     8;
 pub const SC_MAX_CRTS_IN_SE             : usize =    12;
 pub const SC_MAX_SE_NUM                 : usize =     8;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+pub const SC_MAX_PKCS15_EMULATORS       : usize =    48;
 
 /* When changing this value, pay attention to the initialization of the ASN1
  * static variables that use this macro, like, for example,
@@ -323,6 +325,15 @@ pub const SC_FILE_EF_LINEAR_VARIABLE_TLV : u32 =  0x05;
 pub const SC_FILE_EF_CYCLIC              : u32 =  0x06;
 pub const SC_FILE_EF_CYCLIC_TLV          : u32 =  0x07;
 
+/* File flags */
+cfg_if::cfg_if! {
+    if #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))] {
+        pub const SC_FILE_FLAG_COMPRESSED_AUTO  : c_ulong =  0x01;
+        pub const SC_FILE_FLAG_COMPRESSED_ZLIB  : c_ulong =  0x02;
+        pub const SC_FILE_FLAG_COMPRESSED_GZIP  : c_ulong =  0x04;
+    }
+}
+
 /* File status flags */
 /* ISO7816-4: Unless otherwise specified, the security attributes are valid for the operational state.*/
 pub const SC_FILE_STATUS_ACTIVATED : u32       = 0x00; /* ISO7816-4: Operational state (activated)   (5, 7) */
@@ -448,6 +459,9 @@ pub const SC_APDU_FLAGS_NO_GET_RESP  : c_ulong =  0x0000_0002;
 pub const SC_APDU_FLAGS_NO_RETRY_WL  : c_ulong =  0x0000_0004;
 /* APDU is from Secure Messaging  */
 pub const SC_APDU_FLAGS_NO_SM        : c_ulong =  0x0000_0008; // since opensc source release v0.17.0
+/* let SM do the command chaining  */
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+pub const SC_APDU_FLAGS_SM_CHAINING  : c_ulong =  0x0000_0010;
 
 pub const SC_APDU_ALLOCATE_FLAG      : c_ulong =  0x01;
 pub const SC_APDU_ALLOCATE_FLAG_DATA : c_ulong =  0x02;

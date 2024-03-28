@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 use std::os::raw::{c_char, c_ulong, c_void};
@@ -258,7 +258,10 @@ pub struct sc_pkcs15init_prkeyargs {
     pub label : *mut c_char,
     pub guid : *mut u8,
     pub guid_len : usize,
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub usage : c_ulong,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub usage : u32,
     pub x509_usage : c_ulong,
     pub flags : u32,
     pub access_flags : u32,
@@ -290,7 +293,10 @@ pub struct sc_pkcs15init_pubkeyargs {
     pub id : sc_pkcs15_id,
     pub auth_id : sc_pkcs15_id,
     pub label : *const c_char,
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub usage : c_ulong,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub usage : u32,
     pub x509_usage : c_ulong,
 
     pub params : sc_pkcs15init_pubkeyargs__bindgen_ty_1,
@@ -316,7 +322,10 @@ pub struct sc_pkcs15init_skeyargs {
     pub id : sc_pkcs15_id,
     pub auth_id : sc_pkcs15_id,
     pub label : *const c_char,
+    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub usage : c_ulong,
+    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub usage : u32,
     pub flags : u32,
     pub access_flags : u32,
     pub algorithm : c_ulong, /* User requested algorithm */
@@ -386,7 +395,7 @@ extern int    sc_pkcs15init_store_split_key(struct sc_pkcs15_card *,
 */
 pub fn sc_pkcs15init_store_public_key(arg1: *mut sc_pkcs15_card, arg2: *mut sc_profile, arg3: *mut sc_pkcs15init_pubkeyargs, arg4: *mut *mut sc_pkcs15_object) -> i32;
 
-    pub fn sc_pkcs15init_store_secret_key(arg1: *mut sc_pkcs15_card, arg2: *mut sc_profile, arg3: *mut sc_pkcs15init_skeyargs, arg4: *mut *mut sc_pkcs15_object) -> i32;
+pub fn sc_pkcs15init_store_secret_key(arg1: *mut sc_pkcs15_card, arg2: *mut sc_profile, arg3: *mut sc_pkcs15init_skeyargs, arg4: *mut *mut sc_pkcs15_object) -> i32;
 
 pub fn sc_pkcs15init_store_certificate(arg1: *mut sc_pkcs15_card, arg2: *mut sc_profile, arg3: *mut sc_pkcs15init_certargs, arg4: *mut *mut sc_pkcs15_object) -> i32;
 
@@ -412,7 +421,10 @@ pub fn sc_pkcs15init_update_certificate(arg1: *mut sc_pkcs15_card, arg2: *mut sc
 
 pub fn sc_pkcs15init_create_file(arg1: *mut sc_profile, arg2: *mut sc_pkcs15_card, arg3: *mut sc_file) -> i32;
 
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
 pub fn sc_pkcs15init_update_file(arg1: *mut sc_profile, arg2: *mut sc_pkcs15_card, arg3: *mut sc_file, arg4: *mut c_void, arg5: u32) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+pub fn sc_pkcs15init_update_file(arg1: *mut sc_profile, arg2: *mut sc_pkcs15_card, arg3: *mut sc_file, arg4: *mut c_void, arg5: usize) -> i32;
 
 pub fn sc_pkcs15init_authenticate(profile: *mut sc_profile, p15card: *mut sc_pkcs15_card, file: *mut sc_file, op: i32) -> i32;
 

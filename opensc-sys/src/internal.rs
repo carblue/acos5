@@ -17,10 +17,12 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
- */
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+*/
 
 use std::os::raw::{c_char, c_ulong};
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+use std::os::raw::{c_void};
 
 use crate::opensc::{sc_context, sc_card, sc_algorithm_info};
 #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
@@ -170,17 +172,32 @@ pub fn _sc_match_atr(card: *mut sc_card, table: *const sc_atr_table, type_out: *
 fn _sc_card_add_algorithm(card: *mut sc_card, info: *const sc_algorithm_info) -> i32;
 fn _sc_card_add_symmetric_alg(card: *mut sc_card, algorithm: u32, key_length: u32, flags: c_ulong) -> i32; // added since opensc source release v0.17.0, but still not exported
 
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
 pub fn _sc_card_add_rsa_alg(card: *mut sc_card, key_length: u32, flags: c_ulong, exponent: c_ulong) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+pub fn _sc_card_add_rsa_alg(card: *mut sc_card, key_length: usize, flags: c_ulong, exponent: c_ulong) -> i32;
+#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
 pub fn _sc_card_add_ec_alg(card: *mut sc_card, key_length: u32, flags: c_ulong, ext_flags: c_ulong,
                            curve_oid: *mut sc_object_id) -> i32;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+pub fn _sc_card_add_ec_alg(card: *mut sc_card, key_length: usize, flags: c_ulong, ext_flags: c_ulong,
+                               curve_oid: *mut sc_object_id) -> i32;
+#[cfg(                                                 any(v0_22_0, v0_23_0, v0_24_0))]
 fn _sc_card_add_eddsa_alg(card: *mut sc_card, key_length: u32,
                               flags: c_ulong, ext_flags: c_ulong,
                               curve_oid: *mut sc_object_id) -> i32;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+fn _sc_card_add_eddsa_alg(card: *mut sc_card, key_length: usize,
+                          flags: c_ulong, ext_flags: c_ulong,
+                          curve_oid: *mut sc_object_id) -> i32;
+#[cfg(                                                 any(v0_22_0, v0_23_0, v0_24_0))]
 fn _sc_card_add_xeddsa_alg(card: *mut sc_card, key_length: u32,
                                flags: c_ulong, ext_flags: c_ulong,
                                curve_oid: *mut sc_object_id) -> i32;
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+fn _sc_card_add_xeddsa_alg(card: *mut sc_card, key_length: usize,
+                           flags: c_ulong, ext_flags: c_ulong,
+                           curve_oid: *mut sc_object_id) -> i32;
 
 /********************************************************************/
 /*                 pkcs1 padding/encoding functions                 */
@@ -192,8 +209,16 @@ fn sc_pkcs1_strip_01_padding(ctx: *mut sc_context, in_dat: *const u8, in_len: us
 /*
 int sc_pkcs1_strip_02_padding(struct sc_context *ctx, const u8 *data, size_t len,
   u8 *out_dat, size_t *out_len);
+since version v0_25_0, the next function ..._constant_time  replaces the former !!!
+int sc_pkcs1_strip_02_padding_constant_time(sc_context_t *ctx, unsigned int n, const u8 *data,
+  unsigned int data_len, u8 *out, unsigned int *out_len);
+
 int sc_pkcs1_strip_digest_info_prefix(unsigned int *algorithm,
   const u8 *in_dat, size_t in_len, u8 *out_dat, size_t *out_len);
+#ifdef ENABLE_OPENSSL
+int sc_pkcs1_strip_oaep_padding(sc_context_t *ctx, u8 *data, size_t len,
+  unsigned long flags, uint8_t *param, size_t paramlen);
+#endif
 */
 
 /// PKCS1 encodes the given data.
@@ -224,10 +249,24 @@ pub fn sc_pkcs1_encode(ctx: *mut sc_context, flags: c_ulong, in_: *const u8, inl
 /// @param  mod_bits  IN    length of the modulus in bits
 /// @return           SC_SUCCESS or error code
 /// @test available
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+#[cfg(    any(v0_20_0, v0_21_0, v0_22_0))]
 pub fn sc_pkcs1_encode(ctx: *mut sc_context, flags: c_ulong, in_: *const u8, inlen: usize,
                        out: *mut u8, outlen: *mut usize, mod_bits: usize) -> i32;
 
+/// PKCS1 encodes the given data.
+/// @param  ctx       IN    sc_context object
+/// @param  flags     IN    the algorithm to use
+/// @param  in        IN    input buffer
+/// @param  inlen     IN    length of the input
+/// @param  out       OUT   output buffer (in == out is allowed)
+/// @param  outlen    INOUT length of the output buffer; IN: available, OUT: used
+/// @param  mod_bits  IN    length of the modulus in bits
+/// @param pMechanism IN    Mechanism referring to SC_ALGORITHM_RSA_PAD_PSS, NULL otherwise
+/// @return           SC_SUCCESS or error code
+/// @test available, but not yet testing pMechanism
+#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+pub fn sc_pkcs1_encode(ctx: *mut sc_context, flags: c_ulong, in_: *const u8, inlen: usize,
+                       out: *mut u8, outlen: *mut usize, mod_bits: usize, pMechanism: *mut c_void) -> i32;
 
 /**
  * Get the necessary padding and sec. env. flags.
@@ -373,7 +412,14 @@ mod tests {
         let hash = [1u8, 2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32];
         let mut out = [0u8; 96];
         let mut outlen = out.len();
-        let rv = unsafe { sc_pkcs1_encode(&mut ctx, c_ulong::from(flags), hash.as_ptr(), hash.len(), out.as_mut_ptr(), &mut outlen, out.len()*8) };
+        cfg_if::cfg_if! {
+            if #[cfg(any(v0_20_0, v0_21_0, v0_22_0))] {
+                let rv = unsafe { sc_pkcs1_encode(&mut ctx, c_ulong::from(flags), hash.as_ptr(), hash.len(), out.as_mut_ptr(), &mut outlen, out.len()*8) };
+            }
+            else {
+                let rv = unsafe { sc_pkcs1_encode(&mut ctx, c_ulong::from(flags), hash.as_ptr(), hash.len(), out.as_mut_ptr(), &mut outlen, out.len()*8, std::ptr::null_mut()) };
+            }
+        }
         assert_eq!(rv, SC_SUCCESS);
         assert_eq!(outlen, out.len());
         assert_eq!(out[ 0..32], [0u8, 1, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]);
