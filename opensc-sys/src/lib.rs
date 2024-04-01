@@ -642,7 +642,7 @@ mod tests {
                 assert_eq!(puki,  496);
                 assert_eq!(ski,   440);
                 assert_eq!(sai,   144);
-                assert_eq!(sp,    372);
+                assert_eq!(sp,    376);
                 assert_eq!(ssep,   24);
             }
             else  if cfg!(v0_23_0) {
@@ -694,7 +694,7 @@ mod tests {
                 assert_eq!(puki, 496);
                 assert_eq!(ski,  440);
                 assert_eq!(sai,  144);
-                assert_eq!(sp,   376);
+                assert_eq!(sp,   372);
                 assert_eq!(ssep,  24);
                 assert_eq!(ai,   128);
             }

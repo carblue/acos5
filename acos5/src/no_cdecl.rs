@@ -1,5 +1,5 @@
 /*
-* no_cdecl.rs: Driver 'acos5' - Miscellaneous functions
+ * no_cdecl.rs: Driver 'acos5' - Miscellaneous functions
  *
  * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
@@ -26,10 +26,8 @@ use std::os::raw::{c_char, c_ulong, c_void};
 use std::ffi::{/*CString,*/ CStr};
 use std::fs;//::{read/*, write*/};
 use std::ptr::{null_mut};
-use std::convert::{From, TryFrom, TryInto};
+use std::convert::{From/*, TryFrom, TryInto*/};
 use std::slice::from_raw_parts;
-
-use num_integer::Integer;
 
 use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_apdu,
                          sc_read_record, sc_format_path, sc_select_file, sc_check_sw, //SC_ALGORITHM_RSA_PAD_PKCS1,
@@ -49,7 +47,7 @@ use opensc_sys::opensc::{SC_ALGORITHM_AES_CBC_PAD, SC_SEC_OPERATION_UNWRAP,
 };
 
 use opensc_sys::types::{sc_object_id,sc_apdu, /*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_MAX_PATH_SIZE, sc_file_t,
-    SC_MAX_ATR_SIZE, SC_FILE_TYPE_DF,  */  sc_path, sc_file, SC_PATH_TYPE_FILE_ID/*, SC_PATH_TYPE_PATH*/,
+    SC_MAX_ATR_SIZE, SC_FILE_TYPE_DF,  */  sc_path, sc_file, SC_PATH_TYPE_FILE_ID,// SC_PATH_TYPE_PATH,
                         SC_MAX_APDU_BUFFER_SIZE, SC_MAX_PATH_SIZE, SC_APDU_FLAGS_CHAINING,
                         SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT,
                         SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
@@ -561,8 +559,8 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Op
         // card.drv_data = Box::into_raw(dp) as p_void;
     }
     else {
-        panic!("calling `iso7816_select_file_replica` returned the error code rv: {}. Function \
-            `tracking_select_file` doesn't yet handle that error (whether to adapt card.cache.current_path?)", rv);
+        panic!("calling `iso7816_select_file_replica` returned the error code rv: {rv}. Function \
+            `tracking_select_file` doesn't yet handle that error (whether to adapt card.cache.current_path?)");
     }
 
     log3if!(ctx,f,line!(), fmt_3, card.cache.current_path.type_,
@@ -629,22 +627,22 @@ fn get_known_sec_env_entry_v3_fips(is_local: bool, rec_nr: u32, buf: &mut [u8])
         match  rec_nr {
             /* SEID #1: Security Officer Key 0x01 must be authenticated. */
             1 => { buf.copy_from_slice(&[0x80_u8, 0x01, 0x01,  0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x80,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]) },
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]); },
             /* SEID #2: Security Officer Key 0x01 must be authenticated and command must be in Secure Messaging mode (using Key 0x02). */
             2 => { buf.copy_from_slice(&[0x80_u8, 0x01, 0x02,  0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x80,
                 0xB4, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
-                0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30 ]) },
+                0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30 ]); },
             /* SEID #3: User PIN must be verified. */
             3 => { buf.copy_from_slice(&[0x80_u8, 0x01, 0x03,  0xA4, 0x06, 0x83, 0x01, 0x81, 0x95, 0x01, 0x08,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]) },
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]); },
             /* SEID #4: User PIN must be verified and use Secure Messaging with Encryption Key (using Key 0x02). */
             4 => { buf.copy_from_slice(&[0x80_u8, 0x01, 0x04,  0xA4, 0x06, 0x83, 0x01, 0x81, 0x95, 0x01, 0x08,
                 0xB4, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
-                0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30 ]) },
+                0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30 ]); },
             /* SEID #5: Use under Secure Messaging with Encryption Key (using Key 0x02). */
             5 => { buf.copy_from_slice(&[0x80_u8, 0x01, 0x05,  0xB4, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
                 0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
-                0, 0, 0, 0, 0, 0, 0, 0 ]) },
+                0, 0, 0, 0, 0, 0, 0, 0 ]); },
             _ => (),
         }
     }
@@ -652,11 +650,11 @@ fn get_known_sec_env_entry_v3_fips(is_local: bool, rec_nr: u32, buf: &mut [u8])
        match  rec_nr {
            /* SEID #1: Security Officer Key 0x01 must be authenticated. */
            1 => { buf.copy_from_slice(&[0x80_u8, 0x01, 0x01,  0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x80,
-                  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]) },
+                  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]); },
            /* SEID #2: Security Officer Key 0x01 must be authenticated and command must be in Secure Messaging mode (using Key 0x02). */
            2 => { buf.copy_from_slice(&[0x80_u8, 0x01, 0x02,  0xA4, 0x06, 0x83, 0x01, 0x01, 0x95, 0x01, 0x80,
                                                                   0xB4, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30,
-                                                                  0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30 ]) },
+                                                                  0xB8, 0x09, 0x80, 0x01, 0x02, 0x83, 0x01, 0x02, 0x95, 0x01, 0x30 ]); },
            _ => (),
        }
     }
@@ -810,7 +808,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
             if rv < SC_SUCCESS {
                 return rv;
             }
-            // debug_assert!(rv.is_multiple_of(&2));
+            // debug_assert!(num_integer::Integer::is_multiple_of(&rv, &2));
             files_contained.truncate(usize::try_from(rv).unwrap());
             /* * /
                     println!("chunk1 files_contained: {:?}", &files_contained[  ..32]);
@@ -953,9 +951,6 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl: &[*mu
             else if p==(1 as *mut sc_acl_entry) { result[7] = 0xFF; }
             else if p==(2 as *mut sc_acl_entry) { result[7] = 0; }
             else if p==(3 as *mut sc_acl_entry) { result[7] = 0xFF; }
-            else {
-
-            }
         },
         ACL_CATEGORY_DF_MF => {
             let mut p = acl[usize::try_from(SC_AC_OP_DELETE).unwrap()];
@@ -1997,12 +1992,12 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
         if crypt_sym.encrypt && (crypt_sym.algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) > 0 {
             debug_assert_eq!(BLOCKCIPHER_PAD_TYPE_PKCS7, crypt_sym.pad_type);
             vec_in.extend_from_slice(&trailing_blockcipher_padding_calculate(crypt_sym.block_size, crypt_sym.pad_type,
-                u8::try_from(len-len.prev_multiple_of(&block_size)).unwrap()) );
+                u8::try_from(len- num_integer::Integer::prev_multiple_of(&len, &block_size)).unwrap()) );
 //println!("acos5_encrypt_sym {:02X?}", vec_in.as_slice());
         }
         indata_len = vec_in.len();
         indata_ptr = vec_in.as_ptr();
-        debug_assert!(indata_len.is_multiple_of(&block_size));
+        debug_assert!(num_integer::Integer::is_multiple_of(&indata_len, &block_size));
     }
     else {
         vec_in.extend_from_slice(match vecu8_from_file(crypt_sym.infile) {
@@ -2016,8 +2011,8 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
 
     let mut rv;
     // let Len1 = indata_len;
-    let Len0 =  Len1.prev_multiple_of(&block_size); // (Len1/block_size) * block_size;
-    let Len2 = (Len1+ if crypt_sym.encrypt && [BLOCKCIPHER_PAD_TYPE_PKCS7].contains(&crypt_sym.pad_type) {1} else {0}).
+    let Len0 =  num_integer::Integer::prev_multiple_of(&Len1, &block_size); // (Len1/block_size) * block_size;
+    let Len2 = (Len1+ usize::from(crypt_sym.encrypt && [BLOCKCIPHER_PAD_TYPE_PKCS7].contains(&crypt_sym.pad_type))).
         next_multiple_of(block_size); // i.e. 1,,block_size bytes get added for encryption if acc. padding was selected
     if !crypt_sym.encrypt {
         assert_eq!(Len1, Len0);
@@ -2240,7 +2235,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
             },
         };
         match fs::write(path_str, vec_out) {
-            Ok(_) => (),
+            Ok(()) => (),
             Err(e) => {
                 rv = e.raw_os_error().unwrap();
                 log3ifr!(ctx,f,line!(), rv);
@@ -2483,7 +2478,6 @@ mod tests {
                 trailing_blockcipher_padding_calculate, trailing_blockcipher_padding_get_length,
                 SC_ALGORITHM_RSA};
     use crate::constants_types::*;
-    // use num_integer::Integer;
 
     #[cfg(dont_test__this_signature_changed)]
     #[test]

@@ -70,8 +70,8 @@ use std::ffi::{CStr/*, CString*/};
 use std::ptr::{copy_nonoverlapping, null_mut, null};
 use std::collections::HashMap;
 use std::slice::{from_raw_parts, from_raw_parts_mut};
-use std::convert::TryFrom;
-use std::convert::TryInto;
+//use std::convert::TryFrom;
+//use std::convert::TryInto;
 
 // use ::function_name::named;
 
@@ -740,7 +740,7 @@ cfg_if::cfg_if! {
                                                    error_description.as_mut_ptr()) };
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
             let c_str = unsafe { CStr::from_ptr(error_description.as_ptr()) };
-            println!("asn1_result (definitions): {}, error_description: {:?}", asn1_result, c_str);
+            println!("asn1_result (definitions): {asn1_result}, error_description: {c_str:?}");
         }
         debug_assert!(!pkcs15_definitions.is_null());
     }
@@ -1617,7 +1617,7 @@ extern "C" fn acos5_get_challenge(card_ptr: *mut sc_card, buf_ptr: *mut u8, coun
     let is_count_multiple = if cond_2 {count%16==0} else {count%8==0};
     // let is_count_multiple16 =  count%16 == 0;
     let chunk_size = if cond_2 {16_usize} else {8_usize};
-    let loop_count = count/chunk_size + if is_count_multiple {0} else {1};
+    let loop_count = count/chunk_size + usize::from(!is_count_multiple);
     let mut len_rem = count;
     for i in 0..loop_count {
         if i+1<loop_count || is_count_multiple {
@@ -1772,7 +1772,7 @@ extern "C" fn acos5_delete_file(card_ptr: *mut sc_card, path_ref_ptr: *const sc_
 
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     if !dp.files.contains_key(&file_id) {
-println!("file_id: {:X} is not a key of hashmap dp.files", file_id);
+println!("file_id: {file_id:X} is not a key of hashmap dp.files");
         Box::leak(dp);
         // card.drv_data = Box::into_raw(dp) as p_void;
         return -1;
@@ -1881,7 +1881,7 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
         /* collect the IDs of files in the currently selected directory, restrict to max. 255, because addressing has 1 byte only */
         for i  in 0..u8::try_from(numfiles).unwrap() {
             let idx = usize::from(i) * 2;
-            let mut rbuf = match get_file_info(card, i+ (if card.type_ < SC_CARD_TYPE_ACOS5_EVO_V4 {0} else {1})) {
+            let mut rbuf = match get_file_info(card, i+ u8::from(card.type_ >= SC_CARD_TYPE_ACOS5_EVO_V4)) {
                 Ok(val) => val,
                 Err(e)    => return e,
             };

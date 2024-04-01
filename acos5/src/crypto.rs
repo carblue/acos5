@@ -2,10 +2,7 @@
 #![allow(non_camel_case_types, non_upper_case_globals, non_snake_case, clippy::upper_case_acronyms)]
 // #![allow(dead_code)]
 
-use num_integer::Integer;
-
 use std::os::raw::{/*c_char, c_ulong,*/ c_long, c_int};
-use std::convert::{TryFrom/*, TryInto*/};
 
 //from openssl  des.h and rand.h
 #[allow(non_upper_case_globals)]
@@ -156,7 +153,7 @@ pub fn des_ecb3_pad_pkcs5(data: &[u8], key: &str, mode: i32) -> Vec<u8> {
 /* this gets used currently only for Encrypt and data.len() known to be multiple of DES_KEY_SZ */
 #[must_use]
 pub fn des_ecb3_unpadded_8(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> { // -> [u8; DES_KEY_SZ] {
-    assert!(data.len().is_multiple_of(&DES_KEY_SZ));
+    assert!(num_integer::Integer::is_multiple_of(&data.len(), &DES_KEY_SZ));
     assert_eq!(24, key.len());
 
     let mut ks = [DES_key_schedule::default(), DES_key_schedule::default(), DES_key_schedule::default()];
@@ -177,7 +174,7 @@ pub fn des_ecb3_unpadded_8(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> { // -
 }
 
 /*
-acos5 applies padding only if !data.len().is_multiple_of(&DES_KEY_SZ)
+acos5 applies padding only if !num_integer::Integer::is_multiple_of(&data.len(), &DES_KEY_SZ)
 acos5 sets a padding indicator byte pi while encrypting:
 pi is relevant here only for Decrypt:
 if pi==01, then it's known, that  a 0x80 byte was added (padding was applied and must be stripped in mode == Decrypt)
@@ -185,13 +182,13 @@ if pi==00, then it's known, that no 0x80 byte was added
 */
 pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode: i32, pi: u8) -> Vec<u8> {
     assert_eq!(3*DES_KEY_SZ, key.len());
-    assert!(mode==Encrypt || data.len().is_multiple_of(&DES_KEY_SZ));
+    assert!(mode==Encrypt || num_integer::Integer::is_multiple_of(&data.len(), &DES_KEY_SZ));
 
     let mut data = data.to_vec();
     // mode==Encrypt: pad data, if necessary
-    if !data.len().is_multiple_of(&DES_KEY_SZ) {
+    if !num_integer::Integer::is_multiple_of(&data.len(), &DES_KEY_SZ) {
         data.push(0x80);
-        while !data.len().is_multiple_of(&DES_KEY_SZ) { data.push(0); }
+        while !num_integer::Integer::is_multiple_of(&data.len(), &DES_KEY_SZ) { data.push(0); }
     }
 
     let mut ks = [DES_key_schedule::default(), DES_key_schedule::default(), DES_key_schedule::default()];
@@ -231,7 +228,7 @@ pub fn des_ede3_cbc_pad_80_mac(data: &[u8], key: &[u8], ivec: &mut DES_cblock) -
 #[allow(dead_code)]
 #[must_use]
 fn aes_ecb_unpadded_16(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> {
-    assert!(data.len().is_multiple_of(&AES_BLOCK_SIZE));
+    assert!(num_integer::Integer::is_multiple_of(&data.len(), &AES_BLOCK_SIZE));
     assert!([16, 24, 32].contains(&key.len()));
     // assert_eq!(Encrypt, mode); // TODO missing AES_set_decrypt_key
 
@@ -257,7 +254,7 @@ fn aes_ecb_unpadded_16(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> {
 }
 
 /*
-acos5 applies padding only if !data.len().is_multiple_of(&AES_BLOCK_SIZE)
+acos5 applies padding only if !num_integer::Integer::is_multiple_of(&data.len(), &AES_BLOCK_SIZE)
 acos5 sets a padding indicator byte pi while encrypting:
 pi is relevant here only for Decrypt:
 if pi==01, then it's known, that  a 0x80 byte was added (padding was applied and must be stripped in mode == Decrypt)
@@ -265,14 +262,14 @@ if pi==00, then it's known, that no 0x80 byte was added
 */
 #[allow(dead_code)]
 fn aes_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut [u8; AES_BLOCK_SIZE], mode: i32, pi: u8) -> Vec<u8> {
-    assert!(mode==Encrypt || data.len().is_multiple_of(&AES_BLOCK_SIZE));
+    assert!(mode==Encrypt || num_integer::Integer::is_multiple_of(&data.len(), &AES_BLOCK_SIZE));
     assert!([16, 24, 32].contains(&key.len()));
 
     let mut data = data.to_vec();
     // mode==Encrypt: pad data, if necessary
-    if !data.len().is_multiple_of(&AES_BLOCK_SIZE) {
+    if !num_integer::Integer::is_multiple_of(&data.len(), &AES_BLOCK_SIZE) {
         data.push(0x80);
-        while !data.len().is_multiple_of(&AES_BLOCK_SIZE) { data.push(0); }
+        while !num_integer::Integer::is_multiple_of(&data.len(), &AES_BLOCK_SIZE) { data.push(0); }
     }
 
     let mut aes_key = AES_KEY::default();
@@ -320,11 +317,11 @@ mod tests {
 
     #[test]
     fn test_multiple() {
-        assert_eq!(16, 22.prev_multiple_of(&8)); // equivalent: (integral_number / integral_step_size) * integral_step_size
+        assert_eq!(16, num_integer::Integer::prev_multiple_of(&22, &8)); // equivalent: (integral_number / integral_step_size) * integral_step_size
         assert_eq!(24, 22.next_multiple_of(&8)); // if integral_number % integral_step_size == 0 {integral_number}
                                                        // else { (integral_number / integral_step_size +1) * integral_step_size }
 
-        assert_eq!(24, 24.prev_multiple_of(&8)); // no selection of smaller multiple !!
+        assert_eq!(24, num_integer::Integer::prev_multiple_of(&24, &8)); // no selection of smaller multiple !!
         assert_eq!(24, 24.next_multiple_of(&8)); // no selection of larger  multiple !!
     }
 
@@ -381,7 +378,7 @@ mod tests {
                      0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let mut ivec : DES_cblock = [0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let e = des_ede3_cbc_pad_80(&data, &key, &mut ivec, Encrypt, 0);
-        assert!(e.len().is_multiple_of(&DES_KEY_SZ));
+        assert!(num_integer::Integer::is_multiple_of(&e.len(), &DES_KEY_SZ));
         ivec = [0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let d = des_ede3_cbc_pad_80(&e, &key, &mut ivec, Decrypt, 1);
 //println!("{:X?}", e);
@@ -390,7 +387,7 @@ mod tests {
 
         ivec = [0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let e = des_ede3_cbc_pad_80_mac(&data, &key, &mut ivec);
-        assert!(e.len().is_multiple_of(&DES_KEY_SZ));
+        assert!(num_integer::Integer::is_multiple_of(&e.len(), &DES_KEY_SZ));
         assert_eq!(&[0xBF, 0x59, 0xFF, 0x28, 0xE3, 0x23, 0xB9, 0xF4][..], e.as_slice());
 //println!("{:X?}", e);
     }
@@ -410,7 +407,7 @@ mod tests {
         let mut ivec : [u8; AES_BLOCK_SIZE] = [0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10,
                                                0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let e = aes_cbc_pad_80(&data, &key, &mut ivec, Encrypt, 0);
-        assert!(e.len().is_multiple_of(&AES_BLOCK_SIZE));
+        assert!(num_integer::Integer::is_multiple_of(&e.len(), &AES_BLOCK_SIZE));
         ivec = [0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10,
                 0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let d = aes_cbc_pad_80(&e, &key, &mut ivec, Decrypt, 1);
@@ -420,7 +417,7 @@ mod tests {
 /*
         ivec = [0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let e = des_ede3_cbc_pad_80_mac(&data, &key, &mut ivec);
-        assert!(e.len().is_multiple_of(&DES_KEY_SZ));
+        assert!(num_integer::Integer::is_multiple_of(&e.len(), &DES_KEY_SZ));
         assert_eq!(&[0xBF, 0x59, 0xFF, 0x28, 0xE3, 0x23, 0xB9, 0xF4][..], e.as_slice());
 */
 //println!("{:X?}", e);

@@ -106,7 +106,7 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
             Err(error) => { return Err(error) },
         };
 
-        if printable { println!("### There is no MF: The card is uninitialized/virgin/in factory state ### (Card Life Cycle Byte is 0x{:X}, Operation Mode Byte is 0x{:X}, Zeroize Card Disable Byte is 0x{:X})", card_life_cycle_byte, operation_mode_byte, zeroize_card_disable_byte) }
+        if printable { println!("### There is no MF: The card is uninitialized/virgin/in factory state ### (Card Life Cycle Byte is 0x{card_life_cycle_byte:X}, Operation Mode Byte is 0x{operation_mode_byte:X}, Zeroize Card Disable Byte is 0x{zeroize_card_disable_byte:X})") }
         log3ift!(ctx,f,line!(), cstru!(
                 b"### There is no MF: The card is uninitialized/virgin/in factory state ### (Card Life Cycle Byte is 0x%02X, Operation Mode Byte is 0x%02X, Zeroize Card Disable Byte is 0x%02X)\0"),
                 card_life_cycle_byte, operation_mode_byte, zeroize_card_disable_byte);
@@ -136,15 +136,15 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
             assert!(dp.files.contains_key(&child_id)); // or it doesn't exist
             let dpfv_child = &dp.files[&child_id];
             if  dpfv_child.1[0] != FDB_SE_FILE || !is_child_of(dpfv_child, val) {
-                println!("DF {:04X} does declare SE file id {:04X}, but either this is no SE-file or is not a child", key_dfmf, child_id);
+                println!("DF {key_dfmf:04X} does declare SE file id {child_id:04X}, but either this is no SE-file or is not a child");
             }
             else if dpfv_child.2.is_none() || dpfv_child.2.unwrap()[READ] != 0 {
-                println!("WARNING: Security Access Condition of SE file id {:04X} is different from 'ALWAYS READABLE'. \
+                println!("WARNING: Security Access Condition of SE file id {child_id:04X} is different from 'ALWAYS READABLE'. \
                 Hence, OpenSC and this driver won't know any file related Security Access Constraint in directory \
-                {:04X} and You may run into all sorts of errors related to Access Control", child_id, key_dfmf);
+                {key_dfmf:04X} and You may run into all sorts of errors related to Access Control");
             }
             else {
-                println!("\n[X] DF/MF {:04X} mandatory security environment (SE) file {:04X} seems to be okay (content checked next).", key_dfmf, child_id);
+                println!("\n[X] DF/MF {key_dfmf:04X} mandatory security environment (SE) file {child_id:04X} seems to be okay (content checked next).");
                 let mut index_used : HashSet<u8> = HashSet::with_capacity(14);
                 for &b in &val.2.unwrap() {
                     if ![0, 255].contains(&b) {
@@ -163,25 +163,25 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
                         }
                     }
                 }
-println!("[X] DF/MF {:04X} references found: {:X?} ", key_dfmf, index_used);
+println!("[X] DF/MF {key_dfmf:04X} references found: {index_used:X?} ");
                 let mut vec_add_to_set = Vec::with_capacity(8);
                 for &index in &index_used {
                     if (index & 0x30) > 0 {
-println!("[X] DF/MF {:04X} reference {:X} has bit(s) set that are unused", key_dfmf, index);
+println!("[X] DF/MF {key_dfmf:04X} reference {index:X} has bit(s) set that are unused");
                         vec_add_to_set.push(index & 0x0F);
                     }
                     if (index & 0x40) > 0 {
-println!("[X] DF/MF {:04X} reference {:X} has bit 'Secure Messaging' set", key_dfmf, index);
+println!("[X] DF/MF {key_dfmf:04X} reference {index:X} has bit 'Secure Messaging' set");
                         vec_add_to_set.push(index & 0x0F);
                     }
                     if (index & 0x80) > 0 {
-println!("[X] DF/MF {:04X} reference {:X} has MSB bit set: TODO check whether OpenSC/driver supports logical conjunction of constraints", key_dfmf, index);
+println!("[X] DF/MF {key_dfmf:04X} reference {index:X} has MSB bit set: TODO check whether OpenSC/driver supports logical conjunction of constraints");
                         vec_add_to_set.push(index & 0x0F);
                     }
                 }
                 index_used.retain(|&k| (k & 0xB0) == 0);
                 index_used.extend(vec_add_to_set);
-println!("[X] DF/MF {:04X} references (reduced set) found: {:X?} ", key_dfmf, index_used);
+println!("[X] DF/MF {key_dfmf:04X} references (reduced set) found: {index_used:X?} ");
                 let mut once = false;
                 for &index in &index_used {
                     if index & 0x40 > 0 &&
@@ -197,7 +197,7 @@ println!("[X] DF/MF {:04X} references (reduced set) found: {:X?} ", key_dfmf, in
                     }
                 }
                 if !once {
-                    println!("[X] DF/MF {:04X} mandatory security environment (SE) file {:04X} content satisfies all references).", key_dfmf, child_id);
+                    println!("[X] DF/MF {key_dfmf:04X} mandatory security environment (SE) file {child_id:04X} content satisfies all references).");
                 }
 
 // if val.3.is_some() {

@@ -1672,9 +1672,7 @@ pub fn sc_ctx_get_reader(ctx: *mut sc_context, i: u32) -> *mut sc_reader;
  * @param  ctx   pointer to a sc_context
  * @param  pcsc_context_handle pointer to the  new context_handle to use
  * @param  pcsc_card_handle pointer to the new card_handle to use
- * @return SC_SUCCESS or 1 on success and an error code otherwise.
-*		a return of 1 indicates to call reinit_card_for, as
-*		the reader has changed.
+ * @return SC_SUCCESS or 1 on success and an error code otherwise. A return of 1 indicates to call reinit_card_for, as the reader has changed.
  */
 pub fn sc_ctx_use_reader(ctx: *mut sc_context, pcsc_context_handle: *mut c_void, pcsc_card_handle: *mut c_void) -> i32;
 

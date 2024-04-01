@@ -131,7 +131,7 @@ impl<'a> Iterator for DirectoryRange<'a> {
                                     (self.rem.len()-1).try_into().unwrap(), &mut L_len).try_into().unwrap() };
 //println!("self.rem.len(): {}, V_len: {}, L_len: {}", self.rem.len(), V_len, L_len);
             let tlv_len = T_len + L_len + V_len;
-            if V_len<0 || L_len<1 || L_len>4 || self.rem.len() < tlv_len.try_into().unwrap() {
+            if V_len<0 || !(1..=4).contains(&L_len) || self.rem.len() < tlv_len.try_into().unwrap() {
                 return None;
             }
             let new_end_exclusive = self.last_end_exclusive + tlv_len;
@@ -206,7 +206,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
                                                  rbuf2.len().try_into().unwrap(), error_description.as_mut_ptr()) };
 
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
-            println!("error while decoding DIRRecord data: {:?}", rbuf2);
+            println!("error while decoding DIRRecord data: {rbuf2:?}");
             continue;
         }
 //println!("ready to inspect");
@@ -413,7 +413,7 @@ pub fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
 
             if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
                 let c_str = unsafe { CStr::from_ptr(error_description.as_ptr()) };
-                println!("asn1_result (asn1_der_decoding): {}, error_description: {:?}", asn1_result, c_str);
+                println!("asn1_result (asn1_der_decoding): {asn1_result}, error_description: {c_str:?}");
                 continue;
             }
             for type_ in PKCS15_FILE_TYPE_PRKDF..=PKCS15_FILE_TYPE_AODF {
@@ -457,7 +457,7 @@ pub fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
     card.drv_data = Box::into_raw(dp).cast::<c_void>();
     for elem in vec_FidPkcs15Type {
         if does_pkcs15type_need_filemarking(elem.1) {
-            analyze_PKCS15_PKCS15Objects(card, elem)
+            analyze_PKCS15_PKCS15Objects(card, elem);
         }
     }
 }
@@ -519,19 +519,13 @@ pub fn analyze_PKCS15_PKCS15Objects(card: &mut sc_card, elem: FidPkcs15Type) {
             (PKCS15_FILE_TYPE_PRKDF, 0)          => PKCS15_FILE_TYPE_RSAPRIVATEKEY,
             (PKCS15_FILE_TYPE_PRKDF, 1)          => PKCS15_FILE_TYPE_ECCPRIVATEKEY,
 
-            (PKCS15_FILE_TYPE_PUKDF, 0)       |
-            (PKCS15_FILE_TYPE_PUKDF_TRUSTED, 0)  => PKCS15_FILE_TYPE_RSAPUBLICKEY,
-            (PKCS15_FILE_TYPE_PUKDF, 1)       |
-            (PKCS15_FILE_TYPE_PUKDF_TRUSTED, 1)  => PKCS15_FILE_TYPE_ECCPUBLICKEY,
+            (PKCS15_FILE_TYPE_PUKDF | PKCS15_FILE_TYPE_PUKDF_TRUSTED, 0)  => PKCS15_FILE_TYPE_RSAPUBLICKEY,
+            (PKCS15_FILE_TYPE_PUKDF | PKCS15_FILE_TYPE_PUKDF_TRUSTED, 1)  => PKCS15_FILE_TYPE_ECCPUBLICKEY,
 
-            (PKCS15_FILE_TYPE_SKDF, 0)        |
-            (PKCS15_FILE_TYPE_SKDF, 1)        |
-            (PKCS15_FILE_TYPE_SKDF, 2)        |
-            (PKCS15_FILE_TYPE_SKDF, 3)           => PKCS15_FILE_TYPE_SECRETKEY,
+            (PKCS15_FILE_TYPE_SKDF, 0 | 1 | 2 | 3)           => PKCS15_FILE_TYPE_SECRETKEY,
 
-            (PKCS15_FILE_TYPE_CDF, 0)         |
-            (PKCS15_FILE_TYPE_CDF_TRUSTED, 0) |
-            (PKCS15_FILE_TYPE_CDF_USEFUL, 0)     => PKCS15_FILE_TYPE_CERT,
+            (PKCS15_FILE_TYPE_CDF | PKCS15_FILE_TYPE_CDF_TRUSTED |
+PKCS15_FILE_TYPE_CDF_USEFUL, 0)     => PKCS15_FILE_TYPE_CERT,
 
             (PKCS15_FILE_TYPE_DODF, 0)           => PKCS15_FILE_TYPE_DATA,
 
@@ -547,20 +541,17 @@ fn get_arr1<'a>(idx_0: u8, idx_1: u8) -> &'a CStr {
         (PKCS15_FILE_TYPE_PRKDF, 0) => cstru!(b"privateRSAKey.privateRSAKeyAttributes.value.indirect.path.path\0"),
         (PKCS15_FILE_TYPE_PRKDF, 1) => cstru!(b"privateECKey.privateECKeyAttributes.value.indirect.path.path\0"),
 
-        (PKCS15_FILE_TYPE_PUKDF, 0) |
-        (PKCS15_FILE_TYPE_PUKDF_TRUSTED, 0) => cstru!(b"publicRSAKey.publicRSAKeyAttributes.value.indirect.path.path\0"),
+        (PKCS15_FILE_TYPE_PUKDF | PKCS15_FILE_TYPE_PUKDF_TRUSTED, 0) => cstru!(b"publicRSAKey.publicRSAKeyAttributes.value.indirect.path.path\0"),
 
-        (PKCS15_FILE_TYPE_PUKDF, 1) |
-        (PKCS15_FILE_TYPE_PUKDF_TRUSTED, 1) => cstru!(b"publicECKey.publicECKeyAttributes.value.indirect.path.path\0"),
+        (PKCS15_FILE_TYPE_PUKDF | PKCS15_FILE_TYPE_PUKDF_TRUSTED, 1) => cstru!(b"publicECKey.publicECKeyAttributes.value.indirect.path.path\0"),
 
         (PKCS15_FILE_TYPE_SKDF, 0) => cstru!(b"genericSecretKey.genericSecretKeyAttributes.value.indirect.path.path\0"),
         (PKCS15_FILE_TYPE_SKDF, 1) => cstru!(b"desKey.genericSecretKeyAttributes.value.indirect.path.path\0"),
         (PKCS15_FILE_TYPE_SKDF, 2) => cstru!(b"des2Key.genericSecretKeyAttributes.value.indirect.path.path\0"),
         (PKCS15_FILE_TYPE_SKDF, 3) => cstru!(b"des3Key.genericSecretKeyAttributes.value.indirect.path.path\0"),
 
-        (PKCS15_FILE_TYPE_CDF, 0) |
-        (PKCS15_FILE_TYPE_CDF_TRUSTED, 0) |
-        (PKCS15_FILE_TYPE_CDF_USEFUL, 0)  => cstru!(b"x509Certificate.x509CertificateAttributes.value.indirect.path.path\0"),
+        (PKCS15_FILE_TYPE_CDF | PKCS15_FILE_TYPE_CDF_TRUSTED |
+PKCS15_FILE_TYPE_CDF_USEFUL, 0)  => cstru!(b"x509Certificate.x509CertificateAttributes.value.indirect.path.path\0"),
 
         (PKCS15_FILE_TYPE_DODF, 0) => cstru!(b"opaqueDO.opaque.indirect.path.path\0"),
 
@@ -604,7 +595,7 @@ fn get_arr1<'a>(idx_0: u8, idx_1: u8) -> &'a CStr {
 
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
             let c_str = unsafe { CStr::from_ptr(error_description.as_ptr()) };
-            println!("asn1_result (asn1_der_decoding): {}, error_description: {:?}", asn1_result, c_str);
+            println!("asn1_result (asn1_der_decoding): {asn1_result}, error_description: {c_str:?}");
             continue;
         }
         for idx_1 in 0..get_size(elem.1) {

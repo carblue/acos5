@@ -28,13 +28,11 @@ TODO There is a lot of code duplication here: Abstract as much as possible for t
 */
 
 use libc::{free, strlen};
-use num_integer::Integer;
 
 use std::os::raw::{c_char, c_ulong, c_void};
 use std::ffi::CString;
 use std::ptr::{null, null_mut};
 use std::slice::from_raw_parts;
-use std::convert::{TryFrom/*, TryInto*/};
 
 use opensc_sys::opensc::{sc_context, sc_card, sc_hex_to_bin, sc_transmit_apdu,
                          sc_check_sw, sc_pin_cmd_data, SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT,
@@ -107,7 +105,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
     fn sprintf_ref(ref_: u8, qualifier: &str) -> CString {
         let mut vec : Vec<u8> = Vec::with_capacity(14);
         vec.extend_from_slice(b"keyset_");
-        vec.extend_from_slice(format!("{:02}", ref_).as_bytes());
+        vec.extend_from_slice(format!("{ref_:02}").as_bytes());
         vec.push(b'_');
         vec.extend_from_slice(qualifier.as_bytes());
         unsafe { CString::from_vec_unchecked(vec) }
@@ -119,7 +117,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
         vec.extend_from_slice(format!("{:X?}", &aid.value[..aid.len]).as_bytes());
         vec.retain(|&x| x != b'[' && x != b',' && x != b' ' && x != b']');
         vec.push(b'_');
-        vec.extend_from_slice(format!("{:02}", ref_).as_bytes());
+        vec.extend_from_slice(format!("{ref_:02}").as_bytes());
         vec.push(b'_');
         vec.extend_from_slice(qualifier.as_bytes());
         unsafe { CString::from_vec_unchecked(vec) }
@@ -525,11 +523,11 @@ pub fn sm_common_read(card: &mut sc_card,
 ////println!("len_read : {}", len_read);
     let len_read2 : u8 = len_read.next_multiple_of(DES_KEY_SZ_u8);// padding added if required
 ////println!("len_read2: {}", len_read2);
-    debug_assert!(len_read2.is_multiple_of(&DES_KEY_SZ_u8));
+    debug_assert!(num_integer::Integer::is_multiple_of(&len_read2, &DES_KEY_SZ_u8));
     assert!(len_read2 <= 240);
     let pos : usize = if has_ct {13} else {12};
     let len_resp = u8::try_from(pos).unwrap() +
-        if has_ct { len_read2 + if len_read.is_multiple_of(&DES_KEY_SZ_u8) {DES_KEY_SZ_u8} else {0} } else { len_read };
+        if has_ct { len_read2 + if num_integer::Integer::is_multiple_of(&len_read, &DES_KEY_SZ_u8) {DES_KEY_SZ_u8} else {0} } else { len_read };
 ////println!("len_resp: {}", len_resp);
     /* cmd without SM: SC_APDU_CASE_2_SHORT; with SM: SC_APDU_CASE_4_SHORT */
 /*
@@ -639,9 +637,9 @@ pub fn sm_common_update(card: &mut sc_card,
 ////println!("len_update : {}", len_update);
     let len_update2 = len_update.next_multiple_of(DES_KEY_SZ_u8); // padding added if required
 ////println!("len_update2: {}", len_update2);
-    debug_assert!(len_update2.is_multiple_of(&DES_KEY_SZ_u8));
+    debug_assert!(num_integer::Integer::is_multiple_of(&len_update2, &DES_KEY_SZ_u8));
     assert!(len_update2 <= 240);
-    let pi = if has_ct && !len_update.is_multiple_of(&DES_KEY_SZ_u8) {1_u8} else {0_u8};
+    let pi = u8::from(has_ct && !num_integer::Integer::is_multiple_of(&len_update, &DES_KEY_SZ_u8));
 ////println!("pi: {}", pi);
     /* cmd without SM: SC_APDU_CASE_3_SHORT; with SM: SC_APDU_CASE_4_SHORT */
     let hdr =
@@ -892,9 +890,9 @@ fn sm_create_file(card: &mut sc_card,
 ////println!("len_update : {}", len_update);
     let len_update2 = len_update.next_multiple_of(DES_KEY_SZ_u8); // padding added if required
 ////println!("len_update2: {}", len_update2);
-    debug_assert!(len_update2.is_multiple_of(&DES_KEY_SZ_u8));
+    debug_assert!(num_integer::Integer::is_multiple_of(&len_update2, &DES_KEY_SZ_u8));
     assert!(len_update2 <= 240);
-    let pi = if has_ct && !len_update.is_multiple_of(&DES_KEY_SZ_u8) {1_u8} else {0_u8};
+    let pi = u8::from(has_ct && !num_integer::Integer::is_multiple_of(&len_update, &DES_KEY_SZ_u8));
 ////println!("pi: {}", pi);
     /* cmd without SM: SC_APDU_CASE_3_SHORT; with SM: SC_APDU_CASE_4_SHORT */
     let hdr = [0x89_u8,4, 0x0C, 0xE0, 0, 0];
@@ -1006,9 +1004,9 @@ pub fn sm_pin_cmd(card: &mut sc_card,
 ////println!("len_pin : {}", len_pin);
     let len2_pin : u8 = len_pin.next_multiple_of(DES_KEY_SZ_u8); // padding added if required
 ////println!("len2_pin: {}", len2_pin);
-    debug_assert!(len2_pin.is_multiple_of(&DES_KEY_SZ_u8));
+    debug_assert!(num_integer::Integer::is_multiple_of(&len2_pin, &DES_KEY_SZ_u8));
 //    assert!(len2_pin <= DES_KEY_SZ_u8);
-    let pi = if has_ct && !len_pin.is_multiple_of(&DES_KEY_SZ_u8) {1_u8} else {0_u8};
+    let pi = u8::from(has_ct && !num_integer::Integer::is_multiple_of(&len_pin, &DES_KEY_SZ_u8));
 ////println!("pi: {}", pi);
     /* cmd without SM: SC_APDU_CASE_3_SHORT; with SM: SC_APDU_CASE_4_SHORT */
     let hdr = [0x89_u8,4, 0x0C, ins, 0, u8::try_from(pin_cmd_data.pin_reference).unwrap()];

@@ -125,14 +125,12 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
                 under the currently selected DF' failed\0"));
         return Err(SC_ERROR_CARD_CMD_FAILED);
     }
-    if apdu.sw2 > 255 {
-        panic!("There are more than 255 children in this DF !");
-        /*
+    /*
         driver's working currently depends on populating the HashMap files with all card content during card_init, but
         that would be impossible with more than 255 children in a DF: I.e. checking for duplicates would be incomplete
         and all assertions that any file is contained in  HashMap files  would be wrong !
-        */
-    }
+    */
+    assert!(apdu.sw2 <= 255, "There are more than 255 children in this DF !");
     Ok(u16::try_from(apdu.sw2).unwrap())
 }
 

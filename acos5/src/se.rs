@@ -548,7 +548,7 @@ pub fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], se_info
                     assert_eq!(taglen, 1);
                     unsafe {
                         se_info_node.crts[idx_crts].algo = u32::from(*data_ptr);
-                        data_ptr = data_ptr.add(1)
+                        data_ptr = data_ptr.add(1);
                     };
                 },
                 0x81 => { assert_eq!(taglen, 2); },
@@ -556,7 +556,7 @@ pub fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], se_info
                     assert_eq!(taglen, 1);
                     unsafe {
                         se_info_node.crts[idx_crts].refs[idx_refs] = u32::from(*data_ptr);
-                        data_ptr = data_ptr.add(1)
+                        data_ptr = data_ptr.add(1);
                     };
                     idx_refs += 1;
                 },
@@ -570,7 +570,7 @@ pub fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], se_info
                     assert_eq!(taglen, 1);
                     unsafe {
                         se_info_node.crts[idx_crts].usage = u32::from(*data_ptr);
-                        data_ptr = data_ptr.add(1)
+                        data_ptr = data_ptr.add(1);
                     };
                 },
                 _ => ()
@@ -588,7 +588,6 @@ pub fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], se_info
 /// Will return `Err` if there are errors in the SAE encoding
 pub fn se_parse_sae(vec_sac_info_opt: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp_sae: &[u8]) -> Result<Vec<SAEinfo>, i32>
 {
-    use num_integer::Integer;
     use crate::no_cdecl::{convert_amdo_to_cla_ins_p1_p2_array};
 
     // add the A4 tag as virtual SE-file record (SAC), starting with se record id 16, the max. of real ones is 14
@@ -632,7 +631,7 @@ pub fn se_parse_sae(vec_sac_info_opt: &mut Option<Vec<SACinfo>>, value_bytes_tag
                 sae_info.scb = tlv.value()[0];
             },
             0xA4 => {
-                assert!(tlv.length()>=6 && tlv.length().is_multiple_of(&3));
+                assert!(tlv.length()>=6 && num_integer::Integer::is_multiple_of(&tlv.length(), &3));
                 let mut sac_info = SACinfo::default();
                 idx_virtual += 1;
                 sae_info.scb       = idx_virtual;
