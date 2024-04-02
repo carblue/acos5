@@ -655,7 +655,6 @@ mod tests {
     use libc::free;
     use std::ffi::CStr;
     use std::ptr::{null, null_mut};
-    use std::convert::TryFrom;
     use crate::errors::SC_SUCCESS;
     use crate::pkcs15::{sc_pkcs15_id, sc_pkcs15_pubkey_rsa/*, SC_PKCS15_MAX_ID_SIZE*/};
     use crate::opensc::SC_ALGORITHM_SHA1;

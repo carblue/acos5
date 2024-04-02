@@ -24,7 +24,6 @@ use pkcs11::types::{CKF_SERIAL_SESSION, CKU_USER, CK_SESSION_HANDLE, CK_OBJECT_C
                     CKA_ALWAYS_SENSITIVE, CKA_NEVER_EXTRACTABLE, CKA_ENCRYPT, CKA_VERIFY, CKA_SIGN_RECOVER,
                     CKA_VERIFY_RECOVER, CKA_WRAP, CKO_PUBLIC_KEY};
 use std::mem::size_of;
-use std::convert::TryInto;
 
 fn show_key_info(ctx: &Ctx, session: CK_SESSION_HANDLE, key: CK_OBJECT_HANDLE) -> Result<(), Error> {
     let mut label = [0_u8; 80]; //CK_UTF8CHAR *label = (CK_UTF8CHAR *) malloc(80);

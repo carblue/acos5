@@ -74,8 +74,6 @@ what to be shown in opensc-tool -f
 For SAE (Security Attributes Expanded), TODO
 */
 
-use std::convert::TryFrom;
-
 use opensc_sys::opensc::{sc_card, sc_file_add_acl_entry};
 use opensc_sys::types::{sc_file, sc_crt, SC_AC_NONE, SC_AC_NEVER, SC_AC_UNKNOWN, SC_AC_KEY_REF_NONE,
 SC_AC_CHV, SC_AC_AUT, SC_AC_PRO,

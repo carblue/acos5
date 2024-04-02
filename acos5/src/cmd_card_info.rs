@@ -20,8 +20,6 @@
 
 /* functions, (most of) callable via sc_card_ctl(acos5_card_ctl), mostly used by acos5_gui */
 
-use std::convert::TryFrom;
-
 use opensc_sys::opensc::{sc_card, sc_transmit_apdu, sc_check_sw, SC_PROTO_T1};
 use opensc_sys::types::{sc_serial_number, SC_MAX_SERIALNR, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_2_EXT};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_CARD_CMD_FAILED, SC_ERROR_INVALID_ARGUMENTS};

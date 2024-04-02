@@ -35,7 +35,6 @@ see file src/libopensc/libopensc.exports
 */
 
 use std::os::raw::{c_void};
-use std::convert::{TryFrom, TryInto};
 use std::slice;
 
 use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, SC_CARD_CAP_APDU_EXT,

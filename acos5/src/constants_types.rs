@@ -22,7 +22,6 @@
 
 use std::os::raw::{c_char, c_uchar, c_ulong, c_void};
 use std::ops::{Deref, DerefMut};
-use std::convert::{TryFrom/*, TryInto*/};
 use std::collections::HashMap;
 use std::ffi::CStr;
 

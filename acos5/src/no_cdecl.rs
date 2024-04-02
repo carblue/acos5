@@ -26,7 +26,6 @@ use std::os::raw::{c_char, c_ulong, c_void};
 use std::ffi::{/*CString,*/ CStr};
 use std::fs;//::{read/*, write*/};
 use std::ptr::{null_mut};
-use std::convert::{From/*, TryFrom, TryInto*/};
 use std::slice::from_raw_parts;
 
 use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_apdu,

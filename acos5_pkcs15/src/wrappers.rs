@@ -25,7 +25,6 @@
 
 
 use std::ffi::CStr;
-use std::convert::TryFrom;
 
 use opensc_sys::opensc::{sc_context};
 use opensc_sys::log::{sc_do_log, SC_LOG_DEBUG_NORMAL};

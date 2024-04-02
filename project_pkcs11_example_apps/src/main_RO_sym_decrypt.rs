@@ -23,7 +23,6 @@
  */
 
 use std::mem::size_of;
-use std::convert::TryInto;
 
 use pkcs11::{Ctx, errors::Error};
 use pkcs11::types::{CKF_SERIAL_SESSION, CKU_USER,CK_OBJECT_CLASS, CK_ATTRIBUTE, CKA_ENCRYPT,

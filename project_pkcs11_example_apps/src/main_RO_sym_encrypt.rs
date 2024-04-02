@@ -22,7 +22,6 @@
  */
 
 use std::mem::size_of;
-use std::convert::{TryInto, TryFrom};
 
 use pkcs11::{Ctx, errors::Error};
 use pkcs11::types::{CKF_SERIAL_SESSION, CKU_USER,CK_OBJECT_CLASS, CK_ATTRIBUTE, CK_TRUE, CK_BBOOL,

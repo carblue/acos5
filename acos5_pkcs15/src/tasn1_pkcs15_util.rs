@@ -21,7 +21,6 @@
 use std::os::raw::{c_char, c_void/*, c_int*/};
 use std::ptr::{null_mut};
 use std::ffi::{CStr};
-use std::convert::{TryFrom, TryInto};
 use std::ops::{Deref, DerefMut, Range};
 
 use opensc_sys::opensc::{sc_card, sc_format_path, sc_path_set, sc_select_file, sc_read_binary};

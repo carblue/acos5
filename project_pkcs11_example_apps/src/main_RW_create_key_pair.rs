@@ -24,7 +24,6 @@ use pkcs11::types::{CKF_SERIAL_SESSION, CKU_USER, CK_SESSION_HANDLE, CK_ATTRIBUT
                     CKA_ALWAYS_SENSITIVE, CKA_NEVER_EXTRACTABLE, CKA_ENCRYPT, CKA_VERIFY, CKA_SIGN_RECOVER,
                     CKA_VERIFY_RECOVER, CKA_WRAP};
 use std::mem::size_of;
-use std::convert::TryInto;
 use std::ptr::null_mut;
 
 fn show_key_info(ctx: &Ctx, session: CK_SESSION_HANDLE, key: CK_OBJECT_HANDLE) -> Result<(), Error> {
