@@ -96,9 +96,8 @@ use libc::{free}; // strlen
 
 use std::os::raw::{c_char, c_void};
 use std::ffi::CStr;
-use std::ptr::{null_mut};
+use std::ptr::{null_mut, addr_of_mut};
 // use std::collections::HashSet;
-use std::convert::{TryFrom, TryInto};
 use std::slice::from_raw_parts;
 
 use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_select_file, sc_card_ctl, SC_ALGORITHM_DES,
@@ -136,7 +135,7 @@ use opensc_sys::log::{/*sc_do_log, SC_LOG_DEBUG_NORMAL,*/ sc_dump_hex};
 pub mod    macros;
 
 pub mod    constants_types; // shared file among modules acos5, acos5_pkcs15 and acos5_sm
-use crate::constants_types::{CARD_DRV_SHORT_NAME, CardCtl_generate_crypt_asym, DataPrivate, SC_CARDCTL_ACOS5_SDO_CREATE,
+use crate::constants_types::{CARD_DRV_SHORT_NAME, DataPrivate, SC_CARDCTL_ACOS5_SDO_CREATE,
                              SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, SC_CARD_TYPE_ACOS5_64_V3, build_apdu,
                              SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile, file_id_from_path_value,
                              SC_CARD_TYPE_ACOS5_EVO_V4};
@@ -589,9 +588,7 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     if app_name == cstru!(b"acos5_gui \0") {
         dp.agc.do_create_files = dp.agi.do_create_files;
-        if !dp.agc.do_create_files && dp.agi.file_id_priv!=0 && dp.agi.file_id_pub!=0 {
-
-        }
+//      if !dp.agc.do_create_files && dp.agi.file_id_priv!=0 && dp.agi.file_id_pub!=0 {}
         dp.agc.do_generate_rsa_crt = card.type_==SC_CARD_TYPE_ACOS5_64_V3 || dp.agi.do_generate_rsa_crt;
         dp.agc.do_generate_rsa_add_decrypt_for_sign = dp.agi.do_generate_rsa_add_decrypt_for_sign;
         dp.agc.do_generate_with_standard_rsa_pub_exponent = dp.agi.do_generate_with_standard_rsa_pub_exponent;
@@ -821,6 +818,7 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
     dp.agc.key_len_code = u8::try_from(keybits / 128).unwrap();
 
     dp.agc.key_curve_code = match key_info.field_length {
+        #[allow(clippy::bool_to_int_with_if)]
         224 => if card.type_ < SC_CARD_TYPE_ACOS5_EVO_V4 {0} else {1},
         256 => if card.type_ < SC_CARD_TYPE_ACOS5_EVO_V4 {0} else {2},
         384 => if card.type_ < SC_CARD_TYPE_ACOS5_EVO_V4 {0} else {3},
@@ -1037,7 +1035,7 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     }
 */
     //gen_keypair; the data get prepared in acos5_pkcs15_create_key
-    rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, (&mut agc as *mut CardCtl_generate_crypt_asym).cast::<c_void>()) };
+    rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, addr_of_mut!(agc).cast::<c_void>()) };
     if rv != SC_SUCCESS {
         log3ifr!(ctx,f,line!(), cstru!(b"command 'Generate Key Pair' failed\0"), rv);
         return rv;
@@ -1051,7 +1049,7 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
         key_info_pub.field_length = key_info_priv.field_length;   /* EC in bits */
     }
     let object_pub = sc_pkcs15_object { type_:  if agc.key_curve_code == 0 {SC_PKCS15_TYPE_PUBKEY_RSA} else {SC_PKCS15_TYPE_PUBKEY_EC},
-        data: (&mut key_info_pub as *mut sc_pkcs15_pubkey_info).cast::<c_void>(),  ..sc_pkcs15_object::default() };
+        data: addr_of_mut!(key_info_pub).cast::<c_void>(),  ..sc_pkcs15_object::default() };
     let mut p15pubkey2_ptr = null_mut();
     rv = unsafe { sc_pkcs15_read_pubkey(p15card_ptr, &object_pub, &mut p15pubkey2_ptr) };
     if rv != SC_SUCCESS {

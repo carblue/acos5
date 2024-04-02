@@ -391,7 +391,7 @@ pub const SC_EVENT_READER_EVENTS   : u32 = SC_EVENT_READER_ATTACHED | SC_EVENT_R
 pub const MAX_FILE_SIZE : usize = 65535; // since v0_20_0
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct sc_supported_algo_info {
     pub reference : u32,   /* a unique reference that is used for cross-reference purposes from PrKDFs and PuKDFs */
     pub mechanism : u32,   /* CKM_* */
@@ -403,7 +403,7 @@ pub struct sc_supported_algo_info {
     pub algo_id : sc_object_id,
     pub algo_ref : u32,  /* indicates the identifier used by the card for denoting this algorithm */
 }
-
+/*
 #[cfg(impl_default)]
 impl Default for sc_supported_algo_info {
     fn default() -> Self {
@@ -420,7 +420,7 @@ impl Default for sc_supported_algo_info {
         }
     }
 }
-
+*/
 /// except in struct sc_security_env, unused currently
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -603,7 +603,7 @@ impl Default for sc_algorithm_info__union {
 }
 
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Default, /*Debug,*/ Copy, Clone)]
 pub struct sc_algorithm_info {
     pub algorithm  : u32,
     #[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
@@ -622,7 +622,7 @@ pub struct sc_algorithm_info {
 #[allow(non_camel_case_types)]
 pub type sc_algorithm_info_t = sc_algorithm_info;
 */
-
+/*
 #[cfg(acos5_impl_default)]
 #[cfg(impl_default)]
 impl Default for sc_algorithm_info {
@@ -635,7 +635,7 @@ impl Default for sc_algorithm_info {
         }
     }
 }
-
+*/
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_app_info {

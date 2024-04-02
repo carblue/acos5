@@ -229,7 +229,7 @@ pub const SC_SEC_OPERATION_UNWRAP       : i32 = 0x0006;
 //pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
 
 */
-////pub const SC_SEC_OPERATION_ENCIPHER : i32 = 0x0009;
+//pub const SC_SEC_OPERATION_ENCIPHER : i32 = 0x0009;
 pub const SC_SEC_OPERATION_GENERATE_RSAPRIVATE : i32 = 0x000A; // sc_set_security_env must know this related to file id
 pub const SC_SEC_OPERATION_GENERATE_RSAPUBLIC  : i32 = 0x000B; // sc_set_security_env must know this related to file id
 pub const SC_SEC_OPERATION_GENERATE_ECCPRIVATE : i32 = 0x000C; // sc_set_security_env must know this related to file id
@@ -296,7 +296,7 @@ pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET : c_ulong =  0x0000
 pub const SC_CARDCTL_ACOS5_ENCRYPT_SYM             : c_ulong =  0x0000_0027; // data: *mut CardCtl_crypt_sym,  do_encrypt_sym
 pub const SC_CARDCTL_ACOS5_ENCRYPT_ASYM            : c_ulong =  0x0000_0028; // data: *mut CardCtl_crypt_asym, do_encrypt_asym; Signature verification with public key
 pub const SC_CARDCTL_ACOS5_DECRYPT_SYM             : c_ulong =  0x0000_0029; // data: *mut CardCtl_crypt_sym,  do_decrypt_sym
-////pub const SC_CARDCTL_ACOS5_DECRYPT_ASYM        : c_ulong =  0x0000_002A; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
+//pub const SC_CARDCTL_ACOS5_DECRYPT_ASYM        : c_ulong =  0x0000_002A; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
 
 // array indices of some file related commands in scb8:
 pub const READ         : usize =  0;

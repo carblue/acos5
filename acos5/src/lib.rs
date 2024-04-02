@@ -2756,16 +2756,16 @@ Tokenunfo
                 }
                 cbc =  env_ref.algorithm_flags != SC_ALGORITHM_AES_ECB;
             }
-       }
+        }
 
-        let env_ref_algorithm_ref;
-        if (env_ref.flags & SC_SEC_ENV_ALG_REF_PRESENT) > 0 {
-            env_ref_algorithm_ref = u8::try_from(env_ref.algorithm_ref).unwrap();
-        }
-        else {
-            env_ref_algorithm_ref = algo_ref_mse_sedo(card.type_,0, CRT_TAG_CT,
-                env_ref.algorithm, 0, cbc, false).unwrap();
-        }
+//        let env_ref_algorithm_ref;
+        let env_ref_algorithm_ref : u8 = if (env_ref.flags & SC_SEC_ENV_ALG_REF_PRESENT) > 0 {
+                u8::try_from(env_ref.algorithm_ref).unwrap()
+            }
+            else {
+                algo_ref_mse_sedo(card.type_,0, CRT_TAG_CT, env_ref.algorithm,
+                                  0, cbc, false).unwrap()
+            };
 
         let mut vec =   // made for cbc and blockSize == 16
             vec![0_u8,  0x22, 0x01,  CRT_TAG_CT, 0xFF,

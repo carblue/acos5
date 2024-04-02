@@ -33,7 +33,7 @@ use crate::scconf::scconf_block;
 use crate::aux_data::sc_auxiliary_data;
 
 
-////pub const SC_PKCS15_CACHE_DIR        ".eid"
+//pub const SC_PKCS15_CACHE_DIR        ".eid"
 
 pub const SC_PKCS15_PIN_MAGIC       : usize = 0x3141_5926;
 pub const SC_PKCS15_MAX_PINS        : usize = 8;

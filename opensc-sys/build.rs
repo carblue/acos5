@@ -10,13 +10,13 @@ fn parse_version_string(input: &str) -> String {
     let mut result = String::from("cargo:rustc-cfg=");
     let v: Vec<&str>;
     {
-        let pos = input.find('-').or(Some(input.as_bytes().len())).unwrap();
+        let pos = input.find('-').unwrap_or(input.as_bytes().len());
         let input = std::str::from_utf8(&input.as_bytes()[..pos]).unwrap();
         v = input.splitn(3, '.').collect();
     }
     assert_eq!(3, v.len());
     for (i, &elem) in v.iter().enumerate() {
-        if i==0 { result.push_str("v"); }
+        if i==0 { result.push('v'); }
         else    { result.push('_'); }
         result.push_str(elem);
         if i==1 && (elem.parse::<u32>().is_err() || elem.parse::<u32>().unwrap()<17) {
