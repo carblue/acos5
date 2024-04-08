@@ -424,9 +424,9 @@ fn sc_asn1_utf8string_to_ascii(buf: *const u8, buflen: usize, outbuf: *mut u8, o
 /// @param outlen  IN  Length of receiving buffer array\
 /// @return        Number of bits decoded (<=8*outlen)\
 /// @test available
-#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))]
+#[cfg(    any(v0_20_0, v0_21_0))]
 pub fn sc_asn1_decode_bit_string(inbuf: *const u8, inlen: usize, outbuf: p_void, outlen: usize) -> i32;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+#[cfg(not(any(v0_20_0, v0_21_0)))]
 pub fn sc_asn1_decode_bit_string(inbuf: *const u8, inlen: usize, outbuf: p_void, outlen: usize, strict: i32) -> i32;
 
 /* non-inverting version */
@@ -439,9 +439,9 @@ pub fn sc_asn1_decode_bit_string(inbuf: *const u8, inlen: usize, outbuf: p_void,
 /// @param outlen  IN  Length of receiving buffer array\
 /// @return        Number of bits decoded (<=8*outlen)\
 /// @test available
-#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))]
+#[cfg(    any(v0_20_0, v0_21_0))]
 pub fn sc_asn1_decode_bit_string_ni(inbuf: *const u8, inlen: usize, outbuf: p_void, outlen: usize) -> i32;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+#[cfg(not(any(v0_20_0, v0_21_0)))]
 pub fn sc_asn1_decode_bit_string_ni(inbuf: *const u8, inlen: usize, outbuf: p_void, outlen: usize, strict: i32) -> i32;
 
 /// Decodes DER integer bytes (max 4) to i32
@@ -451,9 +451,9 @@ pub fn sc_asn1_decode_bit_string_ni(inbuf: *const u8, inlen: usize, outbuf: p_vo
 /// @param outbuf  OUT Receiving address for: Decoded i32\
 /// @return        SC_SUCCESS or error code\
 /// @test available
-#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
+#[cfg(    v0_20_0)]
 pub fn sc_asn1_decode_integer(inbuf: *const u8, inlen: usize, out: *mut i32) -> i32;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+#[cfg(not(v0_20_0))]
 pub fn sc_asn1_decode_integer(inbuf: *const u8, inlen: usize, out: *mut i32, strict: i32) -> i32;
 
 /// Decodes DER object_id bytes to sc_object_id
@@ -525,45 +525,41 @@ pub fn sc_asn1_sig_value_rs_to_sequence(ctx: *mut sc_context, r#in: *mut u8, inl
                                         buf: *mut *mut u8, buflen: *mut usize) -> i32;
 
 /// Undocumented, untested
-#[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-pub fn sc_asn1_sig_value_sequence_to_rs(ctx: *mut sc_context, r#in: *mut u8, inlen: usize,
-                                        buf: *mut u8, buflen: usize) -> i32;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub fn sc_asn1_sig_value_sequence_to_rs(ctx: *mut sc_context, r#in: *const u8, inlen: usize,
                                         buf: *mut u8, buflen: usize) -> i32;
 
 /* ECDSA signature decoding*/
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
 pub fn sc_asn1_decode_ecdsa_signature(ctx: *mut sc_context, data: *const u8, datalen: usize,
                                       fieldsize: usize, out: *mut *mut u8, outlen: usize) -> i32;
 } // extern "C"
 
 /* long form tags use these */
 /* Same as  SC_ASN1_TAG_* shifted left by 24 bits  */
-#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))]
+#[cfg(    any(v0_20_0, v0_21_0))]
 pub const SC_ASN1_CLASS_MASK            : u32 = 0x3000_0000;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+#[cfg(not(any(v0_20_0, v0_21_0)))]
 pub const SC_ASN1_CLASS_MASK            : u32 = 0xC000_0000;
 pub const SC_ASN1_UNI                   : u32 = 0x0000_0000; /* Universal */
 
-#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))]
+#[cfg(    any(vv0_20_0, v0_21_0))]
 pub const SC_ASN1_APP                   : u32 = 0x1000_0000; /* Application */
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+#[cfg(not(any(v0_20_0, v0_21_0)))]
 pub const SC_ASN1_APP                   : u32 = 0x4000_0000; /* Application */
-#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))]
+#[cfg(    any(v0_20_0, v0_21_0))]
 pub const SC_ASN1_CTX                   : u32 = 0x2000_0000; /* Context */
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+#[cfg(not(any(v0_20_0, v0_21_0)))]
 pub const SC_ASN1_CTX                   : u32 = 0x8000_0000; /* Context */
-#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))]
+#[cfg(    any(v0_20_0, v0_21_0))]
 pub const SC_ASN1_PRV                   : u32 = 0x3000_0000; /* Private */
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+#[cfg(not(any(v0_20_0, v0_21_0)))]
 pub const SC_ASN1_PRV                   : u32 = 0xC000_0000; /* Private */
-#[cfg(    any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))]
+#[cfg(    any(v0_20_0, v0_21_0))]
 pub const SC_ASN1_CONS                  : u32 = 0x0100_0000;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+#[cfg(not(any(v0_20_0, v0_21_0)))]
 pub const SC_ASN1_CONS                  : u32 = 0x2000_0000;
 
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+#[cfg(not(any(v0_20_0, v0_21_0)))]
 pub const SC_ASN1_CLASS_CONS            : u32 = 0xE000_0000; /* CLASS and CONS */
 pub const SC_ASN1_TAG_MASK              : u32 = 0x00FF_FFFF;
 pub const SC_ASN1_TAGNUM_SIZE           : usize = 3;
@@ -615,7 +611,7 @@ pub const SC_ASN1_TAG_PRIVATE           : u32 = 0xC0;
 
 pub const SC_ASN1_TAG_CONSTRUCTED       : u32 = 0x20;
 pub const SC_ASN1_TAG_PRIMITIVE         : u32 = 0x1F;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+#[cfg(not(any(v0_20_0, v0_21_0)))]
 pub const SC_ASN1_TAG_CLASS_CONS        : u32 = 0xE0;
 
 /* sc_asn1_entry.tag   SC_ASN1_TAG_EOC <-> SC_ASN1_TAG_ESCAPE_MARKER,   maybe bitOR'ed e.g. with */
@@ -933,7 +929,7 @@ mod tests {
         let integer_in = [0x10_u8, 0x00];
         let mut integer_out = 0_i32;
         cfg_if::cfg_if! {
-            if #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))] {
+            if #[cfg(v0_20_0)] {
                 let rv = unsafe { sc_asn1_decode_integer(integer_in.as_ptr(), integer_in.len(), &mut integer_out) };
             }
             else {
@@ -949,7 +945,7 @@ mod tests {
         let array_in      = [0x06_u8, 0x20, 0x40];
         let mut array_out = [0_u8, 0];
         cfg_if::cfg_if! {
-            if #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))] {
+            if #[cfg(any(v0_20_0, v0_21_0))] {
                 let rv = unsafe { sc_asn1_decode_bit_string(array_in.as_ptr(), array_in.len(),
                                                             array_out.as_mut_ptr() as p_void, array_out.len()) };
             }
@@ -968,7 +964,7 @@ mod tests {
         let array_in      = [0x06_u8, 0xC0];
         let mut array_out = [0_u8, 0];
         cfg_if::cfg_if! {
-            if #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))] {
+            if #[cfg(any(v0_20_0, v0_21_0))] {
                 let rv = unsafe { sc_asn1_decode_bit_string(array_in.as_ptr(), array_in.len(),
                                                             array_out.as_mut_ptr() as p_void, array_out.len()) };
              }
@@ -987,7 +983,7 @@ mod tests {
         let array_in      = [0x06_u8, 0xC0];
         let mut array_out = [0_u8, 0];
         cfg_if::cfg_if! {
-            if #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0))] {
+            if #[cfg(any(v0_20_0, v0_21_0))] {
                 let rv = unsafe { sc_asn1_decode_bit_string_ni(array_in.as_ptr(), array_in.len(),
                                                                array_out.as_mut_ptr() as p_void, array_out.len()) };
              }

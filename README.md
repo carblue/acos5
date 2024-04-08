@@ -2,8 +2,8 @@
 [![Build Status](https://travis-ci.org/carblue/acos5.svg?branch=master)](https://travis-ci.org/carblue/acos5)
 
 Driver for Advanced Card Systems (ACS)  ACOS5 Smart Card V2.00 (CryptoMate64) and V3.00 (CryptoMate Nano),  
-as external modules, operating within the OpenSC software framework.
-Maybe if once [pcsc-tools](http://ludovic.rousseau.free.fr/softwares/pcsc-tools/ "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/") will support ACOS5-EVO / CryptoMate EVO, I might continue work on supporting that in driver's code as well.
+as external modules, operating within the OpenSC software framework (versions supported: 0.20.0 - 0.25.0).
+Maybe if once [pcsc-tools](http://ludovic.rousseau.free.fr/softwares/pcsc-tools/ "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/") will support V4.X0 ACOS5-EVO / CryptoMate EVO, I might continue work on supporting that in driver's code as well.
 
 The respective reference manual for Your hardware is available on request from: info@acs.com.hk
 
@@ -16,8 +16,9 @@ Release tags get added irregularly, mainly i.o. to refer to something from `acos
 
 
 Motivation:  
-For platform-independent, serious use of a cryptographic token from software like Firefox, Thunderbird, ssh etc., a [PKCS#11](https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11 "https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11") implementing library is required.  
-There is none known to me for ACOS5 that is open-source, nothing in this regard downloadable from ACS for free, instead, one has to pay a lot more for a proprietary ACS PKCS#11 library (bundled with some other software) than for a single hardware token.  
+For OS/platform-independent, serious use of a cryptographic hardware/token from software like Firefox, Thunderbird, ssh etc., a [PKCS#11](https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11 "https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11") implementing library is required.
+There is none known to me for ACOS5 that is open-source, nothing in this regard downloadable from ACS for free, instead, one has to pay a lot more for a proprietary ACS PKCS#11 library (bundled with some other software) than for a single hardware token. They even have a proprietary ACS PKCS#11 library for Linux, but don't advertise that, and probably it also needs to be bought.
+
 The only open-source software downloadable from ACS is [acsccid](https://github.com/acshk/acsccid "https://github.com/acshk/acsccid"), a PC/SC driver for Linux/Mac OS X. PC/SC or WinSCard (Windows) is just the basic layer on which a PKCS#11 library can build upon. I never installed acsccid for production use of my CryptoMate64 and CryptoMate Nano, hence the debian/ubuntu-supplied [ccid](https://ccid.apdu.fr/ "https://ccid.apdu.fr/") seems to be sufficient (if it's new enough to list those cards as supported ones: [shouldwork](https://ccid.apdu.fr/ccid/shouldwork.html "https://ccid.apdu.fr/ccid/shouldwork.html")).  
 So be careful what You get from ACS when it's called driver. Perhaps You get something that is behind the "File Upon Request" barrier.
 
@@ -37,11 +38,11 @@ Mandatory:
 Recommended:  
 - [pcsc-tools](http://ludovic.rousseau.free.fr/softwares/pcsc-tools/ "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/"), provides `scriptor` for card initialization as a batch run of commands, see [info/card_initialization/README.md](https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md "https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md")
 ```
-sudo apt-get update
-sudo apt-get upgrade
-sudo apt-get install opensc opensc-pkcs11 openssl pcscd libssl-dev libtasn1-6-dev build-essential pcsc-tools
+$ sudo apt-get update
+$ sudo apt-get upgrade
+$ sudo apt-get install opensc opensc-pkcs11 openssl pcscd libssl-dev libtasn1-6-dev build-essential pcsc-tools
 ```
-**If that doesn't install a symbolic link libopensc.so, then this must be done manually. See also file travis.yml**
+**If that doesn't install a symbolic link libopensc.so, then this must be done manually, followed by a sudo ldconfig. See also file travis.yml**
 
 Optional:  
 - [IUP](https://webserver2.tecgraf.puc-rio.br/iup/en/download.html "https://webserver2.tecgraf.puc-rio.br/iup/en/download.html") from [pre-build binaries](https://sourceforge.net/projects/iup/files/ "https://sourceforge.net/projects/iup/files/") in ...Libraries sub-folder   
@@ -56,15 +57,15 @@ This repo builds 2 dll/shared object libraries:
 In the following I won't make any distinction anymore and call both 'the driver' for ACOS5.
 
 This repo also builds a library from the included opensc-sys binding for internal use. It's the basic building block for the driver components in order to be able to call into the libopensc.so library, the backbone/workhorse of OpenSC.  
-The minimal OpenSC version supported is 0.17.0  
+The minimal OpenSC version supported is 0.20.0 now. Former support of 0.17.0 - 0.19.0 was dropped.
 
-All these builds will be tied to the OpenSC version installed, so that installation must be done first. Then, for all 3 builds there are files build.rs which get processed prior to the remaining build and control how that will be done (conditional compilation, see [conditional_compile_options](https://github.com/carblue/acos5/tree/master/conditional_compile_options.md "https://github.com/carblue/acos5/tree/master/conditional_compile_options.md")). The first one will detect the OpenSC version installed, adapt the opensc_sys binding to that version and pass the version info to the other builds.
+All these builds will be tied to the OpenSC version installed on Your pc, so that installation must be done first. Then, for all 3 builds there are files build.rs which get processed prior to the remaining build and control how that will be done (conditional compilation, see [conditional_compile_options](https://github.com/carblue/acos5/tree/master/conditional_compile_options.md "https://github.com/carblue/acos5/tree/master/conditional_compile_options.md")). The first one will detect the OpenSC version installed, adapt the opensc_sys binding to that version and pass the version info to the other builds.
 Upon loading external modules, OpenSC will check, that driver's version matches the one of the installed OpenSC version, rejecting the external modules in case of version mismatch.  
 OpenSC also has the implication: If Your card got initialized by an ACS tool and is not [PKCS#15](https://stackoverflow.com/questions/33792095/what-does-it-mean-for-a-smart-card-to-be-pkcs15-compatible "https://stackoverflow.com/questions/33792095/what-does-it-mean-for-a-smart-card-to-be-pkcs15-compatible") compliant (this is true for all that I've run into), then it won't work (well) with OpenSC and likely requires card's re-initialization, see [card_initialization README](https://github.com/carblue/acos5/tree/master/info/card_initialization "https://github.com/carblue/acos5/tree/master/info/card_initialization"))  
 
 
 IMPORTANT behavior  
-There is a huge number of "limits" and "rules" that apply, many originate from standards like PKCS#15 or OpenSC, others from this driver, far more than I'm willing to declare expressly other than in code (and I hope having covered all by checks).
+There is a huge number of "limits" and "rules" that apply, many originate from standards like PKCS#15 or OpenSC, others from this driver, far more than I'm willing to describe expressly other than in code (and I hope having covered all by checks).
 Common usage won't exceed these limits and the driver will "just work". E.g. probably You won't have a file in Your file system that will be addressed by such a long 18-byte path, e.g.
 0x3F00_4100_4200_4300_4400_4500_4600_4700_4710  
 An 18-byte path length won't work, as OpenSC data structures are limited to a path length of 16 bytes.  
@@ -93,14 +94,14 @@ Thus a sanity-check without any errors found should prevent the driver from beco
 2. Copy acos5_pkcs15/acos5_external.profile to the directory where all the other .profile files installed by OpenSC are located, for Linux probably in /usr/share/opensc/ or /usr/local/share/opensc/, for Windows something like C:/Program Files/OpenSC Project/OpenSC/profiles.  
 
 3. Adapt opensc.conf (see below). Also, in the beginning, switch on logging by a setting `debug=3;` and for debug_file set the file name receiving the logging output.  
-   If all the above went well, the log file will have an entry within it's first 4 lines, reporting: "load_dynamic_driver: successfully loaded card driver 'acos5_external'".  
-   Check that by issuing: `opensc-tool --info`  
+   If all the above went well, the log file will have an entry within it's first 5 lines, reporting: "load_dynamic_driver: successfully loaded card driver 'acos5_external'".  
+   Check that by issuing (in a shell; $ is the Linux shell prompt for a user without admin rights, not part of the command): `$ opensc-tool --info`  
    The last command should have successfully loaded card driver 'acos5_external', but it didn't yet use it. The next will do so (and also check for disallowed duplicate file ids):  
-   `opensc-tool --serial`
+   `$ opensc-tool --serial`
 4. In case build errors or other errors occur:
    You have a copy of the opensc-sys binding on Your system in directory opensc-sys.  
    If there are build errors, then go to that folder and issue  
-   `cargo test test_struct_sizeof -- --nocapture`  
+   `$ cargo test test_struct_sizeof -- --nocapture`  
    Likely that fails then, and an error reason is found by asking why didn't that find the library libopensc.so or does the version reported differ, or ?, or as the worst case:  
    OpenSC was built with different settings/switches than the binding requires/assumes.  
    Other errors occur: Likely the opensc.conf file is incorrect.  
@@ -257,7 +258,7 @@ click New SSH key and copy/paste Your key content.
 
 Then test whether You "could" establish an ssh connection with Your github_key:  
 ```
-ssh -T -I/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so  git@github.com
+$ ssh -T -I/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so  git@github.com
 ```
 Hi your_github_user_name! You've successfully authenticated, but GitHub does not provide shell access.
 

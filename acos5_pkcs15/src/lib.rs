@@ -187,9 +187,9 @@ const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = unsafe { sc_get_version() };
-    if cfg!(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))  { version_ptr }
-    // else if cfg!(v0_23_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered: 991bb8a ; sym_hw_encrypt: 39b281f
-    else                   { cstru!(b"0.0.0\0" ).as_ptr() } // will definitely cause rejection by OpenSC
+    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0))  { version_ptr }
+    // else if cfg!(v0_26_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered:
+    else                   { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
 }
 
 #[allow(clippy::missing_safety_doc)]
@@ -454,32 +454,34 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         return rv;
     }
     /* Check that the card supports the requested modulus length */
-    if unsafe { sc_card_find_rsa_alg(card, u32::try_from(keybits).unwrap()).is_null() } {
-        rv = SC_ERROR_INVALID_ARGUMENTS;
-        log3if!(ctx,f,line!(), cstru!(b"Failed: Unsupported RSA key size %zu\0"), keybits);
-        return rv;
+//    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))
+    unsafe { cfg_if::cfg_if! {
+    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
+        if sc_card_find_rsa_alg(card, u32::try_from(keybits).unwrap()).is_null() {
+            rv = SC_ERROR_INVALID_ARGUMENTS;
+            log3if!(ctx,f,line!(), c"Failed: Unsupported RSA key size %zu", keybits);
+            return rv;
+        }
     }
+    else {
+        if sc_card_find_rsa_alg(card, keybits).is_null() {
+        rv = SC_ERROR_INVALID_ARGUMENTS;
+        log3if!(ctx,f,line!(), c"Failed: Unsupported RSA key size %zu", keybits);
+        return rv;
+        }
+    }}}
+
     /* TODO Think about other checks or possibly refuse to generate keys if file access rights are wrong */
 /* */
     /* enlarge EF.PrKDF, EF.PuKDF, if required AND check for enough memory available */
     #[cfg(not(target_os = "windows"))]
     {
-    cfg_if::cfg_if! {
-        if #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))] {
-            if object.session_object == 0 {
-                match check_enlarge_prkdf_pukdf(profile, p15card, key_info) {
-                    Ok(_val) => (),
-                    Err(e) => return e,
-                }
-            }
-        }
-        else {
+        if object.session_object == 0 {
             match check_enlarge_prkdf_pukdf(profile, p15card, key_info) {
                 Ok(_val) => (),
                 Err(e) => return e,
             }
         }
-    }
     }
 /* */
     key_info.access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE |
@@ -892,7 +894,6 @@ extern "C" fn acos5_pkcs15_store_key(profile_ptr: *mut sc_profile, p15card_ptr: 
     if skey.data.is_null() || skey.data_len == 0 || skey_info.value_len/8 != skey.data_len {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
-    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     if object.session_object != 0 {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
@@ -958,7 +959,13 @@ extern "C" fn acos5_pkcs15_store_key(profile_ptr: *mut sc_profile, p15card_ptr: 
     if rv != SC_SUCCESS {
         return SC_ERROR_SECURITY_STATUS_NOT_SATISFIED;
     }
-    unsafe { sc_update_record(card, skey_info.path.index.try_into().unwrap(), key_vec.as_ptr(), key_vec.len(), SC_RECORD_BY_REC_NR) }
+    cfg_if::cfg_if! {
+    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
+        unsafe { sc_update_record(card, skey_info.path.index.try_into().unwrap(), key_vec.as_ptr(), key_vec.len(), SC_RECORD_BY_REC_NR) }
+    }
+    else {
+        unsafe { sc_update_record(card, skey_info.path.index.try_into().unwrap(), 0, key_vec.as_ptr(), key_vec.len(), SC_RECORD_BY_REC_NR) }
+    }}
 } // acos5_pkcs15_store_key
 
 

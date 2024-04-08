@@ -27,14 +27,6 @@ use crate::types::{sc_apdu, sc_remote_data, sc_path, sc_aid, sc_serial_number, S
     sc_tlv_data, sc_crt, sc_cplc};
 use crate::opensc::{sc_card, sc_context};
 
-
-#[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
-pub const SHA_DIGEST_LENGTH    : u32 = 20;
-#[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
-pub const SHA1_DIGEST_LENGTH   : u32 = 20;
-#[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
-pub const SHA256_DIGEST_LENGTH : u32 = 32;
-
 pub const SM_TYPE_GP_SCP01 : u32 = 0x100;
 pub const SM_TYPE_CWA14890 : u32 = 0x400;
 pub const SM_TYPE_DH_RSA   : u32 = 0x500;
@@ -92,7 +84,7 @@ pub const SM_GP_SECURITY_ENC  : u32 = 0x03;
 /* As in OpenSSL include/openssl/des.h */
 
 cfg_if::cfg_if! {
-    if #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))] {
+    if #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))] {
         #[allow(non_camel_case_types)]
         pub type sm_des_cblock       = [u8; 8]; // typedef             unsigned char sm_des_cblock[8];
         #[allow(non_camel_case_types)]

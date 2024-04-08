@@ -35,10 +35,13 @@ sudo checkinstall
 libdir may be different for some Posix OS and `checkinstall` instead of `make install` is just my preference (Kubuntu).
 Hence all conditional_compile_options originating from C headers are implicitly covered, but some new introduced:
 
-v0_17_0  
-v0_18_0  
-v0_19_0  
-v0_20_0  
+v0_20_0
+v0_21_0
+v0_22_0
+v0_23_0
+v0_24_0
+v0_25_0
+v0_26_0
 
 impl_default  
 impl_display  

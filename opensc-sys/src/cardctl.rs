@@ -22,7 +22,7 @@
  */
 
 use std::os::raw::{c_char, c_ulong};
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+#[cfg(not(v0_20_0))]
 use crate::pkcs15::{sc_pkcs15_tokeninfo};
 
 //#define _CTL_PREFIX(a, b, c) (((a) << 24) | ((b) << 16) | ((c) << 8))
@@ -37,7 +37,7 @@ pub const SC_CARDCTL_LIFECYCLE_GET           : c_ulong =  0x0000_0003;
 pub const SC_CARDCTL_LIFECYCLE_SET           : c_ulong =  0x0000_0004;
 pub const SC_CARDCTL_GET_SERIALNR            : c_ulong =  0x0000_0005;
 cfg_if::cfg_if! {
-    if #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
+    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
 pub const SC_CARDCTL_GET_SE_INFO             : c_ulong =  0x0000_0006;
 pub const SC_CARDCTL_GET_CHV_REFERENCE_IN_SE : c_ulong =  0x0000_0007;
 pub const SC_CARDCTL_PKCS11_INIT_TOKEN       : c_ulong =  0x0000_0008;
@@ -104,7 +104,7 @@ pub type sc_cardctl_pkcs11_init_pin_t = sc_cardctl_pkcs11_init_pin;
 /*
  * Generic cardctl - card driver can examine token info
  */
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0)))]
+#[cfg(not(v0_20_0))]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_cardctl_parsed_token_info {

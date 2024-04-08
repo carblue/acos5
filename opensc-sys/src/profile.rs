@@ -152,7 +152,7 @@ pub struct sc_profile {
     pub pin_attempts : u32,
     pub puk_attempts : u32,
     pub rsa_access_flags : u32,
-    #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0))]
+    #[cfg(any(v0_20_0, v0_21_0, v0_22_0))]
     pub dsa_access_flags : u32,
 
     pub pkcs15 : sc_profile__bindgen_ty_1,

@@ -32,14 +32,10 @@ pub const SC_MAX_CARD_DRIVER_SNAME_SIZE : usize =    16;
 pub const SC_MAX_CARD_APPS              : usize =     8;
 pub const SC_MAX_APDU_BUFFER_SIZE       : usize =   0xFF+6;   /* 261 takes account of: CLA INS P1 P2 Lc [255 byte of data] Le */
 pub const SC_MAX_EXT_APDU_BUFFER_SIZE   : usize =   0xFFFF+3; /* 65538 */
-cfg_if::cfg_if! {
-    if #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))] {
-        pub const SC_MAX_APDU_DATA_SIZE         : usize = 0xFF;   // == SC_READER_SHORT_APDU_MAX_SEND_SIZE
-        pub const SC_MAX_APDU_RESP_SIZE         : usize = 0xFF+1; // == SC_READER_SHORT_APDU_MAX_RECV_SIZE
-        pub const SC_MAX_EXT_APDU_DATA_SIZE     : usize = 0xFFFF;
-        pub const SC_MAX_EXT_APDU_RESP_SIZE     : usize = 0xFFFF+1;
-    }
-}
+pub const SC_MAX_APDU_DATA_SIZE         : usize = 0xFF;   // == SC_READER_SHORT_APDU_MAX_SEND_SIZE
+pub const SC_MAX_APDU_RESP_SIZE         : usize = 0xFF+1; // == SC_READER_SHORT_APDU_MAX_RECV_SIZE
+pub const SC_MAX_EXT_APDU_DATA_SIZE     : usize = 0xFFFF;
+pub const SC_MAX_EXT_APDU_RESP_SIZE     : usize = 0xFFFF+1;
 pub const SC_MAX_PIN_SIZE               : usize =   256; /* OpenPGP card has 254 max */
 pub const SC_MAX_ATR_SIZE               : usize =    33;
 pub const SC_MAX_UID_SIZE               : usize =    10;
@@ -52,7 +48,7 @@ pub const SC_MAX_PATH_STRING_SIZE       : usize = SC_MAX_PATH_SIZE * 2 + 3;
 pub const SC_MAX_SDO_ACLS               : usize =     8;
 pub const SC_MAX_CRTS_IN_SE             : usize =    12;
 pub const SC_MAX_SE_NUM                 : usize =     8;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0)))]
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
 pub const SC_MAX_PKCS15_EMULATORS       : usize =    48;
 
 /* When changing this value, pay attention to the initialization of the ASN1
@@ -62,7 +58,7 @@ pub const SC_MAX_PKCS15_EMULATORS       : usize =    48;
  * `grep "src/libopensc/types.h SC_MAX_SUPPORTED_ALGORITHMS  defined as"'
  */
 cfg_if::cfg_if! {
-    if #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))] {
+    if #[cfg(v0_20_0)] {
         pub const SC_MAX_SUPPORTED_ALGORITHMS   : usize =  8;
     }
     else {
@@ -229,7 +225,6 @@ pub const SC_AC_SEN              : u32 =  0x0000_0020; /* Security Environment. 
 pub const SC_AC_SCB              : u32 =  0x0000_0040; /* IAS/ECC SCB byte. */
 pub const SC_AC_IDA              : u32 =  0x0000_0080; /* PKCS#15 authentication ID */
 pub const SC_AC_SESSION          : u32 =  0x0000_0100; /* Session PIN */ // since opensc source release v0.17.0
-#[cfg(not(v0_17_0))]
 pub const SC_AC_CONTEXT_SPECIFIC : u32 =  0x0000_0200; /* Context specific login */ // since opensc source release v0.18.0
 
 pub const SC_AC_UNKNOWN          : u32 =  0xFFFF_FFFE;
@@ -283,7 +278,7 @@ pub struct sc_acl_entry {
     pub method  : u32, /* See SC_AC_* */
     pub key_ref : u32, /* SC_AC_KEY_REF_NONE or an integer */
 
-    #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
+    #[cfg(v0_20_0)]
     pub crts    : [sc_crt; SC_MAX_CRTS_IN_SE],
 
     pub next    : *mut sc_acl_entry,
@@ -295,7 +290,7 @@ impl Default for sc_acl_entry {
         Self {
             method: 0, // 0 == SC_AC_OP_SELECT
             key_ref: 0,
-            #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
+            #[cfg(v0_20_0)]
             crts: [sc_crt::default(); SC_MAX_CRTS_IN_SE],
             next: null_mut()
         }
@@ -327,12 +322,11 @@ pub const SC_FILE_EF_CYCLIC_TLV          : u32 =  0x07;
 
 /* File flags */
 cfg_if::cfg_if! {
-    if #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))] {
-        pub const SC_FILE_FLAG_COMPRESSED_AUTO  : c_ulong =  0x01;
-        pub const SC_FILE_FLAG_COMPRESSED_ZLIB  : c_ulong =  0x02;
-        pub const SC_FILE_FLAG_COMPRESSED_GZIP  : c_ulong =  0x04;
-    }
-}
+if #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)))] {
+    pub const SC_FILE_FLAG_COMPRESSED_AUTO  : c_ulong =  0x01;
+    pub const SC_FILE_FLAG_COMPRESSED_ZLIB  : c_ulong =  0x02;
+    pub const SC_FILE_FLAG_COMPRESSED_GZIP  : c_ulong =  0x04;
+}}
 
 /* File status flags */
 /* ISO7816-4: Unless otherwise specified, the security attributes are valid for the operational state.*/
@@ -372,16 +366,10 @@ pub struct sc_file {
     pub id           : i32,  /* file identifier (2 bytes) */
     pub sid          : i32,  /* short EF identifier (1 byte) */
     pub acl          : [*mut sc_acl_entry; SC_MAX_AC_OPS], /* Access Control List */
-    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0)))]
+    #[cfg(not(any(v0_20_0, v0_21_0)))]
     acl_inactive     : i32,  /* if set, the card access control mechanism is not active */
 
-    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-    pub record_length : i32,   /* max. length in case of record-oriented EF */
-    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     pub record_length : usize, /* max. length in case of record-oriented EF */
-    #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-    pub record_count  : i32,   /* Valid, if not transparent EF or DF */
-    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     pub record_count  : usize, /* Valid, if not transparent EF or DF */
 
     pub sec_attr      : *mut u8, /* security data in proprietary format. tag '86' */
@@ -460,7 +448,7 @@ pub const SC_APDU_FLAGS_NO_RETRY_WL  : c_ulong =  0x0000_0004;
 /* APDU is from Secure Messaging  */
 pub const SC_APDU_FLAGS_NO_SM        : c_ulong =  0x0000_0008; // since opensc source release v0.17.0
 /* let SM do the command chaining  */
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
 pub const SC_APDU_FLAGS_SM_CHAINING  : c_ulong =  0x0000_0010;
 
 pub const SC_APDU_ALLOCATE_FLAG      : c_ulong =  0x01;

@@ -28,7 +28,6 @@ use std::ffi::CStr;
 
 use opensc_sys::opensc::{sc_context};
 use opensc_sys::log::{sc_do_log, SC_LOG_DEBUG_NORMAL};
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 use opensc_sys::log::{sc_do_log_color, SC_COLOR_FG_RED};
 use opensc_sys::errors::{sc_strerror};
 
@@ -126,12 +125,12 @@ pub fn wr_do_log_sds(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv:
 //        let fmt = CSTR_INT_CSTR.as_ptr();
         //                  cstru!(b"%s: %d (%s)\n\0"))
         //, cstru!(b"%s rv: %d (%s)\n\0")
-        #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-        unsafe {       sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(),
-                                   CSTR_INT_CSTR.as_ptr(), arg1.as_ptr(), rv, sc_strerror(rv)); }
-        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+//        #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
+//        unsafe {       sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(),
+//                                   CSTR_INT_CSTR.as_ptr(), arg1.as_ptr(), rv, sc_strerror(rv)); }
+//        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
         unsafe { sc_do_log_color(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(), SC_COLOR_FG_RED,
-                                   CSTR_INT_CSTR.as_ptr(), arg1.as_ptr(), rv, sc_strerror(rv)); }
+                                 CSTR_INT_CSTR.as_ptr(), arg1.as_ptr(), rv, sc_strerror(rv)); }
     }
 }
 
@@ -141,12 +140,12 @@ pub fn wr_do_log_rv(ctx: &mut sc_context, f: &CStr, line: u32, rv: i32)
 {
     if cfg!(log) {
         if rv <= 0 {
-            #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-                unsafe {       sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(),
-                                    RETURNING_INT_CSTR.as_ptr(), rv, sc_strerror(rv)); }
-            #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
+//            #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
+//                unsafe {       sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(),
+//                                    RETURNING_INT_CSTR.as_ptr(), rv, sc_strerror(rv)); }
+//            #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
                 unsafe { sc_do_log_color(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(), SC_COLOR_FG_RED,
-                                    RETURNING_INT_CSTR.as_ptr(), rv, sc_strerror(rv)); }
+                                         RETURNING_INT_CSTR.as_ptr(), rv, sc_strerror(rv)); }
         }
         else {
             unsafe {            sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(),

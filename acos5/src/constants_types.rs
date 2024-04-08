@@ -218,9 +218,7 @@ pub const SC_SEC_OPERATION_DECIPHER     : i32 = 0x0001;
 pub const SC_SEC_OPERATION_SIGN         : i32 = 0x0002;
 pub const SC_SEC_OPERATION_AUTHENTICATE : i32 = 0x0003;
 pub const SC_SEC_OPERATION_DERIVE       : i32 = 0x0004;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub const SC_SEC_OPERATION_WRAP         : i32 = 0x0005;
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub const SC_SEC_OPERATION_UNWRAP       : i32 = 0x0006;
 //#[cfg(sym_hw_encrypt)]
 //pub const SC_SEC_OPERATION_ENCRYPT_SYM  : i32 = 0x0007;
@@ -541,7 +539,10 @@ impl DerefMut for GuardFile {
 pub struct Acos5EcCurve {
     pub curve_name : *const c_char,
     pub curve_oid  : sc_object_id,
+    #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub size       : u32,
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub size       : usize,
 }
 /* more related to acos5_pkcs15 */
 /* more related to acos5_sm */
@@ -553,7 +554,10 @@ pub struct Acos5EcCurve {
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct CardCtlAlgoRefSymStore {
     pub card_type: i32,     // IN
+    #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub algorithm: u32,     // IN
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub algorithm: c_ulong, // IN
     pub key_len_bytes: u8,  // IN
     pub value        : u8,  // OUT
 }
@@ -674,9 +678,14 @@ pub struct CardCtl_crypt_sym {
     /* until OpenSC v0.20.0  iv is [0u8; 16], then use sc_sec_env_param and SC_SEC_ENV_PARAM_IV */
     pub iv           : [u8; 16],
     pub iv_len       : usize, // 0==unused or equal to block_size, i.e. 16 for AES, else 8
-
+    #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub algorithm       : u32, // e.g. SC_ALGORITHM_AES
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub algorithm       : c_ulong, // e.g. SC_ALGORITHM_AES
+    #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub algorithm_flags : u32, // e.g. SC_ALGORITHM_AES_CBC_PAD
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub algorithm_flags : c_ulong, // e.g. SC_ALGORITHM_AES_CBC_PAD
 //  pub key_id       : u8, // how the key is known by OpenSC in SKDF: id
     pub key_ref      : u8, // how the key is known by cos5: e.g. internal local key with id 3 has key_ref: 0x83
     pub block_size   : u8, // 16: AES; 8: 3DES or DES
@@ -792,7 +801,10 @@ pub struct DataPrivate { // see settings in acos5_init
 //  pub sec_env_algo_flags : u32, // remember the padding scheme etc. selected for RSA; required in acos5_64_set_security_env
     pub time_stamp : std::time::Instant,
     pub sm_cmd : u32,
+    #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub rsa_caps : u32, // remember how the rsa_algo_flags where set for _sc_card_add_rsa_alg
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    pub rsa_caps : c_ulong, // remember how the rsa_algo_flags where set for _sc_card_add_rsa_alg
     pub sec_env_mod_len : u16, //u32,
     pub rfu_align_pad1  : u16,
     pub does_mf_exist : bool,

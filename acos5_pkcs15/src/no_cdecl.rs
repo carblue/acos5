@@ -1,6 +1,8 @@
 //use libc::strlen;
 //use std::ffi::CStr;
 use std::os::raw::{c_void};
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+use std::os::raw::{c_ulong};
 use std::collections::HashSet;
 use std::ptr::{null_mut, addr_of_mut};
 use std::cmp::Ordering;
@@ -257,7 +259,16 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
     rv = unsafe { sc_select_file(card, &df_path_priv, *guard_file_priv) };
     if rv != SC_SUCCESS { return Err(-1); }
     let mut rbuf_priv = vec![0_u8; size_priv];
-    rv = unsafe { sc_read_binary(card, 0, rbuf_priv.as_mut_ptr(), rbuf_priv.len(), 0) };
+
+    rv = unsafe { cfg_if::cfg_if! {
+        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
+            sc_read_binary(card, 0, rbuf_priv.as_mut_ptr(), rbuf_priv.len(), 0)
+        }
+        else {
+            let mut flags : c_ulong = 0;
+            sc_read_binary(card, 0, rbuf_priv.as_mut_ptr(), rbuf_priv.len(), &mut flags)
+        }
+    }};
     if rv != size_priv.try_into().unwrap()  { return Err(-1); }
     let unused_len = DirectoryRange::new(&rbuf_priv).unused_len();
 //println!("SC_PKCS15_PRKDF: unused_len: {} of available {},\nfile_priv: {:X?}", unused_len, rv, unsafe {*file_priv});
@@ -323,7 +334,15 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
     rv = unsafe { sc_select_file(card, &df_path_pub, *guard_file_pub) };
     if rv != SC_SUCCESS { return Err(-1); }
     let mut rbuf_pub = vec![0_u8; size_pub];
-    rv = unsafe { sc_read_binary(card, 0, rbuf_pub.as_mut_ptr(), rbuf_pub.len(), 0) };
+    rv = unsafe { cfg_if::cfg_if! {
+        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
+            sc_read_binary(card, 0, rbuf_pub.as_mut_ptr(), rbuf_pub.len(), 0)
+        }
+        else {
+            let mut flags : c_ulong = 0;
+            sc_read_binary(card, 0, rbuf_pub.as_mut_ptr(), rbuf_pub.len(), &mut flags)
+        }
+    }};
     if rv != size_pub.try_into().unwrap()  { return Err(-1); }
     let unused_len = DirectoryRange::new(&rbuf_pub).unused_len();
 //println!("SC_PKCS15_PUKDF: unused_len: {} of available {},\nfile_pub: {:X?}", unused_len, rv, unsafe {*file_pub});
@@ -387,7 +406,10 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
 /* creates the first part of a sym key record entry; only 'key_len_bytes' key bytes need to be appended */
 fn prefix_sym_key(card: &mut sc_card,
                   rec_nr: u8,
+                  #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
                   algorithm: u32, // e.g. SC_ALGORITHM_AES
+                  #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+                  algorithm: c_ulong, // e.g. SC_ALGORITHM_AES
                   key_len_bytes: u8,
                   ext_auth: bool,
                   count_err_ext_auth: u8,
@@ -455,7 +477,12 @@ fn prefix_sym_key(card: &mut sc_card,
 }
 
 #[allow(clippy::missing_errors_doc)]
-pub fn construct_sym_key_entry(card: &mut sc_card, rec_nr: u8, algorithm: u32, key_len_bytes: u8,
+pub fn construct_sym_key_entry(card: &mut sc_card, rec_nr: u8,
+                      #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+                      algorithm: u32,
+                      #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+                      algorithm: c_ulong,
+                      key_len_bytes: u8,
                       ext_auth: bool, count_err_ext_auth: u8,
                       int_auth: bool, count_use_int_auth: u16,
                       mrl: usize, key_bytes: &[u8]) -> Result<Vec<u8>, i32> {

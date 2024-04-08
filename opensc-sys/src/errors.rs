@@ -149,14 +149,10 @@ pub const SC_ERROR_CANNOT_LOAD_MODULE            : i32 =  -1414;
 pub const SC_ERROR_OFFSET_TOO_LARGE              : i32 =  -1415;
 /// "Not implemented"
 pub const SC_ERROR_NOT_IMPLEMENTED               : i32 =  -1416;
-cfg_if::cfg_if! {
-    if #[cfg(not(any(v0_17_0, v0_18_0)))] {
-        /// "Invalid Simple TLV object",
-        pub const SC_ERROR_INVALID_TLV_OBJECT            : i32 =  -1417; // since opensc source release v0.19.0
-        /// "Premature end of Simple TLV stream"
-        pub const SC_ERROR_TLV_END_OF_CONTENTS           : i32 =  -1418; // since opensc source release v0.19.0
-    }
-}
+/// "Invalid Simple TLV object",
+pub const SC_ERROR_INVALID_TLV_OBJECT            : i32 =  -1417; // since opensc source release v0.19.0
+/// "Premature end of Simple TLV stream"
+pub const SC_ERROR_TLV_END_OF_CONTENTS           : i32 =  -1418; // since opensc source release v0.19.0
 
 /* Relating to PKCS #15 init stuff */
 /// "Generic PKCS#15 initialization error"
@@ -256,9 +252,6 @@ mod tests {
         let data1221n = data1900n;
         let data1306n = data1900n;
 
-        #[cfg(    any(v0_17_0, v0_18_0))]
-        let data1417n = data1900n;
-        #[cfg(not(any(v0_17_0, v0_18_0)))]
         let data1419n = data1900n;
         let data1511n = data1900n;
         let data1613n = data1900n;
@@ -271,9 +264,7 @@ mod tests {
         let data1200n = b"Card command failed\0";
         let data1220n = b"Reference data not usable\0";
 
-        #[cfg(not(any(v0_17_0, v0_18_0)))]
         let data1417n = b"Invalid Simple TLV object\0";
-        #[cfg(not(any(v0_17_0, v0_18_0)))]
         let data1418n = b"Premature end of Simple TLV stream\0";
 
         let data1600n = b"Generic Secure Messaging error\0";
@@ -294,9 +285,6 @@ mod tests {
             assert_eq!(cstru!(data1221n), CStr::from_ptr(sc_strerror( -1221)));
             assert_eq!(cstru!(data1306n), CStr::from_ptr(sc_strerror( -1306)));
 
-            #[cfg(    any(v0_17_0, v0_18_0))]
-            assert_eq!(cstru!(data1417n), CStr::from_ptr(sc_strerror(  -1417)));
-            #[cfg(not(any(v0_17_0, v0_18_0)))]
             assert_eq!(cstru!(data1419n), CStr::from_ptr(sc_strerror(  -1419)));
             assert_eq!(cstru!(data1511n), CStr::from_ptr(sc_strerror(  -1511)));
             assert_eq!(cstru!(data1613n), CStr::from_ptr(sc_strerror(-1613)));
@@ -309,9 +297,7 @@ mod tests {
             assert_eq!(cstru!(data1200n), CStr::from_ptr(sc_strerror(SC_ERROR_CARD_CMD_FAILED)));
             assert_eq!(cstru!(data1220n), CStr::from_ptr(sc_strerror(SC_ERROR_REF_DATA_NOT_USABLE)));
 
-            #[cfg(not(any(v0_17_0, v0_18_0)))]
             assert_eq!(cstru!(data1417n), CStr::from_ptr(sc_strerror( SC_ERROR_INVALID_TLV_OBJECT)));
-            #[cfg(not(any(v0_17_0, v0_18_0)))]
             assert_eq!(cstru!(data1418n), CStr::from_ptr(sc_strerror(  SC_ERROR_TLV_END_OF_CONTENTS)));
 
             assert_eq!(cstru!(data1600n), CStr::from_ptr(sc_strerror(SC_ERROR_SM)));

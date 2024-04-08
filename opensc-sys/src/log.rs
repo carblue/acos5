@@ -21,9 +21,7 @@
 */
 
 
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 use libc::FILE;
-
 use std::os::raw::c_char;
 
 use crate::opensc::sc_context;
@@ -33,9 +31,6 @@ pub const SC_LOG_DEBUG_VERBOSE_TOOL: i32 = 1;        /* tools only: verbose */
 pub const SC_LOG_DEBUG_VERBOSE     : i32 = 2;        /* helps users */
 pub const SC_LOG_DEBUG_NORMAL      : i32 = 3;        /* helps developers */
 pub const SC_LOG_DEBUG_RFU1        : i32 = 4;        /* RFU */
-#[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
-pub const SC_LOG_DEBUG_RFU2        : i32 = 5;        /* RFU */
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub const SC_LOG_DEBUG_SM          : i32 = 5;        /* secure messaging */  // since opensc source release v0.20.0
 pub const SC_LOG_DEBUG_ASN1        : i32 = 6;        /* asn1.c */
 pub const SC_LOG_DEBUG_MATCH       : i32 = 7;        /* card matching */
@@ -96,14 +91,12 @@ int sc_color_fprintf(int colors, struct sc_context *ctx, FILE * stream, const ch
 */
 pub fn sc_do_log(ctx: *mut sc_context, level: i32, file: *const c_char, line: i32, func: *const c_char,
                  format: *const c_char, ...);
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub fn sc_do_log_color(ctx: *mut sc_context, level: i32, file: *const c_char, line: i32, func: *const c_char,
                        color: i32, format: *const c_char, ...);
 //void sc_do_log_noframe(sc_context_t *ctx, int level, const char *format, va_list args);
 //pub fn sc_do_log_noframe(ctx: *mut sc_context_t, level: i32, format: *const c_char, args: *mut __va_list_tag);
 pub fn _sc_debug(ctx: *mut sc_context, level: i32, format: *const c_char, ...);
 pub fn _sc_log(ctx: *mut sc_context, format: *const c_char, ... );
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 pub fn sc_color_fprintf(colors: i32, ctx: *mut sc_context, stream: *mut FILE, format: *const c_char, ...) -> i32;
 }
 /*
@@ -138,23 +131,14 @@ extern "C" {
 pub fn _sc_debug_hex(ctx: *mut sc_context, level: i32, file: *const c_char, line: i32,
                      func: *const c_char, label: *const c_char, data: *const u8, len: usize);
 
-#[cfg(    v0_17_0)]
-pub fn sc_hex_dump(ctx: *mut sc_context, level: i32, buf: *const u8, len: usize, out: *mut c_char, outlen: usize);
-#[cfg(not(v0_17_0))]
 pub fn sc_hex_dump(                                  buf: *const u8, len: usize, out: *mut c_char, outlen: usize);
 
 /*
 @return A pointer to statically 'allocated' array. sizeof(array)==4096,
         truncation occurs ! Special formating (blocks of 16 bytes, space delimited etc.) get's applied
 */
-#[cfg(    v0_17_0)]
-pub fn sc_dump_hex(in_: *const u8, count: usize) -> *mut c_char;
-#[cfg(not(v0_17_0))]
 pub fn sc_dump_hex(in_: *const u8, count: usize) -> *const c_char;
 
-#[cfg(    v0_17_0)]
-fn sc_dump_oid(oid: *const sc_object_id) -> *mut c_char;
-#[cfg(not(v0_17_0))]
 fn sc_dump_oid(oid: *const sc_object_id) -> *const c_char;
 }
 

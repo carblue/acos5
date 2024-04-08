@@ -35,6 +35,9 @@ see file src/libopensc/libopensc.exports
 */
 
 use std::os::raw::{c_void};
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+use std::os::raw::c_ulong;
+
 use std::slice;
 
 use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, SC_CARD_CAP_APDU_EXT,
@@ -51,17 +54,6 @@ use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, SC_CARD_CAP
                          SC_ALGORITHM_RSA_HASH_RIPEMD160,
                          SC_ALGORITHM_RSA_HASH_MD5_SHA1*/
 };
-//use opensc_sys::opensc::{SC_ALGORITHM_AES};
-
-//#[cfg(not(any(v0_17_0, v0_18_0)))]
-//use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_PSS};
-
-//#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-//use opensc_sys::opensc::{SC_ALGORITHM_AES, SC_ALGORITHM_AES_FLAGS, SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_RSA_RAW,
-//                         SC_ALGORITHM_RSA_HASHES};
-
-//#[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
-//use opensc_sys::opensc::{SC_ALGORITHM_RAW_MASK, SC_ALGORITHM_RSA_PADS};
 
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL, SC_ERROR_OUT_OF_MEMORY
 //                        ,SC_ERROR_NOT_SUPPORTED,
@@ -137,21 +129,50 @@ fn me_card_add_algorithm(card: &mut sc_card, info: &sc_algorithm_info) -> i32
     SC_SUCCESS
 }
 
-pub fn me_card_add_symmetric_alg(card: &mut sc_card, algorithm: u32, key_length: u32, flags: u32) -> i32
+pub fn me_card_add_symmetric_alg(card: &mut sc_card,
+    #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+                                 algorithm: u32,
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+                                 algorithm: c_ulong,
+    #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+                                 key_length: u32,
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+                                 key_length: usize,
+    #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+                                 flags: u32,
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+                                 flags: c_ulong,
+                                ) -> i32
 { // same as in opensc
-    let info = sc_algorithm_info { algorithm, key_length, flags, .. sc_algorithm_info::default() };
+    let info = sc_algorithm_info {
+        #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+                                       algorithm,
+        #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+                                       algorithm: algorithm.try_into().unwrap(),
+                                       key_length, flags, .. sc_algorithm_info::default()
+    };
     me_card_add_algorithm(card, &info)
 }
 
-pub fn me_card_find_alg(card: &mut sc_card, algorithm: u32, key_length: u32, param_opt: Option<*const sc_object_id>)
+
+pub fn me_card_find_alg(card: &mut sc_card,
+                        #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+                        algorithm: u32,
+                        #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+                        algorithm: c_ulong,
+                        #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+                        key_length: u32,
+                        #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+                        key_length: usize,
+                        param_opt: Option<*const sc_object_id>)
     -> Option<*const sc_algorithm_info>
 {
     for info in unsafe { slice::from_raw_parts(card.algorithms, card.algorithm_count.try_into().unwrap()) } {
-        if info.algorithm != algorithm   { continue; }
+        if info.algorithm != algorithm.try_into().unwrap() { continue; }
         if info.key_length != key_length { continue; }
 
         if let Some(param) = param_opt {
-            if info.algorithm == SC_ALGORITHM_EC && unsafe { sc_compare_oid(param, &info.u.ec.params.id) } != 0 {
+            if info.algorithm == SC_ALGORITHM_EC.try_into().unwrap() && unsafe { sc_compare_oid(param, &info.u.ec.params.id) } != 0 {
                 continue;
             }
         }
@@ -188,54 +209,6 @@ pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: u32, caps: u32,
     let f = cstru!(b"me_get_encoding_flags\0");
     log3ifc!(ctx,f,line!());
     log3ift!(ctx,f,line!(), cstru!(b"iFlags 0x%X, card capabilities 0x%X\0"), iflags, caps);
-
-    #[cfg(any(v0_17_0, v0_18_0, v0_19_0))]
-    {
-        for hash_algo in &DIGEST_INFO_PREFIX {
-            if (iflags & *hash_algo) > 0 {
-                if *hash_algo != SC_ALGORITHM_RSA_HASH_NONE && (caps & *hash_algo) > 0
-                     { *sflags |= *hash_algo; }
-                else { *pflags |= *hash_algo; }
-                break;
-            }
-        }
-
-        if (iflags   & SC_ALGORITHM_RSA_PAD_PKCS1) > 0
-        {
-            if (caps & SC_ALGORITHM_RSA_PAD_PKCS1) > 0
-                 { *sflags |= SC_ALGORITHM_RSA_PAD_PKCS1; }
-            else { *pflags |= SC_ALGORITHM_RSA_PAD_PKCS1; }
-        }
-        else if (iflags & SC_ALGORITHM_RSA_PADS) == SC_ALGORITHM_RSA_PAD_NONE
-        {
-            /* Work with RSA, EC and maybe GOSTR? */
-            if (caps & SC_ALGORITHM_RAW_MASK) == 0 {
-                // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "raw encryption is not supported");
-                let rv = SC_ERROR_NOT_SUPPORTED;
-                log3ifr!(ctx,f,line!(), cstru!(b"raw decipher is not supported\0"), rv);
-                return rv;
-            }
-            *sflags |= caps & SC_ALGORITHM_RAW_MASK; /* adds in the one raw type */
-            *pflags = 0;
-        }
-        else if cfg!(v0_19_0) {
-        #[cfg(v0_19_0)]
-        {
-            if (iflags   & SC_ALGORITHM_RSA_PAD_PSS) > 0
-            {
-                if (caps & SC_ALGORITHM_RSA_PAD_PSS) > 0 { *sflags |= SC_ALGORITHM_RSA_PAD_PSS; }
-                else                                     { *pflags |= SC_ALGORITHM_RSA_PAD_PSS; }
-            }
-        }}
-        else {
-             // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "unsupported algorithm");
-            let rv = SC_ERROR_NOT_SUPPORTED;
-            log3ifr!(ctx,f,line!(), cstru!(b"unsupported algorithm\0"), rv);
-            return rv;
-        }
-    }
-
-    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     {
 
         /* For ECDSA and GOSTR, we don't do any padding or hashing ourselves, the

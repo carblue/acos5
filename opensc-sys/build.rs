@@ -19,8 +19,8 @@ fn parse_version_string(input: &str) -> String {
         if i==0 { result.push('v'); }
         else    { result.push('_'); }
         result.push_str(elem);
-        if i==1 && (elem.parse::<u32>().is_err() || elem.parse::<u32>().unwrap()<17) {
-            panic!("OpenSC version detection failed or the version is less than min. 0.17.0")
+        if i==1 && (elem.parse::<u32>().is_err() || elem.parse::<u32>().unwrap()<20) {
+            panic!("OpenSC version detection failed or the version is less than min. 0.20.0")
         }
     }
     println!("{}", result);

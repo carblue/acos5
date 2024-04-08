@@ -23,7 +23,7 @@
 #![allow(clippy::match_wild_err_arm)]
 
 use std::os::raw::{c_char, c_ulong, c_void};
-use std::ffi::{/*CString,*/ CStr};
+use std::ffi::CStr;
 use std::fs;//::{read/*, write*/};
 use std::ptr::{null_mut};
 use std::slice::from_raw_parts;
@@ -38,9 +38,7 @@ use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_
                          SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_ALGORITHM_AES,
                          SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT, SC_PIN_STATE_UNKNOWN};
 //                         ,SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM
-//#[cfg(not(v0_17_0))]
 //use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
-#[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
 use opensc_sys::opensc::{SC_ALGORITHM_AES_CBC_PAD, SC_SEC_OPERATION_UNWRAP,
                          SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, sc_sec_env_param, SC_SEC_ENV_PARAM_IV
 };
@@ -756,7 +754,14 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
                     get_known_sec_env_entry_v3_fips(is_local, rec_nr, &mut buf[..33]);
                 }
                 else {
-                    rv = unsafe { sc_read_record(card, rec_nr, buf.as_mut_ptr(), mrl, SC_RECORD_BY_REC_NR) };
+                    rv = unsafe { cfg_if::cfg_if! {
+                        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
+                            sc_read_record(card, rec_nr, buf.as_mut_ptr(), mrl, SC_RECORD_BY_REC_NR)
+                        }
+                        else {
+                            sc_read_record(card, rec_nr, 0, buf.as_mut_ptr(), mrl, SC_RECORD_BY_REC_NR)
+                        }
+                    }};
                     assert!(rv >= 0);
                     if rv >= 1 && buf[0] == 0 || rv >= 3 && buf[2] == 0 { // "empty" record
                         break;
@@ -1127,7 +1132,7 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
 
     data.pin1.min_length = 4; /* min length of PIN */
     data.pin1.max_length = 8; /* max length of PIN */
-    #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
+    #[cfg(v0_20_0)]
     {
         data.pin1.stored_length = 8; /* stored length of PIN */
     }
@@ -1135,7 +1140,7 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
 //  data.pin1.pad_length    = 0; /* filled in by the card driver */
     data.pin1.pad_char = 0xFF;
     data.pin1.offset = 5; /* PIN offset in the APDU */
-    #[cfg(any(v0_17_0, v0_18_0, v0_19_0, v0_20_0))]
+    #[cfg(v0_20_0)]
     {
 //      data.pin1.length_offset = 5;
         data.pin1.length_offset = 0; /* Effective PIN length offset in the APDU */
@@ -1290,14 +1295,14 @@ pub fn set_rsa_caps(card: &mut sc_card, value: u32)
     card.drv_data = Box::into_raw(dp).cast::<c_void>();
 }
 */
-
+#[cfg(v0_26_0)]
 #[allow(dead_code)]
 #[cold]
 #[must_use]
-fn get_rsa_caps(card: &mut sc_card) -> u32
+fn get_rsa_caps(card: &mut sc_card) -> c_ulong
 {
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
-    let result = dp.rsa_caps;
+    let result = dp.rsa_caps.try_into().unwrap();
     Box::leak(dp);
     // card.drv_data = Box::into_raw(dp) as p_void;
     result
@@ -1352,15 +1357,13 @@ fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
             if (file_size-21)                 % 32 == 0 { dp.sec_env_mod_len = file_size-21; }
         }
         else {
-        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-        {
             if SC_SEC_OPERATION_UNWRAP == env_ref.operation { //priv
                 assert!(file_size>=5);
                 let x = ((file_size-5)*2)/5;
                 if x*5/2 == file_size-5  &&  x % 32 == 0 { dp.sec_env_mod_len = x; }
                 else if    (file_size-5)       % 32 == 0 { dp.sec_env_mod_len = file_size-5; }
             }
-        }}
+        }
 //println!("\nfile_id: 0x{:X}, file_size: {}, modulusLenBytes: {}", file_id, file_size, dp.sec_env_mod_len);
     }
     card.drv_data = Box::into_raw(dp).cast::<c_void>();
@@ -1773,7 +1776,10 @@ Ok(0)
 pub fn algo_ref_mse_sedo(card_type: i32, // one of: SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4
                          sec_operation: i32, // required only for CRT_TAG_DST: one of: SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_ECCPRIVATE
                          sedo_tag: u8,   // one of: (CRT_TAG_AT, CRT_TAG_KAT,) CRT_TAG_HT, CRT_TAG_CCT, CRT_TAG_DST, CRT_TAG_CT
+                         #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
                          algorithm: u32, // one of: SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES,
+                         #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+                         algorithm: c_ulong, // one of: SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES,
                          len_bytes: u8,  // one of: (key_len AES): 16,24,32  hash_len: 20, 28. 32, 48, 64
                          // ecies: u8,
                          op_mode_cbc: bool, //  true  => cbc,  false => ecb
@@ -1899,7 +1905,12 @@ pub fn algo_ref_mse_sedo(card_type: i32, // one of: SC_CARD_TYPE_ACOS5_64_V2, SC
     }
 }
 
-pub fn algo_ref_sym_store(card_type: i32, algorithm: u32, key_len_bytes: u8) -> Result<u8, i32>
+pub fn algo_ref_sym_store(card_type: i32,
+                          #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+                          algorithm: u32,
+                          #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+                          algorithm: c_ulong,
+                          key_len_bytes: u8) -> Result<u8, i32>
 {
     match algorithm {
         SC_ALGORITHM_AES => match key_len_bytes {
@@ -2057,11 +2068,6 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     let condition_weak = crypt_sym.cbc && !crypt_sym.encrypt;
     // let condition      = condition_weak && crypt_sym.perform_mse;
 
-    #[cfg(        v0_17_0)]
-    let senv;
-    #[cfg(    any(         v0_18_0, v0_19_0))]
-    let mut senv;
-    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
     let mut senv = sc_security_env::default();
     if crypt_sym.perform_mse || condition_weak {
         /* Security Environment */
@@ -2076,11 +2082,8 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
                          0, crypt_sym.cbc, false).unwrap().into(),
             ..sc_security_env::default()
         };
-        // #[cfg(not(v0_17_0))]
         // { senv.flags |= SC_SEC_ENV_KEY_REF_SYMMETRIC; }
-        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-        {
-            if (senv.algorithm & SC_ALGORITHM_AES) > 0 {
+               if (senv.algorithm & SC_ALGORITHM_AES) > 0 {
                 if !crypt_sym.cbc {
                     senv.algorithm_flags |= SC_ALGORITHM_AES_ECB;
                 }
@@ -2097,7 +2100,10 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
                 let sec_env_param = sc_sec_env_param {
                     param_type: SC_SEC_ENV_PARAM_IV,
                     value: crypt_sym.iv.as_mut_ptr().cast::<c_void>(),
-                    value_len: u32::try_from(crypt_sym.iv_len).unwrap()
+                    #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+                    value_len: u32::try_from(crypt_sym.iv_len).unwrap(),
+                    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+                    value_len: crypt_sym.iv_len,
                 };
                 senv.params[0] = sec_env_param;
             }
@@ -2114,7 +2120,6 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
                     return rv;
                 }
             }
-        }
     }
 
     /* encrypt / decrypt */
@@ -2133,21 +2138,18 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     while cnt < Len2 /*cnt < Len0 || (cnt == Len0 && Len1 != Len2) */{
         if first { first = false; }
         else if condition_weak {
-            // #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-            {
-                rv = unsafe { sc_select_file(card, &path, null_mut()) }; // clear accumulated CRT
-                assert_eq!(rv, SC_SUCCESS);
-                rv = /*acos5_set_security_env*/ unsafe { sc_set_security_env(card, &senv, 0) };
-                if rv < 0 {
+            rv = unsafe { sc_select_file(card, &path, null_mut()) }; // clear accumulated CRT
+            assert_eq!(rv, SC_SUCCESS);
+            rv = /*acos5_set_security_env*/ unsafe { sc_set_security_env(card, &senv, 0) };
+            if rv < 0 {
                     /*
                     tlv_new[posIV..posIV+blockSize] = inData[cnt-blockSize..cnt];
                       mixin (log!(__FUNCTION__,  "acos5_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
                       hstat.SetString(IUP_TITLE, "acos5_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
                       return IUP_DEFAULT;
                     */
-                    log3ifr!(ctx,f,line!(), rv);
-                    return rv;
-                }
+                log3ifr!(ctx,f,line!(), rv);
+                return rv;
             }
         }
 
@@ -2155,15 +2157,11 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
         // if cnt < Len0 {
         apdu.data = unsafe { indata_ptr.add(cnt) };
         apdu.datalen = std::cmp::min(max_send, Len2-cnt);
-        #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-        {
-            /* correct IV for next loop cycle */
-            if condition_weak {
-                crypt_sym.iv.copy_from_slice(unsafe { from_raw_parts(indata_ptr.add(cnt + apdu.datalen - block_size), block_size) });
-//                senv.params[0].value = unsafe { indata_ptr.add(cnt + apdu.datalen - block_size) }.cast::<c_void>();
-            }
+        /* correct IV for next loop cycle */
+        if condition_weak {
+            crypt_sym.iv.copy_from_slice(unsafe { from_raw_parts(indata_ptr.add(cnt + apdu.datalen - block_size), block_size) });
+            senv.params[0].value = unsafe { indata_ptr.add(cnt + apdu.datalen - block_size) as *mut u8 }.cast::<c_void>();
         }
-        // }
 /*
         else {
             apdu.cla  = 0;
@@ -2200,17 +2198,15 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> 
     if crypt_sym.encrypt  || (crypt_sym.algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) == 0 {
         crypt_sym.outdata_len = cnt;
     }
-    #[cfg(not(any(v0_17_0, v0_18_0, v0_19_0)))]
-    {
-        if !crypt_sym.encrypt && (crypt_sym.algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) != 0 {
-            let mut last_block_values = [0_u8; 16];
-            last_block_values.copy_from_slice(unsafe {from_raw_parts(outdata_ptr.add(cnt-block_size), block_size)});
-            let len_padding = trailing_blockcipher_padding_get_length(crypt_sym.block_size, crypt_sym.pad_type,
-                                                                &last_block_values[..block_size]);
-            if len_padding.is_err() { return SC_ERROR_KEYPAD_TIMEOUT }
-            crypt_sym.outdata_len = cnt - usize::from(len_padding.unwrap());
-        }
+    if !crypt_sym.encrypt && (crypt_sym.algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) != 0 {
+        let mut last_block_values = [0_u8; 16];
+        last_block_values.copy_from_slice(unsafe {from_raw_parts(outdata_ptr.add(cnt-block_size), block_size)});
+        let len_padding = trailing_blockcipher_padding_get_length(crypt_sym.block_size, crypt_sym.pad_type,
+                                                            &last_block_values[..block_size]);
+        if len_padding.is_err() { return SC_ERROR_KEYPAD_TIMEOUT }
+        crypt_sym.outdata_len = cnt - usize::from(len_padding.unwrap());
     }
+
     if !crypt_sym.encrypt {
 /*
         let mut last_block_values = [0_u8; 16];
@@ -2356,7 +2352,7 @@ pub fn common_read(card: &mut sc_card,
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!( if bin {b"acos5_read_binary\0"} else {b"acos5_read_record\0"});
+    let f = if bin {c"common_read for acos5_read_binary"} else {c"common_read for acos5_read_record"};
     log3ifc!(ctx,f,line!());
 
     let file_id = file_id_from_cache_current_path(card);
@@ -2396,14 +2392,29 @@ pub fn common_read(card: &mut sc_card,
         card.cla = 0;
         rv
     }
-    else {
-        unsafe {
-            if bin { (*(*sc_get_iso7816_driver()).ops).read_binary.unwrap()
-                (card, u32::from(idx), buf.as_mut_ptr(), buf.len(), flags) }
-            else   { (*(*sc_get_iso7816_driver()).ops).read_record.unwrap()
-                (card, u32::from(idx), buf.as_mut_ptr(), buf.len(), flags) }
+    else { unsafe { cfg_if::cfg_if! {
+        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
+            if bin {
+                (*(*sc_get_iso7816_driver()).ops).read_binary.unwrap()
+                (card, u32::from(idx), buf.as_mut_ptr(), buf.len(), flags)
+            }
+            else {
+                (*(*sc_get_iso7816_driver()).ops).read_record.unwrap()
+                (card, u32::from(idx), buf.as_mut_ptr(), buf.len(), flags)
+            }
         }
-    }
+        else {
+            if bin {
+                let mut myflags: c_ulong = flags;
+                (*(*sc_get_iso7816_driver()).ops).read_binary.unwrap()
+                (card, u32::from(idx), buf.as_mut_ptr(), buf.len(), &mut myflags)
+            }
+            else {
+                (*(*sc_get_iso7816_driver()).ops).read_record.unwrap()
+                (card, u32::from(idx), 0, buf.as_mut_ptr(), buf.len(), flags)
+            }
+        }
+    } } }
 }
 
 
@@ -2462,11 +2473,21 @@ pub fn common_update(card: &mut sc_card,
             if !bin && idx==0 && flags==0 {
                 (*(*sc_get_iso7816_driver()).ops).append_record.unwrap()(card, buf.as_ptr(), buf.len(), flags)
             }
-            else if bin { (*(*sc_get_iso7816_driver()).ops).update_binary.unwrap()
-                (card, u32::from(idx), buf.as_ptr(), buf.len(), flags) }
-            else        { (*(*sc_get_iso7816_driver()).ops).update_record.unwrap()
-                (card, u32::from(idx), buf.as_ptr(), buf.len(), flags) }
-        }
+            else { cfg_if::cfg_if! {
+                if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
+                    if bin { (*(*sc_get_iso7816_driver()).ops).update_binary.unwrap()
+                        (card, u32::from(idx), buf.as_ptr(), buf.len(), flags) }
+                    else   { (*(*sc_get_iso7816_driver()).ops).update_record.unwrap()
+                        (card, u32::from(idx), buf.as_ptr(), buf.len(), flags) }
+                }
+                else {
+                    if bin { (*(*sc_get_iso7816_driver()).ops).update_binary.unwrap()
+                        (card, u32::from(idx), buf.as_ptr(), buf.len(), flags) }
+                    else   { (*(*sc_get_iso7816_driver()).ops).update_record.unwrap()
+                        (card, u32::from(idx), 0, buf.as_ptr(), buf.len(), flags) }
+                }
+            }
+        }}
     }
 }
 
