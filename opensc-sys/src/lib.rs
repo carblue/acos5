@@ -371,7 +371,7 @@ mod tests {
             println!("Testing version's struct sizes actually *DOES* take place");
             if cfg!(v0_20_0) {
                 // testing v0_20_0 verified with Windows 10:    yes, ok
-                // testing v0_20_0 verified with Kubuntu 18.04: yes, ok
+                // testing v0_20_0 verified with Kubuntu 22.04: yes, ok
                 println!("For OpenSC 0.20.0 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
                     size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
                     size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \
@@ -418,12 +418,12 @@ mod tests {
                 assert_eq!(puki,  464);
                 assert_eq!(ski,   408);
                 assert_eq!(sai,    88);
-                assert_eq!(sp,    372);
+                assert_eq!(sp,    376);
                 assert_eq!(ssep,   24);
             }
             else  if cfg!(v0_21_0) {
                 // testing v0_21_0 verified with Windows 10:    ?
-                // testing v0_21_0 verified with Kubuntu 18.04: yes, ok for latest commit  0e55a34
+                // testing v0_21_0 verified with Kubuntu 22.04: yes, ok
 // WARNING watch out for everything that depends on SC_MAX_SUPPORTED_ALGORITHMS, increased from 8 -> 16  sse,
 // sc_pin_cmd_data pcd with new int field
 // sc_pin_cmd_pin  pcp with some fields removed
@@ -478,12 +478,12 @@ mod tests {
                 assert_eq!(puki,  496);
                 assert_eq!(ski,   440);
                 assert_eq!(sai,   144);
-                assert_eq!(sp,    372);
+                assert_eq!(sp,    376);
                 assert_eq!(ssep,   24);
             }
             else  if cfg!(v0_22_0) {
                 // testing v0_22_0 verified with Windows 10:    ?
-                // testing v0_22_0 verified with Kubuntu 20.04: ?,  for latest commit  ?
+                // testing v0_22_0 verified with Kubuntu 22.04: yes, ok
                 println!("For OpenSC 0.22.0 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
                     size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
                     size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \
@@ -593,7 +593,7 @@ mod tests {
             }
             else  if cfg!(v0_24_0) {
                 // testing v0_24_0 verified with Windows 10:    ?
-                // testing v0_24_0 verified with Kubuntu 20.04: ?,  for latest commit  ?
+                // testing v0_24_0 verified with Kubuntu 22.04.4: yes, ok
                 println!("For OpenSC 0.24.0 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
                     size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
                     size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \
@@ -702,7 +702,7 @@ mod tests {
             else  if cfg!(v0_26_0) { // experimental only: it's git-master, Latest commit ?, defined as version 0.26.0
                 // experimental use only, this check may not be consistent with current master
                 // testing v0_26_0 verified with Windows 10:    ?
-                // testing v0_26_0 verified with Kubuntu 20.04: ?,  for latest commit  ?
+                 // testing v0_26_0 verified with Kubuntu 22.04.4: ?,  for latest commit  ?
                 println!("For OpenSC 0.26.0 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
                     size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
                     size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \

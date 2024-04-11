@@ -243,7 +243,7 @@ pub const SC_ALGORITHM_RSA_PAD_PKCS1	      : c_ulong = SC_ALGORITHM_RSA_PAD_PKCS
  * signatures; in this case the card driver has to pick the lowest-denominator
  * when it sets these flags to indicate its capabilities. */
 cfg_if::cfg_if! {
-if #[cfg(any(v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
+if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
 pub const SC_ALGORITHM_RSA_HASH_NONE      : u32 = 0x0000_0100; /* only applies to PKCS1 padding */
 pub const SC_ALGORITHM_RSA_HASH_SHA1      : u32 = 0x0000_0200;
 pub const SC_ALGORITHM_RSA_HASH_MD5       : u32 = 0x0000_0400;
@@ -314,12 +314,12 @@ pub const SC_ALGORITHM_ECDH_CDH_RAW        : c_ulong = 0x0020_0000;
 pub const SC_ALGORITHM_ECDSA_RAW           : u32 = 0x0010_0000;
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
 pub const SC_ALGORITHM_ECDSA_RAW           : c_ulong = 0x0010_0000;
-#[cfg(    any(v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+#[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
 pub const SC_ALGORITHM_ECDSA_HASH_NONE     : u32 = SC_ALGORITHM_RSA_HASH_NONE;
-#[cfg(not(any(v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
 pub const SC_ALGORITHM_ECDSA_HASH_NONE : c_ulong = SC_ALGORITHM_RSA_HASH_NONE;
 cfg_if::cfg_if! {
-if #[cfg(any(v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
+if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
 pub const SC_ALGORITHM_ECDSA_HASH_SHA1     : u32 = SC_ALGORITHM_RSA_HASH_SHA1;
 pub const SC_ALGORITHM_ECDSA_HASH_SHA224   : u32 = SC_ALGORITHM_RSA_HASH_SHA224;
 pub const SC_ALGORITHM_ECDSA_HASH_SHA256   : u32 = SC_ALGORITHM_RSA_HASH_SHA256;
@@ -404,7 +404,7 @@ pub const SC_EVENT_READER_EVENTS   : u32 = SC_EVENT_READER_ATTACHED | SC_EVENT_R
 pub const MAX_FILE_SIZE : usize = 65535; // since v0_20_0
 
 #[repr(C)]
-#[derive(Default, Debug, Copy, Clone)]
+#[derive(/*Default, not possible for v0_20_0 */ Debug, Copy, Clone)]
 pub struct sc_supported_algo_info {
     pub reference : u32,   /* a unique reference that is used for cross-reference purposes from PrKDFs and PuKDFs */
     pub mechanism : u32,   /* CKM_* */
@@ -415,6 +415,24 @@ pub struct sc_supported_algo_info {
     pub operations : u32, /* identifies operations the card can perform with a particular mechanism */
     pub algo_id : sc_object_id,
     pub algo_ref : u32,  /* indicates the identifier used by the card for denoting this algorithm */
+}
+
+#[cfg(impl_default)]
+#[allow(clippy::derivable_impls)]
+impl Default for sc_supported_algo_info {
+    fn default() -> Self {
+        Self {
+            reference: 0,
+            mechanism: 0,
+            #[cfg(v0_20_0)]
+            parameters: null_mut(), /* OID for ECC, NULL for RSA */  // since opensc source release v0.18.0
+            #[cfg(not(v0_20_0))]
+            parameters: sc_object_id::default(), /* OID for ECC */  // since opensc source release v0.21.0
+            operations: 0,
+            algo_id: sc_object_id::default(),
+            algo_ref: 0,
+        }
+    }
 }
 
 /// except in struct sc_security_env, unused currently
