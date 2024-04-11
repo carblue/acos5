@@ -175,7 +175,11 @@ pub fn me_card_find_alg(card: &mut sc_card,
         if info.key_length != key_length { continue; }
 
         if let Some(param) = param_opt {
-            if info.algorithm == SC_ALGORITHM_EC.try_into().unwrap() && unsafe { sc_compare_oid(param, &info.u.ec.params.id) } != 0 {
+            #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+            let comp : u32 = SC_ALGORITHM_EC;
+            #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+            let comp : u32 = SC_ALGORITHM_EC.try_into().unwrap();
+            if info.algorithm == comp && unsafe { sc_compare_oid(param, &info.u.ec.params.id) } != 0 {
                 continue;
             }
         }

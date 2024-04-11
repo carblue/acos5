@@ -270,7 +270,7 @@ mod   test_v2_v3;
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = unsafe { sc_get_version() };
-    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0/*, v0_25_0, v0_25_1*/))  { version_ptr }
+    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1))  { version_ptr }
     // else if cfg!(v0_26_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered:
     else                   { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
 }
@@ -685,7 +685,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     while   rsa_key_len <= rsa_key_len_to {
         rv = unsafe { _sc_card_add_rsa_alg(card, rsa_key_len,
             #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
-                                           rsa_algo_flags.try_into().unwrap(),
+                                           rsa_algo_flags.into(),
             #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
                                            rsa_algo_flags,
                                            0/*0x10001*/) };
@@ -2266,8 +2266,12 @@ extern "C" fn acos5_pin_cmd(card_ptr: *mut sc_card, data_ptr: *mut sc_pin_cmd_da
     }
 
     else if SC_PIN_CMD_VERIFY   == pin_cmd_data.cmd { // pin1 is used, pin2 unused
-        // let pin1_len_okay: bool = true;
-        if SC_AC_CHV != pin_cmd_data.pin_type || !pin_cmd_data.pin1.len > 0 || pin_cmd_data.pin1.data.is_null() {
+        //log3if!(ctx,f,line!(), c"pin_cmd_data.pin_type:  %u", pin_cmd_data.pin_type);
+        //log3if!(ctx,f,line!(), c"pin_cmd_data.pin1.len:  %lu", pin_cmd_data.pin1.len);
+        //log3if!(ctx,f,line!(), c"pin_cmd_data.pin1.data: %p", pin_cmd_data.pin1.data);
+        #[allow(clippy::nonminimal_bool)]
+        if SC_AC_CHV != pin_cmd_data.pin_type || !(pin_cmd_data.pin1.len > 0) || pin_cmd_data.pin1.data.is_null() {
+            //log3if!(ctx,f,line!(), c"returning from here with SC_ERROR_INVALID_ARGUMENTS!");
             return SC_ERROR_INVALID_ARGUMENTS;
         }
 /*
@@ -2288,14 +2292,14 @@ extern "C" fn acos5_pin_cmd(card_ptr: *mut sc_card, data_ptr: *mut sc_pin_cmd_da
         }
         println!("pin_cmd_data.pin1.min_length:      {}", pin_cmd_data.pin1.min_length);
         println!("pin_cmd_data.pin1.max_length:      {}", pin_cmd_data.pin1.max_length);
-        println!("pin_cmd_data.pin1.stored_length:   {}", pin_cmd_data.pin1.stored_length);
+        //println!("pin_cmd_data.pin1.stored_length:   {}", pin_cmd_data.pin1.stored_length);
 
         println!("pin_cmd_data.pin1.encoding:        {:X}", pin_cmd_data.pin1.encoding);
         println!("pin_cmd_data.pin1.pad_length:      {}", pin_cmd_data.pin1.pad_length);
         println!("pin_cmd_data.pin1.pad_char:        {}", pin_cmd_data.pin1.pad_char);
 
         println!("pin_cmd_data.pin1.offset:          {}", pin_cmd_data.pin1.offset);
-        println!("pin_cmd_data.pin1.length_offset:   {}", pin_cmd_data.pin1.length_offset);
+        //println!("pin_cmd_data.pin1.length_offset:   {}", pin_cmd_data.pin1.length_offset);
 
         println!("pin_cmd_data.pin1.max_tries:   {}", pin_cmd_data.pin1.max_tries);
         println!("pin_cmd_data.pin1.tries_left:  {}", pin_cmd_data.pin1.tries_left);
@@ -2341,7 +2345,7 @@ pin_cmd_data.pin1.logged_in:   1
 /*
 println!("SC_PIN_CMD_VERIFY: after execution:");
 println!("pin_cmd_data.pin1.offset:          {}", pin_cmd_data.pin1.offset);
-println!("pin_cmd_data.pin1.length_offset:   {}", pin_cmd_data.pin1.length_offset);
+//println!("pin_cmd_data.pin1.length_offset:   {}", pin_cmd_data.pin1.length_offset);
 println!("pin_cmd_data.pin1.max_tries:   {}", pin_cmd_data.pin1.max_tries);
 println!("pin_cmd_data.pin1.tries_left:  {}", pin_cmd_data.pin1.tries_left);
 println!("pin_cmd_data.pin1.logged_in:   {}", pin_cmd_data.pin1.logged_in);
@@ -2391,8 +2395,9 @@ println!();
     }
 
     else if SC_PIN_CMD_CHANGE   == pin_cmd_data.cmd { // pin1 is old pin, pin2 is new pin
-        if !pin_cmd_data.pin1.len > 0 || pin_cmd_data.pin1.data.is_null() ||
-           !pin_cmd_data.pin2.len > 0 || pin_cmd_data.pin2.data.is_null() ||
+        #[allow(clippy::nonminimal_bool)]
+        if !(pin_cmd_data.pin1.len > 0) || pin_cmd_data.pin1.data.is_null() ||
+           !(pin_cmd_data.pin2.len > 0) || pin_cmd_data.pin2.data.is_null() ||
            pin_cmd_data.pin1.len != pin_cmd_data.pin2.len ||
            pin_cmd_data.pin1.len  > 8 {
             return SC_ERROR_INVALID_ARGUMENTS;
@@ -2433,8 +2438,9 @@ println!();
     }
 
     else if SC_PIN_CMD_UNBLOCK  == pin_cmd_data.cmd { // pin1 is PUK, pin2 is new pin for the one blocked
-        if  !pin_cmd_data.pin1.len > 0 || pin_cmd_data.pin1.data.is_null() ||
-            !pin_cmd_data.pin2.len > 0 || pin_cmd_data.pin2.data.is_null() ||
+        #[allow(clippy::nonminimal_bool)]
+        if  !(pin_cmd_data.pin1.len > 0) || pin_cmd_data.pin1.data.is_null() ||
+            !(pin_cmd_data.pin2.len > 0) || pin_cmd_data.pin2.data.is_null() ||
             pin_cmd_data.pin1.len != pin_cmd_data.pin2.len ||
             pin_cmd_data.pin1.len  > 8 {
             return SC_ERROR_INVALID_ARGUMENTS;
@@ -2497,10 +2503,7 @@ println!();
 /// On error, buf may have been set to NULL, and (except on SC_ERROR_ASN1_END_OF_CONTENTS) no OUT param get's set\
 /// OUT tag_out and taglen are guaranteed to have values set on SC_SUCCESS (cla_out only, if also (buf[0] != 0xff && buf[0] != 0))\
 extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
-//                                    #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
                                     algorithm: u32,
-//                                    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
-//                                    algorithm: c_ulong,
                                     key_path_ptr: *mut sc_path,
                                     key_reference: u32, /* unused */
                                     modulus_length: u32, /* bits, max. 4096 */
@@ -2514,8 +2517,10 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
     let ctx = unsafe { &mut *card.ctx };
     let f = c"acos5_read_public_key";
     log3ifc!(ctx,f,line!());
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    let algorithm : c_ulong = algorithm.into();
 
-    if SC_ALGORITHM_RSA != algorithm.into() {
+    if SC_ALGORITHM_RSA != algorithm {
         let rv = SC_ERROR_NO_CARD_SUPPORT;
         log3ifr!(ctx,f,line!(), rv);
         return rv;
