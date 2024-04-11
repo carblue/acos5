@@ -187,7 +187,7 @@ const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = unsafe { sc_get_version() };
-    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0))  { version_ptr }
+    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1))  { version_ptr }
     // else if cfg!(v0_26_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered:
     else                   { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
 }
@@ -267,7 +267,7 @@ extern "C" fn acos5_pkcs15_erase_card(profile_ptr: *mut sc_profile, p15card_ptr:
     }
     let card     = unsafe { &mut *(*p15card_ptr).card };
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"acos5_pkcs15_erase_card\0");
+    let f = c"acos5_pkcs15_erase_card";
     log3ifc!(ctx,f,line!());
     let mut rv;
     {
@@ -278,7 +278,7 @@ extern "C" fn acos5_pkcs15_erase_card(profile_ptr: *mut sc_profile, p15card_ptr:
         rv = unsafe { sc_pkcs15init_authenticate(profile_ptr, p15card_ptr, **guard_file, i32::try_from(SC_AC_OP_DELETE).unwrap()) };
     }
     if rv < 0 {
-        log3ifr!(ctx,f,line!(), cstru!(b"SOPIN verification failed\0"), rv);
+        log3ifr!(ctx,f,line!(), c"SOPIN verification failed", rv);
         return rv;
     }
 
@@ -287,10 +287,10 @@ extern "C" fn acos5_pkcs15_erase_card(profile_ptr: *mut sc_profile, p15card_ptr:
     rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        log3if!(ctx,f,line!(), cstru!(b"Error: ### Impossible to Zeroize Card User Data ###\0"));
+        log3if!(ctx,f,line!(), c"Error: ### Impossible to Zeroize Card User Data ###");
         return SC_ERROR_KEYPAD_MSG_TOO_LONG;
     }
-//    log3if!(ctx,f,line!(), cstru!(b"Ready to erase card's content\0"));
+//    log3if!(ctx,f,line!(), c"Ready to erase card's content");
     rv
 }
 
@@ -312,25 +312,25 @@ extern "C" fn acos5_pkcs15_create_dir(profile_ptr: *mut sc_profile, p15card_ptr:
     let ctx = unsafe { &mut *card.ctx };
     let df = unsafe { & *df_ptr };
 
-    let f  = cstru!(b"acos5_pkcs15_create_dir\0");
-    log3if!(ctx,f,line!(), cstru!(b"called  with df.id %X\0"), df.id);
+    let f  = c"acos5_pkcs15_create_dir";
+    log3if!(ctx,f,line!(), c"called  with df.id %X", df.id);
 
-    let create_dfs = [(SC_PKCS15_PRKDF, cstru!(b"PKCS15-PrKDF\0")), (SC_PKCS15_PUKDF, cstru!(b"PKCS15-PuKDF\0")),
-                      (SC_PKCS15_SKDF, cstru!(b"PKCS15-SKDF\0")),   (SC_PKCS15_DODF, cstru!(b"PKCS15-DODF\0")),
-                      (SC_PKCS15_CDF, cstru!(b"PKCS15-CDF\0")),     (SC_PKCS15_CDF_TRUSTED, cstru!(b"PKCS15-CDF-TRUSTED\0"))];
+    let create_dfs = [(SC_PKCS15_PRKDF, c"PKCS15-PrKDF"), (SC_PKCS15_PUKDF, c"PKCS15-PuKDF"),
+                      (SC_PKCS15_SKDF, c"PKCS15-SKDF"),   (SC_PKCS15_DODF, c"PKCS15-DODF"),
+                      (SC_PKCS15_CDF, c"PKCS15-CDF"),     (SC_PKCS15_CDF_TRUSTED, c"PKCS15-CDF-TRUSTED")];
 
     if df.id == /* 0x4100 0x5015*/ 0x4100_i32 {
-        log3if!(ctx,f,line!(), cstru!(b"Select (%X)\0"), df.id);
+        log3if!(ctx,f,line!(), c"Select (%X)", df.id);
         /*let mut rv =*/ unsafe { sc_select_file(card, &df.path, null_mut()) };
 
         for (_key,value) in &create_dfs {
-            log3if!(ctx,f,line!(), cstru!(b"Create '%s'\0"), value.as_ptr());
+            log3if!(ctx,f,line!(), c"Create '%s'", value.as_ptr());
 
             let mut file = null_mut();
             let guard_file = GuardFile::new(&mut file);
             let rv = me_profile_get_file(profile, value.as_ptr(), *guard_file);
             if rv != SC_SUCCESS {
-                log3if!(ctx,f,line!(), cstru!(b"Inconsistent profile: cannot find %s\0"), value.as_ptr());
+                log3if!(ctx,f,line!(), c"Inconsistent profile: cannot find %s", value.as_ptr());
                 return SC_ERROR_INCONSISTENT_PROFILE;//LOG_FUNC_RETURN(ctx, SC_ERROR_INCONSISTENT_PROFILE);
             }
 //            rv = sc_pkcs15init_add_object(p15card, profile_ptr, create_dfs_val[ii], NULL);
@@ -362,7 +362,7 @@ extern "C" fn acos5_pkcs15_select_pin_reference(profile_ptr: *mut sc_profile, p1
 //    let profile = unsafe { &mut *profile_ptr };
     let card = unsafe { &mut *(*p15card_ptr).card };
     let ctx = unsafe { &mut *card.ctx };
-    log3ifc!(ctx, cstru!(b"acos5_pkcs15_select_pin_reference\0"), line!());
+    log3ifc!(ctx, c"acos5_pkcs15_select_pin_reference", line!());
     SC_SUCCESS
 }
 
@@ -386,7 +386,7 @@ extern "C" fn acos5_pkcs15_create_pin(profile_ptr: *mut sc_profile, p15card_ptr:
 //    let profile = unsafe { &mut *profile_ptr };
     let card = unsafe { &mut *(*p15card_ptr).card };
     let ctx = unsafe { &mut *card.ctx };
-    log3ifc!(ctx, cstru!(b"acos5_pkcs15_create_pin\0"), line!());
+    log3ifc!(ctx, c"acos5_pkcs15_create_pin", line!());
     SC_SUCCESS
 }
 
@@ -414,23 +414,23 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     let p15card = unsafe { &mut *p15card_ptr };
     let card = unsafe { &mut *p15card.card };
     let ctx = unsafe { &mut *card.ctx };
-    let f  = cstru!(b"acos5_pkcs15_create_key\0");
-    log3if!(ctx,f,line!(), cstru!(b"called with object_ptr: %p\0"), object_ptr);
+    let f  = c"acos5_pkcs15_create_key";
+    log3if!(ctx,f,line!(), c"called with object_ptr: %p", object_ptr);
 
     if profile_ptr.is_null() || object_ptr.is_null() || unsafe { (*object_ptr).data.is_null() } {
-        log3if!(ctx,f,line!(), cstru!(b"called with profile_ptr: %p, object_ptr: %p\0"), profile_ptr, object_ptr);
+        log3if!(ctx,f,line!(), c"called with profile_ptr: %p, object_ptr: %p", profile_ptr, object_ptr);
         if !object_ptr.is_null() {
-            log3if!(ctx,f,line!(), cstru!(b"called with object.data: %p\0"), unsafe { (*object_ptr).data });
+            log3if!(ctx,f,line!(), c"called with object.data: %p", unsafe { (*object_ptr).data });
         }
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let profile = unsafe { &mut *profile_ptr };
     let object = unsafe { &mut *object_ptr };
     let mut rv;
-    log3if!(ctx,f,line!(), cstru!(b"object.type: %X\0"), object.type_);
+    log3if!(ctx,f,line!(), c"object.type: %X", object.type_);
 // println!("acos5_pkcs15_create_key, object: {:X?}", *object);
     if SC_PKCS15_TYPE_SKEY == (object.type_ & SC_PKCS15_TYPE_CLASS_MASK) {
-        log3if!(ctx,f,line!(),cstru!(b"Currently we won't create any sym. secret key file, but presume that it exists already\0"));
+        log3if!(ctx,f,line!(),c"Currently we won't create any sym. secret key file, but presume that it exists already");
         return SC_SUCCESS;
     }
 
@@ -442,7 +442,7 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     let key_info = unsafe { &mut *object.data.cast::<sc_pkcs15_prkey_info>() };
     if ![SC_PKCS15_TYPE_PRKEY_RSA, SC_PKCS15_TYPE_PRKEY_EC].contains(&object.type_) ||
         (key_info.usage & (SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT)) == 0 {
-        log3if!(ctx,f,line!(), cstru!(b"Failed: Only RSA and ECC is supported\0"));
+        log3if!(ctx,f,line!(), c"Failed: Only RSA and ECC is supported");
         return SC_ERROR_NOT_SUPPORTED;
     }
     key_info.modulus_length = rsa_modulus_bits_canonical(key_info.modulus_length);
@@ -450,7 +450,7 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     let keybits = key_info.modulus_length;
     if !(512..=4096).contains(&keybits) || (keybits % 256) > 0 {
         rv = SC_ERROR_INVALID_ARGUMENTS;
-        log3ifr!(ctx,f,line!(), cstru!(b"Invalid RSA modulus size requested\0"), rv);
+        log3ifr!(ctx,f,line!(), c"Invalid RSA modulus size requested", rv);
         return rv;
     }
     /* Check that the card supports the requested modulus length */
@@ -491,13 +491,13 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
 
 /* * /
     if !profile.name.is_null() {
-        log3if!(ctx,f,line!(), cstru!(b"profile.name: %s\0"),       profile.name);
+        log3if!(ctx,f,line!(), c"profile.name: %s",       profile.name);
     }
     if !profile.options[0].is_null() {
-        log3if!(ctx,f,line!(), cstru!(b"profile.options[0]: %s\0"), profile.options[0]);
+        log3if!(ctx,f,line!(), c"profile.options[0]: %s", profile.options[0]);
     }
     if !profile.options[1].is_null() {
-        log3if!(ctx,f,line!(), cstru!(b"profile.options[1]: %s\0"), profile.options[1]);
+        log3if!(ctx,f,line!(), c"profile.options[1]: %s", profile.options[1]);
     }
 /* */
     let mut elem = profile.df_info;
@@ -505,9 +505,9 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         let df_info = unsafe { & *elem };
         if !df_info.file.is_null() {
             let file_ref = unsafe { & *df_info.file };
-            log3if!(ctx,f,line!(), cstru!(b"df_info file_ref.path: %s\0"), unsafe { sc_dump_hex(file_ref.path.value.as_ptr(), file_ref.path.len) });
-            log3if!(ctx,f,line!(), cstru!(b"df_info file_ref.type: 0x%X\0"), file_ref.type_);
-            log3if!(ctx,f,line!(), cstru!(b"df_info file_ref.id:   0x%X\0"), file_ref.id);
+            log3if!(ctx,f,line!(), c"df_info file_ref.path: %s", unsafe { sc_dump_hex(file_ref.path.value.as_ptr(), file_ref.path.len) });
+            log3if!(ctx,f,line!(), c"df_info file_ref.type: 0x%X", file_ref.type_);
+            log3if!(ctx,f,line!(), c"df_info file_ref.id:   0x%X", file_ref.id);
         }
         elem = unsafe { (*elem).next };
     }
@@ -518,9 +518,9 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         let ef_list = unsafe { & *elem };
         if !ef_list.file.is_null() {
             let file_ref = unsafe { & *ef_list.file };
-            log3if!(ctx,f,line!(), cstru!(b"ef_list file_ref.path: %s\0"), unsafe { sc_dump_hex(file_ref.path.value.as_ptr(), file_ref.path.len) });
-            log3if!(ctx,f,line!(), cstru!(b"ef_list file_ref.type: 0x%X\0"), file_ref.type_);
-            log3if!(ctx,f,line!(), cstru!(b"ef_list file_ref.id:   0x%X\0"), file_ref.id);
+            log3if!(ctx,f,line!(), c"ef_list file_ref.path: %s", unsafe { sc_dump_hex(file_ref.path.value.as_ptr(), file_ref.path.len) });
+            log3if!(ctx,f,line!(), c"ef_list file_ref.type: 0x%X", file_ref.type_);
+            log3if!(ctx,f,line!(), c"ef_list file_ref.id:   0x%X", file_ref.id);
         }
         elem = unsafe { (*elem).next };
     }
@@ -533,43 +533,43 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
             let tmp_file_info = unsafe { & *elem };
             if !tmp_file_info.file.is_null() {
                 let file_ref = unsafe { & *tmp_file_info.file };
-                log3if!(ctx,f,line!(), cstru!(b"template_list_file file_ref.path: %s\0"),
+                log3if!(ctx,f,line!(), c"template_list_file file_ref.path: %s",
                     unsafe { sc_dump_hex(file_ref.path.value.as_ptr(), file_ref.path.len) });
-                log3if!(ctx,f,line!(), cstru!(b"template_list_file file_ref.type: 0x%X\0"), file_ref.type_);
-                log3if!(ctx,f,line!(), cstru!(b"template_list_file file_ref.id:   0x%X\0"), file_ref.id);
+                log3if!(ctx,f,line!(), c"template_list_file file_ref.type: 0x%X", file_ref.type_);
+                log3if!(ctx,f,line!(), c"template_list_file file_ref.id:   0x%X", file_ref.id);
             }
             elem = unsafe { (*elem).next };
         }
     }
 / * */
 /* * /
-    log3if!(ctx,f,line!(), cstru!(b"profile.id_style: %u\0"), profile.id_style);
-    log3if!(ctx,f,line!(), cstru!(b"object.type: 0x%X\0"),  object.type_); // pub const SC_PKCS15_TYPE_PRKEY_RSA        : u32 =  0x101;
-    log3if!(ctx,f,line!(), cstru!(b"object.label: %s\0"),   object.label.as_ptr()); // pkcs15-init -G rsa/3072 -a 01 -i 08 -l testkey -u sign,decrypt
-    log3if!(ctx,f,line!(), cstru!(b"object.flags: 0x%X\0"), object.flags); // 3: SC_PKCS15_CO_FLAG_PRIVATE | SC_PKCS15_CO_FLAG_MODIFIABLE ??
-    log3if!(ctx,f,line!(), cstru!(b"object.auth_id.len: %zu\0"),     object.auth_id.len); // 1
-    log3if!(ctx,f,line!(), cstru!(b"object.auth_id.value[0]: %u\0"), object.auth_id.value[0]); // 1
-    log3if!(ctx,f,line!(), cstru!(b"object.usage_counter: %d\0"),    object.usage_counter); // 1
-    log3if!(ctx,f,line!(), cstru!(b"object.user_consent: %d\0"),     object.user_consent); // 1
-    log3if!(ctx,f,line!(), cstru!(b"object.access_rules[0].access_mode: %X\0"), object.access_rules[0].access_mode); // 1
-    log3if!(ctx,f,line!(), cstru!(b"object.df: %p\0"),               object.df); // 1
-    log3if!(ctx,f,line!(), cstru!(b"key_info.id: %s\0"), unsafe { sc_dump_hex(key_info.id.value.as_ptr(), key_info.id.len) });
-    log3if!(ctx,f,line!(), cstru!(b"key_info.usage: 0x%X\0"),         key_info.usage); // 46 SC_PKCS15_PRKEY_USAGE_UNWRAP | SC_PKCS15_PRKEY_USAGE_SIGNRECOVER | SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT
-    log3if!(ctx,f,line!(), cstru!(b"key_info.access_flags: 0x%X\0"),  key_info.access_flags); // 29  SC_PKCS15_PRKEY_ACCESS_LOCAL | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_SENSITIVE
-    log3if!(ctx,f,line!(), cstru!(b"key_info.native: %d\0"),          key_info.native); // 1
-    log3if!(ctx,f,line!(), cstru!(b"key_info.key_reference: 0x%X\0"), key_info.key_reference); // 0
-    log3if!(ctx,f,line!(), cstru!(b"key_info.modulus_length: %zu\0"), key_info.modulus_length); // 3072
-    log3if!(ctx,f,line!(), cstru!(b"key_info.algo_refs[0]: 0x%X\0"),  key_info.algo_refs[0]); // 0
-    log3if!(ctx,f,line!(), cstru!(b"key_info.subject.len: %zu\0"),    key_info.subject.len); // 0
-    log3if!(ctx,f,line!(), cstru!(b"key_info.params.len: %zu\0"),     key_info.params.len); // 0
-    log3if!(ctx,f,line!(), cstru!(b"key_info.path: %s\0"),
+    log3if!(ctx,f,line!(), c"profile.id_style: %u", profile.id_style);
+    log3if!(ctx,f,line!(), c"object.type: 0x%X",  object.type_); // pub const SC_PKCS15_TYPE_PRKEY_RSA        : u32 =  0x101;
+    log3if!(ctx,f,line!(), c"object.label: %s",   object.label.as_ptr()); // pkcs15-init -G rsa/3072 -a 01 -i 08 -l testkey -u sign,decrypt
+    log3if!(ctx,f,line!(), c"object.flags: 0x%X", object.flags); // 3: SC_PKCS15_CO_FLAG_PRIVATE | SC_PKCS15_CO_FLAG_MODIFIABLE ??
+    log3if!(ctx,f,line!(), c"object.auth_id.len: %zu",     object.auth_id.len); // 1
+    log3if!(ctx,f,line!(), c"object.auth_id.value[0]: %u", object.auth_id.value[0]); // 1
+    log3if!(ctx,f,line!(), c"object.usage_counter: %d",    object.usage_counter); // 1
+    log3if!(ctx,f,line!(), c"object.user_consent: %d",     object.user_consent); // 1
+    log3if!(ctx,f,line!(), c"object.access_rules[0].access_mode: %X", object.access_rules[0].access_mode); // 1
+    log3if!(ctx,f,line!(), c"object.df: %p",               object.df); // 1
+    log3if!(ctx,f,line!(), c"key_info.id: %s", unsafe { sc_dump_hex(key_info.id.value.as_ptr(), key_info.id.len) });
+    log3if!(ctx,f,line!(), c"key_info.usage: 0x%X",         key_info.usage); // 46 SC_PKCS15_PRKEY_USAGE_UNWRAP | SC_PKCS15_PRKEY_USAGE_SIGNRECOVER | SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT
+    log3if!(ctx,f,line!(), c"key_info.access_flags: 0x%X",  key_info.access_flags); // 29  SC_PKCS15_PRKEY_ACCESS_LOCAL | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_SENSITIVE
+    log3if!(ctx,f,line!(), c"key_info.native: %d",          key_info.native); // 1
+    log3if!(ctx,f,line!(), c"key_info.key_reference: 0x%X", key_info.key_reference); // 0
+    log3if!(ctx,f,line!(), c"key_info.modulus_length: %zu", key_info.modulus_length); // 3072
+    log3if!(ctx,f,line!(), c"key_info.algo_refs[0]: 0x%X",  key_info.algo_refs[0]); // 0
+    log3if!(ctx,f,line!(), c"key_info.subject.len: %zu",    key_info.subject.len); // 0
+    log3if!(ctx,f,line!(), c"key_info.params.len: %zu",     key_info.params.len); // 0
+    log3if!(ctx,f,line!(), c"key_info.path: %s",
         unsafe { sc_dump_hex(key_info.path.value.as_ptr(), key_info.path.len) }); // 3F00410041F5
 / * */
     let mut file_priv = null_mut();
     let guard_file_priv = GuardFile::new(&mut file_priv);
-    rv = me_profile_get_file(profile, cstru!(b"template-private-key\0").as_ptr(), *guard_file_priv);
+    rv = me_profile_get_file(profile, c"template-private-key".as_ptr(), *guard_file_priv);
     if rv != SC_SUCCESS {
-        log3if!(ctx,f,line!(), cstru!(b"Inconsistent profile: cannot find %s\0"), cstru!(b"private-key\0").as_ptr());
+        log3if!(ctx,f,line!(), c"Inconsistent profile: cannot find %s", c"private-key".as_ptr());
         return SC_ERROR_INCONSISTENT_PROFILE;//LOG_FUNC_RETURN(ctx, SC_ERROR_INCONSISTENT_PROFILE);
     }
     assert!(!file_priv.is_null());
@@ -588,7 +588,7 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
 //    println!("app_name: {:?}", app_name);
 //
     let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
-    if app_name == cstru!(b"acos5_gui \0") {
+    if app_name == c"acos5_gui " {
         dp.agc.do_create_files = dp.agi.do_create_files;
 //      if !dp.agc.do_create_files && dp.agi.file_id_priv!=0 && dp.agi.file_id_pub!=0 {}
         dp.agc.do_generate_rsa_crt = card.type_==SC_CARD_TYPE_ACOS5_64_V3 || dp.agi.do_generate_rsa_crt;
@@ -629,7 +629,7 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
 //    let mut fid_pub_possible  : HashSet<u16> = HashSet::with_capacity(0x30);
     {
 //        let fid = u16::from_be_bytes([file_priv.path.value[file_priv.path.len-2], file_priv.path.value[file_priv.path.len-1]]);
-log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
+log3if!(ctx,f,line!(), c"file_priv.path: %s",
     unsafe { sc_dump_hex(file_priv.path.value.as_ptr(), file_priv.path.len) });
 //        for i in 0..0x30 { fid_priv_possible.insert(fid+i); }
 //        for i in 0..0x30 { fid_pub_possible.insert( fid+i +0x30); }
@@ -642,22 +642,22 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
         let p15obj = unsafe { &*p15obj_list_ptr };
         if SC_PKCS15_TYPE_PRKEY_RSA == p15obj.type_ && !p15obj.df.is_null() {
 /* * /
-            log3if!(ctx,f,line!(), cstru!(b"\0"));
-            log3if!(ctx,f,line!(), cstru!(b"p15obj.type_: %X\0"),   p15obj.type_);
-            log3if!(ctx,f,line!(), cstru!(b"p15obj.label: %s\0"),   p15obj.label.as_ptr()); // pkcs15-init -G rsa/3072 -a 01 -i 08 -l testkey -u sign,decrypt
-            log3if!(ctx,f,line!(), cstru!(b"p15obj.flags: 0x%X\0"), p15obj.flags); // 3: SC_PKCS15_CO_FLAG_PRIVATE | SC_PKCS15_CO_FLAG_MODIFIABLE ??
-            log3if!(ctx,f,line!(), cstru!(b"p15obj.auth_id.len: %zu\0"),     p15obj.auth_id.len); // 1
-            log3if!(ctx,f,line!(), cstru!(b"p15obj.auth_id.value[0]: %u\0"), p15obj.auth_id.value[0]); // 1
-            log3if!(ctx,f,line!(), cstru!(b"p15obj.usage_counter: %d\0"),    p15obj.usage_counter); // 1
-            log3if!(ctx,f,line!(), cstru!(b"p15obj.user_consent: %d\0"),     p15obj.user_consent); // 1
-            log3if!(ctx,f,line!(), cstru!(b"p15obj.access_rules[0].access_mode: %X\0"), p15obj.access_rules[0].access_mode); // 1
-            log3if!(ctx,f,line!(), cstru!(b"p15obj.df: %p\0"),               p15obj.df); // 1
-            log3if!(ctx,f,line!(), cstru!(b"p15obj.session_object: %d\0"),   p15obj.session_object); // 1
+            log3if!(ctx,f,line!(), c"");
+            log3if!(ctx,f,line!(), c"p15obj.type_: %X",   p15obj.type_);
+            log3if!(ctx,f,line!(), c"p15obj.label: %s",   p15obj.label.as_ptr()); // pkcs15-init -G rsa/3072 -a 01 -i 08 -l testkey -u sign,decrypt
+            log3if!(ctx,f,line!(), c"p15obj.flags: 0x%X", p15obj.flags); // 3: SC_PKCS15_CO_FLAG_PRIVATE | SC_PKCS15_CO_FLAG_MODIFIABLE ??
+            log3if!(ctx,f,line!(), c"p15obj.auth_id.len: %zu",     p15obj.auth_id.len); // 1
+            log3if!(ctx,f,line!(), c"p15obj.auth_id.value[0]: %u", p15obj.auth_id.value[0]); // 1
+            log3if!(ctx,f,line!(), c"p15obj.usage_counter: %d",    p15obj.usage_counter); // 1
+            log3if!(ctx,f,line!(), c"p15obj.user_consent: %d",     p15obj.user_consent); // 1
+            log3if!(ctx,f,line!(), c"p15obj.access_rules[0].access_mode: %X", p15obj.access_rules[0].access_mode); // 1
+            log3if!(ctx,f,line!(), c"p15obj.df: %p",               p15obj.df); // 1
+            log3if!(ctx,f,line!(), c"p15obj.session_object: %d",   p15obj.session_object); // 1
 / * */
             _cnt_priv += 1;
             assert!(!p15obj.data.is_null());
 //            let p15obj_prkey_info_path = & unsafe { &mut *(p15obj.data as *mut sc_pkcs15_prkey_info) }.path;
-//            log3if!(ctx,f,line!(), cstru!(b"p15obj_prkey_info_path: %s\0"),
+//            log3if!(ctx,f,line!(), c"p15obj_prkey_info_path: %s",
 //                unsafe { sc_dump_hex(p15obj_prkey_info_path.value.as_ptr(), p15obj_prkey_info_path.len) });
 //            let fid_priv_used = u16::from_be_bytes([p15obj_prkey_info_path.value[p15obj_prkey_info_path.len-2],
 //                                                    p15obj_prkey_info_path.value[p15obj_prkey_info_path.len-1]]);
@@ -678,8 +678,8 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
 //    if fid_priv_possible_min == 0xFFFF {
 //        println!("The maximum of 48 RSA key pairs is exceeded. First delete one for a free file id slot");
 //        rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
-//        log3ifr!(ctx,f,line!(), cstru!(
-//            b"### The maximum of 48 RSA key pairs is exceeded. First delete one for a free file id slot ###\0"), rv);
+//        log3ifr!(ctx,f,line!(),
+//            b"### The maximum of 48 RSA key pairs is exceeded. First delete one for a free file id slot ###", rv);
 //        return rv;
 //    }
     #[cfg(rsa_key_gen_verbose)]
@@ -688,9 +688,9 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
     // file_priv.path.value[file_priv.path.len-1] = u8::try_from(fid_priv_possible_min & 0x00FF).unwrap();
     file_priv.path.value[file_priv.path.len-2..file_priv.path.len].copy_from_slice(&ax.to_be_bytes());
     file_priv.id = i32::from(file_id_from_path_value(&file_priv.path.value[..file_priv.path.len]));
-    log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
+    log3if!(ctx,f,line!(), c"file_priv.path: %s",
         unsafe { sc_dump_hex(file_priv.path.value.as_ptr(), file_priv.path.len) });
-    log3if!(ctx,f,line!(), cstru!(b"file_priv.id: %X\0"), file_priv.id);
+    log3if!(ctx,f,line!(), c"file_priv.id: %X", file_priv.id);
 //
 /*
     unsafe { copy_nonoverlapping((u16::try_from(file_priv.id).unwrap()).to_be_bytes().as_ptr(),
@@ -716,7 +716,7 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
     file_pub.id = i32::from(file_id_from_path_value(&file_pub.path.value[..file_pub.path.len]));
     #[cfg(rsa_key_gen_verbose)]
     { println!("This file id will be chosen for the public  RSA key:  {:X}", file_pub.id); }
-    if app_name == cstru!(b"acos5_gui \0") {
+    if app_name == c"acos5_gui " {
         let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         dp.agi.file_id_priv = u16::try_from(file_priv.id).unwrap();
         dp.agi.file_id_pub  = u16::try_from(file_pub.id).unwrap();
@@ -739,20 +739,20 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
     let guard_fileDFparent = GuardFile::new(&mut fileDFparent);
     rv = unsafe { sc_select_file(card, &pathDFparent, *guard_fileDFparent) };
     if rv < 0 {
-        log3ifr!(ctx,f,line!(), cstru!(b"DF for the private objects not defined\0"), rv);
+        log3ifr!(ctx,f,line!(), c"DF for the private objects not defined", rv);
         return rv;
     }
 
     if do_create_files {
         rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, fileDFparent, i32::try_from(SC_AC_OP_CREATE_EF).unwrap()) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"SC_AC_OP_CREATE_EF authentication failed for parent DF\0"), rv);
+            log3ifr!(ctx,f,line!(), c"SC_AC_OP_CREATE_EF authentication failed for parent DF", rv);
             return rv;
         }
         if file_priv_has_to_be_deleted || file_pub_has_to_be_deleted {
             rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, fileDFparent, i32::try_from(SC_AC_OP_DELETE).unwrap()) };
             if rv < 0 {
-                log3ifr!(ctx,f,line!(), cstru!(b"SC_AC_OP_CREATE_EF authentication failed for parent DF\0"), rv);
+                log3ifr!(ctx,f,line!(), c"SC_AC_OP_CREATE_EF authentication failed for parent DF", rv);
                 return rv;
             }
         }
@@ -775,7 +775,7 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
     if do_create_files {
         rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_CREATE, (file_priv as *mut sc_file).cast::<c_void>()) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"create file_priv failed\0"), rv);
+            log3ifr!(ctx,f,line!(), c"create file_priv failed", rv);
             return rv;
         }
         rv = unsafe { sc_select_file(card, &file_priv.path, null_mut()) };
@@ -785,7 +785,7 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
         let mut apdu = build_apdu(ctx, &[0x00, 0x44, 0x00, 0x00], SC_APDU_CASE_1, &mut[]);
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
         if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 {
-            let fmt = cstru!(b"sc_transmit_apdu failed or ### File Activation failed for private key ###\0");
+            let fmt = c"sc_transmit_apdu failed or ### File Activation failed for private key ###";
             log3if!(ctx,f,line!(), fmt);
             return SC_ERROR_KEYPAD_MSG_TOO_LONG;
         }
@@ -795,7 +795,7 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
 
         rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_CREATE, (file_pub as *mut sc_file).cast::<c_void>()) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"create file_pub failed\0"), rv);
+            log3ifr!(ctx,f,line!(), c"create file_pub failed", rv);
             return rv;
         }
         rv = unsafe { sc_select_file(card, &file_pub.path, null_mut()) };
@@ -806,7 +806,7 @@ log3if!(ctx,f,line!(), cstru!(b"file_priv.path: %s\0"),
         apdu.sw2 = 0;
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
         if rv != SC_SUCCESS || apdu.sw1 != 0x90 || apdu.sw2 != 0x00 {
-            let fmt = cstru!(b"sc_transmit_apdu failed or ### File Activation failed for public key ###\0");
+            let fmt = c"sc_transmit_apdu failed or ### File Activation failed for public key ###";
             log3if!(ctx,f,line!(), fmt);
             return SC_ERROR_KEYPAD_MSG_TOO_LONG;
         }
@@ -883,7 +883,7 @@ extern "C" fn acos5_pkcs15_store_key(profile_ptr: *mut sc_profile, p15card_ptr: 
     let p15card = unsafe { &mut *p15card_ptr };
     let card = unsafe { &mut *p15card.card };
     let ctx = unsafe { &mut *card.ctx };
-    let f  = cstru!(b"acos5_pkcs15_store_key\0");
+    let f  = c"acos5_pkcs15_store_key";
     let object = unsafe { &mut *object_ptr };
     /* key: if called from sc_pkcs15init_store_secret_key, then only key.algorithm and  key.u.secret were set  */
     let key = unsafe { &mut *key_ptr };
@@ -996,13 +996,13 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     let key_info_priv = unsafe { &mut *object_priv.data.cast::<sc_pkcs15_prkey_info>() };
     let p15pubkey = unsafe { &mut *p15pubkey_ptr };
     let mut rv;// = SC_ERROR_UNKNOWN;
-    let f  = cstru!(b"acos5_pkcs15_generate_key\0");
+    let f  = c"acos5_pkcs15_generate_key";
     log3ifc!(ctx,f,line!());
 
     if   SC_PKCS15_TYPE_PRKEY_RSA != object_priv.type_ &&
         (SC_PKCS15_TYPE_PRKEY_EC  != object_priv.type_ || card.type_ != SC_CARD_TYPE_ACOS5_EVO_V4)
     {
-        log3if!(ctx,f,line!(), cstru!(b"Failed: Only RSA is supported\0"));
+        log3if!(ctx,f,line!(), c"Failed: Only RSA is supported");
         return SC_ERROR_NOT_SUPPORTED;
     }
 //    let keybits = rsa_modulus_bits_canonical(key_info_priv.modulus_length);
@@ -1012,39 +1012,39 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     let dp_files_value_ref = &dp.files[&dp.agc.file_id_pub];
     let path_pub = sc_path { type_: SC_PATH_TYPE_PATH, value: dp_files_value_ref.0, len: dp_files_value_ref.1[1].into(), ..sc_path::default()};
 /*
-    log3if!(ctx,f,line!(), cstru!(b"key_info_priv.id: %s\0"), unsafe { sc_dump_hex(key_info_priv.id.value.as_ptr(), key_info_priv.id.len) });
-    log3if!(ctx,f,line!(), cstru!(b"key_info_priv.usage: 0x%X\0"), key_info_priv.usage);
-    log3if!(ctx,f,line!(), cstru!(b"key_info_priv.access_flags: 0x%X\0"), key_info_priv.access_flags);
-    log3if!(ctx,f,line!(), cstru!(b"key_info_priv.native: %d\0"), key_info_priv.native);
-    log3if!(ctx,f,line!(), cstru!(b"key_info_priv.modulus_length: 0x%X\0"), key_info_priv.modulus_length);
-    //log3if!(ctx,f,line!(), cstru!(b"keybits: %zu\0"), keybits);
-    log3if!(ctx,f,line!(), cstru!(b"key_info_priv.path: %s\0"),
+    log3if!(ctx,f,line!(), c"key_info_priv.id: %s", unsafe { sc_dump_hex(key_info_priv.id.value.as_ptr(), key_info_priv.id.len) });
+    log3if!(ctx,f,line!(), c"key_info_priv.usage: 0x%X", key_info_priv.usage);
+    log3if!(ctx,f,line!(), c"key_info_priv.access_flags: 0x%X", key_info_priv.access_flags);
+    log3if!(ctx,f,line!(), c"key_info_priv.native: %d", key_info_priv.native);
+    log3if!(ctx,f,line!(), c"key_info_priv.modulus_length: 0x%X", key_info_priv.modulus_length);
+    //log3if!(ctx,f,line!(), c"keybits: %zu", keybits);
+    log3if!(ctx,f,line!(), c"key_info_priv.path: %s",
         unsafe { sc_dump_hex(key_info_priv.path.value.as_ptr(), key_info_priv.path.len) });
 
-    //log3if!(ctx,f,line!(), cstru!(b"dp.file_id_key_pair_priv: 0x%X\0"), dp.file_id_key_pair_priv);
-    //log3if!(ctx,f,line!(), cstru!(b"dp.file_id_key_pair_pub:  0x%X\0"), dp.file_id_key_pair_pub);
-//    log3if!(ctx,f,line!(), cstru!(b"is_key_pair_created_and_valid_for_generation: %d\0"), is_key_pair_created_and_valid_for_generation);
+    //log3if!(ctx,f,line!(), c"dp.file_id_key_pair_priv: 0x%X", dp.file_id_key_pair_priv);
+    //log3if!(ctx,f,line!(), c"dp.file_id_key_pair_pub:  0x%X", dp.file_id_key_pair_pub);
+//    log3if!(ctx,f,line!(), c"is_key_pair_created_and_valid_for_generation: %d", is_key_pair_created_and_valid_for_generation);
 
-    log3if!(ctx,f,line!(), cstru!(b"dp.agc.do_generate_rsa_crt: %d\0"), dp.agc.do_generate_rsa_crt);
-    //log3if!(ctx,f,line!(), cstru!(b"dp.do_generate_rsa_add_decrypt: %d\0"), dp.do_generate_rsa_add_decrypt);
-    //log3if!(ctx,f,line!(), cstru!(b"dp.do_generate_rsa_standard_pub_exponent: %d\0"), dp.do_generate_rsa_standard_pub_exponent);
+    log3if!(ctx,f,line!(), c"dp.agc.do_generate_rsa_crt: %d", dp.agc.do_generate_rsa_crt);
+    //log3if!(ctx,f,line!(), c"dp.do_generate_rsa_add_decrypt: %d", dp.do_generate_rsa_add_decrypt);
+    //log3if!(ctx,f,line!(), c"dp.do_generate_rsa_standard_pub_exponent: %d", dp.do_generate_rsa_standard_pub_exponent);
 
-    log3if!(ctx,f,line!(), cstru!(b"p15pubkey.algorithm: 0x%X\0"), p15pubkey.algorithm);
-    log3if!(ctx,f,line!(), cstru!(b"p15pubkey.alg_id:    %p\0"), p15pubkey.alg_id);
+    log3if!(ctx,f,line!(), c"p15pubkey.algorithm: 0x%X", p15pubkey.algorithm);
+    log3if!(ctx,f,line!(), c"p15pubkey.alg_id:    %p", p15pubkey.alg_id);
 */
     Box::leak(dp);
     // card.drv_data = Box::into_raw(dp) as *mut c_void;
 /*
     if !is_key_pair_created_and_valid_for_generation {
         rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
-        log3ifr!(ctx,f,line!(), cstru!(b"not allowed due to is_key_pair_created_and_valid_for_generation\0"), rv);
+        log3ifr!(ctx,f,line!(), c"not allowed due to is_key_pair_created_and_valid_for_generation", rv);
         return rv;
     }
 */
     //gen_keypair; the data get prepared in acos5_pkcs15_create_key
     rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, addr_of_mut!(agc).cast::<c_void>()) };
     if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), cstru!(b"command 'Generate Key Pair' failed\0"), rv);
+        log3ifr!(ctx,f,line!(), c"command 'Generate Key Pair' failed", rv);
         return rv;
     }
 
@@ -1060,7 +1060,7 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     let mut p15pubkey2_ptr = null_mut();
     rv = unsafe { sc_pkcs15_read_pubkey(p15card_ptr, &object_pub, &mut p15pubkey2_ptr) };
     if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), cstru!(b"sc_pkcs15_read_pubkey failed\0"), rv);
+        log3ifr!(ctx,f,line!(), c"sc_pkcs15_read_pubkey failed", rv);
         return rv
     }
     assert!(!p15pubkey2_ptr.is_null());
@@ -1095,7 +1095,7 @@ extern "C" fn acos5_pkcs15_finalize_card(card_ptr: *mut sc_card) -> i32
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *card_ptr };
-    log3ifc!(unsafe { &mut *card.ctx }, cstru!(b"acos5_pkcs15_finalize_card\0"), line!());
+    log3ifc!(unsafe { &mut *card.ctx }, c"acos5_pkcs15_finalize_card", line!());
     SC_SUCCESS
 }
 
@@ -1118,7 +1118,7 @@ extern "C" fn acos5_pkcs15_delete_object(profile_ptr: *mut sc_profile, p15card_p
     }
     // let profile = unsafe { &mut *profile_ptr };
     let card = unsafe { &mut *(*p15card_ptr).card };
-    log3ifc!(unsafe { &mut *card.ctx }, cstru!(b"acos5_pkcs15_delete_object\0"), line!());
+    log3ifc!(unsafe { &mut *card.ctx }, c"acos5_pkcs15_delete_object", line!());
     SC_SUCCESS
 }
 
@@ -1133,7 +1133,7 @@ extern "C" fn  acos5_pkcs15_emu_update_any_df(_profile: *mut sc_profile, p15card
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *(*p15card).card };
-    log3ifc!(unsafe { &mut *card.ctx }, cstru!(b"acos5_pkcs15_emu_update_any_df\0"), line!());
+    log3ifc!(unsafe { &mut *card.ctx }, c"acos5_pkcs15_emu_update_any_df", line!());
     SC_SUCCESS
 }
 */
@@ -1149,11 +1149,11 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
     }
     let card = unsafe { &mut *(*p15card).card };
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"acos5_pkcs15_emu_store_data\0");
+    let f = c"acos5_pkcs15_emu_store_data";
     let object = unsafe { &mut *object_ptr };
-    log3if!(ctx,f,line!(), cstru!(b"called for object.type %X\0"), object.type_); // SC_PKCS15_TYPE_PRKEY_RSA / SC_PKCS15_TYPE_PUBKEY_RSA
+    log3if!(ctx,f,line!(), c"called for object.type %X", object.type_); // SC_PKCS15_TYPE_PRKEY_RSA / SC_PKCS15_TYPE_PUBKEY_RSA
     if !path.is_null() && unsafe{ (*path).len > 0 } {
-        log3if!(ctx,f,line!(), cstru!(b"path: %s\0"), unsafe { sc_dump_hex((*path).value.as_ptr(), (*path).len) }); // 0
+        log3if!(ctx,f,line!(), c"path: %s", unsafe { sc_dump_hex((*path).value.as_ptr(), (*path).len) }); // 0
     }
 
     if SC_PKCS15_TYPE_PRKEY_RSA == object.type_ {
@@ -1164,32 +1164,32 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
     else if SC_PKCS15_TYPE_PUBKEY_RSA == object.type_ {
         let key_info = unsafe { &mut *object.data.cast::<sc_pkcs15_pubkey_info>() };
 /*
-    log3if!(ctx,f,line!(), cstru!(b"object.label: %s\0"),   object.label.as_ptr()); // pkcs15-init -G rsa/3072 -a 01 -i 08 -l testkey -u sign,decrypt
-    log3if!(ctx,f,line!(), cstru!(b"object.flags: 0x%X\0"), object.flags); // 0x2: SC_PKCS15_CO_FLAG_MODIFIABLE
-    log3if!(ctx,f,line!(), cstru!(b"object.auth_id.len: %zu\0"), object.auth_id.len); // 0
-    log3if!(ctx,f,line!(), cstru!(b"object.auth_id.value[0]: %u\0"), object.auth_id.value[0]); // 0
-    log3if!(ctx,f,line!(), cstru!(b"object.usage_counter: %d\0"),    object.usage_counter); // 0
-    log3if!(ctx,f,line!(), cstru!(b"object.user_consent: %d\0"),     object.user_consent); // 0
-    log3if!(ctx,f,line!(), cstru!(b"object.access_rules[0].access_mode: %X\0"), object.access_rules[0].access_mode); // 0
-    log3if!(ctx,f,line!(), cstru!(b"object.df: %p\0"), object.df); // (nil)
+    log3if!(ctx,f,line!(), c"object.label: %s",   object.label.as_ptr()); // pkcs15-init -G rsa/3072 -a 01 -i 08 -l testkey -u sign,decrypt
+    log3if!(ctx,f,line!(), c"object.flags: 0x%X", object.flags); // 0x2: SC_PKCS15_CO_FLAG_MODIFIABLE
+    log3if!(ctx,f,line!(), c"object.auth_id.len: %zu", object.auth_id.len); // 0
+    log3if!(ctx,f,line!(), c"object.auth_id.value[0]: %u", object.auth_id.value[0]); // 0
+    log3if!(ctx,f,line!(), c"object.usage_counter: %d",    object.usage_counter); // 0
+    log3if!(ctx,f,line!(), c"object.user_consent: %d",     object.user_consent); // 0
+    log3if!(ctx,f,line!(), c"object.access_rules[0].access_mode: %X", object.access_rules[0].access_mode); // 0
+    log3if!(ctx,f,line!(), c"object.df: %p", object.df); // (nil)
 
-    log3if!(ctx,f,line!(), cstru!(b"key_info.id: %s\0"),
+    log3if!(ctx,f,line!(), c"key_info.id: %s",
             unsafe { sc_dump_hex(key_info.id.value.as_ptr(), key_info.id.len) }); // 08
-    log3if!(ctx,f,line!(), cstru!(b"key_info.usage: 0x%X\0"), key_info.usage); // 0xD1 SC_PKCS15_PRKEY_USAGE_VERIFYRECOVER | SC_PKCS15_PRKEY_USAGE_VERIFY | SC_PKCS15_PRKEY_USAGE_WRAP | SC_PKCS15_PRKEY_USAGE_ENCRYPT
-    log3if!(ctx,f,line!(), cstru!(b"key_info.access_flags: 0x%X\0"), key_info.access_flags); // 0x0
-    log3if!(ctx,f,line!(), cstru!(b"key_info.native: %d\0"), key_info.native); // 0
-    log3if!(ctx,f,line!(), cstru!(b"key_info.key_reference: 0x%X\0"), key_info.key_reference); // 0x0
-    log3if!(ctx,f,line!(), cstru!(b"key_info.modulus_length: %zu\0"), key_info.modulus_length); // 3071
-    log3if!(ctx,f,line!(), cstru!(b"key_info.algo_refs[0]: 0x%X\0"), key_info.algo_refs[0]); // 0x0
-    log3if!(ctx,f,line!(), cstru!(b"key_info.subject.len: %zu\0"), key_info.subject.len); // 0
-    log3if!(ctx,f,line!(), cstru!(b"key_info.params.len: %zu\0"),  key_info.params.len); // 0
-    log3if!(ctx,f,line!(), cstru!(b"key_info.path: %s\0"),
+    log3if!(ctx,f,line!(), c"key_info.usage: 0x%X", key_info.usage); // 0xD1 SC_PKCS15_PRKEY_USAGE_VERIFYRECOVER | SC_PKCS15_PRKEY_USAGE_VERIFY | SC_PKCS15_PRKEY_USAGE_WRAP | SC_PKCS15_PRKEY_USAGE_ENCRYPT
+    log3if!(ctx,f,line!(), c"key_info.access_flags: 0x%X", key_info.access_flags); // 0x0
+    log3if!(ctx,f,line!(), c"key_info.native: %d", key_info.native); // 0
+    log3if!(ctx,f,line!(), c"key_info.key_reference: 0x%X", key_info.key_reference); // 0x0
+    log3if!(ctx,f,line!(), c"key_info.modulus_length: %zu", key_info.modulus_length); // 3071
+    log3if!(ctx,f,line!(), c"key_info.algo_refs[0]: 0x%X", key_info.algo_refs[0]); // 0x0
+    log3if!(ctx,f,line!(), c"key_info.subject.len: %zu", key_info.subject.len); // 0
+    log3if!(ctx,f,line!(), c"key_info.params.len: %zu",  key_info.params.len); // 0
+    log3if!(ctx,f,line!(), c"key_info.path: %s",
             unsafe { sc_dump_hex(key_info.path.value.as_ptr(), key_info.path.len) }); // empty
-    log3if!(ctx,f,line!(), cstru!(b"key_info.direct.raw.len: %zu\0"),  key_info.direct.raw.len);  //398
-    log3if!(ctx,f,line!(), cstru!(b"key_info.direct.spki.len: %zu\0"), key_info.direct.spki.len); //422
+    log3if!(ctx,f,line!(), c"key_info.direct.raw.len: %zu",  key_info.direct.raw.len);  //398
+    log3if!(ctx,f,line!(), c"key_info.direct.spki.len: %zu", key_info.direct.spki.len); //422
     if !_der_data.is_null() {
         unsafe {
-            log3if!(ctx,f,line!(), cstru!(b"der_length: %zu\0"), (*_der_data).len); // 398
+            log3if!(ctx,f,line!(), c"der_length: %zu", (*_der_data).len); // 398
             (*_der_data).len = 0;
         }
     }
@@ -1202,7 +1202,7 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
         /* FIXME temporarily solve issue https://github.com/OpenSC/OpenSC/issues/2184 here, later improve OpenSC code */
         if key_info.id != dp.last_keygen_priv_id {
             key_info.id = dp.last_keygen_priv_id;
-            log3if!(ctx,f,line!(), cstru!(b"##### Warning: public key iD got corrected to match private key iD #####\0"));
+            log3if!(ctx,f,line!(), c"##### Warning: public key iD got corrected to match private key iD #####");
         }
 /**/
         let dp_files_value_ref = &dp.files[&dp.agc.file_id_pub];
@@ -1220,19 +1220,19 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
         key_info.access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE;
         // key_info.key_reference;
 
-        log3if!(ctx,f,line!(), cstru!(b"key_info.id: %s\0"), unsafe { sc_dump_hex(key_info.id.value.as_ptr(), key_info.id.len) });
-        log3if!(ctx,f,line!(), cstru!(b"key_info.usage: %X\0"), key_info.usage);
-        log3if!(ctx,f,line!(), cstru!(b"key_info.access_flags: %X\0"), key_info.access_flags);
-        log3if!(ctx,f,line!(), cstru!(b"key_info.native: %d\0"), key_info.native);
-        log3if!(ctx,f,line!(), cstru!(b"key_info.key_reference: %X\0"), key_info.key_reference);
-        log3if!(ctx,f,line!(), cstru!(b"key_info.value_len: %zu\0"), key_info.value_len);
-        log3if!(ctx,f,line!(), cstru!(b"key_info.key_type: %zu\0"), key_info.key_type);
-        log3if!(ctx,f,line!(), cstru!(b"key_info.algo_refs[0]: %X\0"), key_info.algo_refs[0]);
-        log3if!(ctx,f,line!(), cstru!(b"key_info.algo_refs[1]: %X\0"), key_info.algo_refs[1]);
-        log3if!(ctx,f,line!(), cstru!(b"key_info.algo_refs[2]: %X\0"), key_info.algo_refs[2]);
-        log3if!(ctx,f,line!(), cstru!(b"key_info.path: %s\0"), unsafe { sc_dump_hex(key_info.path.value.as_ptr(), key_info.path.len) });
+        log3if!(ctx,f,line!(), c"key_info.id: %s", unsafe { sc_dump_hex(key_info.id.value.as_ptr(), key_info.id.len) });
+        log3if!(ctx,f,line!(), c"key_info.usage: %X", key_info.usage);
+        log3if!(ctx,f,line!(), c"key_info.access_flags: %X", key_info.access_flags);
+        log3if!(ctx,f,line!(), c"key_info.native: %d", key_info.native);
+        log3if!(ctx,f,line!(), c"key_info.key_reference: %X", key_info.key_reference);
+        log3if!(ctx,f,line!(), c"key_info.value_len: %zu", key_info.value_len);
+        log3if!(ctx,f,line!(), c"key_info.key_type: %zu", key_info.key_type);
+        log3if!(ctx,f,line!(), c"key_info.algo_refs[0]: %X", key_info.algo_refs[0]);
+        log3if!(ctx,f,line!(), c"key_info.algo_refs[1]: %X", key_info.algo_refs[1]);
+        log3if!(ctx,f,line!(), c"key_info.algo_refs[2]: %X", key_info.algo_refs[2]);
+        log3if!(ctx,f,line!(), c"key_info.path: %s", unsafe { sc_dump_hex(key_info.path.value.as_ptr(), key_info.path.len) });
         if !key_info.data.value.is_null() && key_info.data.len>0 {
-            log3if!(ctx,f,line!(), cstru!(b"key_info.data: %s\0"), unsafe { sc_dump_hex(key_info.data.value, key_info.data.len) });
+            log3if!(ctx,f,line!(), c"key_info.data: %s", unsafe { sc_dump_hex(key_info.data.value, key_info.data.len) });
         }
     }
     SC_SUCCESS
@@ -1249,7 +1249,7 @@ extern "C" fn acos5_pkcs15_sanity_check(_profile: *mut sc_profile, p15card: *mut
         return SC_ERROR_KEYPAD_MSG_TOO_LONG;
     }
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"acos5_pkcs15_sanity_check\0");
+    let f = c"acos5_pkcs15_sanity_check";
     log3ifc!(ctx,f,line!());
     unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SANITY_CHECK, null_mut()) }
 }
@@ -1362,7 +1362,7 @@ extern "C" fn acos5_pkcs15_sanity_check(_profile: *mut sc_profile, p15card: *mut
         return SC_ERROR_KEYPAD_MSG_TOO_LONG;
     }
     let ctx = unsafe { &mut *card.ctx };
-    let f   = cstru!(b"acos5_pkcs15_sanity_check\0");
+    let f   = c"acos5_pkcs15_sanity_check";
     log3ifc!(ctx,f,line!());
 
     /* select MF; if it doesn't exist, there's nothing to check */
@@ -1396,15 +1396,15 @@ extern "C" fn acos5_pkcs15_sanity_check(_profile: *mut sc_profile, p15card: *mut
         if is_DFMF(val.1[0]) {
             let file_id_se = u16::from_be_bytes([val.1[4], val.1[5]]);
             if file_id_se == 0u16 {
-                let fmt   = cstru!(b"FCI of DF/MF %04X doesn't specify a mandatory SE file (tag 0x8D missing or zero content)\0");
+                let fmt   = c"FCI of DF/MF %04X doesn't specify a mandatory SE file (tag 0x8D missing or zero content)";
                 log3if!(ctx,f,line!(), fmt, *key as u32);
             }
             else if !dp.files.contains_key(&file_id_se) {
-                let fmt   = cstru!(b"FCI of DF/MF %04X specifies a non-existant, mandatory SE file id (file %04X is missing)\0");
+                let fmt   = c"FCI of DF/MF %04X specifies a non-existant, mandatory SE file id (file %04X is missing)";
                 log3if!(ctx,f,line!(), fmt, *key as u32, file_id_se as u32);
             }
             else if dp.files[&file_id_se].1[0] != FDB_SE_FILE {
-                let fmt   = cstru!(b"FCI of DF/MF %04X specifies an existant, mandatory SE file id %04X that has incompatible cos5 file type (FDB != 0x1C)\0");
+                let fmt   = c"FCI of DF/MF %04X specifies an existant, mandatory SE file id %04X that has incompatible cos5 file type (FDB != 0x1C)";
                 log3if!(ctx,f,line!(), fmt, *key as u32, file_id_se as u32);
             }
         }
@@ -1416,29 +1416,29 @@ extern "C" fn acos5_pkcs15_sanity_check(_profile: *mut sc_profile, p15card: *mut
 //            }
             if !sm_available {
                 if val.2.unwrap()[0] & 0x40 > 0 {
-                    let format = cstru!(b"SCB of file %04X enforces SM for 'read_binary', but the Secure Messaging library doesn't yet exist: Impossible to read that file\0");
+                    let format = c"SCB of file %04X enforces SM for 'read_binary', but the Secure Messaging library doesn't yet exist: Impossible to read that file";
                     unsafe { sc_do_log(card_ref.ctx, SC_LOG_DEBUG_NORMAL, f_log.as_ptr(), line!() as i32, f.as_ptr(), format.as_ptr(), *key as u32) };
                 }
                 if val.2.unwrap()[1] & 0x40 > 0 {
-                    let format = cstru!(b"SCB of file %04X enforces SM for 'update_binary', but the Secure Messaging library doesn't yet exist: Impossible to modify content of that file\0");
+                    let format = c"SCB of file %04X enforces SM for 'update_binary', but the Secure Messaging library doesn't yet exist: Impossible to modify content of that file";
                     unsafe { sc_do_log(card_ref.ctx, SC_LOG_DEBUG_NORMAL, f_log.as_ptr(), line!() as i32, f.as_ptr(), format.as_ptr(), *key as u32) };
                 }
 
 
                 if val.2.unwrap()[3] & 0x40 > 0 {
-                    let format = cstru!(b"SCB of file %04X enforces SM for 'deactivate_file', but the Secure Messaging library doesn't yet exist: Impossible to deactivate/invalidate that file\0");
+                    let format = c"SCB of file %04X enforces SM for 'deactivate_file', but the Secure Messaging library doesn't yet exist: Impossible to deactivate/invalidate that file";
                     unsafe { sc_do_log(card_ref.ctx, SC_LOG_DEBUG_NORMAL, f_log.as_ptr(), line!() as i32, f.as_ptr(), format.as_ptr(), *key as u32) };
                 }
                 if val.2.unwrap()[4] & 0x40 > 0 {
-                    let format = cstru!(b"SCB of file %04X enforces SM for 'activate_file', but the Secure Messaging library doesn't yet exist: Impossible to activate/rehabilitate that file\0");
+                    let format = c"SCB of file %04X enforces SM for 'activate_file', but the Secure Messaging library doesn't yet exist: Impossible to activate/rehabilitate that file";
                     unsafe { sc_do_log(card_ref.ctx, SC_LOG_DEBUG_NORMAL, f_log.as_ptr(), line!() as i32, f.as_ptr(), format.as_ptr(), *key as u32) };
                 }
                 if val.2.unwrap()[5] & 0x40 > 0 {
-                    let format = cstru!(b"SCB of file %04X enforces SM for 'terminate_file', but the Secure Messaging library doesn't yet exist: Impossible to unmodifiably terminate/lock that file\0");
+                    let format = c"SCB of file %04X enforces SM for 'terminate_file', but the Secure Messaging library doesn't yet exist: Impossible to unmodifiably terminate/lock that file";
                     unsafe { sc_do_log(card_ref.ctx, SC_LOG_DEBUG_NORMAL, f_log.as_ptr(), line!() as i32, f.as_ptr(), format.as_ptr(), *key as u32) };
                 }
                 if val.2.unwrap()[6] & 0x40 > 0 {
-                    let format = cstru!(b"SCB of file %04X enforces SM for 'delete_file', but the Secure Messaging library doesn't yet exist: Impossible to delete that file (except by 'erase_card')\0");
+                    let format = c"SCB of file %04X enforces SM for 'delete_file', but the Secure Messaging library doesn't yet exist: Impossible to delete that file (except by 'erase_card')";
                     unsafe { sc_do_log(card_ref.ctx, SC_LOG_DEBUG_NORMAL, f_log.as_ptr(), line!() as i32, f.as_ptr(), format.as_ptr(), *key as u32) };
                 }
             }

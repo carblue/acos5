@@ -1,8 +1,8 @@
-
+/*
 macro_rules! cstru {
     ($x:expr) => (unsafe { std::ffi::CStr::from_bytes_with_nul_unchecked($x) })
 }
-
+*/
 /*
 All logging will ultimately call into C's variadic function sc_do_log
 All log-related macros here are dispatchers only to some wr_do_log* functions
@@ -38,7 +38,7 @@ macro_rules! log3ift {
 //     if : because it depends on cargo:rustc-cfg=log: if set, the macro will log, otherwise logging will be suppressed
 //       r : specific for logging 'return' (or 'report') situations
 macro_rules! log3ifr {
-    ($a:expr, $b:expr, $c:expr)                                               => (wr_do_log     ($a, $b, $c,  cstru!(b"returning\0")));
+    ($a:expr, $b:expr, $c:expr)                                               => (wr_do_log     ($a, $b, $c,  c"returning"));
     ($a:expr, $b:expr, $c:expr,           $e:expr)                            => (wr_do_log_rv  ($a, $b, $c,  $e));
     ($a:expr, $b:expr, $c:expr,           $e:expr, $f:expr)                   => (wr_do_log_sds ($a, $b, $c,  $e, $f)); // not explicitly related to 'returning'
 }
@@ -48,5 +48,5 @@ macro_rules! log3ifr {
 //     if : because it depends on cargo:rustc-cfg=log: if set, the macro will log, otherwise logging will be suppressed
 //       c : specific for logging 'called' situations
 macro_rules! log3ifc {
-    ($a:expr, $b:expr, $c:expr)                                               => (wr_do_log     ($a, $b, $c,  cstru!(b"called\0")));
+    ($a:expr, $b:expr, $c:expr)                                               => (wr_do_log     ($a, $b, $c,  c"called"));
 }

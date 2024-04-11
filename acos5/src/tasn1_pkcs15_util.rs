@@ -20,9 +20,9 @@
 
 use std::os::raw::{c_char, c_void/*, c_int*/};
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
-use std::os::raw::{c_ulong};
-use std::ptr::{null_mut};
-use std::ffi::{CStr};
+use std::os::raw::c_ulong;
+use std::ptr::null_mut;
+use std::ffi::CStr;
 use std::ops::{Deref, DerefMut, Range};
 
 use opensc_sys::opensc::{sc_card, sc_format_path, sc_path_set, sc_select_file, sc_read_binary};
@@ -183,7 +183,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
     let mut aid_buf = [0_u8; SC_MAX_AID_SIZE];
     let mut aid_len = i32::try_from(SC_MAX_AID_SIZE).unwrap();
     let mut path_2f00 = sc_path::default();
-    unsafe { sc_format_path(cstru!(b"3F002F00\0").as_ptr(), &mut path_2f00); } // type = SC_PATH_TYPE_PATH;
+    unsafe { sc_format_path(c"3F002F00".as_ptr(), &mut path_2f00); } // type = SC_PATH_TYPE_PATH;
     let mut file = null_mut();
     let guard_file = GuardFile::new(&mut file);
     let mut rv = unsafe { sc_select_file(card, &path_2f00, *guard_file) };
@@ -203,7 +203,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
 //println!("for range in DirectoryRange: {:?}", range);
         let mut structure : asn1_node = null_mut();
         let guard_structure = GuardAsn1Node::new(&mut structure);
-        let mut asn1_result = unsafe { asn1_create_element(pkcs15_definitions, cstru!(b"PKCS15.DIRRecord\0").as_ptr(), *guard_structure) };
+        let mut asn1_result = unsafe { asn1_create_element(pkcs15_definitions, c"PKCS15.DIRRecord".as_ptr(), *guard_structure) };
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
             println!("### Error in structure creation: {:?}", unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
             return;
@@ -219,7 +219,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
             continue;
         }
 //println!("ready to inspect");
-        let mut name = cstru!(b"aid\0"); // OCTET STRING  MANDATORY
+        let mut name = c"aid"; // OCTET STRING  MANDATORY
         asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), aid_buf.as_mut_ptr().cast::<c_void>(), &mut aid_len) };
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
             println!("asn1_result (asn1_read_value  aid): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
@@ -231,7 +231,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
 //println!("aid of application directory: 0x{:X?}", buf_slice);
 //println!("aid of application directory: {}", String::from_utf8(buf_slice.to_vec()).unwrap_or_default());
 
-        name = cstru!(b"path\0"); // OCTET STRING  MANDATORY
+        name = c"path"; // OCTET STRING  MANDATORY
         let mut buf = [0_u8; SC_MAX_PATH_SIZE];
         let mut outlen = i32::try_from(buf.len()).unwrap();
         asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &mut outlen) };
@@ -253,7 +253,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
         assert_eq!(buf_slice, &dp_files_value_app.0[..dp_files_value_app.1[1].into()]);
         card.drv_data = Box::into_raw(dp).cast::<c_void>();
 
-        name = cstru!(b"label\0"); // UTF8String  OPTIONAL
+        name = c"label"; // UTF8String  OPTIONAL
         let mut buf_str = [0_u8; 64];
         outlen = i32::try_from(buf_str.len()).unwrap();
         asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf_str.as_mut_ptr().cast::<c_void>(), &mut outlen) };
@@ -266,7 +266,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
         }
 
         let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
-        name = cstru!(b"ddo.odfPath.path\0"); // OCTET STRING  OPTIONAL
+        name = c"ddo.odfPath.path"; // OCTET STRING  OPTIONAL
         outlen = i32::try_from(buf.len()).unwrap();
         asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &mut outlen) };
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
@@ -292,7 +292,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
             dp_files_value_5031.1[6] = PKCS15_FILE_TYPE_ODF;
         }
 
-        name = cstru!(b"ddo.tokenInfoPath.path\0"); // OCTET STRING  OPTIONAL
+        name = c"ddo.tokenInfoPath.path"; // OCTET STRING  OPTIONAL
         outlen = i32::try_from(buf.len()).unwrap();
         asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &mut outlen) };
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
@@ -343,16 +343,16 @@ pub fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
 
     fn get_arr<'a>(idx: u8) -> &'a CStr {
         match idx {
-            PKCS15_FILE_TYPE_PRKDF => cstru!(b"privateKeys.path.path\0"),
-            PKCS15_FILE_TYPE_PUKDF => cstru!(b"publicKeys.path.path\0"),
-            PKCS15_FILE_TYPE_PUKDF_TRUSTED => cstru!(b"trustedPublicKeys.path.path\0"),
-            PKCS15_FILE_TYPE_SKDF => cstru!(b"secretKeys.path.path\0"),
-            PKCS15_FILE_TYPE_CDF => cstru!(b"certificates.path.path\0"),
-            PKCS15_FILE_TYPE_CDF_TRUSTED => cstru!(b"trustedCertificates.path.path\0"),
-            PKCS15_FILE_TYPE_CDF_USEFUL => cstru!(b"usefulCertificates.path.path\0"),
-            PKCS15_FILE_TYPE_DODF => cstru!(b"dataObjects.path.path\0"),
-            PKCS15_FILE_TYPE_AODF => cstru!(b"authObjects.path.path\0"),
-            _ => cstru!(b"noObject\0"),
+            PKCS15_FILE_TYPE_PRKDF => c"privateKeys.path.path",
+            PKCS15_FILE_TYPE_PUKDF => c"publicKeys.path.path",
+            PKCS15_FILE_TYPE_PUKDF_TRUSTED => c"trustedPublicKeys.path.path",
+            PKCS15_FILE_TYPE_SKDF => c"secretKeys.path.path",
+            PKCS15_FILE_TYPE_CDF => c"certificates.path.path",
+            PKCS15_FILE_TYPE_CDF_TRUSTED => c"trustedCertificates.path.path",
+            PKCS15_FILE_TYPE_CDF_USEFUL => c"usefulCertificates.path.path",
+            PKCS15_FILE_TYPE_DODF => c"dataObjects.path.path",
+            PKCS15_FILE_TYPE_AODF => c"authObjects.path.path",
+            _ => c"noObject",
         }
     }
 
@@ -416,7 +416,7 @@ pub fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
             let mut structure = null_mut();
             let guard_structure = GuardAsn1Node::new(&mut structure);
             let mut asn1_result = unsafe { asn1_create_element(pkcs15_definitions,
-                cstru!(b"PKCS15.PKCS15Objects\0").as_ptr(), *guard_structure) };
+                c"PKCS15.PKCS15Objects".as_ptr(), *guard_structure) };
             if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
                 println!("### Error in structure creation: {:?}", unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
                 Box::leak(dp);
@@ -502,16 +502,16 @@ pub fn analyze_PKCS15_PKCS15Objects(card: &mut sc_card, elem: FidPkcs15Type) {
 
     fn get_arr0<'a>(idx_0: u8) -> &'a CStr {
         match idx_0 {
-            PKCS15_FILE_TYPE_PRKDF => cstru!(b"PKCS15.PrivateKeyType\0"),
+            PKCS15_FILE_TYPE_PRKDF => c"PKCS15.PrivateKeyType",
             PKCS15_FILE_TYPE_PUKDF |
-            PKCS15_FILE_TYPE_PUKDF_TRUSTED => cstru!(b"PKCS15.PublicKeyType\0"),
-            PKCS15_FILE_TYPE_SKDF => cstru!(b"PKCS15.SecretKeyType\0"),
+            PKCS15_FILE_TYPE_PUKDF_TRUSTED => c"PKCS15.PublicKeyType",
+            PKCS15_FILE_TYPE_SKDF => c"PKCS15.SecretKeyType",
             PKCS15_FILE_TYPE_CDF |
             PKCS15_FILE_TYPE_CDF_TRUSTED |
-            PKCS15_FILE_TYPE_CDF_USEFUL => cstru!(b"PKCS15.CertificateType\0"),
-            PKCS15_FILE_TYPE_DODF => cstru!(b"PKCS15.DataType\0"),
-            PKCS15_FILE_TYPE_AODF => cstru!(b"PKCS15.AuthenticationType\0"),
-            _ => cstru!(b"no_type\0"),
+            PKCS15_FILE_TYPE_CDF_USEFUL => c"PKCS15.CertificateType",
+            PKCS15_FILE_TYPE_DODF => c"PKCS15.DataType",
+            PKCS15_FILE_TYPE_AODF => c"PKCS15.AuthenticationType",
+            _ => c"no_type",
         }
     }
 
@@ -555,27 +555,27 @@ PKCS15_FILE_TYPE_CDF_USEFUL, 0)     => PKCS15_FILE_TYPE_CERT,
 
 fn get_arr1<'a>(idx_0: u8, idx_1: u8) -> &'a CStr {
     match (idx_0, idx_1) {
-        (PKCS15_FILE_TYPE_PRKDF, 0) => cstru!(b"privateRSAKey.privateRSAKeyAttributes.value.indirect.path.path\0"),
-        (PKCS15_FILE_TYPE_PRKDF, 1) => cstru!(b"privateECKey.privateECKeyAttributes.value.indirect.path.path\0"),
+        (PKCS15_FILE_TYPE_PRKDF, 0) => c"privateRSAKey.privateRSAKeyAttributes.value.indirect.path.path",
+        (PKCS15_FILE_TYPE_PRKDF, 1) => c"privateECKey.privateECKeyAttributes.value.indirect.path.path",
 
-        (PKCS15_FILE_TYPE_PUKDF | PKCS15_FILE_TYPE_PUKDF_TRUSTED, 0) => cstru!(b"publicRSAKey.publicRSAKeyAttributes.value.indirect.path.path\0"),
+        (PKCS15_FILE_TYPE_PUKDF | PKCS15_FILE_TYPE_PUKDF_TRUSTED, 0) => c"publicRSAKey.publicRSAKeyAttributes.value.indirect.path.path",
 
-        (PKCS15_FILE_TYPE_PUKDF | PKCS15_FILE_TYPE_PUKDF_TRUSTED, 1) => cstru!(b"publicECKey.publicECKeyAttributes.value.indirect.path.path\0"),
+        (PKCS15_FILE_TYPE_PUKDF | PKCS15_FILE_TYPE_PUKDF_TRUSTED, 1) => c"publicECKey.publicECKeyAttributes.value.indirect.path.path",
 
-        (PKCS15_FILE_TYPE_SKDF, 0) => cstru!(b"genericSecretKey.genericSecretKeyAttributes.value.indirect.path.path\0"),
-        (PKCS15_FILE_TYPE_SKDF, 1) => cstru!(b"desKey.genericSecretKeyAttributes.value.indirect.path.path\0"),
-        (PKCS15_FILE_TYPE_SKDF, 2) => cstru!(b"des2Key.genericSecretKeyAttributes.value.indirect.path.path\0"),
-        (PKCS15_FILE_TYPE_SKDF, 3) => cstru!(b"des3Key.genericSecretKeyAttributes.value.indirect.path.path\0"),
+        (PKCS15_FILE_TYPE_SKDF, 0) => c"genericSecretKey.genericSecretKeyAttributes.value.indirect.path.path",
+        (PKCS15_FILE_TYPE_SKDF, 1) => c"desKey.genericSecretKeyAttributes.value.indirect.path.path",
+        (PKCS15_FILE_TYPE_SKDF, 2) => c"des2Key.genericSecretKeyAttributes.value.indirect.path.path",
+        (PKCS15_FILE_TYPE_SKDF, 3) => c"des3Key.genericSecretKeyAttributes.value.indirect.path.path",
 
         (PKCS15_FILE_TYPE_CDF | PKCS15_FILE_TYPE_CDF_TRUSTED |
-PKCS15_FILE_TYPE_CDF_USEFUL, 0)  => cstru!(b"x509Certificate.x509CertificateAttributes.value.indirect.path.path\0"),
+PKCS15_FILE_TYPE_CDF_USEFUL, 0)  => c"x509Certificate.x509CertificateAttributes.value.indirect.path.path",
 
-        (PKCS15_FILE_TYPE_DODF, 0) => cstru!(b"opaqueDO.opaque.indirect.path.path\0"),
+        (PKCS15_FILE_TYPE_DODF, 0) => c"opaqueDO.opaque.indirect.path.path",
 
-        (PKCS15_FILE_TYPE_AODF, 0) => cstru!(b"pinAuthObj.pinAttributes.path.path\0"),
-        (PKCS15_FILE_TYPE_AODF, 1) => cstru!(b"biometricAuthObj.biometricAttributes.path.path\0"),
-        (PKCS15_FILE_TYPE_AODF, 2) => cstru!(b"authKeyAuthObj.authKeyAttributes.authKeyId\0"), // TODO the buffer [0_u8; SC_MAX_PATH_SIZE] may be too small, needed: [0_u8; 255]
-        (_, _) => cstru!(b"no_path\0"),
+        (PKCS15_FILE_TYPE_AODF, 0) => c"pinAuthObj.pinAttributes.path.path",
+        (PKCS15_FILE_TYPE_AODF, 1) => c"biometricAuthObj.biometricAttributes.path.path",
+        (PKCS15_FILE_TYPE_AODF, 2) => c"authKeyAuthObj.authKeyAttributes.authKeyId", // TODO the buffer [0_u8; SC_MAX_PATH_SIZE] may be too small, needed: [0_u8; 255]
+        (_, _) => c"no_path",
     }
 }
 
@@ -669,7 +669,7 @@ pub fn analyze_PKCS15_TokenInfo_5032(card: &mut sc_card) {
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let pkcs15_definitions = dp.pkcs15_definitions;
     if pkcs15_definitions.is_null() { Box::leak(dp); return; }
-    // let fmt1  = cstru!(b"key: %04X, val.1: %s\0");
+    // let fmt1  = c"key: %04X, val.1: %s";
     for (&key, val) in &dp.files {
         if val.1[6] == PKCS15_FILE_TYPE_APPDF {
             vec_appdf.push(FidPath(key, &val.0[..val.1[1].into()]));
@@ -698,7 +698,7 @@ pub fn analyze_PKCS15_TokenInfo_5032(card: &mut sc_card) {
                     let size: usize = file_id_se(dp_files_value.1).into();
 
                     let mut path_5032 = sc_path::default();
-                    unsafe { sc_format_path(cstru!(b"3F0041005032\0").as_ptr(), &mut path_5032); } // type = SC_PATH_TYPE_PATH;
+                    unsafe { sc_format_path(c"3F0041005032".as_ptr(), &mut path_5032); } // type = SC_PATH_TYPE_PATH;
                     unsafe { sc_select_file(card, &path_5032, null_mut()) };
                     let mut rbuf = vec![0_u8; size];
                     let rv = unsafe { sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), 0) };
@@ -708,7 +708,7 @@ pub fn analyze_PKCS15_TokenInfo_5032(card: &mut sc_card) {
                     for range in DirectoryRange::new(&rbuf[..rv.try_into().unwrap()]) {
                         let mut structure = null_mut();
                         let guard_structure = GuardAsn1Node::new(&mut structure);
-                        let source_name = cstru!(b"PKCS15.TokenInfo\0");
+                        let source_name = c"PKCS15.TokenInfo";
                         let mut asn1_result = unsafe { asn1_create_element(pkcs15_definitions, source_name.as_ptr(), *guard_structure) };
                         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
                             println!("### Error in structure creation: {:?}", unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
@@ -730,7 +730,7 @@ pub fn analyze_PKCS15_TokenInfo_5032(card: &mut sc_card) {
                                 // for type_ in PKCS15_FILE_TYPE_PRKDF..=PKCS15_FILE_TYPE_AODF {
                                 //     println!("ready to inspect");
                                 //     println!("ready to inspect");
-                                let name = cstru!(b"label\0"); // UTF8String
+                                let name = c"label"; // UTF8String
                                     let mut buf_str = [0_u8; 64];
                                     let mut outlen = buf_str.len() as c_int;
                                     asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(),

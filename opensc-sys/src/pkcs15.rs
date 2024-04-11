@@ -1018,8 +1018,10 @@ extern "C" {
 
     pub fn sc_pkcs15_card_clear(p15card: *mut sc_pkcs15_card);
 
+    #[cfg(any(v0_20_0, v0_21_0))]
     pub fn sc_pkcs15_tokeninfo_new() -> *mut sc_pkcs15_tokeninfo;
 
+    #[cfg(any(v0_20_0, v0_21_0))]
     pub fn sc_pkcs15_free_tokeninfo(tokeninfo: *mut sc_pkcs15_tokeninfo);
 
     #[cfg(    any(v0_20_0, v0_21_0, v0_22_0))]
@@ -1053,13 +1055,15 @@ extern "C" {
     pub fn sc_pkcs15_compute_signature(p15card: *mut sc_pkcs15_card, prkey_obj: *const sc_pkcs15_object, alg_flags: c_ulong,
                                        in_: *const u8, inlen: usize, out: *mut u8, outlen: usize, pMechanism: *mut c_void) -> i32;
 
-    fn sc_pkcs15_encrypt_sym(p15card: *mut sc_pkcs15_card, obj: *const sc_pkcs15_object, flags: c_ulong,
-                             in_: *const u8, inlen: usize, out: *mut u8, outlen: *mut usize,
-                             param: *const u8, paramlen: usize) -> i32;
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
+    pub fn sc_pkcs15_encrypt_sym(p15card: *mut sc_pkcs15_card, obj: *const sc_pkcs15_object, flags: c_ulong,
+                                 in_: *const u8, inlen: usize, out: *mut u8, outlen: *mut usize,
+                                 param: *const u8, paramlen: usize) -> i32;
 
-    fn sc_pkcs15_decrypt_sym(p15card: *mut sc_pkcs15_card, obj: *const sc_pkcs15_object, flags: c_ulong,
-                             in_: *const u8, inlen: usize, out: *mut u8, outlen: *mut usize,
-                             param: *const u8, paramlen: usize) -> i32;
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
+    pub fn sc_pkcs15_decrypt_sym(p15card: *mut sc_pkcs15_card, obj: *const sc_pkcs15_object, flags: c_ulong,
+                                 in_: *const u8, inlen: usize, out: *mut u8, outlen: *mut usize,
+                                 param: *const u8, paramlen: usize) -> i32;
 /*
     #[cfg(sym_hw_encrypt)]
     pub fn sc_pkcs15_encrypt_sym(p15card: *mut sc_pkcs15_card, skey_obj: *const sc_pkcs15_object, flags: c_ulong,
@@ -1078,13 +1082,13 @@ extern "C" {
     pub fn sc_pkcs15_encode_pubkey_rsa(ctx: *mut sc_context, rsa_key: *const sc_pkcs15_pubkey_rsa, out: *mut *mut u8,
                                        out_len: *mut usize) -> i32; // API_CHANGED
 
-    #[cfg(any(v0_20_0, v0_21_0, v0_22_0))]
-    pub fn sc_pkcs15_decode_pubkey_dsa(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_dsa, arg3: *const u8,
-                                           arg4: usize) -> i32;
+#[cfg(any(v0_20_0, v0_21_0, v0_22_0))]
+pub fn sc_pkcs15_decode_pubkey_dsa(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_dsa, arg3: *const u8,
+                                   arg4: usize) -> i32;
 
-    #[cfg(any(v0_20_0, v0_21_0, v0_22_0))]
-    pub fn sc_pkcs15_encode_pubkey_dsa(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_dsa, arg3: *mut *mut u8,
-                                           arg4: *mut usize) -> i32;
+#[cfg(any(v0_20_0, v0_21_0, v0_22_0))]
+pub fn sc_pkcs15_encode_pubkey_dsa(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_dsa, arg3: *mut *mut u8,
+                                   arg4: *mut usize) -> i32;
 pub fn sc_pkcs15_decode_pubkey_gostr3410(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_gostr3410,
                                          arg3: *const u8, arg4: usize) -> i32;
 
@@ -1268,8 +1272,9 @@ pub fn sc_pkcs15_encode_prkdf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_
 pub fn sc_pkcs15_encode_pukdf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_object, buf: *mut *mut u8,
                                     bufsize: *mut usize) -> i32;
 
-fn sc_pkcs15_encode_skdf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_object, buf: *mut *mut u8,
-                               buflen: *mut usize) -> i32;
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
+pub fn sc_pkcs15_encode_skdf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_object, buf: *mut *mut u8,
+                                   buflen: *mut usize) -> i32;
 
 pub fn sc_pkcs15_encode_dodf_entry(ctx: *mut sc_context, obj: *const sc_pkcs15_object, buf: *mut *mut u8,
                                    bufsize: *mut usize) -> i32;

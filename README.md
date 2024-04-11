@@ -2,7 +2,7 @@
 [![Build Status](https://travis-ci.org/carblue/acos5.svg?branch=master)](https://travis-ci.org/carblue/acos5)
 
 Driver for Advanced Card Systems (ACS)  ACOS5 Smart Card V2.00 (CryptoMate64) and V3.00 (CryptoMate Nano),  
-as external modules, operating within the OpenSC software framework (versions supported: 0.20.0 - 0.25.0).
+as external modules, operating within the OpenSC software framework (versions supported: 0.20.0 - 0.24.0).
 Maybe if once [pcsc-tools](http://ludovic.rousseau.free.fr/softwares/pcsc-tools/ "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/") will support V4.X0 ACOS5-EVO / CryptoMate EVO, I might continue work on supporting that in driver's code as well.
 
 The respective reference manual for Your hardware is available on request from: info@acs.com.hk
@@ -22,7 +22,7 @@ There is none known to me for ACOS5 that is open-source, nothing in this regard 
 The only open-source software downloadable from ACS is [acsccid](https://github.com/acshk/acsccid "https://github.com/acshk/acsccid"), a PC/SC driver for Linux/Mac OS X. PC/SC or WinSCard (Windows) is just the basic layer on which a PKCS#11 library can build upon. I never installed acsccid for production use of my CryptoMate64 and CryptoMate Nano, hence the debian/ubuntu-supplied [ccid](https://ccid.apdu.fr/ "https://ccid.apdu.fr/") seems to be sufficient (if it's new enough to list those cards as supported ones: [shouldwork](https://ccid.apdu.fr/ccid/shouldwork.html "https://ccid.apdu.fr/ccid/shouldwork.html")).  
 So be careful what You get from ACS when it's called driver. Perhaps You get something that is behind the "File Upon Request" barrier.
 
-[OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki") supplies i.a. a PKCS#11 implementing open-source library (onepin-opensc-pkcs11.so/opensc-pkcs11.so) if it get's augmented by a hardware specific driver, which is missing currently for ACOS5 smart cards in OpenSC v0.25.0, and the one available in previous versions was rudimentary/incomplete; hence excluded for good reasons.
+[OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki") supplies i.a. a PKCS#11 implementing open-source library (onepin-opensc-pkcs11.so/opensc-pkcs11.so) if it get's augmented by a hardware specific driver, which is missing currently for ACOS5 smart cards in OpenSC v0.24.0, and the one available in previous versions was rudimentary/incomplete; hence excluded for good reasons.
 
 With this repo's components 'acos5' and 'acos5_pkcs15' as plug-ins, OpenSC now supports some ACOS5 hardware as well. (Fortunately OpenSC allows such plug-ins as - in OpenSC lingo - external modules/shared libraries/DLL).  
 External modules need some configuration once in opensc.conf, such that they get 'registered' and used by OpenSC software, explained below.
@@ -75,7 +75,7 @@ If a manually added 'Symmetric Key' is not listed in SKDF, then it does not exis
 
 So this is the point: It would be graceful to react upon limits/rules violations with error returns and respective error messages in opensc-debug.log, but all too often the driver isn't yet that polite and just deliberately aborts ("panic" in Rust lingo, due to an assert violation).
 So, if anybody wants to contribute, removing these rough edges is an easy way to start.  
-And if the driver is "impolite" currently, it's most likely something about card content, that is different from expected according to PKCS#15 / ISO/IEC 7816-15 / OpenSC. It's tough for outsiders to spot from OpenSC code: What is the exact requirement for ASN.1 content of PKCS#15 files. Maybe it's easier to read from [PKCS15.asn](https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn "https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn"), which is specifically crafted/modified from a module pkcs-15v1_1.asn found by a web search, for compatibility with OpenSC version 0.19.0 ? - 0.25.0, libtasn1 and ACOS5. It's also internally used by the driver in non-Windows builds.
+And if the driver is "impolite" currently, it's most likely something about card content, that is different from expected according to PKCS#15 / ISO/IEC 7816-15 / OpenSC. It's tough for outsiders to spot from OpenSC code: What is the exact requirement for ASN.1 content of PKCS#15 files. Maybe it's easier to read from [PKCS15.asn](https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn "https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn"), which is specifically crafted/modified from a module pkcs-15v1_1.asn found by a web search, for compatibility with OpenSC version 0.19.0 ? - 0.24.0, libtasn1 and ACOS5. It's also internally used by the driver in non-Windows builds.
 
 Akin to the www with it's broken links phenomenon, that may happen with a smart card as well: A lot in PKCS#15 and ACOS5 depends on "pointing to", and that may easily be broken by software bugs or ?. Thus I plan to integrate detection code for this kind of card content errors and more, for pkcs15-init --sanity-check  
 Thus a sanity-check without any errors found should prevent the driver from becoming "impolite" or reporting errors.  

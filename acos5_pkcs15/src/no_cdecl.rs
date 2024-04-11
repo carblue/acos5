@@ -4,7 +4,7 @@ use std::os::raw::{c_void};
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
 use std::os::raw::{c_ulong};
 use std::collections::HashSet;
-use std::ptr::{null_mut, addr_of_mut};
+use std::ptr::{/*null, */ null_mut, addr_of_mut};
 use std::cmp::Ordering;
 // use std::slice::from_raw_parts;
 
@@ -44,14 +44,14 @@ pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mu
     }
     // let card = unsafe { &mut *p15card.card };
     let ctx = unsafe { &mut *(*p15card.card).ctx };
-    let f = cstru!(b"first_of_free_indices\0");
+    let f = c"first_of_free_indices";
     log3ifc!(ctx,f,line!());
 
     let df_path = match find_df_by_type(p15card, SC_PKCS15_SKDF) {
         Ok(df) => if df.enumerated==1 {&df.path} else {return -1},
         Err(e) => return e,
     };
-    log3if!(ctx,f,line!(), cstru!(b"df_list.path of SC_PKCS15_SKDF: %s\0"),
+    log3if!(ctx,f,line!(), c"df_list.path of SC_PKCS15_SKDF: %s",
         unsafe { sc_dump_hex(df_path.value.as_ptr(), df_path.len) });
     let mut obj_list_ptr = p15card.obj_list;
     if obj_list_ptr.is_null() {
@@ -64,20 +64,20 @@ pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mu
         let obj_list = unsafe { &*obj_list_ptr };
         if (obj_list.type_ & SC_PKCS15_TYPE_SKEY) == SC_PKCS15_TYPE_SKEY {
             assert!(!obj_list.data.is_null());
-            // log3if!(ctx,f,line!(), cstru!(b"obj_list.type_: %X\0"),        obj_list.type_);
-            // log3if!(ctx,f,line!(), cstru!(b"obj_list.label: %s\0"),        obj_list.label.as_ptr());
-            // log3if!(ctx,f,line!(), cstru!(b"obj_list.flags: %X\0"),        obj_list.flags);
-            // log3if!(ctx,f,line!(), cstru!(b"obj_list.content.len: %zu\0"), obj_list.content.len);
+            // log3if!(ctx,f,line!(), c"obj_list.type_: %X",        obj_list.type_);
+            // log3if!(ctx,f,line!(), c"obj_list.label: %s",        obj_list.label.as_ptr());
+            // log3if!(ctx,f,line!(), c"obj_list.flags: %X",        obj_list.flags);
+            // log3if!(ctx,f,line!(), c"obj_list.content.len: %zu", obj_list.content.len);
             let skey_info = unsafe { &*obj_list.data.cast::<sc_pkcs15_skey_info>() };
-            // log3if!(ctx,f,line!(), cstru!(b"skey_info.id.len: %zu\0"),       skey_info.id.len);
-            // log3if!(ctx,f,line!(), cstru!(b"skey_info.id: %s\0"),
+            // log3if!(ctx,f,line!(), c"skey_info.id.len: %zu",       skey_info.id.len);
+            // log3if!(ctx,f,line!(), c"skey_info.id: %s",
             //     unsafe { sc_dump_hex(skey_info.id.value.as_ptr(), skey_info.id.len) });
-            log3if!(ctx,f,line!(), cstru!(b"skey_info.key_reference: %d\0"), skey_info.key_reference);
-            log3if!(ctx,f,line!(), cstru!(b"skey_info.key_type: %lu\0"),     skey_info.key_type);
-            // log3if!(ctx,f,line!(), cstru!(b"skey_info.path: %s\0"),
+            log3if!(ctx,f,line!(), c"skey_info.key_reference: %d", skey_info.key_reference);
+            log3if!(ctx,f,line!(), c"skey_info.key_type: %lu",     skey_info.key_type);
+            // log3if!(ctx,f,line!(), c"skey_info.path: %s",
             //     unsafe { sc_dump_hex(skey_info.path.value.as_ptr(), skey_info.path.len) });
-            // log3if!(ctx,f,line!(), cstru!(b"skey_info.path.index: %d\0"),    skey_info.path.index);
-            // log3if!(ctx,f,line!(), cstru!(b"skey_info.path.count: %d\0"),    skey_info.path.count);
+            // log3if!(ctx,f,line!(), c"skey_info.path.index: %d",    skey_info.path.index);
+            // log3if!(ctx,f,line!(), c"skey_info.path.count: %d",    skey_info.path.count);
             assert!(skey_info.path.index >= 0 && skey_info.path.index <= 255);
             index_possible.remove(& u8::try_from(skey_info.path.index).unwrap());
             if  *file_id_sym_keys == 0 {
@@ -104,7 +104,7 @@ pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
         return Err(SC_ERROR_INVALID_ARGUMENTS);
     }
     let ctx = unsafe { &mut *(*p15card.card).ctx };
-    let f = cstru!(b"free_fid_asym\0");
+    let f = c"free_fid_asym";
     log3ifc!(ctx,f,line!());
 
     let mut df = p15card.df_list;
@@ -135,7 +135,7 @@ pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
     //     Ok(df) => if df.enumerated==1 {&df.path} else {return Err(-1)},
     //     Err(e) => return Err(e),
     // };
-//log3if!(ctx,f,line!(), cstru!(b"df_list.path of SC_PKCS15_PRKDF: %s\0"),
+//log3if!(ctx,f,line!(), c"df_list.path of SC_PKCS15_PRKDF: %s",
 //    unsafe { sc_dump_hex(df_path.value.as_ptr(), df_path.len) });
     let mut obj_list_ptr = p15card.obj_list;
     if obj_list_ptr.is_null() {
@@ -145,10 +145,10 @@ pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
         let obj_list = unsafe { &*obj_list_ptr };
         if (1 << (obj_list.type_ >> 8)) == SC_PKCS15_SEARCH_CLASS_PRKEY {
             assert!(!obj_list.data.is_null());
-//log3if!(ctx,f,line!(), cstru!(b"obj_list.type_: %X\0"),        obj_list.type_);
-//log3if!(ctx,f,line!(), cstru!(b"obj_list.label: %s\0"),        obj_list.label.as_ptr());
+//log3if!(ctx,f,line!(), c"obj_list.type_: %X",        obj_list.type_);
+//log3if!(ctx,f,line!(), c"obj_list.label: %s",        obj_list.label.as_ptr());
             let prkey_info = unsafe { &*obj_list.data.cast::<sc_pkcs15_prkey_info>() };
-//log3if!(ctx,f,line!(), cstru!(b"prkey_info.path: %s\0"),
+//log3if!(ctx,f,line!(), c"prkey_info.path: %s",
 //    unsafe { sc_dump_hex(prkey_info.path.value.as_ptr(), prkey_info.path.len) });
             let y = file_id_from_path_value(&prkey_info.path.value[..prkey_info.path.len]);
             vec.retain(|&x|  x != y);
@@ -161,7 +161,7 @@ pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
     //     Ok(df) => if df.enumerated==1 {&df.path} else {return Err(-1)},
     //     Err(e) => return Err(e),
     // };
-//log3if!(ctx,f,line!(), cstru!(b"df_list.path of SC_PKCS15_PUKDF: %s\0"),
+//log3if!(ctx,f,line!(), c"df_list.path of SC_PKCS15_PUKDF: %s",
 //    unsafe { sc_dump_hex(df_path.value.as_ptr(), df_path.len) });
     obj_list_ptr = p15card.obj_list;
 /*
@@ -173,10 +173,10 @@ pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
         let obj_list = unsafe { &*obj_list_ptr };
         if (1 << (obj_list.type_ >> 8)) == SC_PKCS15_SEARCH_CLASS_PUBKEY {
             assert!(!obj_list.data.is_null());
-//log3if!(ctx,f,line!(), cstru!(b"obj_list.type_: %X\0"),        obj_list.type_);
-//log3if!(ctx,f,line!(), cstru!(b"obj_list.label: %s\0"),        obj_list.label.as_ptr());
+//log3if!(ctx,f,line!(), c"obj_list.type_: %X",        obj_list.type_);
+//log3if!(ctx,f,line!(), c"obj_list.label: %s",        obj_list.label.as_ptr());
             let pukey_info = unsafe { &*obj_list.data.cast::<sc_pkcs15_pubkey_info>() };
-//log3if!(ctx,f,line!(), cstru!(b"pukey_info.path: %s\0"),
+//log3if!(ctx,f,line!(), c"pukey_info.path: %s",
 //    unsafe { sc_dump_hex(pukey_info.path.value.as_ptr(), pukey_info.path.len) });
             let y = file_id_from_path_value(&pukey_info.path.value[..pukey_info.path.len]);
             vec.retain(|&x|  x != y);
@@ -188,7 +188,7 @@ pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
         Ok(df) => if df.enumerated==1 {&df.path} else {return Err(-1)},
         Err(e) => return Err(e),
     };
-    log3if!(ctx,f,line!(), cstru!(b"df_list.path of SC_PKCS15_PUKDF_TRUSTED: %s\0"),
+    log3if!(ctx,f,line!(), c"df_list.path of SC_PKCS15_PUKDF_TRUSTED: %s",
         unsafe { sc_dump_hex(df_path.value.as_ptr(), df_path.len) });
     let mut obj_list_ptr = p15card.obj_list;
     if obj_list_ptr.is_null() {
@@ -198,10 +198,10 @@ pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
         let obj_list = unsafe { &*obj_list_ptr };
         if (1 << (obj_list.type_ >> 8)) == SC_PKCS15_SEARCH_CLASS_PUBKEY {
             assert!(!obj_list.data.is_null());
-            log3if!(ctx,f,line!(), cstru!(b"obj_list.type_: %X\0"),        obj_list.type_);
-            log3if!(ctx,f,line!(), cstru!(b"obj_list.label: %s\0"),        obj_list.label.as_ptr());
+            log3if!(ctx,f,line!(), c"obj_list.type_: %X",        obj_list.type_);
+            log3if!(ctx,f,line!(), c"obj_list.label: %s",        obj_list.label.as_ptr());
             let pukey_info = unsafe { &*(obj_list.data as *mut sc_pkcs15_pubkey_info) };
-            log3if!(ctx,f,line!(), cstru!(b"pukey_info.path: %s\0"),
+            log3if!(ctx,f,line!(), c"pukey_info.path: %s",
                 unsafe { sc_dump_hex(pukey_info.path.value.as_ptr(), pukey_info.path.len) });
             let y = file_id_from_path_value(&pukey_info.path.value[..pukey_info.path.len]);
             vec.retain(|&x|  x != y);
@@ -224,7 +224,7 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
     }
     let card = unsafe { &mut *p15card.card };
     let ctx = unsafe { &mut *(*p15card.card).ctx };
-    let f = cstru!(b"check_enlarge_prkdf_pukdf\0");
+    let f = c"check_enlarge_prkdf_pukdf";
     log3ifc!(ctx,f,line!());
 
     let df_path_priv = match find_df_by_type(p15card, SC_PKCS15_PRKDF) {
@@ -287,41 +287,41 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
         /* Authenticate  */
         rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_parent, i32::try_from(SC_AC_OP_DELETE).unwrap()) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"PIN verification failed\0"), rv);
+            log3ifr!(ctx,f,line!(), c"PIN verification failed", rv);
             return Err(rv);
         }
         /* Authenticate  */
         rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_parent, i32::try_from(SC_AC_OP_CREATE_EF).unwrap()) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"PIN verification failed\0"), rv);
+            log3ifr!(ctx,f,line!(), c"PIN verification failed", rv);
             return Err(rv);
         }
         /* Authenticate  */
         rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_priv, i32::try_from(SC_AC_OP_DELETE_SELF).unwrap()) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"PIN verification failed\0"), rv);
+            log3ifr!(ctx,f,line!(), c"PIN verification failed", rv);
             return Err(rv);
         }
         /* Authenticate  */
         rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_priv, i32::try_from(SC_AC_OP_UPDATE).unwrap()) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"PIN verification failed\0"), rv);
+            log3ifr!(ctx,f,line!(), c"PIN verification failed", rv);
             return Err(rv);
         }
 
         rv = unsafe { sc_delete_file(card, &df_path_priv) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"File deletion failed\0"), rv);
+            log3ifr!(ctx,f,line!(), c"File deletion failed", rv);
             return Err(rv);
         }
         rv = unsafe { sc_create_file(card, file_priv) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"File creation failed\0"), rv);
+            log3ifr!(ctx,f,line!(), c"File creation failed", rv);
             return Err(rv);
         }
         rv = unsafe { sc_update_binary(card, 0, rbuf_priv.as_ptr(), rbuf_priv.len(), 0/*flags: c_ulong*/) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"File update failed\0"), rv);
+            log3ifr!(ctx,f,line!(), c"File update failed", rv);
             return Err(rv);
         }
         let mut apdu = build_apdu(ctx, &[0, 0x44, 0, 0], SC_APDU_CASE_1, &mut[]);
@@ -359,41 +359,41 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
         /* Authenticate  */
         rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_parent, i32::try_from(SC_AC_OP_DELETE).unwrap()) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"PIN verification failed\0"), rv);
+            log3ifr!(ctx,f,line!(), c"PIN verification failed", rv);
             return Err(rv);
         }
         /* Authenticate  */
         rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_parent, i32::try_from(SC_AC_OP_CREATE_EF).unwrap()) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"PIN verification failed\0"), rv);
+            log3ifr!(ctx,f,line!(), c"PIN verification failed", rv);
             return Err(rv);
         }
         /* Authenticate  */
         rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_pub, i32::try_from(SC_AC_OP_DELETE_SELF).unwrap()) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"PIN verification failed\0"), rv);
+            log3ifr!(ctx,f,line!(), c"PIN verification failed", rv);
             return Err(rv);
         }
         /* Authenticate  */
         rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_pub, i32::try_from(SC_AC_OP_UPDATE).unwrap()) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"PIN verification failed\0"), rv);
+            log3ifr!(ctx,f,line!(), c"PIN verification failed", rv);
             return Err(rv);
         }
 
         rv = unsafe { sc_delete_file(card, &df_path_pub) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"File deletion failed\0"), rv);
+            log3ifr!(ctx,f,line!(), c"File deletion failed", rv);
             return Err(rv);
         }
         rv = unsafe { sc_create_file(card, file_pub) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"File creation failed\0"), rv);
+            log3ifr!(ctx,f,line!(), c"File creation failed", rv);
             return Err(rv);
         }
         rv = unsafe { sc_update_binary(card, 0, rbuf_pub.as_ptr(), rbuf_pub.len(), 0/*flags: c_ulong*/) };
         if rv < 0 {
-            log3ifr!(ctx,f,line!(), cstru!(b"File update failed\0"), rv);
+            log3ifr!(ctx,f,line!(), c"File update failed", rv);
             return Err(rv);
         }
         let mut apdu = build_apdu(ctx, &[0, 0x44, 0, 0], SC_APDU_CASE_1, &mut[]);
@@ -542,13 +542,13 @@ mod tests {
  */
 fn me_find_library_driver/*<'a>*/(ctx: &/*'a*/ mut sc_context, name: &CStr) -> String //&'a CStr
 {
-    let mut module_path_name : *const c_char = std::ptr::null_mut();
+    let mut module_path_name : *const c_char = null_mut();
     for elem in ctx.conf_blocks.iter() {
         if (*elem).is_null() {
             break;
         }
         let blocks = unsafe { scconf_find_blocks(ctx.conf, *elem,
-            cstru!(CARD_DRIVER).as_ptr(), name.as_ptr()) };
+            CARD_DRIVER.as_ptr(), name.as_ptr()) };
         if blocks.is_null() {
             continue;
         }
@@ -557,8 +557,8 @@ fn me_find_library_driver/*<'a>*/(ctx: &/*'a*/ mut sc_context, name: &CStr) -> S
         if blk.is_null() {
             continue;
         }
-        module_path_name = unsafe { scconf_get_str(blk, cstru!(MODULE).as_ptr(),
-        cstru!(LIB_DRIVER_NIX).as_ptr()) }; // TODO is OS specific Linux/Unix/MAC?
+        module_path_name = unsafe { scconf_get_str(blk, MODULE.as_ptr(),
+        LIB_DRIVER_NIX.as_ptr()) }; // TODO is OS specific Linux/Unix/MAC?
     }
     let mut vec : Vec<u8> = Vec::with_capacity(64);
     for i in 0.. unsafe {  strlen(module_path_name) } {
@@ -569,7 +569,7 @@ fn me_find_library_driver/*<'a>*/(ctx: &/*'a*/ mut sc_context, name: &CStr) -> S
 
 fn me_find_library_sm(ctx: &mut sc_context, name: &CStr) -> Result<String, i32>
 {
-    let f = cstru!(b"me_find_library_sm\0");
+    let f = c"me_find_library_sm";
     /* * /
     //    const char *sm = NULL, *module_name = NULL, *module_path = NULL, *module_data = NULL, *sm_mode = NULL;
     //    struct sc_context *ctx = card->ctx;
@@ -590,7 +590,7 @@ fn me_find_library_sm(ctx: &mut sc_context, name: &CStr) -> Result<String, i32>
         /* get SM configuration section by the name */
     //    sc_log(ctx, "secure_messaging configuration block '%s'", sm); // sm == "acos5_sm"
     / * */
-    let mut sm_conf_block = std::ptr::null_mut() as *mut scconf_block;
+    let mut sm_conf_block = null_mut() as *mut scconf_block;
     for elem in ctx.conf_blocks.iter() {
 //        scconf_block **blocks;
         if (*elem).is_null() {
@@ -598,7 +598,7 @@ fn me_find_library_sm(ctx: &mut sc_context, name: &CStr) -> Result<String, i32>
         }
 //        blocks = scconf_find_blocks(ctx->conf, ctx->conf_blocks[ii], "secure_messaging", sm);
         let blocks = unsafe { scconf_find_blocks(ctx.conf, *elem,
-            cstru!(SECURE_MESSAGING).as_ptr(), name.as_ptr()) };
+            SECURE_MESSAGING.as_ptr(), name.as_ptr()) };
 
         if !blocks.is_null() {
             sm_conf_block = unsafe { *blocks }; //= blocks[0];
@@ -615,11 +615,11 @@ fn me_find_library_sm(ctx: &mut sc_context, name: &CStr) -> Result<String, i32>
     }
 
     /* check if an external SM module has to be used */
-    let module_path : *const c_char = unsafe { scconf_get_str(sm_conf_block, cstru!(MODULE_PATH).as_ptr(),
-                                                              std::ptr::null() as *const c_char) };
-    let module_name : *const c_char = unsafe { scconf_get_str(sm_conf_block, cstru!(MODULE_NAME).as_ptr(),
-                                                              std::ptr::null() as *const c_char) };
-    log3ift!(ctx,f,line!(), cstru!(b"SM module '%s' in  '%s'\0"), module_name, module_path);
+    let module_path : *const c_char = unsafe { scconf_get_str(sm_conf_block, SM_MODULE_PATH.as_ptr(),
+                                                              null() as *const c_char) };
+    let module_name : *const c_char = unsafe { scconf_get_str(sm_conf_block, SM_MODULE_NAME.as_ptr(),
+                                                              null() as *const c_char) };
+    log3ift!(ctx,f,line!(), c"SM module '%s' in  '%s'", module_name, module_path);
 
     if module_name.is_null() {
 //        LOG_TEST_RET(ctx, SC_ERROR_INCONSISTENT_CONFIGURATION, "Invalid SM configuration: module not defined");
@@ -653,7 +653,7 @@ pub fn call_dynamic_update_hashmap(card: &mut sc_card) -> lib::Result<()> {
 /* call into the SM library (whether it's existent/usable) */
 pub fn call_dynamic_sm_test(ctx: &mut sc_context, info: *mut sm_info, out: *mut c_char) -> lib::Result<i32> {
 //    let ctx : &mut sc_context = unsafe { &mut *card.ctx };
-    let sm_module_path_name = me_find_library_sm(ctx, cstru!(CARD_SM_SHORT_NAME));
+    let sm_module_path_name = me_find_library_sm(ctx, CARD_SM_SHORT_NAME);
 //    println!("sm module_path_name: {}", sm_module_path_name);
 //            sm module_path_name: $HOME/RustProjects/acos5_sm/target/debug/libacos5_sm.so
 //    me_find_library_sm: SM module 'libacos5_sm.so' in  '$HOME/RustProjects/acos5_sm/target/debug'
@@ -687,35 +687,35 @@ pub fn acos5_pkcs15_new_file(profile: &mut sc_profile, card: &mut sc_card,
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"acos5_pkcs15_new_file\0");
+    let f = c"acos5_pkcs15_new_file";
     log3ifc!(ctx,f,line!());
-    log3if!(ctx,f,line!(), cstru!(b"type %X; num %i\0"), type_, num);
+    log3if!(ctx,f,line!(), c"type %X; num %i", type_, num);
 
     let rv : i32;
     let t_name = match type_ {
-        SC_PKCS15_TYPE_PRKEY_RSA   => cstru!(b"template-private-key\0"),
-        SC_PKCS15_TYPE_PUBKEY_RSA  => cstru!(b"template-public-key\0"),
-        SC_PKCS15_TYPE_CERT        => cstru!(b"template-certificate\0"),
-        SC_PKCS15_TYPE_DATA_OBJECT => cstru!(b"template-public-data\0"),
+        SC_PKCS15_TYPE_PRKEY_RSA   => c"template-private-key",
+        SC_PKCS15_TYPE_PUBKEY_RSA  => c"template-public-key",
+        SC_PKCS15_TYPE_CERT        => c"template-certificate",
+        SC_PKCS15_TYPE_DATA_OBJECT => c"template-public-data",
         _  => {
             rv = SC_ERROR_NOT_SUPPORTED;
-            log3ifr!(ctx,f,line!(), cstru!(b"Profile template not supported\0"), rv);
+            log3ifr!(ctx,f,line!(), c"Profile template not supported", rv);
             return rv;
         },
     };
 
 //sc_log(ctx, "df_info path '%s'", sc_print_path(&profile->df_info->file->path));
-    let mut file : *mut sc_file = std::ptr::null_mut();
+    let mut file : *mut sc_file = null_mut();
     let rv = me_profile_get_file(profile, t_name.as_ptr(), &mut file);
     if rv < 0 {
-        log3ifr!(ctx,f,line!(), cstru!(b"Error when getting file from template\0"), rv)};
+        log3ifr!(ctx,f,line!(), c"Error when getting file from template", rv)};
 //        return rv;
         file = unsafe { sc_file_new() };
     }
     assert!(!file.is_null());
     let file_rm = unsafe { &mut *file };
 
-    log3if!(ctx,f,line!(), cstru!(b"file(type:%X), path(type:%X,path:%s)\0"), file_rm.type_, file_rm.path.type_,
+    log3if!(ctx,f,line!(), c"file(type:%X), path(type:%X,path:%s)", file_rm.type_, file_rm.path.type_,
         unsafe { sc_print_path(&file_rm.path) } );
     file_rm.id = (file_rm.id & 0xFF00) | (num & 0xFF);
 

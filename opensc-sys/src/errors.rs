@@ -234,14 +234,10 @@ mod tests {
     use std::ffi::CStr;
     use super::*;
 
-    macro_rules! cstru {
-        ($x:expr) => (CStr::from_bytes_with_nul_unchecked($x))
-    }
-
     #[test]
     fn test_sc_strerror() {
-        let data0      = b"Success\0";
-        let data1900n = b"Unknown error\0";
+        let data0      = c"Success";
+        let data1900n = c"Unknown error";
         let data1     = data1900n;
         let data1n    = data1900n;
         let data1099  = data1900n;
@@ -258,52 +254,52 @@ mod tests {
         let data1902  = data1900n;
         let data1902n = data1900n;
 
-        let data1100  = b"Generic reader error\0";
-        let data1100n = b"Generic reader error\0";
-        let data1116n = b"Reader in use by another application\0";
-        let data1200n = b"Card command failed\0";
-        let data1220n = b"Reference data not usable\0";
+        let data1100  = c"Generic reader error";
+        let data1100n = c"Generic reader error";
+        let data1116n = c"Reader in use by another application";
+        let data1200n = c"Card command failed";
+        let data1220n = c"Reference data not usable";
 
-        let data1417n = b"Invalid Simple TLV object\0";
-        let data1418n = b"Premature end of Simple TLV stream\0";
+        let data1417n = c"Invalid Simple TLV object";
+        let data1418n = c"Premature end of Simple TLV stream";
 
-        let data1600n = b"Generic Secure Messaging error\0";
-        let data1612n = b"Invalid checksum\0";
-//      let data1900n = b"Unknown error\0";
-        let data1901n = b"PKCS#15 compatible smart card not found\0";
+        let data1600n = c"Generic Secure Messaging error";
+        let data1612n = c"Invalid checksum";
+//      let data1900n = c"Unknown error";
+        let data1901n = c"PKCS#15 compatible smart card not found";
 
         unsafe {
-//          assert_eq!(CStr::from_ptr(data0.as_ptr() as *const c_char).to_bytes_with_nul(), CStr::from_ptr(sc_strerror(SC_SUCCESS)).to_bytes_with_nul());
-            assert_eq!(cstru!(data0    ), CStr::from_ptr(sc_strerror( SC_SUCCESS)));
-            assert_eq!(cstru!(data1    ), CStr::from_ptr(sc_strerror(  1)));
-            assert_eq!(cstru!(data1n   ), CStr::from_ptr(sc_strerror( -1)));
-            assert_eq!(cstru!(data1099 ), CStr::from_ptr(sc_strerror(  1099)));
-            assert_eq!(cstru!(data1099n), CStr::from_ptr(sc_strerror( -1099)));
+//          assert_eq!(data0.as_ptr() as *const c_char).to_bytes_with_nul(), CStr::from_ptr(sc_strerror(SC_SUCCESS)).to_bytes_with_nul());
+            assert_eq!(data0    , CStr::from_ptr(sc_strerror( SC_SUCCESS)));
+            assert_eq!(data1    , CStr::from_ptr(sc_strerror(  1)));
+            assert_eq!(data1n   , CStr::from_ptr(sc_strerror( -1)));
+            assert_eq!(data1099,  CStr::from_ptr(sc_strerror(  1099)));
+            assert_eq!(data1099n, CStr::from_ptr(sc_strerror( -1099)));
 
-            assert_eq!(cstru!(data1117 ), CStr::from_ptr(sc_strerror( 1117)));
-            assert_eq!(cstru!(data1117n), CStr::from_ptr(sc_strerror( -1117)));
-            assert_eq!(cstru!(data1221n), CStr::from_ptr(sc_strerror( -1221)));
-            assert_eq!(cstru!(data1306n), CStr::from_ptr(sc_strerror( -1306)));
+            assert_eq!(data1117 , CStr::from_ptr(sc_strerror( 1117)));
+            assert_eq!(data1117n, CStr::from_ptr(sc_strerror( -1117)));
+            assert_eq!(data1221n, CStr::from_ptr(sc_strerror( -1221)));
+            assert_eq!(data1306n, CStr::from_ptr(sc_strerror( -1306)));
 
-            assert_eq!(cstru!(data1419n), CStr::from_ptr(sc_strerror(  -1419)));
-            assert_eq!(cstru!(data1511n), CStr::from_ptr(sc_strerror(  -1511)));
-            assert_eq!(cstru!(data1613n), CStr::from_ptr(sc_strerror(-1613)));
-            assert_eq!(cstru!(data1902 ), CStr::from_ptr(sc_strerror( 1902)));
-            assert_eq!(cstru!(data1902n), CStr::from_ptr(sc_strerror(-1902)));
+            assert_eq!(data1419n, CStr::from_ptr(sc_strerror(  -1419)));
+            assert_eq!(data1511n, CStr::from_ptr(sc_strerror(  -1511)));
+            assert_eq!(data1613n, CStr::from_ptr(sc_strerror(-1613)));
+            assert_eq!(data1902 , CStr::from_ptr(sc_strerror( 1902)));
+            assert_eq!(data1902n, CStr::from_ptr(sc_strerror(-1902)));
 
-            assert_eq!(cstru!(data1100 ), CStr::from_ptr(sc_strerror(-SC_ERROR_READER)));
-            assert_eq!(cstru!(data1100n), CStr::from_ptr(sc_strerror( SC_ERROR_READER)));
-            assert_eq!(cstru!(data1116n), CStr::from_ptr(sc_strerror(SC_ERROR_READER_LOCKED)));
-            assert_eq!(cstru!(data1200n), CStr::from_ptr(sc_strerror(SC_ERROR_CARD_CMD_FAILED)));
-            assert_eq!(cstru!(data1220n), CStr::from_ptr(sc_strerror(SC_ERROR_REF_DATA_NOT_USABLE)));
+            assert_eq!(data1100 , CStr::from_ptr(sc_strerror(-SC_ERROR_READER)));
+            assert_eq!(data1100n, CStr::from_ptr(sc_strerror( SC_ERROR_READER)));
+            assert_eq!(data1116n, CStr::from_ptr(sc_strerror(SC_ERROR_READER_LOCKED)));
+            assert_eq!(data1200n, CStr::from_ptr(sc_strerror(SC_ERROR_CARD_CMD_FAILED)));
+            assert_eq!(data1220n, CStr::from_ptr(sc_strerror(SC_ERROR_REF_DATA_NOT_USABLE)));
 
-            assert_eq!(cstru!(data1417n), CStr::from_ptr(sc_strerror( SC_ERROR_INVALID_TLV_OBJECT)));
-            assert_eq!(cstru!(data1418n), CStr::from_ptr(sc_strerror(  SC_ERROR_TLV_END_OF_CONTENTS)));
+            assert_eq!(data1417n, CStr::from_ptr(sc_strerror( SC_ERROR_INVALID_TLV_OBJECT)));
+            assert_eq!(data1418n, CStr::from_ptr(sc_strerror(  SC_ERROR_TLV_END_OF_CONTENTS)));
 
-            assert_eq!(cstru!(data1600n), CStr::from_ptr(sc_strerror(SC_ERROR_SM)));
-            assert_eq!(cstru!(data1612n), CStr::from_ptr(sc_strerror( SC_ERROR_SM_INVALID_CHECKSUM)));
-            assert_eq!(cstru!(data1900n), CStr::from_ptr(sc_strerror(SC_ERROR_UNKNOWN)));
-            assert_eq!(cstru!(data1901n), CStr::from_ptr(sc_strerror(SC_ERROR_PKCS15_APP_NOT_FOUND)));
+            assert_eq!(data1600n, CStr::from_ptr(sc_strerror(SC_ERROR_SM)));
+            assert_eq!(data1612n, CStr::from_ptr(sc_strerror( SC_ERROR_SM_INVALID_CHECKSUM)));
+            assert_eq!(data1900n, CStr::from_ptr(sc_strerror(SC_ERROR_UNKNOWN)));
+            assert_eq!(data1901n, CStr::from_ptr(sc_strerror(SC_ERROR_PKCS15_APP_NOT_FOUND)));
         }
     }
 }

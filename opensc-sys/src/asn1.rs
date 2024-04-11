@@ -689,8 +689,8 @@ mod tests {
         let mut arg = 127i8;
         let arg_ptr = &mut arg   as *mut _ as p_void;
 
-        let name1 = CStr::from_bytes_with_nul(b"name1\0").unwrap();
-        let name2 = CStr::from_bytes_with_nul(b"name2\0").unwrap();
+        let name1 = c"name1";
+        let name2 = c"name2";
 
         let src = [
             sc_asn1_entry { name: name1.as_ptr(), flags: 0x50, parm: state_ptr, arg: arg_ptr, ..sc_asn1_entry::default() },
@@ -708,9 +708,9 @@ mod tests {
 
     #[test]
     fn test_sc_pkcs15_decode_pubkey_rsa() {
-        let public_key_coefficients = CStr::from_bytes_with_nul(b"publicKeyCoefficients\0").unwrap();
-        let modulus = CStr::from_bytes_with_nul(b"modulus\0").unwrap();
-        let exponent = CStr::from_bytes_with_nul(b"exponent\0").unwrap();
+        let public_key_coefficients = c"publicKeyCoefficients";
+        let modulus = c"modulus";
+        let exponent = c"exponent";
 
         let   c_asn1_public_key = [
             sc_asn1_entry { name: public_key_coefficients.as_ptr(), type_: SC_ASN1_STRUCT,
@@ -1107,10 +1107,10 @@ mod tests {
     #[allow(non_snake_case)]
     fn test__sc_asn1_decode() {
         let mut  ctx = sc_context::default();
-        let label  : &CStr = CStr::from_bytes_with_nul(b"label\0").unwrap();
-        let flags  : &CStr = CStr::from_bytes_with_nul(b"flags\0").unwrap();
+        let label = c"label";
+        let flags = c"flags";
         #[allow(non_snake_case)]
-        let authId : &CStr = CStr::from_bytes_with_nul(b"authId\0").unwrap(); // auth_id
+        let authId = c"authId"; // auth_id
 
         let mut label_parm : Vec<u8> = Vec::with_capacity(7);
         for _i in 0..label_parm.capacity() {
@@ -1200,10 +1200,10 @@ mod tests {
     #[allow(non_snake_case)]
     fn test__sc_asn1_encode() {
         let mut  ctx = sc_context::default();
-        let label  : &CStr = CStr::from_bytes_with_nul(b"label\0").unwrap();
-        let flags  : &CStr = CStr::from_bytes_with_nul(b"flags\0").unwrap();
+        let label = c"label";
+        let flags = c"flags";
         #[allow(non_snake_case)]
-        let authId : &CStr = CStr::from_bytes_with_nul(b"authId\0").unwrap(); // auth_id
+        let authId = c"authId"; // auth_id
 
         let mut label_parm : Vec<u8> = Vec::with_capacity(7);
         for _i in 0..label_parm.capacity() {

@@ -80,16 +80,16 @@ pub const SC_CARD_TYPE_ACOS5_64_V2  : i32 = 16003; // = SC_CARD_TYPE_ACOS5_BASE 
 pub const SC_CARD_TYPE_ACOS5_64_V3  : i32 = 16004; // = SC_CARD_TYPE_ACOS5_BASE + 3;
 pub const SC_CARD_TYPE_ACOS5_EVO_V4 : i32 = 16005; // = SC_CARD_TYPE_ACOS5_BASE + 4;
 
-//  const ATR_V1      : &[u8; 57] = b"3b:be:18:00:00:41:05:01:00:00:00:00:00:00:00:00:00:90:00\0"; // *NOT* supported: ACOS5 Card (ACOS5-32 V1.00)
-pub const ATR_V2      : &[u8; 57] = b"3b:be:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00\0"; // Using reader with a card: ACS CryptoMate64 00 00
-pub const ATR_V3      : &[u8; 57] = b"3b:be:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00\0"; // Using reader with a card: ACS CryptoMate (T2) 00 00 ; reported by my CryptoMate Nano
+//  const ATR_V1      : &CStr = c"3b:be:18:00:00:41:05:01:00:00:00:00:00:00:00:00:00:90:00"; // *NOT* supported: ACOS5 Card (ACOS5-32 V1.00)
+pub const ATR_V2      : &CStr = c"3b:be:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00"; // Using reader with a card: ACS CryptoMate64 00 00
+pub const ATR_V3      : &CStr = c"3b:be:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00"; // Using reader with a card: ACS CryptoMate (T2) 00 00 ; reported by my CryptoMate Nano
 /* TODO check ATRs of different EVO card hardware: contact / contactless / combi */
-pub const ATR_V4_0    : &[u8; 57] = b"3b:9e:96:80:01:41:05:40:00:00:00:00:00:00:00:00:00:90:00\0";    // unverified currently
-pub const ATR_V4_1    : &[u8; 60] = b"3b:9e:96:80:01:41:05:41:00:00:00:00:00:00:00:00:00:90:00:1c\0"; // unverified currently
-pub const ATR_V4_2    : &[u8; 60] = b"3b:9e:96:80:01:41:05:42:00:00:00:00:00:00:00:00:00:90:00:1f\0"; // Using reader with a card: ACS CryptoMate EVO 00 00
-pub const ATR_V4_3    : &[u8; 60] = b"3b:9e:96:80:01:41:05:43:00:00:00:00:00:00:00:00:00:90:00:1e\0"; // Using reader with a card: ACS CryptoMate EVO 00 00
-pub const ATR_MASK    : &[u8; 57] = b"FF:FF:00:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF\0";
-pub const ATR_MASK_TCK: &[u8; 60] = b"FF:FF:00:FF:FF:FF:FF:F0:00:00:00:00:00:00:00:00:00:FF:FF:00\0";
+pub const ATR_V4_0    : &CStr = c"3b:9e:96:80:01:41:05:40:00:00:00:00:00:00:00:00:00:90:00";    // unverified currently
+pub const ATR_V4_1    : &CStr = c"3b:9e:96:80:01:41:05:41:00:00:00:00:00:00:00:00:00:90:00:1c"; // unverified currently
+pub const ATR_V4_2    : &CStr = c"3b:9e:96:80:01:41:05:42:00:00:00:00:00:00:00:00:00:90:00:1f"; // Using reader with a card: ACS CryptoMate EVO 00 00
+pub const ATR_V4_3    : &CStr = c"3b:9e:96:80:01:41:05:43:00:00:00:00:00:00:00:00:00:90:00:1e"; // Using reader with a card: ACS CryptoMate EVO 00 00
+pub const ATR_MASK    : &CStr = c"FF:FF:00:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF";
+pub const ATR_MASK_TCK: &CStr = c"FF:FF:00:FF:FF:FF:FF:F0:00:00:00:00:00:00:00:00:00:FF:FF:00";
 pub const NAME_V2  : &CStr = c"ACOS5-64 V2.00: Smart Card or CryptoMate64";
 pub const NAME_V3  : &CStr = c"ACOS5-64 V3.00: Smart Card or CryptoMate Nano";
 pub const NAME_V4  : &CStr = c"ACOS5-EVO V4.X0: Smart Card EVO or CryptoMate EVO";
@@ -105,15 +105,16 @@ pub const CARD_DRV_SHORT_NAME : &CStr = c"acos5_external";
 //pub const CSTR_INT_CSTR       : &[u8;  13] =             b"%s: %d (%s)\n\0";
 
 /*
-pub const CARD_DRIVER         : &[u8;  12] = b"card_driver\0";
-pub const MODULE              : &[u8;   7] = b"module\0";
-pub const LIB_DRIVER_NIX      : &[u8;  12] = b"libacos5.so\0";
+pub const CARD_DRIVER         : &CStr = c"card_driver";
+pub const MODULE              : &CStr = c"module";
+pub const LIB_DRIVER_NIX      : &CStr = c"libacos5.so";
+pub const SECURE_MESSAGING    : &CStr = c"??? secure ???";
+pub const SM_MODULE_PATH      : &CStr =
+pub const SM_MODULE_NAME      : &CStr =
+pub const CARD_SM_SHORT_NAME  : &CStr =
 
-pub const USER_CONSENT_CMD_NIX : &[u8;  18] = b"/usr/bin/pinentry\0"; // substituted by IUP
+pub const USER_CONSENT_CMD_NIX : &CStr = c"/usr/bin/pinentry"; // substituted by IUP
 
-pub const _0_17_0  : &[u8; 7] = b"0.17.0\0";
-pub const _0_18_0  : &[u8; 7] = b"0.18.0\0";
-pub const _0_19_0  : &[u8; 7] = b"0.19.0\0";
 pub const _0_20_0  : &[u8; 7] = b"0.20.0\0";
 pub const _0_21_0  : &[u8; 7] = b"0.21.0\0";
 pub const _0_0_0   : &[u8; 6] = b"0.0.0\0";
@@ -1033,7 +1034,7 @@ cfg_if::cfg_if! {
                 return SC_ERROR_KEYPAD_MSG_TOO_LONG;
             }
             /* set default values */
-//            ui_ctx.user_consent_app = cstru!(USER_CONSENT_CMD_NIX).as_ptr();
+//            ui_ctx.user_consent_app = USER_CONSENT_CMD_NIX.as_ptr();
             ui_ctx.user_consent_enabled = 1;
 
             /* look for sc block in opensc.conf */
@@ -1051,9 +1052,9 @@ cfg_if::cfg_if! {
                 if blk_ptr.is_null() { continue; }
                 /* fill private data with configuration parameters */
 //                ui_ctx.user_consent_app =    /* def user consent app is "pinentry" */
-//              /*(char *)*/ unsafe { scconf_get_str(blk_ptr, cstru!(b"user_consent_app\0").as_ptr(), cstru!(USER_CONSENT_CMD_NIX).as_ptr()) };
+//              /*(char *)*/ unsafe { scconf_get_str(blk_ptr, c"user_consent_app".as_ptr(), USER_CONSENT_CMD_NIX.as_ptr()) };
                 ui_ctx.user_consent_enabled =    /* user consent is enabled by default */
-                    unsafe { scconf_get_bool(blk_ptr, cstru!(b"user_consent_enabled\0").as_ptr(), 1) };
+                    unsafe { scconf_get_bool(blk_ptr, c"user_consent_enabled".as_ptr(), 1) };
             }
             /* possibly read disable_popups; this then may disable as well */
             if ui_ctx.user_consent_enabled == 1 { unsafe { IupOpen(std::ptr::null(), std::ptr::null()) }; }
@@ -1076,12 +1077,12 @@ cfg_if::cfg_if! {
             unsafe {
                 let dlg_ptr = IupMessageDlg();
                 assert!(!dlg_ptr.is_null());
-                IupSetAttribute(dlg_ptr, cstru!(b"DIALOGTYPE\0").as_ptr(), cstru!(b"QUESTION\0").as_ptr());
-                IupSetAttribute(dlg_ptr, cstru!(b"TITLE\0").as_ptr(), cstru!(b"RSA private key usage\0").as_ptr());
-                IupSetAttribute(dlg_ptr, cstru!(b"BUTTONS\0").as_ptr(), cstru!(b"YESNO\0").as_ptr());
-                IupSetAttribute(dlg_ptr, cstru!(b"VALUE\0").as_ptr(), cstru!(b"Got a request to use an RSA private key (e.g. for a sign operation).\nDo You accept ?\n(Use 'Yes' only if this makes sense at this point)\0").as_ptr());
+                IupSetAttribute(dlg_ptr, c"DIALOGTYPE".as_ptr(), c"QUESTION".as_ptr());
+                IupSetAttribute(dlg_ptr, c"TITLE".as_ptr(), c"RSA private key usage".as_ptr());
+                IupSetAttribute(dlg_ptr, c"BUTTONS".as_ptr(), c"YESNO".as_ptr());
+                IupSetAttribute(dlg_ptr, c"VALUE".as_ptr(), c"Got a request to use an RSA private key (e.g. for a sign operation).\nDo You accept ?\n(Use 'Yes' only if this makes sense at this point)".as_ptr());
                 IupPopup(dlg_ptr, 0xFFFF, 0xFFFF);
-                let b_response_ptr = IupGetAttribute(dlg_ptr, cstru!(b"BUTTONRESPONSE\0").as_ptr()); // BUTTONRESPONSE: Number of the pressed button. Can be "1", "2" or "3". Default: "1".
+                let b_response_ptr = IupGetAttribute(dlg_ptr, c"BUTTONRESPONSE".as_ptr()); // BUTTONRESPONSE: Number of the pressed button. Can be "1", "2" or "3". Default: "1".
                 assert!(!b_response_ptr.is_null());
                 let result_ok = *b_response_ptr == 49;
                 IupDestroy(dlg_ptr);

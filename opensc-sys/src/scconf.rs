@@ -235,7 +235,7 @@ mod tests {
 
     #[test]
     fn test_scconf_new() {
-        let filename = CStr::from_bytes_with_nul(b"some_name\0").unwrap().as_ptr();
+        let filename = c"some_name".as_ptr();
         let ctx = unsafe { scconf_new(filename) };
         assert!(!ctx.is_null());
         unsafe { scconf_free(ctx) };
@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn test_scconf_parse() {
-        let filename = CStr::from_bytes_with_nul(b"test_files/scconf_1.txt\0").unwrap().as_ptr();
+        let filename = c"test_files/scconf_1.txt".as_ptr();
         let ctx = unsafe { scconf_new(filename) };
         assert!(!ctx.is_null());
         let ctx_mr = unsafe { &mut *ctx };

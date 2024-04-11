@@ -644,10 +644,12 @@ mod tests {
                 assert_eq!(ssep,  24);
                 assert_eq!(ai,   128);
             }
-            else  if cfg!(v0_25_0) {
+            else  if cfg!(any(v0_25_0, v0_25_1)) {
                 // testing v0_25_0 verified with Windows 10:    ?
+                // testing v0_25_1 verified with Windows 10:    ?
                 // testing v0_25_0 verified with Kubuntu 22.04: okay
-                println!("For OpenSC 0.25.0 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
+                // testing v0_25_1 verified with Kubuntu 22.04: okay
+                println!("For OpenSC 0.25 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
                     size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
                     size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \
                     size_of::<sc_pkcs15_card>: {}, size_of::<sc_file>: {}, size_of::<scconf_context>: {}, size_of::<sc_pkcs15init_prkeyargs>: {}, \
@@ -801,7 +803,8 @@ mod tests {
                 assert_eq!(sai,  144);
                 assert_eq!(sp,   376);
                 assert_eq!(ssep,  24);
-                assert_eq!(ai,   136);
+                // assert_eq!(ai,   136);
+                assert_eq!(ai,   0); // that`s intentionally wrong
             }
             println!("\nTesting whether linking against the OpenSC binary works: On success, it will state the OpenSC version in the following line:");
             println!("\n### Release version of installed OpenSC binaries is  {:?}  ###\n",

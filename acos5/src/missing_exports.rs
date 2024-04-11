@@ -168,6 +168,9 @@ pub fn me_card_find_alg(card: &mut sc_card,
     -> Option<*const sc_algorithm_info>
 {
     for info in unsafe { slice::from_raw_parts(card.algorithms, card.algorithm_count.try_into().unwrap()) } {
+        #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+        if info.algorithm != algorithm { continue; }
+        #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
         if info.algorithm != algorithm.try_into().unwrap() { continue; }
         if info.key_length != key_length { continue; }
 
@@ -206,9 +209,9 @@ pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: u32, caps: u32,
         SC_ALGORITHM_RSA_HASH_MD5_SHA1
     ];
 
-    let f = cstru!(b"me_get_encoding_flags\0");
+    let f = c"me_get_encoding_flags";
     log3ifc!(ctx,f,line!());
-    log3ift!(ctx,f,line!(), cstru!(b"iFlags 0x%X, card capabilities 0x%X\0"), iflags, caps);
+    log3ift!(ctx,f,line!(), c"iFlags 0x%X, card capabilities 0x%X", iflags, caps);
     {
 
         /* For ECDSA and GOSTR, we don't do any padding or hashing ourselves, the
@@ -263,11 +266,11 @@ pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: u32, caps: u32,
         else {
             // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "unsupported algorithm");
             let rv = SC_ERROR_NOT_SUPPORTED;
-            log3ifr!(ctx,f,line!(), cstru!(b"unsupported algorithm\0"), rv);
+            log3ifr!(ctx,f,line!(), c"unsupported algorithm", rv);
             return rv;
         }
     }
-    log3ift!(ctx,f,line!(), cstru!(b"pad flags 0x%X, secure algorithm flags 0x%X\0"), *pflags, *sflags);
+    log3ift!(ctx,f,line!(), c"pad flags 0x%X, secure algorithm flags 0x%X", *pflags, *sflags);
     log3ifr!(ctx,f,line!(), SC_SUCCESS);
     SC_SUCCESS
 } // pub fn me_get_encoding_flags

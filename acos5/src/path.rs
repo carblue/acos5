@@ -60,8 +60,8 @@ pub fn current_path_df(card: &mut sc_card) -> &[u8]
     if ![FDB_MF, FDB_DF, FDB_TRANSPARENT_EF, FDB_LINEAR_FIXED_EF, FDB_LINEAR_VARIABLE_EF, FDB_CYCLIC_EF, FDB_SE_FILE,
         FDB_RSA_KEY_EF, FDB_CHV_EF, FDB_SYMMETRIC_KEY_EF, FDB_PURSE_EF, FDB_ECC_KEY_EF].contains(&fdb) {
         assert!(!card.ctx.is_null());
-        log3if!(unsafe { &mut *card.ctx }, cstru!(b"current_path_df\0"), line!(),
-            cstru!(b"Error: ### fdb: %d is incorrect ########################\0"), fdb);
+        log3if!(unsafe { &mut *card.ctx }, c"current_path_df", line!(),
+            c"Error: ### fdb: %d is incorrect ########################", fdb);
         unreachable!("Encountered unknown FDB");
     }
     assert!(is_DFMF(fdb) || len>=4);

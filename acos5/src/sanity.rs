@@ -40,9 +40,9 @@ fn select_mf(card: &mut sc_card) -> Result<i32, i32> {
 pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"sanity_check\0");
+    let f = c"sanity_check";
     log3ifc!(ctx,f,line!());
-    let printable = app_name != unsafe { CStr::from_bytes_with_nul_unchecked(b"opensc-pkcs11\0") };
+    let printable = app_name != c"opensc-pkcs11";
     if printable {
         println!();
         println!("The following sanity checks are implemented [X] or planned []. Some or all may depend on prior check(s)");
@@ -107,8 +107,8 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
         };
 
         if printable { println!("### There is no MF: The card is uninitialized/virgin/in factory state ### (Card Life Cycle Byte is 0x{card_life_cycle_byte:X}, Operation Mode Byte is 0x{operation_mode_byte:X}, Zeroize Card Disable Byte is 0x{zeroize_card_disable_byte:X})") }
-        log3ift!(ctx,f,line!(), cstru!(
-                b"### There is no MF: The card is uninitialized/virgin/in factory state ### (Card Life Cycle Byte is 0x%02X, Operation Mode Byte is 0x%02X, Zeroize Card Disable Byte is 0x%02X)\0"),
+        log3ift!(ctx,f,line!(),
+                c"### There is no MF: The card is uninitialized/virgin/in factory state ### (Card Life Cycle Byte is 0x%02X, Operation Mode Byte is 0x%02X, Zeroize Card Disable Byte is 0x%02X)",
                 card_life_cycle_byte, operation_mode_byte, zeroize_card_disable_byte);
         return Ok(());
     }
@@ -117,7 +117,7 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
     /* * /
     #[cfg(not(target_os = "windows"))]
     {
-        // let req_version = unsafe { CStr::from_bytes_with_nul_unchecked(b"4.16\0") };
+        // let req_version = c"4.16";
         // let tasn1_version = unsafe { crate::tasn1_sys::asn1_check_version(std::ptr::null() /*req_version.as_ptr()*/) };
         // if !tasn1_version.is_null() {
         //     println!("result from asn1_check_version: {:?}", unsafe { CStr::from_ptr(tasn1_version) });

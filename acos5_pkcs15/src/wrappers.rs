@@ -123,8 +123,8 @@ pub fn wr_do_log_sds(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv:
 {
     if cfg!(log) {
 //        let fmt = CSTR_INT_CSTR.as_ptr();
-        //                  cstru!(b"%s: %d (%s)\n\0"))
-        //, cstru!(b"%s rv: %d (%s)\n\0")
+        //                  c"%s: %d (%s)\n")
+        //, c"%s rv: %d (%s)\n"
 //        #[cfg(    any(v0_17_0, v0_18_0, v0_19_0))]
 //        unsafe {       sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(),
 //                                   CSTR_INT_CSTR.as_ptr(), arg1.as_ptr(), rv, sc_strerror(rv)); }

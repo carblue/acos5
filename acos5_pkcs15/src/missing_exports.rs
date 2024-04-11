@@ -23,10 +23,10 @@ fn me_profile_find_file(profile: &mut sc_profile, _path: *const sc_path, name: *
     assert!(unsafe { (*profile.card).ctx.is_null() });
     // let card = unsafe { &mut *profile.card };
     let ctx = unsafe { &mut *(*profile.card).ctx };
-    let f = cstru!(b"me_profile_find_file\0");
+    let f = c"me_profile_find_file";
 */
     let mut fi = profile.ef_list;
-//    log3if!(ctx,f,line!(), cstru!(b"called  with profile.ef_list: %p\0"), profile.ef_list);
+//    log3if!(ctx,f,line!(), c"called  with profile.ef_list: %p", profile.ef_list);
 
 //    let len = if !path.is_null() { unsafe{(*path).len} } else {0};
     while !fi.is_null() {
@@ -34,35 +34,35 @@ fn me_profile_find_file(profile: &mut sc_profile, _path: *const sc_path, name: *
         assert!(!fi_ref.file.is_null());
 //        let file_ref = unsafe { &*fi_ref.file };
 /*
-        log3if!(ctx,f,line!(), cstru!(b"file_ref.id: 0x%X, file_ref.path: %s, fi_ref.ident: %s\0"),  file_ref.id,
+        log3if!(ctx,f,line!(), c"file_ref.id: 0x%X, file_ref.path: %s, fi_ref.ident: %s",  file_ref.id,
             unsafe { sc_dump_hex(file_ref.path.value.as_ptr(), file_ref.path.len) }, fi_ref.ident);
 
 */
 /* * /
-        log3if!(ctx,f,line!(), cstru!(b"file_ref.path: %s\0"), unsafe { sc_dump_hex(file_ref.path.value.as_ptr(), file_ref.path.len) });
-        log3if!(ctx,f,line!(), cstru!(b"file_ref.type_: 0x%X\0"), file_ref.type_);
-        log3if!(ctx,f,line!(), cstru!(b"file_ref.ef_structure: 0x%X\0"), file_ref.ef_structure);
-        log3if!(ctx,f,line!(), cstru!(b"file_ref.status: %u\0"), file_ref.status);
-        log3if!(ctx,f,line!(), cstru!(b"file_ref.size: %zu\0"),  file_ref.size);
-        log3if!(ctx,f,line!(), cstru!(b"file_ref.id: 0x%X\0"),   file_ref.id);
-        log3if!(ctx,f,line!(), cstru!(b"file_ref.acl[SC_AC_OP_READ]: %p\0"), file_ref.acl[22]);
-        log3if!(ctx,f,line!(), cstru!(b"file_ref.record_length: %zu\0"),     file_ref.record_length);
-        log3if!(ctx,f,line!(), cstru!(b"file_ref.record_count: %zu\0"),      file_ref.record_count);
+        log3if!(ctx,f,line!(), c"file_ref.path: %s", unsafe { sc_dump_hex(file_ref.path.value.as_ptr(), file_ref.path.len) });
+        log3if!(ctx,f,line!(), c"file_ref.type_: 0x%X", file_ref.type_);
+        log3if!(ctx,f,line!(), c"file_ref.ef_structure: 0x%X", file_ref.ef_structure);
+        log3if!(ctx,f,line!(), c"file_ref.status: %u", file_ref.status);
+        log3if!(ctx,f,line!(), c"file_ref.size: %zu",  file_ref.size);
+        log3if!(ctx,f,line!(), c"file_ref.id: 0x%X",   file_ref.id);
+        log3if!(ctx,f,line!(), c"file_ref.acl[SC_AC_OP_READ]: %p", file_ref.acl[22]);
+        log3if!(ctx,f,line!(), c"file_ref.record_length: %zu",     file_ref.record_length);
+        log3if!(ctx,f,line!(), c"file_ref.record_count: %zu",      file_ref.record_count);
 
         if file_ref.prop_attr_len>0 && !file_ref.prop_attr.is_null() {
-            log3if!(ctx,f,line!(), cstru!(b"file_ref.prop_attr: %zu  %s\0"),  file_ref.prop_attr_len,
+            log3if!(ctx,f,line!(), c"file_ref.prop_attr: %zu  %s",  file_ref.prop_attr_len,
                 unsafe { sc_dump_hex(file_ref.prop_attr, file_ref.prop_attr_len) });
             for i in 0..file_ref.prop_attr_len {
-                log3if!(ctx,f,line!(), cstru!(b"file_ref.prop_attr[%zu]: %X\0"), i, unsafe{*file_ref.prop_attr.add(i)});
+                log3if!(ctx,f,line!(), c"file_ref.prop_attr[%zu]: %X", i, unsafe{*file_ref.prop_attr.add(i)});
             }
         }
-//        log3if!(ctx,f,line!(), cstru!(b"fi_ref.dont_free: %u\0"), fi_ref.dont_free);
-//        log3if!(ctx,f,line!(), cstru!(b"fi_ref.parent: %p\0"),    fi_ref.parent);
-//        log3if!(ctx,f,line!(), cstru!(b"fi_ref.instance: %p\0"),  fi_ref.instance);
-  //        log3if!(ctx,f,line!(), cstru!(b"fi_ref.base_template: %p\0"), fi_ref.base_template);
-  //        log3if!(ctx,f,line!(), cstru!(b"fi_ref.inst_index: %u\0"),    fi_ref.inst_index);
-  //        log3if!(ctx,f,line!(), cstru!(b"fi_ref.inst_path: %s\0"),     unsafe { sc_dump_hex(fi_ref.inst_path.value.as_ptr(), fi_ref.inst_path.len) });
-  //        log3if!(ctx,f,line!(), cstru!(b"fi_ref.profile_ext: %p\0"),   fi_ref.profile_extension);
+//        log3if!(ctx,f,line!(), c"fi_ref.dont_free: %u", fi_ref.dont_free);
+//        log3if!(ctx,f,line!(), c"fi_ref.parent: %p",    fi_ref.parent);
+//        log3if!(ctx,f,line!(), c"fi_ref.instance: %p",  fi_ref.instance);
+  //        log3if!(ctx,f,line!(), c"fi_ref.base_template: %p", fi_ref.base_template);
+  //        log3if!(ctx,f,line!(), c"fi_ref.inst_index: %u",    fi_ref.inst_index);
+  //        log3if!(ctx,f,line!(), c"fi_ref.inst_path: %s",     unsafe { sc_dump_hex(fi_ref.inst_path.value.as_ptr(), fi_ref.inst_path.len) });
+  //        log3if!(ctx,f,line!(), c"fi_ref.profile_ext: %p",   fi_ref.profile_extension);
 / * */
         // strcasecmp
         if unsafe { strcmp(fi_ref.ident, name) == 0 } /*&& file_ref.path.len >= len && !path.is_null() &&

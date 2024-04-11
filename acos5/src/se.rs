@@ -162,7 +162,7 @@ fn se_file_add_acl_entry(card: &mut sc_card, file: &mut sc_file, scb: u8, op: u3
 {
 //    assert!(!card.ctx.is_null());
 //    let ctx = unsafe { &mut *card.ctx };
-//    let f = cstru!(b"se_file_add_acl_entry\0");
+//    let f = c"se_file_add_acl_entry";
     let mut rv;
     if op == 0xFF {} // it's used to denote, that there is no operation that this scb can refer to; e.g. for  EF/CHV, the byte at 3. position has no meaning
     else if  scb == 0

@@ -49,7 +49,7 @@ use std::ptr::{null, null_mut};
 use crate::types::{sc_apdu, sc_path, sc_file, sc_acl_entry, sc_object_id, sc_lv_data, sc_aid, sc_ddo, sc_atr,
                    sc_serial_number, sc_version, sc_remote_data, sc_uid,
                    SC_MAX_SUPPORTED_ALGORITHMS, SC_MAX_CARD_APPS, SC_MAX_CARD_DRIVERS};
-#[cfg(any(v0_20_0))]
+#[cfg(v0_20_0)]
 use crate::types::SC_MAX_SDO_ACLS;
 use crate::scconf::{scconf_context, scconf_block};
 use crate::internal::sc_atr_table;
@@ -1391,7 +1391,7 @@ pub struct sc_context {
     pub mutex : *mut c_void,
 
     #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
-    pub ossl3ctx : *mut c_void, // ossl3ctx_t * ; // ifdef ENABLE_OPENSSL
+    pub ossl3ctx : *mut c_void, // TODO ossl3ctx_t * ; // ifdef ENABLE_OPENSSL
 
     pub magic : u32,
     #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
@@ -2121,10 +2121,13 @@ pub fn sc_file_set_content(file: *mut sc_file, content: *const u8, content_len: 
 /********************************************************************/
 /*               Key wrapping and unwrapping                        */
 /********************************************************************/
-fn sc_unwrap(card: *mut sc_card, data: *const u8,
-             data_len: usize, out: *mut u8, outlen: usize);
-fn sc_wrap(card: *mut sc_card, data: *const u8,
-           data_len: usize, out: *mut u8, outlen: usize);
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
+pub fn sc_unwrap(card: *mut sc_card, data: *const u8,
+                 data_len: usize, out: *mut u8, outlen: usize);
+
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
+pub fn sc_wrap(card: *mut sc_card, data: *const u8,
+               data_len: usize, out: *mut u8, outlen: usize);
 
 /********************************************************************/
 /*             sc_path handling functions                           */
@@ -2358,7 +2361,7 @@ cfg_if::cfg_if! {
                                   field_length: u32, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
         fn sc_card_find_xeddsa_alg(card: *mut sc_card,
                                    field_length: u32, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
-        }
+    }
     else if #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))] {
         fn sc_card_find_eddsa_alg(card: *mut sc_card,
                                   field_length: usize, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;

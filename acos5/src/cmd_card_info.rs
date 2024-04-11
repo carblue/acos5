@@ -57,7 +57,7 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
 {
     if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"get_serialnr\0");
+    let f = c"get_serialnr";
     log3ifc!(ctx,f,line!());
     if card.serialnr.len > 0 {
         return Ok(card.serialnr);
@@ -71,7 +71,7 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
     let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen != len_serial_num {
-        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Card Info: Serial Number' failed\0"));
+        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Serial Number' failed");
         return Err(SC_ERROR_CARD_CMD_FAILED);
     }
     serial.len = len_serial_num;
@@ -112,15 +112,15 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
 {
     if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"get_count_files_curr_df\0");
+    let f = c"get_count_files_curr_df";
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 1, 0], SC_APDU_CASE_1, &mut[]);
     let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Card Info: Number of files \
-                under the currently selected DF' failed\0"));
+        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Number of files \
+                under the currently selected DF' failed");
         return Err(SC_ERROR_CARD_CMD_FAILED);
     }
     /*
@@ -147,7 +147,7 @@ pub fn get_file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> R
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"get_file_info\0");
+    let f = c"get_file_info";
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0; 8];
@@ -158,7 +158,7 @@ pub fn get_file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> R
         Ok(rbuf)
     }
     else {
-        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'File Info'-retrieval failed\0"));
+        log3if!(ctx,f,line!(), c"Error: ACOS5 'File Info'-retrieval failed");
         Err(SC_ERROR_CARD_CMD_FAILED)
     }
 }
@@ -176,7 +176,7 @@ pub fn get_free_space(card: &mut sc_card) -> Result<u32, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"get_free_space\0");
+    let f = c"get_free_space";
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0; 4];
@@ -189,7 +189,7 @@ pub fn get_free_space(card: &mut sc_card) -> Result<u32, i32>
         Ok(u32::from_be_bytes(rbuf) >> if card.type_> SC_CARD_TYPE_ACOS5_64_V3 {8} else {16})
     }
     else {
-        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Card Info: Get Free Space' failed\0"));
+        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Get Free Space' failed");
         Err(SC_ERROR_CARD_CMD_FAILED)
     }
 }
@@ -203,7 +203,7 @@ pub fn get_is_ident_self_okay(card: &mut sc_card, candidate_card_type: i32) -> R
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"get_is_ident_self_okay\0");
+    let f = c"get_is_ident_self_okay";
     log3ifc!(ctx,f,line!());
 
     let card_type: i32 = if candidate_card_type !=0 {candidate_card_type} else {card.type_};
@@ -214,8 +214,8 @@ pub fn get_is_ident_self_okay(card: &mut sc_card, candidate_card_type: i32) -> R
         Ok(true)
     }
     else {
-        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Card Info: Identity Self'-check reports \
-                an unexpected, non-ACOS5 response ! ### Card doesn't match ###\0"));
+        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Identity Self'-check reports \
+                an unexpected, non-ACOS5 response ! ### Card doesn't match ###");
         Ok(false)
     }
 }
@@ -228,7 +228,7 @@ pub fn get_cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
     let active_protocol = unsafe { &mut *card.reader }.active_protocol;
-    let f = cstru!(b"get_cos_version\0");
+    let f = c"get_cos_version";
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0; 8];
@@ -240,7 +240,7 @@ pub fn get_cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
         Ok(rbuf)
     }
     else {
-        log3if!(ctx,f,line!(), cstru!(b"Error: 'ACOS5 version'-retrieval failed\0"));
+        log3if!(ctx,f,line!(), c"Error: 'ACOS5 version'-retrieval failed");
         Err(SC_ERROR_CARD_CMD_FAILED)
     }
 }
@@ -253,7 +253,7 @@ pub fn get_manufacture_date(card: &mut sc_card) -> Result<u32, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"get_manufacture_date\0");
+    let f = c"get_manufacture_date";
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0; 4];
@@ -264,7 +264,7 @@ pub fn get_manufacture_date(card: &mut sc_card) -> Result<u32, i32>
         Ok(u32::from_be_bytes(rbuf))
     }
     else {
-        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Card Info: Get ROM_Manufacture_Date' failed\0"));
+        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Get ROM_Manufacture_Date' failed");
         Err(SC_ERROR_CARD_CMD_FAILED)
     }
 }
@@ -277,7 +277,7 @@ pub fn get_rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"get_rom_sha1\0");
+    let f = c"get_rom_sha1";
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0; 20];
@@ -288,7 +288,7 @@ pub fn get_rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
         Ok(rbuf)
     }
     else {
-        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Card Info: Get ROM SHA1'-retrieval failed\0"));
+        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Get ROM SHA1'-retrieval failed");
         Err(SC_ERROR_CARD_CMD_FAILED)
     }
 }
@@ -302,7 +302,7 @@ pub fn get_op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"get_op_mode_byte\0");
+    let f = c"get_op_mode_byte";
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 9, 0], SC_APDU_CASE_1, &mut[]);
@@ -331,7 +331,7 @@ pub fn get_op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
         Ok(u8::try_from(apdu.sw2).unwrap())
     }
     else {
-        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Card Info: Operation Mode Byte' failed\0"));
+        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Operation Mode Byte' failed");
         Err(SC_ERROR_CARD_CMD_FAILED)
     }
 }
@@ -344,7 +344,7 @@ pub fn get_op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"get_op_mode_byte_eeprom\0");
+    let f = c"get_op_mode_byte_eeprom";
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0xFF; 1];
@@ -355,7 +355,7 @@ pub fn get_op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
         Ok(rbuf[0]) // also called compatibility byte
     }
     else {
-        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Operation Mode Byte' failed\0"));
+        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Operation Mode Byte' failed");
         Err(SC_ERROR_CARD_CMD_FAILED)
     }
 }
@@ -368,20 +368,20 @@ pub fn get_is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_FIPS
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"get_is_fips_compliant\0");
+    let f = c"get_is_fips_compliant";
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 10, 0], SC_APDU_CASE_1, &mut[]);
     let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.sw2==0 {
-        log3if!(ctx,f,line!(), cstru!(b"'Get Card Info: Verify FIPS Compliance' returned: Card's \
-                file system **does** comply with FIPS requirements and Operation Mode is FIPS\0"));
+        log3if!(ctx,f,line!(), c"'Get Card Info: Verify FIPS Compliance' returned: Card's \
+                file system **does** comply with FIPS requirements and Operation Mode is FIPS");
         Ok(true)
     }
     else {
-        log3if!(ctx,f,line!(), cstru!(b"'Get Card Info: Verify FIPS Compliance' returned: Card's file \
-                system **does not** comply with FIPS requirements or Operation Mode is other than FIPS\0"));
+        log3if!(ctx,f,line!(), c"'Get Card Info: Verify FIPS Compliance' returned: Card's file \
+                system **does not** comply with FIPS requirements or Operation Mode is other than FIPS");
         Ok(false)
     }
 }
@@ -394,7 +394,7 @@ pub fn get_is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<boo
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"get_pin_auth_state\0");
+    let f = c"get_pin_auth_state";
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 11, reference], SC_APDU_CASE_1, &mut[]);
@@ -407,7 +407,7 @@ pub fn get_is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<boo
         Ok(false)
     }
     else {
-        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Card Info: Get Pin Authentication State' failed\0"));
+        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Get Pin Authentication State' failed");
         Err(SC_ERROR_CARD_CMD_FAILED)
     }
 }
@@ -420,7 +420,7 @@ pub fn get_is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<boo
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"get_key_auth_state\0");
+    let f = c"get_key_auth_state";
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 12, reference], SC_APDU_CASE_1, &mut[]);
@@ -433,7 +433,7 @@ pub fn get_is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<boo
         Ok(false)
     }
     else {
-        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Card Info: Get Key Authentication State' failed\0"));
+        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Get Key Authentication State' failed");
         Err(SC_ERROR_CARD_CMD_FAILED)
     }
 }
@@ -446,7 +446,7 @@ pub fn get_zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i3
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"get_zeroize_card_disable_byte_eeprom\0");
+    let f = c"get_zeroize_card_disable_byte_eeprom";
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0xFF; 1];
@@ -454,7 +454,7 @@ pub fn get_zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i3
     let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen != 1 {
-        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Zeroize Card Disable Byte' failed\0"));
+        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Zeroize Card Disable Byte' failed");
         return Err(SC_ERROR_CARD_CMD_FAILED);
     }
     Ok(rbuf[0])
@@ -468,7 +468,7 @@ pub fn get_card_life_cycle_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = cstru!(b"get_card_life_cycle_byte_eeprom\0");
+    let f = c"get_card_life_cycle_byte_eeprom";
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0xFF; 1];
@@ -476,7 +476,7 @@ pub fn get_card_life_cycle_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
     let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen != 1 {
-        log3if!(ctx,f,line!(), cstru!(b"Error: ACOS5 'Get Card Life Cycle Byte' failed\0"));
+        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Life Cycle Byte' failed");
         return Err(SC_ERROR_CARD_CMD_FAILED);
     }
     Ok(rbuf[0])

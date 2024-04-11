@@ -59,7 +59,7 @@ fn main() -> Result<(), Error> {
     let mut key_class: CK_OBJECT_CLASS = CKO_SECRET_KEY;
     let mut key_type: CK_KEY_TYPE = CKK_AES;
     let mut true_ : CK_BBOOL = CK_TRUE;
-    // let cstring = std::ffi::CStr::from_bytes_with_nul(b"AES3\0").unwrap();
+    // let cstring = c"AES3";
 
     let template = [
         CK_ATTRIBUTE { attrType: CKA_CLASS,
