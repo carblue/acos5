@@ -41,7 +41,7 @@ use std::os::raw::c_ulong;
 use std::slice;
 
 use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, SC_CARD_CAP_APDU_EXT,
-                         SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_PROTO_T0, //SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_PROTO_T0,
+                         SC_READER_SHORT_APDU_MAX_RECV_SIZE, //SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_PROTO_T0,
                          SC_ALGORITHM_EC, sc_compare_oid
 /*                      ,SC_ALGORITHM_RSA_PAD_NONE, SC_ALGORITHM_RSA_PAD_PKCS1,
                          SC_ALGORITHM_RSA_HASH_NONE,
@@ -60,8 +60,8 @@ use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL, 
 //                         , SC_ERROR_KEYPAD_MSG_TOO_LONG
 };
 
-use opensc_sys::types::{sc_object_id, sc_apdu, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_2_EXT,
-                        SC_APDU_CASE_3_SHORT, SC_APDU_CASE_3_EXT, SC_APDU_CASE_4_SHORT, SC_APDU_CASE_4_EXT};
+use opensc_sys::types::{sc_object_id /*, sc_apdu, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_2_EXT,
+                        SC_APDU_CASE_3_SHORT, SC_APDU_CASE_3_EXT, SC_APDU_CASE_4_SHORT, SC_APDU_CASE_4_EXT*/};
 
 //use crate::constants_types::p_void;
 //use crate::wrappers::*;
