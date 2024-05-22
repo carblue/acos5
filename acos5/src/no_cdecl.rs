@@ -67,7 +67,7 @@ use opensc_sys::errors::{/*SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKNOWN, SC_ERROR
                          SC_ERROR_KEYPAD_MSG_TOO_LONG,/*, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL*/
 SC_ERROR_WRONG_LENGTH, SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT_FOUND, SC_ERROR_INCORRECT_PARAMETERS, SC_ERROR_CARD_CMD_FAILED,
 SC_ERROR_OUT_OF_MEMORY, SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_NO_CARD_SUPPORT,
-SC_ERROR_SM_RAND_FAILED, SC_ERROR_KEYPAD_TIMEOUT
+SC_ERROR_SM_RAND_FAILED, SC_ERROR_KEYPAD_TIMEOUT, SC_ERROR_INVALID_DATA
 };
 use opensc_sys::internal::{sc_atr_table};
 use opensc_sys::asn1::{sc_asn1_read_tag};
@@ -269,6 +269,62 @@ The code differs from the C version in 1 line only, where setting apdu.p2 = 0x0C
 #[allow(clippy::too_many_lines)]
 fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_out: &mut Option<&mut *mut sc_file>) -> i32
 {
+/*
+P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] card.c:850:sc_select_file: called; type=2, path=3f00
+P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] acos5:512:tracking_select_file:     called. curr_type: 2, curr_value: 3F00, force_process_fci: 0
+P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] acos5:514:tracking_select_file:               to_type: 0,   to_value: 3F00
+P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] acos5:293:iso7816_select_file_replica: called with file_out: 0x7ffd383b7578
+P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] apdu.c:550:sc_transmit_apdu: called
+P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] card.c:471:sc_lock: called
+P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] reader-pcsc.c:689:pcsc_lock: called
+P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] card.c:513:sc_lock: returning with: 0 (Success)
+P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] apdu.c:515:sc_transmit: called
+P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] apdu.c:363:sc_single_transmit: called
+P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] apdu.c:367:sc_single_transmit: CLA:0, INS:A4, P1:0, P2:0, data(2) 0x7ffd383b6270
+P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] reader-pcsc.c:324:pcsc_transmit: reader 'ACS CryptoMate64 00 00'
+P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] reader-pcsc.c:325:pcsc_transmit:
+Outgoing APDU (7 bytes):
+00 A4 00 00 02 3F 00 .....?.
+
+P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] reader-pcsc.c:244:pcsc_internal_transmit: called
+P:15559; T:0x128568216807424 22:10:19.344 [opensc-tool] reader-pcsc.c:334:pcsc_transmit:
+Incoming APDU (2 bytes):
+61 1A a.
+S
+........................................................................
+card.caps: 0, card_type: 16003,    0
+
+max_recv_size: FF
+apdu: sc_apdu { cse: 4, cla: 0, ins: 164, p1: 0, p2: 0, lc: 2, le: 255, data: 0x7ffde30f65a0, datalen: 2, resp: 0x7ffde30f649b, resplen: 261, control: 0, allocation_flags: 0, sw1: 0, sw2: 0, mac: [0, 0, 0, 0, 0, 0, 0, 0], mac_len: 0, flags: 0, next: 0x0 }
+
+------------------------------------
+card.caps: 1, card_type: 16005,    1
+
+max_recv_size: FF
+apdu: sc_apdu { cse: 4, cla: 0, ins: 164, p1: 0, p2: 0, lc: 2, le: 255, data: 0x7ffe80841a60, datalen: 2, resp: 0x7ffe8084195b, resplen: 261, control: 0, allocation_flags: 0, sw1: 0, sw2: 0, mac: [0, 0, 0, 0, 0, 0, 0, 0], mac_len: 0, flags: 0, next: 0x0 }
+
+P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] card.c:850:sc_select_file: called; type=2, path=3f00
+P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] acos5:538:tracking_select_file:     called. curr_type: 2, curr_value: 3F00, force_process_fci: 0
+P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] acos5:540:tracking_select_file:               to_type: 0,   to_value: 3F00
+P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] acos5:319:iso7816_select_file_replica: called with file_out: 0x7ffe79b724a8
+P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] apdu.c:550:sc_transmit_apdu: called
+P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] card.c:471:sc_lock: called
+P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] reader-pcsc.c:689:pcsc_lock: called
+P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] card.c:513:sc_lock: returning with: 0 (Success)
+P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] apdu.c:515:sc_transmit: called
+P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] apdu.c:363:sc_single_transmit: called
+P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] apdu.c:367:sc_single_transmit: CLA:0, INS:A4, P1:0, P2:0, data(2) 0x7ffe79b711a0
+P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] reader-pcsc.c:324:pcsc_transmit: reader 'ACS CryptoMate EVO 00 00'
+P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] reader-pcsc.c:325:pcsc_transmit:
+Outgoing APDU (8 bytes):
+00 A4 00 00 02 3F 00 FF .....?..
+
+P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] reader-pcsc.c:244:pcsc_internal_transmit: called
+P:16458; T:0x128876586100736 22:20:09.189 [opensc-tool] reader-pcsc.c:334:pcsc_transmit:
+Incoming APDU (2 bytes):
+67 00 g.
+
+*/
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
     let f = c"iso7816_select_file_replica";
@@ -332,7 +388,7 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
         }
     }
 
-    unsafe { sc_format_apdu(card, &mut apdu, SC_APDU_CASE_4_SHORT, 0xA4, 0, 0) };
+    unsafe { sc_format_apdu(card, &mut apdu, SC_APDU_CASE_4_SHORT /*SC_APDU_CASE_3_SHORT*/, 0xA4, 0, 0) };
 
     match pathtype {
         SC_PATH_TYPE_FILE_ID => {
@@ -536,7 +592,10 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Op
     if [      SC_ERROR_WRONG_LENGTH,
               SC_ERROR_NOT_ALLOWED,
               SC_ERROR_FILE_NOT_FOUND,
-              SC_ERROR_INCORRECT_PARAMETERS ].contains(&rv) {
+              SC_ERROR_INCORRECT_PARAMETERS,
+              SC_ERROR_UNKNOWN_DATA_RECEIVED,
+              SC_ERROR_INVALID_ARGUMENTS,
+              SC_ERROR_INVALID_DATA ].contains(&rv) {
         // select failed, no new card.cache.current_path, do nothing
     }
     else if [ SC_SUCCESS,

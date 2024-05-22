@@ -494,7 +494,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
     let idx_acos5_atrs = unsafe { _sc_match_atr(card, acos5_atrs.as_ptr(), &mut type_out) };
 ////println!("reader.supported_protocols: {}, reader.active_protocol: {}\n", reader.supported_protocols, reader.active_protocol);
 ////println!("idx_acos5_atrs: {}, card.type_: {}, type_out: {}, &card.atr.value[..20]: {:X?}\n", idx_acos5_atrs, card.type_, type_out, &card.atr.value[..20]);
-    if idx_acos5_atrs < 0 || idx_acos5_atrs+2 > i32::try_from(acos5_atrs.len()).unwrap() {
+    if idx_acos5_atrs < 0 || idx_acos5_atrs >= i32::try_from(acos5_atrs.len()).unwrap() {
         log3if!(ctx,f,line!(), c"Card doesn't match: Differing ATR");
         return 0;
     }

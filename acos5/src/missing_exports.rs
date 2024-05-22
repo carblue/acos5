@@ -41,7 +41,7 @@ use std::os::raw::c_ulong;
 use std::slice;
 
 use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, SC_CARD_CAP_APDU_EXT,
-                         SC_READER_SHORT_APDU_MAX_RECV_SIZE, //SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_PROTO_T0,
+                         SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_PROTO_T0, //SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_PROTO_T0,
                          SC_ALGORITHM_EC, sc_compare_oid
 /*                      ,SC_ALGORITHM_RSA_PAD_NONE, SC_ALGORITHM_RSA_PAD_PKCS1,
                          SC_ALGORITHM_RSA_HASH_NONE,
@@ -60,10 +60,49 @@ use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL, 
 //                         , SC_ERROR_KEYPAD_MSG_TOO_LONG
 };
 
-use opensc_sys::types::{sc_object_id};
+use opensc_sys::types::{sc_object_id, sc_apdu, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_2_EXT,
+                        SC_APDU_CASE_3_SHORT, SC_APDU_CASE_3_EXT, SC_APDU_CASE_4_SHORT, SC_APDU_CASE_4_EXT};
 
 //use crate::constants_types::p_void;
 //use crate::wrappers::*;
+
+/*
+/** Calculates the length of the encoded APDU in octets.
+ *  @param  apdu   the APDU
+ *  @param  proto  the desired protocol
+ *  @return length of the encoded APDU
+ */
+#[must_use]
+pub fn me_apdu_get_length(apdu: &sc_apdu, proto: u32) -> usize
+{
+    match apdu.cse {
+        SC_APDU_CASE_1 => {
+            if proto == SC_PROTO_T0 {5} else {4}
+        },
+        SC_APDU_CASE_2_SHORT => {
+            5
+        },
+        SC_APDU_CASE_2_EXT => {
+            if proto == SC_PROTO_T0 {5} else {7}
+        },
+        SC_APDU_CASE_3_SHORT => {
+            apdu.lc + 5
+        },
+        SC_APDU_CASE_3_EXT => {
+            apdu.lc + if proto == SC_PROTO_T0 {5} else {7}
+        },
+        SC_APDU_CASE_4_SHORT => {
+            apdu.lc + if proto == SC_PROTO_T0 {5} else {6}
+        },
+        SC_APDU_CASE_4_EXT => {
+            apdu.lc + if proto == SC_PROTO_T0 {5} else {9}
+        },
+        _ => {
+            0
+        },
+    }
+}
+*/
 
 /// An equivalent copy of: src/libopensc/card.c:  size_t sc_get_max_recv_size(const sc_card_t *card)
 /* for acos5_get_response and iso7816_select_file_replica only */
@@ -78,7 +117,7 @@ pub fn me_get_max_recv_size(card: &sc_card) -> usize
 
     /* initialize max_recv_size to a meaningful value */
     if max_recv_size == 0 {
-        max_recv_size = if (card.caps & SC_CARD_CAP_APDU_EXT) == 0 {SC_READER_SHORT_APDU_MAX_RECV_SIZE}
+        max_recv_size = if (card.caps & SC_CARD_CAP_APDU_EXT) == 0 {/*256*/ SC_READER_SHORT_APDU_MAX_RECV_SIZE}
                         else {0x1_0000};
     }
 

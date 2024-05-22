@@ -1,16 +1,18 @@
 # acos5  
 [![Build Status](https://travis-ci.org/carblue/acos5.svg?branch=master)](https://travis-ci.org/carblue/acos5)
 
-Driver for Advanced Card Systems (ACS)  ACOS5 Smart Card V2.00 (CryptoMate64) and V3.00 (CryptoMate Nano),  
+Driver for Advanced Card Systems (ACS)  ACOS5 Smart Card<br>
+  V2.00 (CryptoMate64),
+  V3.00 (CryptoMate Nano),
+  not yet V4.X0 Smartcard EVO (CryptoMate EVO), but it looks like I'm going to be able to get this promising hardware to work with OpenSC<br>
 as external modules, operating within the OpenSC software framework (versions supported: 0.20.0 - 0.25.1).
-Maybe if once [pcsc-tools](http://ludovic.rousseau.free.fr/softwares/pcsc-tools/ "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/") will support V4.X0 ACOS5-EVO / CryptoMate EVO, I might continue work on supporting that in driver's code as well.
 
 The respective reference manual for Your hardware is available on request from: info@acs.com.hk
 
 Platforns supported: Those that the Rust compiler targets: [rustc platform-support](https://doc.rust-lang.org/nightly/rustc/platform-support.html "https://doc.rust-lang.org/nightly/rustc/platform-support.html").  
 Platforms tested: Those that I use:  
-Linux/Kubuntu 22.04 LTS (extensively tested, everything implemented works as expected),  
-Windows 11 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: SM and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Note that, for the time being, after all this annoying, time consuming hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow i.a. for sanity-check).
+Linux/Kubuntu 24.04 LTS (extensively tested, everything implemented works as expected),
+Windows 11 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: SM and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Seems to be a privileges/access right issue. Note that, for the time being, after all this annoying, time consuming hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow i.a. for sanity-check).
 
 In the future, I'll test only Linux and the last OpenSC version supported, which is 0.25.1 currently. It's advised to install that OpenSC version.
 Also, testing will be limited to 1 hardware version, which is CryptoMate64 currently.
@@ -39,11 +41,12 @@ Mandatory:
 - [Libtasn1](https://www.gnu.org/software/libtasn1/ "https://www.gnu.org/software/libtasn1/") only for non-Windows (*nix) OS  
 
 Recommended:  
-- [pcsc-tools](http://ludovic.rousseau.free.fr/softwares/pcsc-tools/ "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/"), provides `scriptor` for card initialization as a batch run of commands, see [info/card_initialization/README.md](https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md "https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md")
+- [pcsc-tools](http://ludovic.rousseau.free.fr/softwares/pcsc-tools/ "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/"), provides `scriptor` for card initialization as a batch run of commands, see [info/card_initialization/README.md](https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md "https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md")<br>
+gscriptor is nice in order to communicate with Your crypto hardware without any other software (on byte level, and definitely not without the reference manual)
 ```
 $ sudo apt-get update
 $ sudo apt-get upgrade
-$ sudo apt-get install opensc opensc-pkcs11 openssl pcscd libssl-dev libtasn1-6-dev build-essential pcsc-tools
+$ sudo apt-get install opensc opensc-pkcs11 openssl libssl-dev libtasn1-6-dev pcscd build-essential pcsc-tools
 ```
 **If that doesn't install a symbolic link libopensc.so, then this must be done manually, followed by a sudo ldconfig. See also file travis.yml**
 

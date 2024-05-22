@@ -20,12 +20,13 @@
 
 /* functions, (most of) callable via sc_card_ctl(acos5_card_ctl), mostly used by acos5_gui */
 
-use opensc_sys::opensc::{sc_card, sc_transmit_apdu, sc_check_sw, SC_PROTO_T1};
-use opensc_sys::types::{sc_serial_number, SC_MAX_SERIALNR, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_2_EXT};
+use opensc_sys::opensc::{sc_card, sc_transmit_apdu, sc_check_sw/*, SC_PROTO_T1*/};
+use opensc_sys::types::{sc_serial_number, SC_MAX_SERIALNR, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT/*, SC_APDU_CASE_2_EXT*/};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_CARD_CMD_FAILED, SC_ERROR_INVALID_ARGUMENTS};
 
 use crate::constants_types::{build_apdu, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3};
 use crate::wrappers::{wr_do_log};
+//use crate::missing_exports::me_apdu_get_length;
 
 //QS
 /// Get card's (hardware identifying) serial number. Copies result to card.serialnr
@@ -203,11 +204,16 @@ pub fn get_is_ident_self_okay(card: &mut sc_card, candidate_card_type: i32) -> R
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
+//    let active_protocol = unsafe { &mut *card.reader }.active_protocol;
     let f = c"get_is_ident_self_okay";
     log3ifc!(ctx,f,line!());
 
     let card_type: i32 = if candidate_card_type !=0 {candidate_card_type} else {card.type_};
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 5, 0], SC_APDU_CASE_1, &mut[]);
+//    let mut apdu = build_apdu(ctx, /*if (card.caps&1)==0 {*/ &[0x80, 0x14, 5, 0]/*} else { &[0x80, 0x14, 5, 0,0,0,0]}*/,
+//                              /*if (card.caps&1)==0 {*/SC_APDU_CASE_1/*} else {SC_APDU_CASE_2_EXT}*/, &mut[]);
+//println!("me_apdu_get_length for 'get_is_ident_self_okay': {}\n", me_apdu_get_length(&apdu, active_protocol));
+
     let rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     if apdu.sw1 == 0x95 && (card_type>  SC_CARD_TYPE_ACOS5_64_V3 && apdu.sw2 == 0xC0 ||
                             card_type<= SC_CARD_TYPE_ACOS5_64_V3 && apdu.sw2 == 0x40) {
@@ -227,13 +233,14 @@ pub fn get_cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let active_protocol = unsafe { &mut *card.reader }.active_protocol;
+//    let active_protocol = unsafe { &mut *card.reader }.active_protocol;
     let f = c"get_cos_version";
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0; 8];
-    let mut apdu = if active_protocol!=SC_PROTO_T1 { build_apdu(ctx, &[0x80, 0x14, 6, 0, 8], SC_APDU_CASE_2_SHORT, &mut rbuf) }
-                   else                            { build_apdu(ctx, &[0x80, 0x14, 6, 0, 0,0,8], SC_APDU_CASE_2_EXT, &mut rbuf) };
+    let mut apdu = /*if active_protocol!=SC_PROTO_T1 {*/ build_apdu(ctx, &[0x80, 0x14, 6, 0, 8], SC_APDU_CASE_2_SHORT, &mut rbuf) /*}
+                   else                            { build_apdu(ctx, &[0x80, 0x14, 6, 0, 0,0,8], SC_APDU_CASE_2_EXT, &mut rbuf) }*/;
+//println!("me_apdu_get_length for 'get_cos_version': {}\n", me_apdu_get_length(&apdu, active_protocol));
     let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.resplen == rbuf.len() {

@@ -7,3 +7,6 @@ members = [
 ]
 
 exclude = ["project_pkcs11_example_apps"]
+
+[profile.release]
+strip = "symbols"

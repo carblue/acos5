@@ -249,10 +249,10 @@
 //! [`OpenSC releases`]: https://github.com/OpenSC/OpenSC/releases
 //! [`test`]: ../../../info/README.html
 
-#![cfg_attr(feature = "cargo-clippy", warn(clippy::all))]
-#![cfg_attr(feature = "cargo-clippy", warn(clippy::pedantic))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::doc_markdown))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::module_name_repetitions))]
+#![cfg_attr(clippy, warn(clippy::all))]
+#![cfg_attr(clippy, warn(clippy::pedantic))]
+#![cfg_attr(clippy, allow(clippy::doc_markdown))]
+#![cfg_attr(clippy, allow(clippy::module_name_repetitions))]
 
 
 // for FILE and free

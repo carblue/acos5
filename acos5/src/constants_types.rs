@@ -81,13 +81,13 @@ pub const SC_CARD_TYPE_ACOS5_64_V3  : i32 = 16004; // = SC_CARD_TYPE_ACOS5_BASE 
 pub const SC_CARD_TYPE_ACOS5_EVO_V4 : i32 = 16005; // = SC_CARD_TYPE_ACOS5_BASE + 4;
 
 //  const ATR_V1      : &CStr = c"3b:be:18:00:00:41:05:01:00:00:00:00:00:00:00:00:00:90:00"; // *NOT* supported: ACOS5 Card (ACOS5-32 V1.00)
-pub const ATR_V2      : &CStr = c"3b:be:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00"; // Using reader with a card: ACS CryptoMate64 00 00
-pub const ATR_V3      : &CStr = c"3b:be:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00"; // Using reader with a card: ACS CryptoMate (T2) 00 00 ; reported by my CryptoMate Nano
+pub const ATR_V2      : &CStr = c"3b:be:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00"; // Using reader with a card: ACS CryptoMate64 00 00;     Card status (0x0034): Present, Powered, 'PTS is negotiable'; The active protocol (0x0001) is T=0
+pub const ATR_V3      : &CStr = c"3b:be:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00"; // Using reader with a card: ACS CryptoMate (T2) 00 00 ; Card status (0x0034): Present, Powered, 'PTS is negotiable'; The active protocol (0x0001) is T=0 ; reported by my CryptoMate Nano
 /* TODO check ATRs of different EVO card hardware: contact / contactless / combi */
 pub const ATR_V4_0    : &CStr = c"3b:9e:96:80:01:41:05:40:00:00:00:00:00:00:00:00:00:90:00";    // unverified currently
 pub const ATR_V4_1    : &CStr = c"3b:9e:96:80:01:41:05:41:00:00:00:00:00:00:00:00:00:90:00:1c"; // unverified currently
 pub const ATR_V4_2    : &CStr = c"3b:9e:96:80:01:41:05:42:00:00:00:00:00:00:00:00:00:90:00:1f"; // Using reader with a card: ACS CryptoMate EVO 00 00
-pub const ATR_V4_3    : &CStr = c"3b:9e:96:80:01:41:05:43:00:00:00:00:00:00:00:00:00:90:00:1e"; // Using reader with a card: ACS CryptoMate EVO 00 00
+pub const ATR_V4_3    : &CStr = c"3b:9e:96:80:01:41:05:43:00:00:00:00:00:00:00:00:00:90:00:1e"; // Using reader with a card: ACS CryptoMate EVO 00 00 ; Card status (0x0034): Present, Powered, 'PTS is negotiable'; The active protocol (0x0002) is T=1 ; reported by my CryptoMate EVO
 pub const ATR_MASK    : &CStr = c"FF:FF:00:FF:FF:FF:FF:FF:00:00:00:00:00:00:00:00:00:FF:FF";
 pub const ATR_MASK_TCK: &CStr = c"FF:FF:00:FF:FF:FF:FF:F0:00:00:00:00:00:00:00:00:00:FF:FF:00";
 pub const NAME_V2  : &CStr = c"ACOS5-64 V2.00: Smart Card or CryptoMate64";
