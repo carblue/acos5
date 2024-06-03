@@ -169,16 +169,20 @@ and returns first aid found
 */
 #[allow(dead_code)]
 #[allow(non_snake_case)]
-pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
+pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Result<bool, i32> {
     if card.app_count>0 && !card.app[0].is_null() {
 // println!("card.app[0]: {:X?}", unsafe { *card.app[0] });
     }
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let pkcs15_definitions = dp.pkcs15_definitions;
+    if !dp.files.contains_key(&0x2F00) {
+        Box::leak(dp);
+        return Ok(false);
+    }
     let size : usize = file_id_se(dp.files[&0x2F00].1).into();
     Box::leak(dp);
     // card.drv_data = Box::into_raw(dp) as p_void;
-    if pkcs15_definitions.is_null() { return; }
+    if pkcs15_definitions.is_null() { return Err(-1); }
 
     let mut aid_buf = [0_u8; SC_MAX_AID_SIZE];
     let mut aid_len = i32::try_from(SC_MAX_AID_SIZE).unwrap();
@@ -187,7 +191,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
     let mut file = null_mut();
     let guard_file = GuardFile::new(&mut file);
     let mut rv = unsafe { sc_select_file(card, &path_2f00, *guard_file) };
-    if rv != SC_SUCCESS { return; }
+    if rv != SC_SUCCESS { return Err(-1); }
     let mut rbuf = vec![0_u8; size];
     rv = unsafe { cfg_if::cfg_if! {
         if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
@@ -198,7 +202,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
             sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), &mut flags)
         }
     }};
-    if rv <= 0  {  return; }
+    if rv <= 0  {  return Err(-1); }
     for range in DirectoryRange::new(&rbuf[..rv.try_into().unwrap()]) {
 //println!("for range in DirectoryRange: {:?}", range);
         let mut structure : asn1_node = null_mut();
@@ -206,7 +210,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
         let mut asn1_result = unsafe { asn1_create_element(pkcs15_definitions, c"PKCS15.DIRRecord".as_ptr(), *guard_structure) };
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
             println!("### Error in structure creation: {:?}", unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
-            return;
+            return Err(-1);
         }
         let rbuf2 = &rbuf[range];
         let mut error_description = [0x00 as c_char; 129];
@@ -248,6 +252,11 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
         let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         let dp_files_value_2F00 = dp.files.get_mut(&0x2F00).unwrap();
         dp_files_value_2F00.1[6] = PKCS15_FILE_TYPE_DIR;
+        if !dp.files.contains_key(&file_id_app) {
+            Box::leak(dp);
+            return Ok(false);
+        }
+
         let dp_files_value_app = &dp.files[&file_id_app];
         assert!(is_DFMF(dp_files_value_app.1[0]));
         assert_eq!(buf_slice, &dp_files_value_app.0[..dp_files_value_app.1[1].into()]);
@@ -330,6 +339,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) {
         }
 //println!("loop completed: for range in DirectoryRange::new");
     }
+    Ok(true)
 }
 
 #[allow(dead_code)]

@@ -1381,7 +1381,10 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
                         //     println!("result from asn1_check_version: {:?}", unsafe { CStr::from_ptr(tasn1_version) });
                         // }
                     let mut aid = sc_aid::default();
-                    analyze_PKCS15_DIRRecord_2F00(card, &mut aid);
+                    let res = analyze_PKCS15_DIRRecord_2F00(card, &mut aid);
+                    if res.is_err() || !res.unwrap(){
+                        return -1;
+                    }
                     //println!("AID: {:X?}", &aid.value[..aid.len]);
                     analyze_PKCS15_PKCS15Objects_5031(card);
                     // the only missing check is that EF.Tokeninfo is PKCS#15 compliant

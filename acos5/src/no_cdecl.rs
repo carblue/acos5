@@ -266,6 +266,7 @@ thus issue a correct APDU right away
 The code differs from the C version in 1 line only, where setting apdu.p2 = 0x0C;
 */
 //allow cognitive_complexity: This is almost equal to iso7816_select_file. Thus for easy comparison, don't split this
+#[allow(dead_code)]
 #[allow(clippy::too_many_lines)]
 fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_out: &mut Option<&mut *mut sc_file>) -> i32
 {
@@ -388,7 +389,7 @@ Incoming APDU (2 bytes):
         }
     }
 
-    unsafe { sc_format_apdu(card, &mut apdu, SC_APDU_CASE_4_SHORT /*SC_APDU_CASE_3_SHORT*/, 0xA4, 0, 0) };
+    unsafe { sc_format_apdu(card, &mut apdu, SC_APDU_CASE_4_SHORT, 0xA4, 0, 0) };
 
     match pathtype {
         SC_PATH_TYPE_FILE_ID => {
@@ -571,13 +572,13 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Op
     let mut file = null_mut();
     let guard_file = GuardFile::new(&mut file);
 //println!("file_out.is_null: {}", file_out.is_none());
-    let mut file_tmp : Option<&mut *mut sc_file> = if force_process_fci {unsafe{guard_file.as_mut()}} else {file_out};
+    let file_tmp : Option<&mut *mut sc_file> = if force_process_fci {unsafe{guard_file.as_mut()}} else {file_out};
 
-//    let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).select_file.unwrap()(card, path_ref, file_out) };
-    let rv = iso7816_select_file_replica(card, path_ref, &mut file_tmp);
+    let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).select_file.unwrap()(card, path_ref, if file_tmp.is_some() {file_tmp.unwrap()} else {&mut file} ) };
+//    let rv = iso7816_select_file_replica(card, path_ref, &mut file_tmp);
     let mut file_id : u16 =
         if rv==SC_SUCCESS && path_ref.type_ == SC_PATH_TYPE_DF_NAME {
-            u16::try_from(unsafe { (*(*file_tmp.unwrap())).id } ).unwrap()
+            0//u16::try_from(unsafe { (*(*file_tmp.unwrap())).id } ).unwrap()  // TODO
         }
         else {0};
     /*

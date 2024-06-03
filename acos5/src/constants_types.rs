@@ -94,7 +94,7 @@ pub const NAME_V2  : &CStr = c"ACOS5-64 V2.00: Smart Card or CryptoMate64";
 pub const NAME_V3  : &CStr = c"ACOS5-64 V3.00: Smart Card or CryptoMate Nano";
 pub const NAME_V4  : &CStr = c"ACOS5-EVO V4.X0: Smart Card EVO or CryptoMate EVO";
 
-pub const CARD_DRV_NAME       : &CStr = c"'acos5_external', supporting ACOS5 Smart Card V2.00 (CryptoMate64), V3.00 (CryptoMate Nano)";
+pub const CARD_DRV_NAME       : &CStr = c"'acos5_external', supporting ACOS5 Smart Card V2.00 (CryptoMate64), V3.00 (CryptoMate Nano), Smart Card ACOS5-EVO V4.X0 (CryptoMate EVO)";
 pub const CARD_DRV_SHORT_NAME : &CStr = c"acos5_external";
 
 //pub const CRATE               : &[u8;   6] = b"acos5\0"; // search acos5 mention in debug log file; each function should at least log CALLED, except small helpers or code that is clearly covered by only one possible surrounding function's called

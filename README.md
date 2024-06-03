@@ -2,10 +2,14 @@
 [![Build Status](https://travis-ci.org/carblue/acos5.svg?branch=master)](https://travis-ci.org/carblue/acos5)
 
 Driver for Advanced Card Systems (ACS)  ACOS5 Smart Card<br>
-  V2.00 (CryptoMate64),
-  V3.00 (CryptoMate Nano),
-  not yet V4.X0 Smartcard EVO (CryptoMate EVO), but it looks like I'm going to be able to get this promising hardware to work with OpenSC<br>
+  V2.00 (CryptoMate64),<br>
+  V3.00 (CryptoMate Nano),<br>
+  V4.X0 EVO (CryptoMate EVO)<br>
 as external modules, operating within the OpenSC software framework (versions supported: 0.20.0 - 0.25.1).
+
+Support for the EVO chip is given partially, work in progress to be completed. By default, this hardware is operated in protocol T=1 (different from the other supported hardware, T=0). OpenSC wants to handle the APDU case 'SC_APDU_CASE_4_SHORT' differently for T=0/T=1 protocols, but that's not how the ACOS5 EVO behaves. Thus, currently, for the EVO card only, patching OpenSC source code is required (use file diff_apdu_c.txt) like that:<br>
+
+user@host:~/path/to/opensc-0.25.1$ patch -b src/libopensc/apdu.c diff_apdu_c.txt
 
 The respective reference manual for Your hardware is available on request from: info@acs.com.hk
 
@@ -270,6 +274,15 @@ $ ssh -T -I/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so  git@github.com
 ```
 Hi your_github_user_name! You've successfully authenticated, but GitHub does not provide shell access.
 
+With this ssh config file I can even abbreviate:<br>
+$ cat ~/.ssh/config<br>
+#PKCS11Provider /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so<br>
+PKCS11Provider /usr/lib/x86_64-linux-gnu/libp11-kit.so<br>
+
+It reveals, that I've p11-kit installed, which actually points to opensc-pkcs11.so as well (in lack of an acs_pkcs11.so - which knows how to handle ACOS5 hardware as well - it wouldn't work otherwise).
+
+$ ssh -T git@github.com
+
 If You like to push from current local git repo  to github via being authenticated by Your github_key: [changing-a-remotes-url](https://docs.github.com/en/free-pro-team@latest/github/using-git/changing-a-remotes-url "https://docs.github.com/en/free-pro-team@latest/github/using-git/changing-a-remotes-url")
 
 Recommended info:  
@@ -277,4 +290,4 @@ Recommended info:
 [Linux and smart cards (OpenSC) - How-to](http://cedric.dufour.name/blah/IT/SmartCardsHowto.html "http://cedric.dufour.name/blah/IT/SmartCardsHowto.html")  
 [OpenSSL Certificate Authority](https://jamielinux.com/docs/openssl-certificate-authority/ "https://jamielinux.com/docs/openssl-certificate-authority/") with adaptions from info/howto/HOWTO_Create_Your_own_CA_root_hierarchy_on_Linux
 
-[changelog.md](https://github.com/carblue/acos5/tree/master/changelog.md "https://github.com/carblue/acos5/tree/master/changelog.md"): Recent commits (notable ones that deserve some verbosity)
+< not yet:[changelog.md](https://github.com/carblue/acos5/tree/master/changelog.md "https://github.com/carblue/acos5/tree/master/changelog.md"): Recent commits (notable ones that deserve some verbosity) >

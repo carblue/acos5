@@ -1,0 +1,22 @@
+--- opensc-0.25.1/src/libopensc/apdu.c	2024-04-05 12:43:45.000000000 +0200
++++ opensc-0.25.1/src/libopensc/apdu.c	2024-05-25 11:33:39.021573903 +0200
+@@ -61,7 +61,7 @@
+ 		ret += apdu->lc + (proto == SC_PROTO_T0 ? 1 : 3);
+ 		break;
+ 	case SC_APDU_CASE_4_SHORT:
+-		ret += apdu->lc + (proto != SC_PROTO_T0 ? 2 : 1);
++		ret += apdu->lc + 1/*(proto != SC_PROTO_T0 ? 2 : 1)*/;
+ 		break;
+ 	case SC_APDU_CASE_4_EXT:
+ 		ret += apdu->lc + (proto == SC_PROTO_T0 ? 1 : 5);
+@@ -143,8 +143,10 @@
+ 		memcpy(p, apdu->data, apdu->lc);
+ 		p += apdu->lc;
+ 		/* in case of T0 no Le byte is added */
++		/*
+ 		if (proto != SC_PROTO_T0)
+ 			*p = (u8)apdu->le;
++		*/	
+ 		break;
+ 	case SC_APDU_CASE_4_EXT:
+ 		if (proto == SC_PROTO_T0) {
