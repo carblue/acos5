@@ -75,16 +75,16 @@ Message in debug_file: successfully loaded pkcs15init driver 'acos5-external'
 #![allow(unused_unsafe)]
 #![allow(unused_macros)]
 
-#![cfg_attr(feature = "cargo-clippy", warn(clippy::all))]
-#![cfg_attr(feature = "cargo-clippy", warn(clippy::pedantic))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::doc_markdown))]
-//#![cfg_attr(feature = "cargo-clippy", allow(clippy::module_name_repetitions))]
+#![warn(clippy::all)]
+#![warn(clippy::pedantic)]
+#![allow(clippy::doc_markdown)]
+//#![allow(clippy::module_name_repetitions)]
 
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::similar_names))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::cognitive_complexity))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_lines))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::if_not_else))]
+#![allow(clippy::similar_names)]
+#![allow(clippy::cognitive_complexity)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::if_not_else)]
 
 //extern crate libc;
 //extern crate opensc_sys;
@@ -96,7 +96,7 @@ use libc::{free}; // strlen
 
 use std::os::raw::{c_char, c_void};
 use std::ffi::CStr;
-use std::ptr::{null_mut, addr_of_mut};
+use std::ptr::{null_mut, addr_of_mut, from_mut};
 // use std::collections::HashSet;
 use std::slice::from_raw_parts;
 
@@ -773,7 +773,7 @@ log3if!(ctx,f,line!(), c"file_priv.path: %s",
     /* actual file creation on card */
 /* */
     if do_create_files {
-        rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_CREATE, (file_priv as *mut sc_file).cast::<c_void>()) };
+        rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_CREATE, (from_mut::<sc_file>(file_priv)).cast::<c_void>()) };
         if rv < 0 {
             log3ifr!(ctx,f,line!(), c"create file_priv failed", rv);
             return rv;
@@ -793,7 +793,7 @@ log3if!(ctx,f,line!(), c"file_priv.path: %s",
         rv = unsafe { sc_pkcs15init_authenticate(profile, p15card, file_priv, i32::try_from(SC_AC_OP_UPDATE).unwrap()) };
         if rv != SC_SUCCESS { return rv; }
 
-        rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_CREATE, (file_pub as *mut sc_file).cast::<c_void>()) };
+        rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_CREATE, (from_mut::<sc_file>(file_pub)).cast::<c_void>()) };
         if rv < 0 {
             log3ifr!(ctx,f,line!(), c"create file_pub failed", rv);
             return rv;

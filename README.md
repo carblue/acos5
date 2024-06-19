@@ -279,7 +279,7 @@ $ cat ~/.ssh/config<br>
 #PKCS11Provider /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so<br>
 PKCS11Provider /usr/lib/x86_64-linux-gnu/libp11-kit.so<br>
 
-It reveals, that I've p11-kit installed, which actually points to opensc-pkcs11.so as well (in lack of an acs_pkcs11.so - which knows how to handle ACOS5 hardware as well - it wouldn't work otherwise).
+It reveals, that I've p11-kit installed (and configured), which actually points to opensc-pkcs11.so (in lack of a proprietary libacospkcs11.so - which knows how to handle ACOS5 hardware as well - it wouldn't work for ACOS5 hardware otherwise).
 
 $ ssh -T git@github.com
 

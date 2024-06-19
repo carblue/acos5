@@ -573,9 +573,10 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Op
     let guard_file = GuardFile::new(&mut file);
 //println!("file_out.is_null: {}", file_out.is_none());
     let file_tmp : Option<&mut *mut sc_file> = if force_process_fci {unsafe{guard_file.as_mut()}} else {file_out};
-
+    #[allow(clippy::unnecessary_unwrap)]
     let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).select_file.unwrap()(card, path_ref, if file_tmp.is_some() {file_tmp.unwrap()} else {&mut file} ) };
 //    let rv = iso7816_select_file_replica(card, path_ref, &mut file_tmp);
+    #[allow(clippy::if_same_then_else)]
     let mut file_id : u16 =
         if rv==SC_SUCCESS && path_ref.type_ == SC_PATH_TYPE_DF_NAME {
             0//u16::try_from(unsafe { (*(*file_tmp.unwrap())).id } ).unwrap()  // TODO
@@ -945,7 +946,7 @@ fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*,
         else {
             let mut files_contained= vec![0_u8; 2*255];
             rv = unsafe { sc_list_files(card, files_contained.as_mut_ptr(), files_contained.len()) };
-            if rv < SC_SUCCESS || rv%2==1 {
+            if rv < SC_SUCCESS || (rv%2)==1 {
                 return rv;
             }
             files_contained.truncate(usize::try_from(rv).unwrap());

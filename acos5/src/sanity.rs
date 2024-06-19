@@ -1,3 +1,5 @@
+#![allow(clippy::module_name_repetitions)]
+
 use std::ptr::{/*null,*/ null_mut};
 use std::ffi::CStr;
 use std::collections::HashSet;

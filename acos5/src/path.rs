@@ -18,6 +18,8 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
  */
 
+#![allow(clippy::module_name_repetitions)]
+
 use opensc_sys::opensc::{sc_card};
 use opensc_sys::types::{sc_path/*, SC_MAX_PATH_SIZE*/};
 //use opensc_sys::log::{sc_dump_hex};

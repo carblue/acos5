@@ -94,7 +94,7 @@ pub const NAME_V2  : &CStr = c"ACOS5-64 V2.00: Smart Card or CryptoMate64";
 pub const NAME_V3  : &CStr = c"ACOS5-64 V3.00: Smart Card or CryptoMate Nano";
 pub const NAME_V4  : &CStr = c"ACOS5-EVO V4.X0: Smart Card EVO or CryptoMate EVO";
 
-pub const CARD_DRV_NAME       : &CStr = c"'acos5_external', supporting ACOS5 Smart Card V2.00 (CryptoMate64), V3.00 (CryptoMate Nano), Smart Card ACOS5-EVO V4.X0 (CryptoMate EVO)";
+pub const CARD_DRV_NAME       : &CStr = c"'acos5_external', supporting ACOS5 Smart Card V2.00 (CryptoMate64), V3.00 (CryptoMate Nano), EVO V4.X0 (CryptoMate EVO)";
 pub const CARD_DRV_SHORT_NAME : &CStr = c"acos5_external";
 
 //pub const CRATE               : &[u8;   6] = b"acos5\0"; // search acos5 mention in debug log file; each function should at least log CALLED, except small helpers or code that is clearly covered by only one possible surrounding function's called
@@ -389,16 +389,28 @@ impl Fci {
                     let len = tlv.length();
                     assert!([1,2,5,6].contains(&len));
                     result.fdb = tlv.value()[0];
-                    // TODO adapt for EVO
-                    if len == 6 && card.type_==SC_CARD_TYPE_ACOS5_EVO_V4 {
-                        result.mrl = u16::from_be_bytes([tlv.value()[2], tlv.value()[3]]);
-                        result.nor = u16::from_be_bytes([tlv.value()[4], tlv.value()[5]]);
-                        result.size = result.mrl * result.nor;
+                    if len == 6 {
+                        if card.type_ > SC_CARD_TYPE_ACOS5_64_V3 {
+                            //  82 06 1C 00 00 38 00 08
+                            result.mrl = u16::from_be_bytes([tlv.value()[2], tlv.value()[3]]);
+                            result.nor = u16::from_be_bytes([tlv.value()[4], tlv.value()[5]]);
+                            result.size = result.mrl * result.nor;
+                        }
+                        else {
+                            result.mrl = u16::from_be_bytes([0, tlv.value()[3]]);
+                            result.nor = u16::from_be_bytes([0, tlv.value()[5]]);
+                            result.size = result.mrl * result.nor;
+                        }
                     }
-                    else if len > 2 {
+                    else if len == 5 {
+                            result.mrl = u16::from_be_bytes([0, tlv.value()[3]]);
+                            result.nor = u16::from_be_bytes([0, tlv.value()[4]]);
+                            result.size = result.mrl * result.nor;
+                        /*
                         result.mrl = tlv.value()[3].into();
                         result.nor = tlv.value()[usize::from(len)-1].into();
                         result.size = result.mrl * result.nor;
+                         */
                     }
                 },
                 ISO7816_TAG_FCP_FID => {

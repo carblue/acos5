@@ -27,6 +27,8 @@ TODO There is a lot of code duplication here: Abstract as much as possible for t
   thoroughly that all is working as expected
 */
 
+#![allow(clippy::module_name_repetitions)]
+
 use libc::{free, strlen};
 
 use std::os::raw::{c_char, c_ulong, c_void};

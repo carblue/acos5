@@ -45,7 +45,7 @@ attacker, that controls the computer can eavedrop the card <-> terminal communic
 file and hence reconstruct the generated session keys. Well, I can think of ways to enhance SM's security for ACOS5,
 but thats not disclosable publicly.
 
-scriptor from package pcsc-tools (see http://ludovic.rousseau.free.fr/softwares/pcsc-tools/) or some equivalent tool
+scriptor from package pcsc-tools (see https://pcsc-tools.apdu.fr/) or some equivalent tool
 that can send APDUs to a smart card in batch mode will be required.
 
 The bulk of initialization will be done by script `card_initialization.scriptor`:

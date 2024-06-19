@@ -169,6 +169,7 @@ and returns first aid found
 */
 #[allow(dead_code)]
 #[allow(non_snake_case)]
+#[allow(clippy::too_many_lines)]
 pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Result<bool, i32> {
     if card.app_count>0 && !card.app[0].is_null() {
 // println!("card.app[0]: {:X?}", unsafe { *card.app[0] });

@@ -54,15 +54,15 @@ it has a child DF that has been selected.
 
 #![allow(unused_unsafe)]
 //#![allow(unused_macros)]
-#![cfg_attr(feature = "cargo-clippy", warn(clippy::all))]
-#![cfg_attr(feature = "cargo-clippy", warn(clippy::pedantic))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::doc_markdown))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::module_name_repetitions))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::similar_names))]
-// #![cfg_attr(feature = "cargo-clippy", allow(clippy::cognitive_complexity))]
-// #![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_lines))]
-// #![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::if_not_else))]
+#![warn(clippy::all)]
+#![warn(clippy::pedantic)]
+#![allow(clippy::doc_markdown)]
+//#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::similar_names)]
+//#![allow(clippy::cognitive_complexity)]
+// #![allow(clippy::too_many_lines)]
+// #![allow(clippy::too_many_arguments)]
+#![allow(clippy::if_not_else)]
 
 
 use std::os::raw::{c_char, c_ulong, c_void};
@@ -91,7 +91,7 @@ use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_securit
     SC_PROTO_T1
 //  SC_ALGORITHM_ECDH_CDH_RAW, SC_ALGORITHM_ECDSA_HASH_NONE, SC_ALGORITHM_ECDSA_HASH_SHA1,
 //  SC_ALGORITHM_EXT_EC_UNCOMPRESES,
-//  ,sc_pin_cmd_pin, sc_pin_cmd//, sc_update_binary, sc_path_set, sc_verify
+//  sc_pin_cmd_pin, sc_pin_cmd//, sc_update_binary, sc_path_set, sc_verify
 };
 //#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
 //use opensc_sys::opensc::{SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM};
@@ -252,12 +252,12 @@ mod   test_v2_v3;
 /// will be rejected/unloaded immediately by OpenSC; depends on build.rs setup ref. "cargo:rustc-cfg=v0_??_0".
 ///
 /// Its essential, that this doesn't merely echo, what a call to `sc_get_version` reports:
-/// Its my/developers statement, that the support as reported by sc_driver_version got checked !
+/// It is my/developers statement, that the support as reported by sc_driver_version got checked !
 /// Thus, if e.g. a new OpenSC version 0.22.0 got released and if I didn't reflect that in sc_driver_version,
 /// (updating opensc-sys binding and code of acos5 and acos5_pkcs15),
 /// then the driver won't accidentally malfunction for a not yet supported OpenSC environment/version !
 ///
-/// The support of not yet released OpenSC code (i.e. github/master) is somewhat experimental:
+/// The support of not yet released OpenSC code (i.e. gitHub/master) is somewhat experimental:
 /// Its accuracy depends on how closely the opensc-sys binding and driver code has covered the possible
 /// differences in API and behavior (this function mentions the last OpenSC commit covered).
 /// master will be handled as an imaginary new version release:
@@ -266,12 +266,11 @@ mod   test_v2_v3;
 /// In this example, cfg!(v0_23_0) will then match that
 ///
 /// @return   The OpenSC release/imaginary version, that this driver implementation supports
-#[allow(clippy::if_same_then_else)]
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = unsafe { sc_get_version() };
-    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1))  { version_ptr }
-    // else if cfg!(v0_26_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered:
+    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1/*, v0_26_0*/))  { version_ptr }
+    // v0_26_0: experimental only:  Latest OpenSC gitHub master commit covered:
     else                   { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -354,7 +353,7 @@ static struct sc_card_operations iso_ops = {
         write_binary:          Some(acos5_update_binary),     // iso7816_write_binary
         update_binary:         Some(acos5_update_binary),     // iso7816_update_binary
         erase_binary:          Some(acos5_erase_binary),      // NULL
-        /* ATTENTION: calling the iso7816_something_record functions requires using flag SC_RECORD_BY_REC_NR  or it won't work as expected !!! s*/
+        /* ATTENTION: calling the iso7816_something_record functions requires using flag SC_RECORD_BY_REC_NR , or it won't work as expected !!! s*/
         read_record:           Some(acos5_read_record),       // iso7816_read_record
         write_record:          None,//Some(acos5_update_record),     // iso7816_write_record
         append_record:         Some(acos5_append_record),     // iso7816_append_record
@@ -589,7 +588,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
 
 
 /*
-what can we rely on, when this get's called:
+what can we rely on, when this gets called:
 1. card.atr  was set
 2. card.type was set by match_card, but it may still be incorrect, as a forced_card driver ignores
      a no-match on ATR and nevertheless calls init, thus rule out non-matching ATR card finally here
@@ -878,7 +877,7 @@ card.sm_ctx.module.ops  : handled by card.c:sc_card_sm_check/sc_card_sm_load
        if (card.cache.current_df)
        current_path_df                 = card.cache.current_df.path;
 char[64]  config_section;  will be set from opensc.conf later by sc_card_sm_check
-unsafe { copy_nonoverlapping(c"acos5_sm".as_ptr(), sm_info.config_section.as_mut_ptr(), 9); } // used to look-up the block; only iasecc/authentic populate this field
+unsafe { copy_nonoverlapping(c"acos5_sm".as_ptr(), sm_info.config_section.as_mut_ptr(), 9); } // used to look up the block; only iasecc/authentic populate this field
 uint      sm_mode;         will be set from opensc.conf later by sc_card_sm_check only for SM_MODE_TRANSMIT
  */
     sm_info.card_type = u32::try_from(card.type_).unwrap();
@@ -887,8 +886,8 @@ uint      sm_mode;         will be set from opensc.conf later by sc_card_sm_chec
     #[cfg(target_os = "windows")]
     { sm_info.current_aid = sc_aid { len: SC_MAX_AID_SIZE, value: [0x41, 0x43, 0x4F, 0x53, 0x50, 0x4B, 0x43, 0x53, 0x2D, 0x31, 0x35, 0x76, 0x31, 0x2E, 0x30, 0x30] }; } //"ACOSPKCS-15v1.00", see PKCS#15 EF.DIR file
     unsafe {
-        sm_info.session.cwa.params.crt_at.refs[0] = 0x82; // this is the selection of keyset_... ...02_... to be used !!! Currently 24 byte keys (generate 24 byte session keys)
-//      sm_info.session.cwa.params.crt_at.refs[0] = 0x81; // this is the selection of keyset_... ...01_... to be used !!!           16 byte keys (generate 16 byte session keys)
+        sm_info.session.cwa.params.crt_at.refs[0] = 0x82; // this is the selection of keyset_... ...02_... to be used !!! Currently, 24 byte keys (generate 24 byte session keys)
+//      sm_info.session.cwa.params.crt_at.refs[0] = 0x81; // this is the selection of keyset_... ...01_... to be used !!!            16 byte keys (generate 16 byte session keys)
     }
 
 cfg_if::cfg_if! {
@@ -1382,7 +1381,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
                         // }
                     let mut aid = sc_aid::default();
                     let res = analyze_PKCS15_DIRRecord_2F00(card, &mut aid);
-                    if res.is_err() || !res.unwrap(){
+                    if res.is_err() || !res.unwrap() {
                         return -1;
                     }
                     //println!("AID: {:X?}", &aid.value[..aid.len]);
@@ -1504,7 +1503,7 @@ SW1 SW2   Definition
  * @param  count INOUT IN  how many bytes are expected that can be fetched;
                        OUT how many bytes actually were fetched by this call and were written to buf
  * @param  buf
- * @return how many bytes can be expected to be fetched the next time, this function get's called: It's a guess only
+ * @return how many bytes can be expected to be fetched the next time, this function gets called: It's a guess only
  */
 #[allow(clippy::suspicious_else_formatting)]
 extern "C" fn acos5_get_response(card_ptr: *mut sc_card, count_ptr: *mut usize, buf_ptr: *mut u8) -> i32
@@ -1566,14 +1565,14 @@ println!("### acos5_get_response returned apdu.sw1: {:X}, apdu.sw2: {:X}   Unkno
            The first  invocation by sc_get_response is with *count_ptr==256 (set by sc_get_response)
            The second invocation by sc_get_response is with *count_ptr==256 (got from rv, line above), fails, as the correct rv should have been 128,
              but the failure doesn't crawl up to this function, as a retransmit with corrected value 128 will be done in the low sc_transmit layer;
-             thus there should be only 1 situation when (apdu.sw1==0x6A && apdu.sw2==0x88) get's to this function: For a 2048 bit RSA  key operation with is_running_cmd_long_response==true
+             thus there should be only 1 situation when (apdu.sw1==0x6A && apdu.sw2==0x88) gets to this function: For a 2048 bit RSA  key operation with is_running_cmd_long_response==true
             */
     }
 /*
-    else if apdu.sw1 == 0x61 { // this never get's returned by command
+    else if apdu.sw1 == 0x61 { // this never gets returned by command
         rv = if apdu.sw2 == 0 {256_i32} else {i32::try_from(apdu.sw2).unwrap()};    /* more data to read */
     }
-    else if apdu.sw1 == 0x62 && apdu.sw2 == 0x82 { // this never get's returned by command
+    else if apdu.sw1 == 0x62 && apdu.sw2 == 0x82 { // this never gets returned by command
         rv = 0; /* Le not reached but file/record ended */
     }
 */
@@ -1875,7 +1874,7 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
         /* collect the IDs of files in the currently selected directory, restrict to max. 255, because addressing has 1 byte only */
         for i  in 0..u8::try_from(numfiles).unwrap() {
             let idx = usize::from(i) * 2;
-            let mut rbuf = match get_file_info(card, i+ u8::from(card.type_ >= SC_CARD_TYPE_ACOS5_EVO_V4)) {
+            let mut rbuf = match get_file_info(card, i) {
                 Ok(val) => val,
                 Err(e)    => return e,
             };
@@ -1943,7 +1942,7 @@ extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
     let fci = Fci::new_parsed(card, unsafe { from_raw_parts(buf_ref_ptr, buflen) });
 
     // perform some corrective actions
-    if  file.type_ == 0 && fci.fdb == FDB_SE_FILE {
+    if  file.type_ == 0 && [FDB_ECC_KEY_EF, FDB_SE_FILE].contains(&fci.fdb) {
         file.type_ = SC_FILE_TYPE_INTERNAL_EF;
     }
     debug_assert_ne!(0, file.type_);
@@ -2503,7 +2502,7 @@ println!();
 /// @param  tag_out  OUT    Receiving address for: Tag\
 /// @param  taglen   OUT    Receiving address for: Number of bytes available in V\
 /// @return          SC_SUCCESS or error code\
-/// On error, buf may have been set to NULL, and (except on SC_ERROR_ASN1_END_OF_CONTENTS) no OUT param get's set\
+/// On error, buf may have been set to NULL, and (except on SC_ERROR_ASN1_END_OF_CONTENTS) no OUT param gets set\
 /// OUT tag_out and taglen are guaranteed to have values set on SC_SUCCESS (cla_out only, if also (buf[0] != 0xff && buf[0] != 0))\
 extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
                                     algorithm: u32,
@@ -2902,7 +2901,7 @@ pub const SC_SEC_ENV_PARAM_DES_CBC           : u32 = 4;
  *  meaning, there are 256 bytes or more to fetch, or a one only transmit for keylen<=2048 returns e.g. 0x61E0 or 0x6100.
  *  decrypted data for keylen<=2048 can be easily, automatically fetched with regular commands called by sc_transmit_apdu (sc_get_response, iso7816_get_response;
  *  olen  = apdu->resplen (before calling sc_single_transmit; after calling sc_single_transmit, all commands that return a SM 0x61?? set apdu->resplen to 0)
- *  olen get's passed to sc_get_response, which is the total size of output buffer offered.
+ *  olen gets passed to sc_get_response, which is the total size of output buffer offered.
  *  For keylen>2048
  00 C0 00 00 00
  */
@@ -2958,10 +2957,10 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
         log3ift!(ctx,f,line!(), c"### 0x%02X%02X: decipher failed or \
             it's impossible to retrieve the answer from get_response ###", apdu.sw1, apdu.sw2);
         /* while using pkcs11-tool -l -t
-        it may happen, that a sign-key get's tested with a hash algo unsupported by compute_signature, thus it must revert to use acos5_decipher,
+        it may happen, that a sign-key gets tested with a hash algo unsupported by compute_signature, thus it must revert to use acos5_decipher,
         but the key isn't generated with decrypt capability: Then fake a success here, knowing, that a verify signature will fail
         Update: this doesn't help, check_sw kicks in and aborts on error 0x6A80 */
-        if rv == SC_ERROR_INCORRECT_PARAMETERS { // 0x6A80 error code get's transformed by iso7816_check_sw to SC_ERROR_INCORRECT_PARAMETERS
+        if rv == SC_ERROR_INCORRECT_PARAMETERS { // 0x6A80 error code gets transformed by iso7816_check_sw to SC_ERROR_INCORRECT_PARAMETERS
             apdu.sw1 = 0x90;
             apdu.sw2 = 0x00;
             log3if!(ctx,f,line!(), c"### \
@@ -3004,7 +3003,7 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
    EMSA-PKCS1-v1_5:
        emLen = RSA key modulus length in bytes, e.g. for a 4096 bit key: 512
        EM starts with bytes 0x00, 0x01  (EM = 0x00 || 0x01 || PS || 0x00 || T).
-       Thus the modulus must start with bytes > 0x00, 0x01, e.g. the minimum is 0x00, 0x02:
+       Thus, the modulus must start with bytes > 0x00, 0x01, e.g. the minimum is 0x00, 0x02:
            Check in acos5_gui when generating a key pair, that this condition is met
 
    EMSA-PSS:
@@ -3055,13 +3054,13 @@ extern "C" fn acos5_compute_signature(card_ptr: *mut sc_card, data_ref_ptr: *con
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     assert!(data_len <= outlen);
-    assert!(data_len <= 512); // cos5 supports max RSA 4096 bit keys
+    assert!(data_len <= 512); // cos5 supports max RSA 4096-bit keys
 //println!("acos5_compute_signature called with: in_len: {}, out_len: {}", data_len, outlen);
     let card       = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     let f = c"acos5_compute_signature";
     log3ift!(ctx,f,line!(), c"called with: in_len: %zu, out_len: %zu", data_len, outlen);
-    set_is_running_compute_signature(card, false); // thus is an info valuable only when delegating to acos5_decipher
+    set_is_running_compute_signature(card, false); // this is an info valuable only when delegating to acos5_decipher
 
     let mut rv; // = SC_SUCCESS;
     //   sha1     sha256  +md2/5 +sha1  +sha224  +sha256  +sha384  +sha512
@@ -3699,4 +3698,69 @@ SEQUENCE (4 elem)
       SEQUENCE (1 elem)
         OCTET STRING (4 byte) 3F004100
 
+
+
+
+
+Beginning script execution...
+
+Sending: 00 A4 00 00 00 00 02 3F 00
+Received: 61 22
+0x22 bytes of response still available.
+
+Sending: 00 A4 00 00 00 00 02 41 00
+Received: 61 32
+0x32 bytes of response still available.
+
+Sending: 00 20 00 81 00 00 08 31 32 33 34 35 36 37 38
+Received: 90 00
+Normal processing.
+
+Sending: 00 22 01 B6 00 00 0A 80 01 42 81 02 11 01 95 01 80
+Received: 90 00
+Normal processing.
+
+Sending: 00 22 01 B6 00 00 0A 80 01 42 81 02 12 01 95 01 40
+Received: 90 00
+Normal processing.
+
+Sending: 00 46 00 00 00 00 01 04
+Received: 90 00
+Normal processing.
+
+Script was executed without error...
+
+
+
+
+Sending: 00 A4 00 00 02 41 00
+Received: 61 32
+0x32 bytes of response still available.
+
+Sending: 00 C0 00 00 32
+Received: 6F 30 83 02 41 00 88 01 00 8A 01 05 82 02 38 00
+8D 02 41 03 84 10 41 43 4F 53 50 4B 43 53 2D 31
+35 76 31 2E 30 30 8C 08 7F 03 FF 03 03 01 01 01
+AB 00 90 00
+Normal processing.
+
+Sending: 00 A4 00 00 02 11 01
+Received: 61 20
+0x20 bytes of response still available.
+
+Sending: 00 C0 00 00 20
+Received: 6F 1E 83 02 11 01 88 01 01 8A 01 05 82 02 19 00
+80 02 00 48 8C 08 7F FF FF 01 01 01 01 00 AB 00
+90 00
+Normal processing.
+
+Sending: 80 CA 00 00 48
+Received: 00 04 12 01 0A   03 00 3C 00 B0 23 40 DD 4A 44 31
+AF 1E 5E 0F 4F 7F 8F 98 02 D9 0D 7E 68 3A 89 49
+71 16 F0 A3 8A 8C B6 9D 4A 85 37 12 79 4C 47 9D
+6F 26 20 55 E2 5D 96 B1 0B 37 60 34 88 6D DC 55
+36 C7 C3 3F 1A 7C 86 DF 90 00
+Normal processing.
+
+Script was executed without error...
 */

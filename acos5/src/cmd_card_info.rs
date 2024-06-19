@@ -151,6 +151,7 @@ pub fn get_file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> R
     let f = c"get_file_info";
     log3ifc!(ctx,f,line!());
 
+    let reference: u8 = if card.type_ <= SC_CARD_TYPE_ACOS5_64_V3 {reference} else {reference+1};
     let mut rbuf = [0; 8];
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 2, reference, 8], SC_APDU_CASE_2_SHORT, &mut rbuf);
     let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
