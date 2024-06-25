@@ -73,6 +73,15 @@ pub struct sc_lv_data {
     pub len   : usize,
 }
 
+impl Default for sc_lv_data {
+    fn default() -> Self {
+        Self {
+            value: null_mut(),
+            len:    0,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_tlv_data {

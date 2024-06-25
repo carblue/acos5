@@ -46,7 +46,7 @@ Mandatory:
 
 Recommended:  
 - [pcsc-tools](http://ludovic.rousseau.free.fr/softwares/pcsc-tools/ "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/"), provides `scriptor` for card initialization as a batch run of commands, see [info/card_initialization/README.md](https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md "https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md")<br>
-gscriptor is nice in order to communicate with Your crypto hardware without any other software (on byte level, and definitely not without the reference manual)
+gscriptor is nice in order to communicate with Your crypto hardware without any PKCS#11 software, i.e. only PC/SC layer (on byte level, and definitely not without the reference manual)
 ```
 $ sudo apt-get update
 $ sudo apt-get upgrade

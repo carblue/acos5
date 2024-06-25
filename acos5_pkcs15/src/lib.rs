@@ -445,31 +445,45 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         log3if!(ctx,f,line!(), c"Failed: Only RSA and ECC is supported");
         return SC_ERROR_NOT_SUPPORTED;
     }
-    key_info.modulus_length = rsa_modulus_bits_canonical(key_info.modulus_length);
+    let keybits : usize;
+    if SC_PKCS15_TYPE_PRKEY_RSA == object.type_ {
+        key_info.modulus_length = rsa_modulus_bits_canonical(key_info.modulus_length);
 
-    let keybits = key_info.modulus_length;
-    if !(512..=4096).contains(&keybits) || (keybits % 256) > 0 {
-        rv = SC_ERROR_INVALID_ARGUMENTS;
-        log3ifr!(ctx,f,line!(), c"Invalid RSA modulus size requested", rv);
-        return rv;
-    }
-    /* Check that the card supports the requested modulus length */
+        keybits = key_info.modulus_length;
+        if !(512..=4096).contains(&keybits) || (keybits % 256) > 0 {
+            rv = SC_ERROR_INVALID_ARGUMENTS;
+            log3ifr!(ctx,f,line!(), c"Invalid RSA modulus size requested", rv);
+            return rv;
+        }
+        /* Check that the card supports the requested modulus length */
 //    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))
-    unsafe { cfg_if::cfg_if! {
-    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
+        unsafe { cfg_if::cfg_if! {
+            if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
         if sc_card_find_rsa_alg(card, u32::try_from(keybits).unwrap()).is_null() {
             rv = SC_ERROR_INVALID_ARGUMENTS;
             log3if!(ctx,f,line!(), c"Failed: Unsupported RSA key size %zu", keybits);
             return rv;
         }
+            }
+            else {
+                if sc_card_find_rsa_alg(card, keybits).is_null() {
+                    rv = SC_ERROR_INVALID_ARGUMENTS;
+                    log3if!(ctx,f,line!(), c"Failed: Unsupported RSA key size %zu", keybits);
+                    return rv;
+                }
+            }
+        }}
     }
-    else {
-        if sc_card_find_rsa_alg(card, keybits).is_null() {
+    else /*SC_PKCS15_TYPE_PRKEY_EC == object.type_*/ {
         rv = SC_ERROR_INVALID_ARGUMENTS;
-        log3if!(ctx,f,line!(), c"Failed: Unsupported RSA key size %zu", keybits);
+        log3ifr!(ctx,f,line!(), c"Error: EC key pair creation not yet supported by driver", rv);
         return rv;
-        }
-    }}}
+        /*
+        error: Unknown algorithm "ec/prime256v1"
+        error: Invalid symmetric key spec: "ec/prime256v1"
+        Failed to generate key: Invalid arguments
+*/
+    }
 
     /* TODO Think about other checks or possibly refuse to generate keys if file access rights are wrong */
 /* */

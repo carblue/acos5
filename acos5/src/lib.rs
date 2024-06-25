@@ -73,45 +73,22 @@ use std::slice::{from_raw_parts, from_raw_parts_mut};
 
 // use ::function_name::named;
 
-use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_security_env,
-    sc_pin_cmd_data,
-    sc_get_iso7816_driver, sc_get_mf_path, sc_file_set_prop_attr, sc_select_file, sc_read_binary,
-    sc_transmit_apdu, sc_check_sw, sc_get_version,
-    SC_ALGORITHM_RSA_HASH_NONE, SC_ALGORITHM_ECDSA_RAW, SC_CARD_CAP_RNG, SC_CARD_CAP_USE_FCI_AC,
-    SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_ALGORITHM_RSA,
-    SC_ALGORITHM_ONBOARD_KEY_GEN, SC_ALGORITHM_RSA_RAW, SC_SEC_OPERATION_SIGN,
-    SC_SEC_OPERATION_DECIPHER, SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_DERIVE,
-    SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK,
-    SC_ALGORITHM_RSA_PAD_PKCS1, SC_ALGORITHM_RSA_PAD_ISO9796,
-    SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT, SC_SEC_ENV_ALG_PRESENT,
-    SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR,
-    SC_CARD_CAP_ISO7816_PIN_INFO, SC_ALGORITHM_AES,
-    SC_ALGORITHM_EXT_EC_NAMEDCURVE, SC_CARD_CAP_APDU_EXT,
-    SC_ALGORITHM_EC,
-    SC_PROTO_T1
-//  SC_ALGORITHM_ECDH_CDH_RAW, SC_ALGORITHM_ECDSA_HASH_NONE, SC_ALGORITHM_ECDSA_HASH_SHA1,
-//  SC_ALGORITHM_EXT_EC_UNCOMPRESES,
-//  sc_pin_cmd_pin, sc_pin_cmd//, sc_update_binary, sc_path_set, sc_verify
-};
+use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_security_env, sc_pin_cmd_data, sc_get_iso7816_driver, sc_get_mf_path, sc_file_set_prop_attr, sc_select_file, sc_read_binary, sc_transmit_apdu, sc_check_sw, sc_get_version, SC_ALGORITHM_RSA_HASH_NONE, SC_ALGORITHM_ECDSA_RAW, SC_CARD_CAP_RNG, SC_CARD_CAP_USE_FCI_AC, SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_ALGORITHM_RSA, SC_ALGORITHM_ONBOARD_KEY_GEN, SC_ALGORITHM_RSA_RAW, SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_DERIVE, SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK, SC_ALGORITHM_RSA_PAD_PKCS1, SC_ALGORITHM_RSA_PAD_ISO9796, SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT, SC_SEC_ENV_ALG_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR, SC_CARD_CAP_ISO7816_PIN_INFO, SC_ALGORITHM_AES, SC_ALGORITHM_EXT_EC_NAMEDCURVE, SC_CARD_CAP_APDU_EXT, SC_ALGORITHM_EC, SC_PROTO_T1};
 //#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
 //use opensc_sys::opensc::{SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM};
 //use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
 //use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_PSS};
 use opensc_sys::opensc::{sc_update_record, SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM_TARGET_FILE,
                          SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, SC_SEC_OPERATION_UNWRAP,
-                         SC_ALGORITHM_AES_CBC_PAD//, SC_CARD_CAP_UNWRAP_KEY, SC_CARD_CAP_ONCARD_SESSION_OBJECTS, SC_CARD_CAP_WRAP_KEY
+                         SC_ALGORITHM_AES_CBC_PAD, sc_ec_parameters//, SC_CARD_CAP_UNWRAP_KEY, SC_CARD_CAP_ONCARD_SESSION_OBJECTS, SC_CARD_CAP_WRAP_KEY
 //                         , SC_SEC_OPERATION_WRAP
 };
 
 use opensc_sys::types::{SC_AC_CHV, sc_aid, sc_path, sc_file, sc_serial_number, SC_MAX_PATH_SIZE,
-                        SC_PATH_TYPE_FILE_ID, SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH,
-//                        SC_PATH_TYPE_PATH_PROT, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
-                        SC_FILE_TYPE_DF, SC_FILE_TYPE_INTERNAL_EF, SC_FILE_EF_TRANSPARENT,/* SC_AC_NONE,
-                        SC_AC_KEY_REF_NONE, SC_AC_OP_LIST_FILES, SC_AC_OP_SELECT, SC_AC_OP_DELETE, SC_AC_OP_CREATE_EF,
-                        SC_AC_OP_CREATE_DF, SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, SC_AC_OP_READ,
-                        SC_AC_OP_UPDATE, SC_AC_OP_CRYPTO, SC_AC_OP_DELETE_SELF, SC_AC_OP_CREATE, SC_AC_OP_WRITE,
-                        SC_AC_OP_GENERATE,*/ SC_APDU_FLAGS_CHAINING, SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_1,
-                        SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT};
+                        SC_PATH_TYPE_FILE_ID, SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH, SC_FILE_TYPE_DF,
+                        SC_FILE_TYPE_INTERNAL_EF, SC_FILE_EF_TRANSPARENT, SC_APDU_FLAGS_CHAINING,
+                        SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT,
+                        SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT, sc_object_id, sc_lv_data};
 #[cfg(target_os = "windows")]
 use opensc_sys::types::{/*sc_aid,*/ SC_MAX_AID_SIZE};
 // #[cfg(not(target_os = "windows"))]
@@ -131,7 +108,7 @@ use opensc_sys::iso7816::{ISO7816_TAG_FCP_TYPE, ISO7816_TAG_FCP_LCS,  ISO7816_TA
                           ISO7816_TAG_FCP_FID, ISO7816_TAG_FCP_DF_NAME};
 use opensc_sys::pkcs15::{sc_pkcs15_pubkey_rsa, sc_pkcs15_bignum, sc_pkcs15_encode_pubkey_rsa, sc_pkcs15_bind,
                          sc_pkcs15_unbind, sc_pkcs15_auth_info, sc_pkcs15_get_objects, SC_PKCS15_TYPE_AUTH_PIN,
-                         sc_pkcs15_id
+                         sc_pkcs15_id, sc_pkcs15_pubkey_ec, sc_pkcs15_u8, sc_pkcs15_encode_pubkey_ec
                          /*,sc_pkcs15_object, sc_pkcs15_card*/}; // , SC_PKCS15_AODF
 use opensc_sys::sm::{SM_TYPE_CWA14890, SM_CMD_PIN, SM_CMD_PIN_VERIFY, SM_CMD_PIN_SET_PIN, SM_CMD_PIN_RESET,
                      SM_CMD_FILE_UPDATE, SM_CMD_FILE_DELETE};
@@ -179,7 +156,7 @@ use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEAN
                       file_id_from_path_value, file_id, file_id_se, Fci,
                       SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE, CardCtlAlgoRefSymStore, CRT_TAG_DST, CRT_TAG_CT,
                       SC_SEC_OPERATION_GENERATE_ECCPRIVATE, SC_SEC_OPERATION_GENERATE_ECCPUBLIC,
-                      SC_SEC_OPERATION_ENCIPHER_ECCPUBLIC
+                      SC_SEC_OPERATION_ENCIPHER_ECCPUBLIC, ECPUB_MAX_LEN
                       /*,PKCS15_FILE_TYPE_ECCPRIVATEKEY, PKCS15_FILE_TYPE_ECCPUBLICKEY, READ*/};
 
 #[cfg(iup_user_consent)]
@@ -1865,6 +1842,7 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
         Ok(val) => std::cmp::min(val, u16::try_from(buflen/2).unwrap()),
         Err(e) => return e,
     };
+    // TODO : log if truncation occured
     if numfiles > 0 {
         let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         let is_running_init = dp.is_running_init;
@@ -1878,7 +1856,14 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
                 Ok(val) => val,
                 Err(e)    => return e,
             };
+//println!("{:X?}", rbuf);
             buf[idx..idx+2].copy_from_slice(&rbuf[2..4]);
+            if card.type_ > SC_CARD_TYPE_ACOS5_64_V3 && [FDB_LINEAR_FIXED_EF, FDB_LINEAR_VARIABLE_EF,
+                FDB_CYCLIC_EF, FDB_CHV_EF, FDB_SYMMETRIC_KEY_EF, FDB_PURSE_EF, FDB_SE_FILE].contains(&rbuf[0]) {
+                if rbuf[4]>0 || rbuf[6]>0 {return -1;}
+                rbuf[4] = rbuf[5]; //  {FDB, DCB, FILE ID, FILE ID,4 SIZE or MRL,5 SIZE or NOR,6 SFI,7 LCSI};
+                rbuf[5] = rbuf[7];
+            }
             rbuf[6] = match rbuf[0] { // replaces the unused ISO7816_RFU_TAG_FCP_SFI
                 FDB_CHV_EF           => PKCS15_FILE_TYPE_PIN,
                 FDB_SYMMETRIC_KEY_EF => PKCS15_FILE_TYPE_SECRETKEY,
@@ -2511,7 +2496,7 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
                                     modulus_length: u32, /* bits, max. 4096 */
                                     out: *mut *mut u8,
                                     out_len: *mut usize) -> i32
-{  // TODO also for EVO
+{
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || key_path_ptr.is_null() || out.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS; // TODO possibly check for out_len to small
     }
@@ -2522,11 +2507,15 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
     #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
     let algorithm : c_ulong = algorithm.into();
 
-    if SC_ALGORITHM_RSA != algorithm {
+    if ![SC_ALGORITHM_RSA, SC_ALGORITHM_EC].contains(&algorithm) {
         let rv = SC_ERROR_NO_CARD_SUPPORT;
         log3ifr!(ctx,f,line!(), rv);
         return rv;
     }
+    if SC_ALGORITHM_EC  == algorithm {
+        return read_public_key_EC(card, key_path_ptr, out, out_len);
+    }
+
     assert!((512..=4096).contains(&modulus_length));
     let mlbyte = usize::try_from(modulus_length).unwrap()/8; /* key modulus_length in byte (expected to be a multiple of 32)*/
     let le_total = mlbyte + 21;
@@ -2589,6 +2578,64 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
     SC_SUCCESS
 }
 
+#[allow(non_snake_case)]
+fn read_public_key_EC(card: &mut sc_card,
+                      key_path_ptr: *mut sc_path,
+                      out: *mut *mut u8,
+                      out_len: *mut usize) -> i32
+{
+    let ctx = unsafe { &mut *card.ctx };
+    let f = c"read_public_key_EC";
+    log3ifc!(ctx,f,line!());
+
+    let mut rv = unsafe { sc_select_file(card, key_path_ptr, null_mut()) };
+    if rv != SC_SUCCESS {
+        log3if!(ctx,f,line!(), c"failed to select public key file");
+        return rv;
+    }
+
+    let mut rbuf = [0; ECPUB_MAX_LEN];
+    rv = unsafe { cfg_if::cfg_if! {
+        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
+            sc_read_binary(card, 0, rbuf.as_mut_ptr(), ECPUB_MAX_LEN, 0)
+        }
+        else {
+            let mut flags : c_ulong = 0;
+            sc_read_binary(card, 0, rbuf.as_mut_ptr(), ECPUB_MAX_LEN, &mut flags)
+        }
+    }};
+
+   if rv < i32::try_from(ECPUB_MAX_LEN).unwrap() {
+        log3if!(ctx,f,line!(), c"get key failed");
+        return rv;
+    }
+
+    if rbuf[0] != 0 // 00 04 12 01 0A 03   00 3C 00 B0 23 40 DD 4A 44 31 AF 1E 5E 0F 4F 7F 8F 98 02 D9 0D 7E 68 3A 89 49 71 16 F0 A3 8A 8C B6 9D 4A 85 37 12 79 4C 47 9D 6F 26 20 55 E2 5D 96 B1 0B 37 60 34 88 6D DC 55 36 C7 C3 3F 1A 7C 86 DF
+        || ![1,2,3,4].contains(&rbuf[1]) // != u8::try_from((modulus_length+8)/128).unwrap() /* encode_key_RSA_ModulusBitLen(modulus_length) */
+//     || rbuf[2] != key_path_ref.value[key_path_ref.len-2] /* FIXME RSAKEYID_CONVENTION */
+//     || rbuf[3] != ( (key_path_ref.value[key_path_ref.len-1] as u16 +0xC0u16)       & 0xFFu16) as  /* FIXME RSAKEYID_CONVENTION */
+        || rbuf[4] != 0x0A
+        || ![2,3,4].contains(&rbuf[5])
+    {
+        log3if!(ctx,f,line!(), c"### failed: check the raw content of EC pub file: \
+            within the first 5 bytes there is content that indicates an invalid public key ###");
+        return SC_ERROR_INCOMPATIBLE_KEY;
+    }
+    let mut ec_key = sc_pkcs15_pubkey_ec {
+        params: sc_ec_parameters { named_curve: c"nistp521".as_ptr() as *mut _, id: sc_object_id { value : [1, 3, 132, 0, 35,  -1,0,0,0,0,0,0,0,0,0,0] },
+                                   der: sc_lv_data::default(), type_: 0, field_length: 521 },
+        ecpointQ: sc_pkcs15_u8 { value: unsafe { rbuf.as_mut_ptr().add(6) }, len: ECPUB_MAX_LEN-6 }
+    };
+
+    /* transform the raw content to der-encoded */
+    rv = unsafe { sc_pkcs15_encode_pubkey_ec(ctx, &mut ec_key, out, out_len) };
+
+    if rv < 0 {
+        log3ifr!(ctx,f,line!(), c"Error: sc_pkcs15_encode_pubkey_ec failed: returning with", rv);
+        return rv;
+    }
+    SC_SUCCESS
+}
 
 #[allow(clippy::too_many_lines)]
 extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const sc_security_env, _se_num: i32) -> i32

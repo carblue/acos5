@@ -127,21 +127,21 @@ pub const ISO7816_RFU_TAG_FCP_SEID : u8 = 0x8D;    /* L:2,    V: Security Enviro
 pub const ISO7816_RFU_TAG_FCP_SAE  : u8 = 0xAB;    /* L:0-32, V: Security Attribute Extended (SAE). Applies to: DF s */
 
 //ACOS5 File Descriptor Bytes, the proprietary encoding of file types, the first within V of Tag ISO7816_TAG_FCP_TYPE:
-pub const FDB_MF                 : u8 = 0x3F; // Master File     MF
-pub const FDB_DF                 : u8 = 0x38; // Dedicated File  DF, same as opensc-sys.iso7816.ISO7816_FILE_TYPE_DF
+pub const FDB_MF                 : u8 = 0x3F; // 0b11_1111  Master File     MF
+pub const FDB_DF                 : u8 = 0x38; // 0b11_1000  Dedicated File  DF, same as opensc-sys.iso7816.ISO7816_FILE_TYPE_DF
 /* Working Elementary Files  EF */
-pub const FDB_TRANSPARENT_EF     : u8 = 0x01; // Transparent EF     == opensc-sys.types.SC_FILE_EF_TRANSPARENT; same as opensc-sys.iso7816.ISO7816_FILE_TYPE_TRANSPARENT_EF
-pub const FDB_LINEAR_FIXED_EF    : u8 = 0x02; // Linear-Fixed EF    == opensc-sys.types.SC_FILE_EF_LINEAR_FIXED
-pub const FDB_LINEAR_VARIABLE_EF : u8 = 0x04; // Linear-Variable EF == opensc-sys.types.SC_FILE_EF_LINEAR_VARIABLE
-pub const FDB_CYCLIC_EF          : u8 = 0x06; // Cyclic EF          == opensc-sys.types.SC_FILE_EF_CYCLIC
+pub const FDB_TRANSPARENT_EF     : u8 = 0x01; // 0b00_0001  Transparent EF     == opensc-sys.types.SC_FILE_EF_TRANSPARENT; same as opensc-sys.iso7816.ISO7816_FILE_TYPE_TRANSPARENT_EF
+pub const FDB_LINEAR_FIXED_EF    : u8 = 0x02; // 0b00_0010  Linear-Fixed EF    == opensc-sys.types.SC_FILE_EF_LINEAR_FIXED
+pub const FDB_LINEAR_VARIABLE_EF : u8 = 0x04; // 0b00_0100  Linear-Variable EF == opensc-sys.types.SC_FILE_EF_LINEAR_VARIABLE
+pub const FDB_CYCLIC_EF          : u8 = 0x06; // 0b00_0110  Cyclic EF          == opensc-sys.types.SC_FILE_EF_CYCLIC
 /* Internal EF */
-pub const FDB_RSA_KEY_EF         : u8 = 0x09; // RSA Key EF, for private and public key file; distinguish by PKCS15_FILE_TYPE_RSAPRIVATEKEY or PKCS15_FILE_TYPE_RSAPUBLICKEY
-pub const FDB_CHV_EF             : u8 = 0x0A; // CHV EF, for the pin file, max 1 file only in each DF
-pub const FDB_SYMMETRIC_KEY_EF   : u8 = 0x0C; // Symmetric Key EF,         max 1 file only in each DF;  PKCS15_FILE_TYPE_SECRETKEY
-pub const FDB_PURSE_EF           : u8 = 0x0E; // Purse EF, since ACOS5-64 V3.00
-pub const FDB_ECC_KEY_EF         : u8 = 0x19; // Elliptic Curve Cryptography Key EF, for private and public key file; distinguish by PKCS15_FILE_TYPE_ECCPRIVATEKEY or PKCS15_FILE_TYPE_ECCPUBLICKEY
+pub const FDB_RSA_KEY_EF         : u8 = 0x09; // 0b00_1001  RSA Key EF, for private and public key file; distinguish by PKCS15_FILE_TYPE_RSAPRIVATEKEY or PKCS15_FILE_TYPE_RSAPUBLICKEY
+pub const FDB_CHV_EF             : u8 = 0x0A; // 0b00_1010  CHV EF, for the pin file, max 1 file only in each DF
+pub const FDB_SYMMETRIC_KEY_EF   : u8 = 0x0C; // 0b00_1100  Symmetric Key EF,         max 1 file only in each DF;  PKCS15_FILE_TYPE_SECRETKEY
+pub const FDB_PURSE_EF           : u8 = 0x0E; // 0b00_1110  Purse EF, since ACOS5-64 V3.00
+pub const FDB_ECC_KEY_EF         : u8 = 0x19; // 0b01_1001  Elliptic Curve Cryptography Key EF, for private and public key file; distinguish by PKCS15_FILE_TYPE_ECCPRIVATEKEY or PKCS15_FILE_TYPE_ECCPUBLICKEY
 /* Proprietary internal EF */
-pub const FDB_SE_FILE            : u8 = 0x1C; // Security Environment File, exactly 1 file only in each DF; DF's header/FCI points to this
+pub const FDB_SE_FILE            : u8 = 0x1C; // 0b01_1100  Security Environment File, exactly 1 file only in each DF; DF's header/FCI points to this
 
 /* the Control Reference Template (CRT) Tags understood by acos
 ATTENTION with CRT_TAG_CT Confidentiality Template: In reality acos makes no difference for asym/sym, there is 0xB8 only
@@ -196,6 +196,7 @@ pub const RSA_MAX_LEN_MODULUS      : usize = 512; // bytes; as bits: 512*8 = 409
 pub const RSAPUB_MAX_LEN           : usize = 5 + 16 + RSA_MAX_LEN_MODULUS; // the max. file size (byte) requirement for RSA public key (4096 bit == 512 byte; 16 byte is the max. public exponent length)
 pub const RSAPRIV_MAX_LEN_STD      : usize = 5 +      RSA_MAX_LEN_MODULUS; // the max. file size (byte) requirement for RSA private key (non-CRT)
 pub const RSAPRIV_MAX_LEN_CRT      : usize = 5 +   5*(RSA_MAX_LEN_MODULUS/2); // the max. file size (byte) requirement for RSA private key stored in CRT manner
+pub const ECPUB_MAX_LEN            : usize = 0x48; // 72= 6 + 66 (aufgerundet 521/8)
 
 
 //https://cryptosys.net/pki/manpki/pki_paddingschemes.html
@@ -611,8 +612,7 @@ pub struct CardCtl_generate_crypt_asym {
     pub file_id_pub  : u16,       // IN  if both are !=0, then the given values are preferred
     pub key_len_code : u8,   // cos5 specific encoding for modulus length: key_len_code*128==modulus length canonical in bits (canonical means neglecting that possibly some MSB are not set to 1)
     pub key_priv_type_code : u8,  // as required by cos5 Generate RSA Key Pair: allowed key-usage and standard/CRT format qualification
-    pub key_curve_code : u8,      // if !=0 then ECC; MAKE shurethis can only be set to != 0 by EVO only !!! required by cos5 Generate ECC Key Pair: Indicates which NIST recommended elliptic curves over prime fields to use in generating the key pair
-
+    pub key_curve_code : u8,      // if !=0 then ECC; MAKE sure, this can only be set to != 0 by EVO only !!! required by cos5 Generate ECC Key Pair: Indicates which NIST recommended elliptic curves over prime fields to use in generating the key pair
     pub do_generate_rsa_crt : bool,         // whether RSA private key file shall be generated in ChineseRemainderTheorem-style
     pub do_generate_rsa_add_decrypt_for_sign : bool, // whether RSA private key file shall be generated adding decrypt capability iff sign is requested
     pub do_generate_with_standard_rsa_pub_exponent : bool, // whether RSA key pair will contain the "standard" public exponent e=0x010001==65537; otherwise the user supplied 16 byte exponent will be used

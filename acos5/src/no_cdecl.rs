@@ -80,7 +80,7 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
                              BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, BLOCKCIPHER_PAD_TYPE_PKCS7,
                              BLOCKCIPHER_PAD_TYPE_ZEROES, CardCtl_crypt_sym, CardCtl_generate_crypt_asym, DataPrivate,
                              FDB_CYCLIC_EF, FDB_LINEAR_VARIABLE_EF, FDB_RSA_KEY_EF, FDB_SE_FILE,
-                             FDB_SYMMETRIC_KEY_EF, NAME_V2, NAME_V3, //PKCS15_FILE_TYPE_ECCPRIVATEKEY, FDB_ECC_KEY_EF,
+                             FDB_SYMMETRIC_KEY_EF, NAME_V2, NAME_V3, FDB_ECC_KEY_EF, //PKCS15_FILE_TYPE_ECCPRIVATEKEY,
                              // PKCS15_FILE_TYPE_ECCPUBLICKEY, PKCS15_FILE_TYPE_RSAPRIVATEKEY, PKCS15_FILE_TYPE_RSAPUBLICKEY,
                              SACinfo, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3,
                              /*SC_SEC_OPERATION_DECIPHER_RSAPRIVATE, */ // SC_SEC_OPERATION_DECIPHER_SYMMETRIC,
@@ -2400,7 +2400,9 @@ pub fn update_hashmap(card: &mut sc_card) {
     log3ifr!(ctx,f,line!());
 }
 
-
+/*
+TODO: Optimization possible for EVO: Able to read 256-4096 bytes in 1 go, no need for repeated calls
+of cos 8.1.3.  Read Binary, see especially the coding for 256 bytes ! */
 pub fn common_read(card: &mut sc_card,
                    idx: u16,
                    buf: &mut [u8],
@@ -2444,7 +2446,7 @@ pub fn common_read(card: &mut sc_card,
             SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
         }
     }
-    else if bin && fdb == FDB_RSA_KEY_EF {
+    else if bin && [FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&fdb) {
         card.cla = 0x80;
         let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).get_data.unwrap()
             (card, u32::from(idx), buf.as_mut_ptr(), buf.len()) };
