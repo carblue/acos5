@@ -1,3 +1,23 @@
+/*
+ * no:cdecl.rs: Driver 'acos5_pkcs15' -
+ *
+ * Copyright (C) 2019-  Carsten Blüggel <bluecars@posteo.eu>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
+ */
+
 //use libc::strlen;
 //use std::ffi::CStr;
 use std::os::raw::{c_void};
@@ -36,7 +56,8 @@ const INC : usize = 0x100;
 #[must_use]
 pub fn rsa_modulus_bits_canonical(rsa_modulus_bits: usize) -> usize { ((rsa_modulus_bits + 8) /256) *256 }
 
-#[allow(clippy::missing_panics_doc)]
+///
+/// # Panics
 pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mut u16) -> i32
 {
     if p15card.card.is_null() || unsafe { (*p15card.card).ctx.is_null() } {
@@ -96,8 +117,10 @@ pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mu
 }
 
 /* find unused file id s, i.e. not listed in EF.PrKDF, EF.PuKDF (, EF.PuKDF_TRUSTED) */
-#[allow(clippy::missing_errors_doc)]
-#[allow(clippy::missing_panics_doc)]
+///
+/// # Panics
+///
+/// # Errors
 pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
 {
     if p15card.card.is_null() || unsafe { (*p15card.card).ctx.is_null() } {
@@ -212,13 +235,17 @@ pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
 
     if vec.len() >= 2 { log3ifr!(ctx,f,line!(), SC_SUCCESS); Ok((vec[0], vec[1])) }
     else              { log3ifr!(ctx,f,line!(), SC_ERROR_INTERNAL); Err(SC_ERROR_INTERNAL) }
-}
+} // free_fid_asym
 
-#[allow(dead_code)]
-#[allow(clippy::missing_errors_doc)]
-#[allow(clippy::missing_panics_doc)]
+///
+/// # Panics
+///
+/// # Errors
+//#[allow(dead_code)]  // no usage currently
+//#[cold]
 #[cfg(not(target_os = "windows"))]
-pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs15_card, key_info: &sc_pkcs15_prkey_info) -> Result<(), i32> {
+pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs15_card, key_info: &sc_pkcs15_prkey_info) -> Result<(), i32>
+{
     if p15card.card.is_null() || unsafe { (*p15card.card).ctx.is_null() } {
         return Err(SC_ERROR_INVALID_ARGUMENTS);
     }
@@ -400,10 +427,14 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { /*return Err(rv);*/ }
     }
     Ok(())
-}
+} // check_enlarge_prkdf_pukdf
 
 
 /* creates the first part of a sym key record entry; only 'key_len_bytes' key bytes need to be appended */
+///
+/// # Panics
+///
+/// # Errors
 fn prefix_sym_key(card: &mut sc_card,
                   rec_nr: u8,
                   #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
@@ -415,7 +446,8 @@ fn prefix_sym_key(card: &mut sc_card,
                   count_err_ext_auth: u8,
                   int_auth: bool,
                   count_use_int_auth: u16
-) -> Result<Vec<u8>, i32> {
+) -> Result<Vec<u8>, i32>
+{
     let mut res = Vec::with_capacity(38);
     if ![SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4].contains(&card.type_) {
         return Err(SC_ERROR_INVALID_ARGUMENTS);
@@ -474,9 +506,10 @@ fn prefix_sym_key(card: &mut sc_card,
     }
 */
     Ok(res)
-}
+} // prefix_sym_key
 
-#[allow(clippy::missing_errors_doc)]
+///
+/// # Errors
 pub fn construct_sym_key_entry(card: &mut sc_card, rec_nr: u8,
                       #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
                       algorithm: u32,
@@ -485,7 +518,8 @@ pub fn construct_sym_key_entry(card: &mut sc_card, rec_nr: u8,
                       key_len_bytes: u8,
                       ext_auth: bool, count_err_ext_auth: u8,
                       int_auth: bool, count_use_int_auth: u16,
-                      mrl: usize, key_bytes: &[u8]) -> Result<Vec<u8>, i32> {
+                      mrl: usize, key_bytes: &[u8]) -> Result<Vec<u8>, i32>
+{
     let mut vec = prefix_sym_key(card, rec_nr, algorithm, key_len_bytes,
                    ext_auth, count_err_ext_auth,
                    int_auth, count_use_int_auth)?;

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2002-2014 Free Software Foundation, Inc.
- * Copyright (C) 2020 of the binding: Carsten Blüggel <bluecars@posteo.eu>
+ * Copyright (C) 2020-  for the binding: Carsten Blüggel <bluecars@posteo.eu>
  *
  * The file libtasn1.h this is derived from, is part of LIBTASN1.
  *
@@ -21,10 +21,7 @@
  *
  */
 
-#![allow(non_upper_case_globals)]
-// #![allow(non_camel_case_types)]
-// #![allow(non_snake_case)]
-#![allow(dead_code)]
+#![allow(dead_code, non_upper_case_globals/*, non_camel_case_types, non_snake_case*/)]
 
 /**
  * libtasn1:Short_Description:

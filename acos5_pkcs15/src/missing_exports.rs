@@ -1,3 +1,31 @@
+/*
+ * missing_exports.rs: Driver 'acos5_pkcs15' - OpenSC code duplicated
+ *
+ * card.c: General smart card functions
+ * Copyright (C) 2001, 2002  Juha Yrjölä <juha.yrjola@iki.fi>
+ *
+ * padding.c: miscellaneous padding functions
+ * Copyright (C) 2001, 2002  Juha Yrjölä <juha.yrjola@iki.fi>
+ * Copyright (C) 2003 - 2007  Nils Larsch <larsch@trustcenter.de>
+ *
+ * missing_exports.rs:
+ * Copyright (C) 2019-  Carsten Blüggel <bluecars@posteo.eu>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
+ */
+
 use libc::{strcmp, calloc, memcpy/*, memcmp,*/};
 
 use std::os::raw::{c_char, c_void};
@@ -75,7 +103,6 @@ fn me_profile_find_file(profile: &mut sc_profile, _path: *const sc_path, name: *
 }
 
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
-#[allow(clippy::missing_panics_doc)]
 pub fn me_profile_get_file(profile: &mut sc_profile, name: *const c_char, ret: *mut *mut sc_file) -> i32
 {
     if name.is_null() || ret.is_null() { return SC_ERROR_INVALID_ARGUMENTS; }
@@ -83,10 +110,13 @@ pub fn me_profile_get_file(profile: &mut sc_profile, name: *const c_char, ret: *
     if fi.is_null() {
         return SC_ERROR_FILE_NOT_FOUND;
     }
-    let fi = unsafe { & *fi};
-    assert!(!fi.file.is_null());
-    unsafe { sc_file_dup(ret, fi.file) };
-    // unsafe { my_file_dup(&mut *ret, &*fi.file) };
+    if unsafe { *fi }.file.is_null() {
+        return SC_ERROR_FILE_NOT_FOUND;
+    }
+    let file = unsafe { & *(*fi).file};
+    // who cares for deleting ret ? GuardFile !
+    unsafe { sc_file_dup(ret, file) };
+    // unsafe { my_file_dup(&mut *ret, file) };
     if unsafe { (*ret).is_null() } {
         return SC_ERROR_OUT_OF_MEMORY;
     }
@@ -101,7 +131,8 @@ pub fn me_profile_get_file(profile: &mut sc_profile, name: *const c_char, ret: *
    field type_attr        no copy
    field encoded_content  no copy
  */
-#[allow(dead_code)]
+#[allow(dead_code)]  // no usage currently
+#[cold]
 pub fn my_file_dup(dest: &mut *mut sc_file, src: &sc_file) {
     *dest = null_mut();
     if unsafe { sc_file_valid(src) != 1 }  { return; }
@@ -179,7 +210,8 @@ pub fn me_pkcs15_dup_bignum(dst: &mut sc_pkcs15_bignum, src: &sc_pkcs15_bignum) 
     0
 }
 
-#[allow(clippy::missing_errors_doc)]
+///
+/// # Errors
 pub fn find_df_by_type(p15card: &mut sc_pkcs15_card, type_: u8) -> Result<&mut sc_pkcs15_df, i32>
 {
     let mut df  = p15card.df_list;

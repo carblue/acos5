@@ -291,3 +291,56 @@ Recommended info:
 [OpenSSL Certificate Authority](https://jamielinux.com/docs/openssl-certificate-authority/ "https://jamielinux.com/docs/openssl-certificate-authority/") with adaptions from info/howto/HOWTO_Create_Your_own_CA_root_hierarchy_on_Linux
 
 < not yet:[changelog.md](https://github.com/carblue/acos5/tree/master/changelog.md "https://github.com/carblue/acos5/tree/master/changelog.md"): Recent commits (notable ones that deserve some verbosity) >
+
+# Progress in supporting the EVO hardware
+The good news: The following command (listing mechanisms) shows some more capabilities, than the other supported hardware could report:
+```
+$ p11tool --list-token-urls
+pkcs11:model=PKCS%2315;manufacturer=Advanced%20Card%20Systems%20Ltd.;serial=f070001bc4c18800;token=EVO_F070001BC4C18800%20%28User%29
+pkcs11:model=Soft;manufacturer=IBM;serial=;token=pmfa
+pkcs11:model=p11-kit-trust;manufacturer=PKCS%2311%20Kit;serial=1;token=System%20Trust
+
+$ p11tool --list-mechanisms pkcs11:model=PKCS%2315
+[0x0220] CKM_SHA_1 digest
+[0x0255] CKM_SHA224 digest
+[0x0250] CKM_SHA256 digest
+[0x0260] CKM_SHA384 digest
+[0x0270] CKM_SHA512 digest
+[0x0210] CKM_MD5 digest
+[0x0240] CKM_RIPEMD160 digest
+[0x1210] CKM_GOSTR3411 digest
+[0x1042] CKM_ECDSA_SHA1 keysize range (224, 521) sign verify
+[0x1043] CKM_ECDSA_SHA224 keysize range (224, 521) sign verify
+[0x1044] CKM_ECDSA_SHA256 keysize range (224, 521) sign verify
+[0x1045] CKM_ECDSA_SHA384 keysize range (224, 521) sign verify
+[0x1046] CKM_ECDSA_SHA512 keysize range (224, 521) sign verify
+[0x1040] CKM_ECDSA_KEY_PAIR_GEN keysize range (224, 521) hw generate_key_pair ec_namedcurve ec_compress
+[0x0001] CKM_RSA_PKCS keysize range (512, 4096) hw decrypt sign verify
+[0x0006] CKM_SHA1_RSA_PKCS keysize range (512, 4096) sign verify
+[0x0046] CKM_SHA224_RSA_PKCS keysize range (512, 4096) sign verify
+[0x0040] CKM_SHA256_RSA_PKCS keysize range (512, 4096) sign verify
+[0x0041] CKM_SHA384_RSA_PKCS keysize range (512, 4096) sign verify
+[0x0042] CKM_SHA512_RSA_PKCS keysize range (512, 4096) sign verify
+[0x0005] CKM_MD5_RSA_PKCS keysize range (512, 4096) sign verify
+[0x0008] CKM_RIPEMD160_RSA_PKCS keysize range (512, 4096) sign verify
+[0x0000] CKM_RSA_PKCS_KEY_PAIR_GEN keysize range (512, 4096) hw generate_key_pair
+[0x1081] CKM_AES_ECB keysize range (128, 256) encrypt decrypt
+[0x1082] CKM_AES_CBC keysize range (128, 256) encrypt decrypt
+[0x1085] CKM_AES_CBC_PAD keysize range (128, 256) encrypt decrypt
+```
+
+The bad news:
+Almost nothing is tested so far, and what got tested, doesn't work so far:
+
+$ pkcs15-tool --read-ssh-key 01  doesn't work, because the EC key pair generation resulted in compressed format,
+which is not supported by OpenSC.
+EC key pair generation works manually with tool gscriptor, but not via
+$ pkcs15-init --generate-key ec/...  and driver support.
+
+But, on top, the hardware repeatedly refuses to work (out of nothing), no byte transfer.
+Either my hardware is broken, or the communication on PC/SC level needs a fix.
+It feels like a deadlock, and then always accompanied by the LED burning continuously.
+By unplugging it returns to work after some time, but slows me down on top of all the other burden, flawed manual,
+cryptic/mostly undocumented OpenSC software, and so on.
+No fun at the moment...
+

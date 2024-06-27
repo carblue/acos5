@@ -1,7 +1,7 @@
 /*
  * cmd_card_info.rs: Driver 'acos5' - cos5 'Card Info' cmds and other, callable via sc_card_ctl (acos5_card_ctl)
  *
- * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
+ * Copyright (C) 2019-  Carsten Blüggel <bluecars@posteo.eu>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
+ * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
 
 /* functions, (most of) callable via sc_card_ctl(acos5_card_ctl), mostly used by acos5_gui */
@@ -95,7 +95,7 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
 /// # Errors
 ///
 /// Will return `Result::Err` if sc_transmit_apdu or sc_check_sw fails, though this never happened so far.
-/// Thus its save to unwrap/expect the Ok variant.
+/// Thus it is save to unwrap/expect the Ok variant.
 ///
 /// # Examples
 ///
@@ -136,14 +136,16 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
 
 //QS
 /// Get compact file information (8 bytes) of file referenced within currently selected DF.\
-/// The 8 bytes are: FDB, DCB, FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI
+/// For hardware versions SC_CARD_TYPE_ACOS5_64_V2 and SC_CARD_TYPE_ACOS5_64_V3 the 8 bytes are:
+///   FDB, DCB, FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI
+/// For hardware version SC_CARD_TYPE_ACOS5_64_V4 the 8 bytes are:
+///   FDB, DCB, FILE ID, FILE ID, SIZE or MRL, SIZE or MRL, NOR or SFI, NOR or LCSI
 ///
 /// @apiNote  `SC_CARDCTL_ACOS5_GET_FILE_INFO`; for clients: for both card types SC_CARD_TYPE_ACOS5_64_* indexing starts
 /// from 0, for EVO starts from 1.\
 /// @return  file information (8 bytes) or an OpenSC error
 ///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
 pub fn get_file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> Result<[u8; 8], i32>
 {
     assert!(!card.ctx.is_null());
@@ -173,7 +175,6 @@ pub fn get_file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> R
 /// @return  free EEPROM space or an OpenSC error
 ///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
 pub fn get_free_space(card: &mut sc_card) -> Result<u32, i32>
 {
     assert!(!card.ctx.is_null());
@@ -200,24 +201,19 @@ pub fn get_free_space(card: &mut sc_card) -> Result<u32, i32>
 // true, then it's acos5
 ///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
 pub fn get_is_ident_self_okay(card: &mut sc_card, candidate_card_type: i32) -> Result<bool, i32> // get_ident_self
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-//    let active_protocol = unsafe { &mut *card.reader }.active_protocol;
     let f = c"get_is_ident_self_okay";
     log3ifc!(ctx,f,line!());
 
     let card_type: i32 = if candidate_card_type !=0 {candidate_card_type} else {card.type_};
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 5, 0], SC_APDU_CASE_1, &mut[]);
-//    let mut apdu = build_apdu(ctx, /*if (card.caps&1)==0 {*/ &[0x80, 0x14, 5, 0]/*} else { &[0x80, 0x14, 5, 0,0,0,0]}*/,
-//                              /*if (card.caps&1)==0 {*/SC_APDU_CASE_1/*} else {SC_APDU_CASE_2_EXT}*/, &mut[]);
-//println!("me_apdu_get_length for 'get_is_ident_self_okay': {}\n", me_apdu_get_length(&apdu, active_protocol));
 
     let rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
-    if apdu.sw1 == 0x95 && (card_type>  SC_CARD_TYPE_ACOS5_64_V3 && apdu.sw2 == 0xC0 ||
-                            card_type<= SC_CARD_TYPE_ACOS5_64_V3 && apdu.sw2 == 0x40) {
+    if apdu.sw1 == 0x95 && (card_type >  SC_CARD_TYPE_ACOS5_64_V3 && apdu.sw2 == 0xC0 ||
+                            card_type <= SC_CARD_TYPE_ACOS5_64_V3 && apdu.sw2 == 0x40) {
         Ok(true)
     }
     else {
@@ -229,7 +225,6 @@ pub fn get_is_ident_self_okay(card: &mut sc_card, candidate_card_type: i32) -> R
 
 ///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
 pub fn get_cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
 {
     assert!(!card.ctx.is_null());
@@ -256,7 +251,6 @@ pub fn get_cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
 //  ONLY V3.00 *DOES* support this command
 ///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
 pub fn get_manufacture_date(card: &mut sc_card) -> Result<u32, i32>
 {
     assert!(!card.ctx.is_null());
@@ -280,7 +274,6 @@ pub fn get_manufacture_date(card: &mut sc_card) -> Result<u32, i32>
 //  V2.00 *DOES NOT* supports this command
 ///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
 pub fn get_rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
 {
     assert!(!card.ctx.is_null());
@@ -305,7 +298,6 @@ pub fn get_rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
 //  V4 EVO calls this Configuration Mode Byte now
 ///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
 pub fn get_op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
@@ -347,7 +339,6 @@ pub fn get_op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
 /* This is NOT a card command, but reading from EEPROM; allowed only in stage manufacturer */
 ///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
 pub fn get_op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
@@ -371,7 +362,6 @@ pub fn get_op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 //  V2.00 *DOES NOT* supports this command
 ///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
 pub fn get_is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_FIPS_compliant==true get_fips_compliance
 {
     assert!(!card.ctx.is_null());
@@ -397,7 +387,6 @@ pub fn get_is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_FIPS
 //  ONLY V3.00 *DOES* support this command
 ///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
 pub fn get_is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i32>
 {
     assert!(!card.ctx.is_null());
@@ -423,7 +412,6 @@ pub fn get_is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<boo
 //  ONLY V3.00 *DOES* support this command
 ///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
 pub fn get_is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i32>
 {
     assert!(!card.ctx.is_null());
@@ -449,7 +437,6 @@ pub fn get_is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<boo
 /* This is NOT a card command, but reading from EEPROM; allowed only in stage manufacturer */
 ///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
 pub fn get_zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
@@ -471,7 +458,6 @@ pub fn get_zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i3
 /* This is NOT a card command, but reading from EEPROM; allowed only in stage manufacturer */
 ///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
 pub fn get_card_life_cycle_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());

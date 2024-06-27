@@ -1,6 +1,5 @@
 
 #![allow(non_camel_case_types, non_upper_case_globals, non_snake_case, clippy::upper_case_acronyms)]
-// #![allow(dead_code)]
 
 use std::os::raw::{/*c_char, c_ulong,*/ c_long, c_int};
 

@@ -1,7 +1,7 @@
 /*
- * tasn1_pkcs15_util.rs: Driver 'acos5' - PKCS#15 related functions, based on Libtasn1
+ * tasn1_pkcs15_util.rs: Driver 'acos5' - PKCS#15 related functions, based on GNU libtasn1
  *
- * Copyright (C) 2020  Carsten Blüggel <bluecars@posteo.eu>
+ * Copyright (C) 2020-  Carsten Blüggel <bluecars@posteo.eu>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -15,8 +15,10 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
+ * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
+
+#![allow(non_snake_case)]
 
 use std::os::raw::{c_char, c_void/*, c_int*/};
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
@@ -61,7 +63,7 @@ use crate::tasn1_sys::{asn1_node_st, asn1_node, asn1_delete_structure, ASN1_SUCC
 pub struct GuardAsn1Node(*mut *mut asn1_node_st);
 
 impl GuardAsn1Node {
-    #[allow(dead_code)]
+    #[allow(dead_code)]  // no usage in acos5_pkcs15
     pub fn new(inner: *mut *mut asn1_node_st) -> Self {
 // println!("GuardAsn1Node");
         GuardAsn1Node(inner)
@@ -108,7 +110,7 @@ impl<'a> DirectoryRange<'a> {
         Self { last_end_exclusive: 0, rem: input }
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code)] // test case usage only
     pub fn unused_len(&mut self) -> usize {
         while !self.rem.is_empty() && self.next().is_some() {}
         self.rem.len()
@@ -125,9 +127,7 @@ impl<'a> Iterator for DirectoryRange<'a> {
         else {
             #[allow(non_upper_case_globals)]
             const   T_len : i32 = 1;
-            #[allow(non_snake_case)]
             let mut L_len = 0;
-            #[allow(non_snake_case)]
             let     V_len : i32 = unsafe { asn1_get_length_der(self.rem.as_ptr().add(1),
                                     (self.rem.len()-1).try_into().unwrap(), &mut L_len).try_into().unwrap() };
 //println!("self.rem.len(): {}, V_len: {}, L_len: {}", self.rem.len(), V_len, L_len);
@@ -167,8 +167,7 @@ PKCS15_FILE_TYPE_TOKENINFO    for whatever file specified (or default) within AP
 
 and returns first aid found
 */
-#[allow(dead_code)]
-#[allow(non_snake_case)]
+#[allow(dead_code)]  // no usage in acos5_pkcs15
 #[allow(clippy::too_many_lines)]
 pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Result<bool, i32> {
     if card.app_count>0 && !card.app[0].is_null() {
@@ -267,29 +266,19 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Re
         let mut buf_str = [0_u8; 64];
         outlen = i32::try_from(buf_str.len()).unwrap();
         asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf_str.as_mut_ptr().cast::<c_void>(), &mut outlen) };
-        if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
-            println!("asn1_result (asn1_read_value  label): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
-        }
-        else {
+        if ASN1_SUCCESS == asn1_result.try_into().unwrap() {
 //                     let x = &buf_str[..outlen.try_into().unwrap()];
 // println!("label of application directory: {}", String::from_utf8(x.to_vec()).unwrap_or_default());
+        }
+        else {
+            println!("asn1_result (asn1_read_value  label): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
         }
 
         let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         name = c"ddo.odfPath.path"; // OCTET STRING  OPTIONAL
         outlen = i32::try_from(buf.len()).unwrap();
         asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &mut outlen) };
-        if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
-            //println!("asn1_result (asn1_read_value  ddo.odfPath.path): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
-            let dp_files_value_5031 = &dp.files[&0x5031];
-            if !is_child_of(dp_files_value_5031, &dp.files[&file_id_app]) {
-                Box::leak(dp);
-                continue;
-            }
-            let dp_files_value_5031 = dp.files.get_mut(&0x5031).unwrap();
-            dp_files_value_5031.1[6] = PKCS15_FILE_TYPE_ODF;
-        }
-        else {
+        if ASN1_SUCCESS == asn1_result.try_into().unwrap() {
             buf_slice = &buf[..usize::try_from(outlen).unwrap()];
             let file_id_odf = file_id_from_path_value(buf_slice);
 //println!("ddo.odfPath.path:       0x{:X?}, fid: 0x{:X}", buf_slice, file_id_odf); // ddo.odfPath.path: 0x[3F, 0, 41, 0, 50, 31], fid: 0x5031
@@ -301,21 +290,21 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Re
             let dp_files_value_5031 = dp.files.get_mut(&file_id_odf).unwrap();
             dp_files_value_5031.1[6] = PKCS15_FILE_TYPE_ODF;
         }
+        else {
+            //println!("asn1_result (asn1_read_value  ddo.odfPath.path): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
+            let dp_files_value_5031 = &dp.files[&0x5031];
+            if !is_child_of(dp_files_value_5031, &dp.files[&file_id_app]) {
+                Box::leak(dp);
+                continue;
+            }
+            let dp_files_value_5031 = dp.files.get_mut(&0x5031).unwrap();
+            dp_files_value_5031.1[6] = PKCS15_FILE_TYPE_ODF;
+        }
 
         name = c"ddo.tokenInfoPath.path"; // OCTET STRING  OPTIONAL
         outlen = i32::try_from(buf.len()).unwrap();
         asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &mut outlen) };
-        if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
-            //println!("asn1_result (asn1_read_value  ddo.tokenInfoPath.path): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
-            let dp_files_value_5032 = &dp.files[&0x5032];
-            if !is_child_of(dp_files_value_5032, &dp.files[&file_id_app]) {
-                Box::leak(dp);
-                continue;
-            }
-            let dp_files_value_5032 = dp.files.get_mut(&0x5032).unwrap();
-            dp_files_value_5032.1[6] = PKCS15_FILE_TYPE_TOKENINFO;
-        }
-        else {
+        if ASN1_SUCCESS == asn1_result.try_into().unwrap() {
             buf_slice = &buf[..usize::try_from(outlen).unwrap()];
             let file_id_cia = file_id_from_path_value(buf_slice);
 //println!("ddo.tokenInfoPath.path: 0x{:X?}, fid: 0x{:X}", buf_slice, file_id_cia); // ddo.tokenInfoPath.path: 0x[3F, 0, 41, 0, 50, 32], fid: 0x5032
@@ -325,6 +314,16 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Re
                 continue;
             }
             let dp_files_value_5032 = dp.files.get_mut(&file_id_cia).unwrap();
+            dp_files_value_5032.1[6] = PKCS15_FILE_TYPE_TOKENINFO;
+        }
+        else {
+            //println!("asn1_result (asn1_read_value  ddo.tokenInfoPath.path): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
+            let dp_files_value_5032 = &dp.files[&0x5032];
+            if !is_child_of(dp_files_value_5032, &dp.files[&file_id_app]) {
+                Box::leak(dp);
+                continue;
+            }
+            let dp_files_value_5032 = dp.files.get_mut(&0x5032).unwrap();
             dp_files_value_5032.1[6] = PKCS15_FILE_TYPE_TOKENINFO;
         }
 
@@ -343,8 +342,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Re
     Ok(true)
 }
 
-#[allow(dead_code)]
-#[allow(non_snake_case)]
+#[allow(dead_code)]  // no usage in acos5_pkcs15
 pub fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
 /* This relies on function analyze_PKCS15_DIRRecord_2F00 having marked as PKCS15_FILE_TYPE_ODF
    any EF.ODF specified by EF.DIR, so we can iterate over hashmah dp.files and search byte dp_files_value.1[6]
@@ -491,6 +489,7 @@ pub fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
 }
 
 
+#[allow(dead_code)]  // no usage in acos5_pkcs15
 #[allow(clippy::match_same_arms)]
 fn does_pkcs15type_need_filemarking(pkcs15_type: u8) -> bool {
     match pkcs15_type {
@@ -508,7 +507,7 @@ fn does_pkcs15type_need_filemarking(pkcs15_type: u8) -> bool {
 }
 
 
-#[allow(non_snake_case)]
+#[allow(dead_code)]  // no usage in acos5_pkcs15
 pub fn analyze_PKCS15_PKCS15Objects(card: &mut sc_card, elem: FidPkcs15Type) {
 
     fn get_arr0<'a>(idx_0: u8) -> &'a CStr {
@@ -662,7 +661,6 @@ PKCS15_FILE_TYPE_CDF_USEFUL, 0)  => c"x509Certificate.x509CertificateAttributes.
 /*
 // [ "EF(TokenInfo)",    "PKCS15.TokenInfo",          "",                              "PKCS15.TokenInfoChoice", "tokenInfo"],
 #[allow(dead_code)]
-#[allow(non_snake_case)]
 pub fn analyze_PKCS15_TokenInfo_5032(card: &mut sc_card) {
     /* This relies on function analyze_PKCS15_DIRRecord_2F00 having marked as PKCS15_FILE_TYPE_ODF
        any EF.ODF specified by EF.DIR, so we can iterate over hashmah dp.files and search byte dp_files_value.1[6]

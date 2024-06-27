@@ -9,7 +9,7 @@
  * Copyright (C) 2003 - 2007  Nils Larsch <larsch@trustcenter.de>
  *
  * missing_exports.rs:
- * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
+ * Copyright (C) 2019-  Carsten Blüggel <bluecars@posteo.eu>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,7 +23,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
+ * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
 
 /*

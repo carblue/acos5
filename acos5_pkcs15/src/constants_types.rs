@@ -1,7 +1,7 @@
 /*
  * constants_types.rs: Driver 'acos5' - Code common to driver and pkcs15 libraries, partially also acos5_gui
  *
- * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
+ * Copyright (C) 2019-  Carsten Blüggel <bluecars@posteo.eu>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -15,10 +15,10 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
+ * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
 
-#![allow(dead_code)]
+//#![allow(dead_code)] // don't warn about unused items
 
 use std::os::raw::{c_char, c_uchar, c_ulong, c_void};
 use std::ops::{Deref, DerefMut};
@@ -68,23 +68,23 @@ V4: min 12/20, ids from 1-30 ?
 
 // see also useful declarations in libopensc/iasecc.h:
 pub const ACOS5_OBJECT_REF_LOCAL  : u8 = 0x80;
-pub const ACOS5_OBJECT_REF_GLOBAL : u8 = 0x00;
+//b const ACOS5_OBJECT_REF_GLOBAL : u8 = 0x00;
 
-pub const ACOS5_OBJECT_REF_MIN    : u8 = 0x01;
+//b const ACOS5_OBJECT_REF_MIN    : u8 = 0x01;
 pub const ACOS5_OBJECT_REF_MAX    : u8 = 0x1F;
 
 // for an internal driver these 3 will move to cards.h
-pub const SC_CARD_TYPE_ACOS5_BASE   : i32 = 16001;
-//  const SC_CARD_TYPE_ACOS5_32_V1  : i32 = 16002; // = SC_CARD_TYPE_ACOS5_BASE + 1;
-pub const SC_CARD_TYPE_ACOS5_64_V2  : i32 = 16003; // = SC_CARD_TYPE_ACOS5_BASE + 2;
-pub const SC_CARD_TYPE_ACOS5_64_V3  : i32 = 16004; // = SC_CARD_TYPE_ACOS5_BASE + 3;
-pub const SC_CARD_TYPE_ACOS5_EVO_V4 : i32 = 16005; // = SC_CARD_TYPE_ACOS5_BASE + 4;
+pub const SC_CARD_TYPE_ACOS5_BASE   : i32 =                                 16001;
+//  const SC_CARD_TYPE_ACOS5_32_V1  : i32 = SC_CARD_TYPE_ACOS5_BASE + 1; // 16002
+pub const SC_CARD_TYPE_ACOS5_64_V2  : i32 = SC_CARD_TYPE_ACOS5_BASE + 2; // 16003
+pub const SC_CARD_TYPE_ACOS5_64_V3  : i32 = SC_CARD_TYPE_ACOS5_BASE + 3; // 16004
+pub const SC_CARD_TYPE_ACOS5_EVO_V4 : i32 = SC_CARD_TYPE_ACOS5_BASE + 4; // 16005
 
 //  const ATR_V1      : &CStr = c"3b:be:18:00:00:41:05:01:00:00:00:00:00:00:00:00:00:90:00"; // *NOT* supported: ACOS5 Card (ACOS5-32 V1.00)
 pub const ATR_V2      : &CStr = c"3b:be:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00"; // Using reader with a card: ACS CryptoMate64 00 00;     Card status (0x0034): Present, Powered, 'PTS is negotiable'; The active protocol (0x0001) is T=0
 pub const ATR_V3      : &CStr = c"3b:be:96:00:00:41:05:30:00:00:00:00:00:00:00:00:00:90:00"; // Using reader with a card: ACS CryptoMate (T2) 00 00 ; Card status (0x0034): Present, Powered, 'PTS is negotiable'; The active protocol (0x0001) is T=0 ; reported by my CryptoMate Nano
 /* TODO check ATRs of different EVO card hardware: contact / contactless / combi */
-pub const ATR_V4_0    : &CStr = c"3b:9e:96:80:01:41:05:40:00:00:00:00:00:00:00:00:00:90:00";    // unverified currently
+//b const ATR_V4_0    : &CStr = c"3b:9e:96:80:01:41:05:40:00:00:00:00:00:00:00:00:00:90:00";    // unverified currently
 pub const ATR_V4_1    : &CStr = c"3b:9e:96:80:01:41:05:41:00:00:00:00:00:00:00:00:00:90:00:1c"; // unverified currently
 pub const ATR_V4_2    : &CStr = c"3b:9e:96:80:01:41:05:42:00:00:00:00:00:00:00:00:00:90:00:1f"; // Using reader with a card: ACS CryptoMate EVO 00 00
 pub const ATR_V4_3    : &CStr = c"3b:9e:96:80:01:41:05:43:00:00:00:00:00:00:00:00:00:90:00:1e"; // Using reader with a card: ACS CryptoMate EVO 00 00 ; Card status (0x0034): Present, Powered, 'PTS is negotiable'; The active protocol (0x0002) is T=1 ; reported by my CryptoMate EVO
@@ -148,21 +148,21 @@ ATTENTION with CRT_TAG_CT Confidentiality Template: In reality acos makes no dif
 The distinction is artificial and for some reason, corrected later
 */
 pub const CRT_TAG_HT      : u8 = 0xAA;   // Hash Template                 : AND:      Algorithm
-pub const CRT_TAG_AT      : u8 = 0xA4;   // Authentication Template       : AND: UQB, Pin_Key,
+//b const CRT_TAG_AT      : u8 = 0xA4;   // Authentication Template       : AND: UQB, Pin_Key,
 pub const CRT_TAG_DST     : u8 = 0xB6;   // Digital Signature Template    : AND: UQB, Algorithm, KeyFile_RSA
-//pub const CRT_TAG_CT_ASYM : u8 = 0xB8+1; // Confidentiality Template      : AND: UQB, Algorithm       OR: KeyFile_RSA
-//pub const CRT_TAG_CT_SYM  : u8 = 0xB8+0; // Confidentiality Template      : AND: UQB, Algorithm       OR: ID_Pin_Key_Local_Global, HP_Key_Session  ; OPT: Initial_Vector
+//b const CRT_TAG_CT_ASYM : u8 = 0xB8+1; // Confidentiality Template      : AND: UQB, Algorithm       OR: KeyFile_RSA
+//b const CRT_TAG_CT_SYM  : u8 = 0xB8+0; // Confidentiality Template      : AND: UQB, Algorithm       OR: ID_Pin_Key_Local_Global, HP_Key_Session  ; OPT: Initial_Vector
 pub const CRT_TAG_CT      : u8 = 0xB8;   // Confidentiality Template
 pub const CRT_TAG_CCT     : u8 = 0xB4;   // Cryptographic Checksum Templ. : AND: UQB, Algorithm  ;    OR: ID_Pin_Key_Local_Global, HP_Key_Session  ; OPT: Initial_Vector
-pub const CRT_TAG_KAT     : u8 = 0xA6;   // Key Agreement Template. The KAT defines which parameters to use in key derivation operations. available only with EVO
-pub const CRT_TAG_NA      : u8 = 0x00;   // N/A unknown
+//b const CRT_TAG_KAT     : u8 = 0xA6;   // Key Agreement Template. The KAT defines which parameters to use in key derivation operations. available only with EVO
+//b const CRT_TAG_NA      : u8 = 0x00;   // N/A unknown
 
-// the following bytes indicate, whether an SC Byte encodes Secure Messaging, it does't guarantee, that the referred command allows SM at all
+// the following bytes indicate, whether an SC Byte encodes Secure Messaging, it doesn't guarantee, that the referred command allows SM at all
 //pub const SM_MODE_NONE           : u8 = 0; // SM is not enforced/impossible as of SCB setting
 //pub const SM_MODE_CCT            : u8 = 1; // SM is enforced, providing Authenticity, specified by a  Cryptographic Checksum Template
 //pub const SM_MODE_CCT_AND_CT_SYM : u8 = 2; // SM is enforced, providing Authenticity and Confidentiality, specified by a  Cryptographic Checksum Template and Confidentiality Template (ref. key for sym. algorithm)
 
-                                                 /* PKCS #15 DF types, see pkcs15.rs */
+/* PKCS#15 DF types, see pkcs15.rs */
 pub const PKCS15_FILE_TYPE_PRKDF         : u8 =  SC_PKCS15_PRKDF;         // = 0,
 pub const PKCS15_FILE_TYPE_PUKDF         : u8 =  SC_PKCS15_PUKDF;         // = 1,
 pub const PKCS15_FILE_TYPE_PUKDF_TRUSTED : u8 =  SC_PKCS15_PUKDF_TRUSTED; // = 2,   USES DETECTION LIKE PKCS15_FILE_TYPE_PUKDF !
@@ -176,7 +176,7 @@ pub const PKCS15_FILE_TYPE_AODF          : u8 =  SC_PKCS15_AODF;          // = 8
 pub const PKCS15_FILE_TYPE_DIR           : u8 =  10; // file 0x2F00  (preassigned acc. to ISO/IEC 7816-4)
 pub const PKCS15_FILE_TYPE_ODF           : u8 =  11; // file 0x5031  (preassigned acc. to ISO/IEC 7816-4 or indicated in file 0x2F00)
 pub const PKCS15_FILE_TYPE_TOKENINFO     : u8 =  12; // file 0x5032  (preassigned acc. to ISO/IEC 7816-4 or indicated in file 0x2F00)
-pub const PKCS15_FILE_TYPE_UNUSED        : u8 =  13; // file 0x5033  (preassigned acc. to ISO/IEC 7816-4 or indicated in file 0x2F00)   DOESN'T NEED DETECTION  ???
+//b const PKCS15_FILE_TYPE_UNUSED        : u8 =  13; // file 0x5033  (preassigned acc. to ISO/IEC 7816-4 or indicated in file 0x2F00)   DOESN'T NEED DETECTION  ???
 pub const PKCS15_FILE_TYPE_APPDF         : u8 =  14; // file 0x4100  (arbitrary, indicated in file 0x2F00)       DOESN'T NEED DETECTION !
 
 pub const PKCS15_FILE_TYPE_RSAPRIVATEKEY : u8 =  16;
@@ -194,8 +194,8 @@ pub const PKCS15_FILE_TYPE_NONE          : u8 =  0xFF; // should not happen to e
 
 pub const RSA_MAX_LEN_MODULUS      : usize = 512; // bytes; as bits: 512*8 = 4096
 pub const RSAPUB_MAX_LEN           : usize = 5 + 16 + RSA_MAX_LEN_MODULUS; // the max. file size (byte) requirement for RSA public key (4096 bit == 512 byte; 16 byte is the max. public exponent length)
-pub const RSAPRIV_MAX_LEN_STD      : usize = 5 +      RSA_MAX_LEN_MODULUS; // the max. file size (byte) requirement for RSA private key (non-CRT)
-pub const RSAPRIV_MAX_LEN_CRT      : usize = 5 +   5*(RSA_MAX_LEN_MODULUS/2); // the max. file size (byte) requirement for RSA private key stored in CRT manner
+//b const RSAPRIV_MAX_LEN_STD      : usize = 5 +      RSA_MAX_LEN_MODULUS; // the max. file size (byte) requirement for RSA private key (non-CRT)
+//b const RSAPRIV_MAX_LEN_CRT      : usize = 5 +   5*(RSA_MAX_LEN_MODULUS/2); // the max. file size (byte) requirement for RSA private key stored in CRT manner
 pub const ECPUB_MAX_LEN            : usize = 0x48; // 72= 6 + 66 (aufgerundet 521/8)
 
 
@@ -282,24 +282,24 @@ pub const SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO   : c_ulong =  0x0000_001E; // 
 pub const SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO   : c_ulong =  0x0000_001F; // data: *mut CardCtlArray32,  get_files_hashmap_info
 
 pub const SC_CARDCTL_ACOS5_SDO_CREATE              : c_ulong =  0x0000_0020; // data: *mut sc_file
-pub const SC_CARDCTL_ACOS5_SDO_DELETE              : c_ulong =  0x0000_0021; // data:
-pub const SC_CARDCTL_ACOS5_SDO_STORE               : c_ulong =  0x0000_0022; // data:
+//b const SC_CARDCTL_ACOS5_SDO_DELETE              : c_ulong =  0x0000_0021; // data:
+//b const SC_CARDCTL_ACOS5_SDO_STORE               : c_ulong =  0x0000_0022; // data:
 
-pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES  : c_ulong =  0x0000_0023; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting excluded
-//b const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE : c_ulong =  0x0000_0024; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting excluded
-pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET : c_ulong =  0x0000_0024; // data: *mut CardCtl_generate_inject_asym,do_generate_inject
-pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET : c_ulong =  0x0000_0025; // data: *mut CardCtl_generate_inject_asym,do_generate_inject
-//pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST_MSE  : c_ulong =  0x0000_0025; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files exist, sec_env setting included
-//pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE_MSE : c_ulong =  0x0000_0026; // data: *mut CardCtl_generate_crypt_asym, do_generate_asym;  RSA files must be created, sec_env setting included
+pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES            : c_ulong =  0x0000_0023; // data: *mut CardCtlGenerateAsymCrypt, do_generate_asym;  RSA files exist, sec_env setting excluded
+//b const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE     : c_ulong =  0x0000_0024; // data: *mut CardCtlGenerateAsymCrypt, do_generate_asym;  RSA files must be created, sec_env setting excluded
+pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET : c_ulong =  0x0000_0024; // data: *mut CardCtlGenerateAsymInject,do_generate_inject
+pub const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET : c_ulong =  0x0000_0025; // data: *mut CardCtlGenerateAsymInject,do_generate_inject
+//b const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST_MSE  : c_ulong =  0x0000_0025; // data: *mut CardCtlGenerateAsymCrypt, do_generate_asym;  RSA files exist, sec_env setting included
+//b const SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE_MSE : c_ulong =  0x0000_0026; // data: *mut CardCtlGenerateAsymCrypt, do_generate_asym;  RSA files must be created, sec_env setting included
 
-pub const SC_CARDCTL_ACOS5_ENCRYPT_SYM             : c_ulong =  0x0000_0027; // data: *mut CardCtl_crypt_sym,  do_encrypt_sym
+pub const SC_CARDCTL_ACOS5_ENCRYPT_SYM             : c_ulong =  0x0000_0027; // data: *mut CardCtlSymCrypt,  do_encrypt_sym
 pub const SC_CARDCTL_ACOS5_ENCRYPT_ASYM            : c_ulong =  0x0000_0028; // data: *mut CardCtl_crypt_asym, do_encrypt_asym; Signature verification with public key
-pub const SC_CARDCTL_ACOS5_DECRYPT_SYM             : c_ulong =  0x0000_0029; // data: *mut CardCtl_crypt_sym,  do_decrypt_sym
-//pub const SC_CARDCTL_ACOS5_DECRYPT_ASYM        : c_ulong =  0x0000_002A; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
+pub const SC_CARDCTL_ACOS5_DECRYPT_SYM             : c_ulong =  0x0000_0029; // data: *mut CardCtlSymCrypt,  do_decrypt_sym
+//b const SC_CARDCTL_ACOS5_DECRYPT_ASYM            : c_ulong =  0x0000_002A; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
 
 // array indices of some file related commands in scb8:
 pub const READ         : usize =  0;
-pub const DELETE_CHILD : usize =  0;
+//b const DELETE_CHILD : usize =  0;
 pub const UPDATE       : usize =  1;
 pub const CREATE_EF    : usize =  1;
 pub const CRYPTO       : usize =  2;
@@ -378,8 +378,13 @@ impl Fci {
             Fci { fdb, fid, size, lcsi, df_name, scb8, sae, seid, mrl, nor }
         }
     */
-    #[allow(clippy::match_wild_err_arm)]
-    #[allow(clippy::missing_panics_doc)]
+/// # Panics
+/// All Reference Manuals are congruent about:
+/// Tag 0x82 (ISO7816_TAG_FCP_TYPE) is followed by either 1,2,5 or 6 bytes !
+/// Thus, the assert macro should never emit a panic !
+/// Similar for the other asserts or unreachable etc. macros:
+/// According to the Reference Manual, correct working of the card operating system
+/// should prevent any of those possible panics!
     #[must_use]
     pub fn new_parsed(card: &sc_card, fci_bytes_sequence_body: &[u8]) -> Self {
         let mut result = Fci::default();
@@ -434,10 +439,7 @@ impl Fci {
                     // result.sfi = tlv.value()[0];
                 },
                 ISO7816_RFU_TAG_FCP_SAC => {
-                    result.scb8 = match convert_bytes_tag_fcp_sac_to_scb_array(tlv.value()) {
-                        Ok(val)  => val,
-                        Err(_e)     => panic!(),
-                    };
+                    result.scb8 = if let Ok(val) = convert_bytes_tag_fcp_sac_to_scb_array(tlv.value()) { val } else { panic!() };
                 },
                 ISO7816_RFU_TAG_FCP_SAE => {
                     result.sae.extend_from_slice(tlv.value());
@@ -516,7 +518,7 @@ impl GuardFile {
         /// Forgets this guard and unwraps out the contained element.
         pub fn unwrap(self) -> E {
             let inner = self.0;
-            forget(self);   // Don't drop me or I'll destroy `inner`!
+            forget(self);   // Don't drop me, or I'll destroy `inner`!
             inner
         }
     */
@@ -531,7 +533,7 @@ impl Drop for GuardFile {
     }
 }
 
-/// Be careful on deferecing so you don't store another copy of the element somewhere.
+/// Be careful on dereferencing, so you don't store another copy of the element somewhere.
 impl Deref for GuardFile {
     type Target = *mut *mut sc_file;
     // fn deref(&self) -> &Self::Target;
@@ -540,7 +542,7 @@ impl Deref for GuardFile {
     }
 }
 
-/// Be careful on deferecing so you don't store another copy of the element somewhere.
+/// Be careful on dereferencing, so you don't store another copy of the element somewhere.
 impl DerefMut for GuardFile {
     // fn deref_mut(&mut self) -> &mut Self::Target;
     fn deref_mut(&mut self) -> &mut *mut *mut sc_file {
@@ -600,11 +602,11 @@ pub struct CardCtlAuthState {
     pub value      : bool, // OUT
 }
 
-// struct for SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST and SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE, SC_CARDCTL_ACOS5_ENCRYPT_ASYM// data: *mut CardCtl_generate_crypt_asym, do_generate_asym, do_crypt_asym
+// struct for SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST and SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE, SC_CARDCTL_ACOS5_ENCRYPT_ASYM// data: *mut CardCtlGenerateAsymCrypt, do_generate_asym, do_crypt_asym
 // not all data are require for do_crypt_asym (exponent, exponent_std, key_len_code, key_priv_type_code)
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
-pub struct CardCtl_generate_crypt_asym {
+pub struct CardCtlGenerateAsymCrypt {
     pub rsa_pub_exponent : [u8; 16], // public exponent
     pub data : [u8; RSA_MAX_LEN_MODULUS],   // INOUT for crypt_asym (performs cos5  'RSA Public Key Encrypt')
     pub data_len : usize,        // len bytes used within in_data
@@ -623,7 +625,7 @@ pub struct CardCtl_generate_crypt_asym {
     pub perform_mse   : bool,     // IN parameter, whether MSE Manage Security Env. shall be done (here) prior to crypto operation
 }
 
-impl Default for CardCtl_generate_crypt_asym {
+impl Default for CardCtlGenerateAsymCrypt {
     fn default() -> Self {
         Self {
             rsa_pub_exponent: [0; 16],
@@ -651,7 +653,7 @@ impl Default for CardCtl_generate_crypt_asym {
    acos5_gui will always call sc_card_ctl(SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT) prior to sc_card_ctl(SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST) */
 #[repr(C)]
 #[derive(/*Default,*/ Debug, Copy, Clone)]
-pub struct CardCtl_generate_inject_asym {
+pub struct CardCtlGenerateAsymInject {
     pub rsa_pub_exponent : [u8; 16], // IN public exponent
     pub file_id_priv : u16,       // OUT  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5_external.profile,
     pub file_id_pub  : u16,       // OUT  if both are !=0, then the given values are preferred
@@ -661,7 +663,7 @@ pub struct CardCtl_generate_inject_asym {
     pub do_create_files : bool, // IN if this is set to true, then the files MUST exist and set in file_id_priv and file_id_pub
 }
 
-impl Default for CardCtl_generate_inject_asym {
+impl Default for CardCtlGenerateAsymInject {
     fn default() -> Self {
         Self {
             rsa_pub_exponent: [0; 16],
@@ -675,10 +677,10 @@ impl Default for CardCtl_generate_inject_asym {
     }
 }
 
-// struct for SC_CARDCTL_ACOS5_ENCRYPT_SYM and SC_CARDCTL_ACOS5_DECRYPT_SYM// data: *mut CardCtl_crypt_sym, do_encrypt_sym
+// struct for SC_CARDCTL_ACOS5_ENCRYPT_SYM and SC_CARDCTL_ACOS5_DECRYPT_SYM// data: *mut CardCtlSymCrypt, do_encrypt_sym
 #[repr(C)]
 #[derive(/*Debug,*/ Copy, Clone)]
-pub struct CardCtl_crypt_sym {
+pub struct CardCtlSymCrypt {
     /* input is from : infile xor indata, i.e. assert!(logical_xor(indata_len > 0, !infile.is_null() )); */
     pub infile       : *const c_char, //  path/to/file where the indata may be read from, interpreted as an [u8]; if!= null has preference over indata
     pub inbuf        : *const c_uchar,
@@ -711,7 +713,7 @@ pub struct CardCtl_crypt_sym {
     pub perform_mse  : bool, // IN parameter, whether MSE Manage Security Env. shall be done (here) prior to crypto operation
 }
 
-impl Default for CardCtl_crypt_sym {
+impl Default for CardCtlSymCrypt {
     fn default() -> Self {
         Self {
             infile: std::ptr::null(),
@@ -741,7 +743,7 @@ impl Default for CardCtl_crypt_sym {
 
 /////////////////////////////////////////////////////////////////////////////////
 /* Stores 1 record of Security Environment File, intended to be placed in a Vec, stored with the DF */
-#[allow(clippy::upper_case_acronyms)]
+//#[allow(clippy::upper_case_acronyms)]
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct SACinfo /*SeInfo*/ {
@@ -777,7 +779,7 @@ pub struct SCDO { // for SCDO_TAGs Always_Deny ..AuthT every scdo content is in 
 
 /* Stores SAE information for an instruction from <AMDO><SCDO> simple-TLV, intended to be placed in a Vec, stored with the DF
    TODO SCDO Tags 0xA0 and 0xAF are not yet covered */
-#[allow(clippy::upper_case_acronyms)]
+//#[allow(clippy::upper_case_acronyms)]
 #[allow(non_snake_case)]
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
@@ -809,8 +811,8 @@ pub struct DataPrivate { // see settings in acos5_init
     pub pkcs15_definitions : crate::tasn1_sys::asn1_node, // used only as asn1_node_const, except in acos5_finish: asn1_delete_structure
     pub files : HashMap< KeyTypeFiles, ValueTypeFiles >,
     pub sec_env : sc_security_env, // remember the input of last call to acos5_64_set_security_env; especially algorithm_flags will be required in compute_signature
-    pub agc : CardCtl_generate_crypt_asym,  // generate_asym, encrypt_asym
-    pub agi : CardCtl_generate_inject_asym, // asym_generate_inject_data
+    pub agc : CardCtlGenerateAsymCrypt,  // generate_asym, encrypt_asym
+    pub agi : CardCtlGenerateAsymInject, // asym_generate_inject_data
 //  pub sec_env_algo_flags : u32, // remember the padding scheme etc. selected for RSA; required in acos5_64_set_security_env
     pub time_stamp : std::time::Instant,
     pub sm_cmd : u32,
@@ -829,7 +831,7 @@ pub struct DataPrivate { // see settings in acos5_init
        It's trial and error, not efficient as a general behavior of acos5_64_get_response
          false: acos5_64_get_response behaves (exactly?) like iso7816_get_response
      */
-    pub is_running_compute_signature : bool, /* acos5_64_decipher needs to know, whether it was called by acos5_64_compute_signature */
+    pub is_running_compute_signature : bool, /* acos5_64_decipher needs to know whether it was called by acos5_64_compute_signature */
     pub is_running_cmd_long_response : bool,
     pub is_cap_apdu_ext_enabled : bool, // was is_unwrap_op_in_progress
     pub rfu_align_pad2 : bool, // reserved future use, just inserted for alignment reason (fill the gap)
@@ -854,7 +856,7 @@ pub fn is_DFMF(fdb: u8) -> bool
 
 /// Wraps sc_bytes2apdu
 ///
-/// Additionally it
+/// Additionally, it
 /// 1. Asserts SC_SUCCESS of call to sc_bytes2apdu
 /// 2. Asserts, that the provided argument `cse` actually got assigned to apdu.cse
 /// 3. If rbuf is not empty, then it assigns the provided argument `rbuf` to apdu.resp and apdu.resplen
@@ -880,7 +882,9 @@ pub fn is_DFMF(fdb: u8) -> bool
 /// assert_eq!(apdu.resp,    rbuf.as_mut_ptr());
 /// assert_eq!(apdu.resplen, rbuf.len());
 /// ```
-#[allow(clippy::missing_panics_doc)]
+///
+/// # Panics
+/// Very unlikely, that any of these asserts will ever cause a panic!
 #[must_use]
 pub fn build_apdu(ctx: &mut sc_context, cmd: &[u8], cse: i32, rbuf: &mut [u8]) -> sc_apdu {
     let mut apdu = sc_apdu::default();
@@ -894,7 +898,9 @@ pub fn build_apdu(ctx: &mut sc_context, cmd: &[u8], cse: i32, rbuf: &mut [u8]) -
     apdu
 }
 
-#[allow(clippy::missing_panics_doc)]
+/// # Panics
+/// Path length close to 16 (the maximum) haven't been tested so far.
+/// And a parent of a possible child may have a max path length of 14
 #[must_use]
 pub fn is_child_of(child: &ValueTypeFiles, parent: &ValueTypeFiles) -> bool {
     let pos = usize::from(parent.1[1]);
@@ -905,7 +911,7 @@ pub fn is_child_of(child: &ValueTypeFiles, parent: &ValueTypeFiles) -> bool {
 }
 
 /* The following 2 functions take the file id from the last valid path component */
-#[allow(clippy::missing_panics_doc)]
+/// # Panics
 #[must_use]
 pub fn file_id_from_path_value(path_value: &[u8]) -> u16
 {
@@ -921,8 +927,8 @@ pub fn file_id(file_info_bytes: [u8; 8]) ->u16 {
 
 /*
  a 2-byte slot [4..6] gets used only by some file types:
- for DF/MF its the id of an SE file
- for non-record based file types its the file size
+ for DF/MF it's the id of an SE file
+ for non-record based file types it's the file size
 */
 #[must_use]
 pub fn file_id_se(file_info_bytes: [u8; 8]) ->u16 {
@@ -957,10 +963,14 @@ pub fn file_id_se(file_info_bytes: [u8; 8]) ->u16 {
  * @param
  * @return
  */
-///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
-#[allow(clippy::missing_panics_doc)]
+///
+/// Will return `Result::Err` if the card operating system fails to work correctly. Unlikely, that
+/// the cos did accept wrong entries when creating a file, but frankly, not yet tested
+///
+/// # Panics
+/// Same as for possible Error return: Blame the cos
+//#[must_use]
 pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Result<[u8; 8], i32>
 {
     let mut scb8 = [0_u8; 8]; // if AM has no 1 bit for a command/operation, then it's : always allowed
@@ -999,13 +1009,13 @@ cfg_if::cfg_if! {
 
 
         #[repr(C)]
-        #[derive(Debug, Copy, Clone)]
+        #[derive(Default, Debug, Copy, Clone)]
         pub struct ui_context {
             //    pub user_consent_app : *const c_char,
             pub user_consent_enabled : i32,
         }
 
-
+/*
         impl Default for ui_context {
             fn default() -> Self {
                 Self {
@@ -1014,11 +1024,11 @@ cfg_if::cfg_if! {
                 }
             }
         }
-
+*/
 
         pub fn get_ui_ctx(card: &mut sc_card) -> ui_context
         {
-            let dp = unsafe { Box::from_raw(card.drv_data as *mut DataPrivate) };
+            let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
             let ui_ctx = dp.ui_ctx;
             Box::leak(dp);
             // card.drv_data = Box::into_raw(dp) as p_void;
@@ -1030,8 +1040,8 @@ cfg_if::cfg_if! {
         pub enum Ihandle {}
         extern {
             pub fn IupOpen(argc: *const i32, argv: *const *const *const c_char) -> i32;
-            pub fn IupClose();
-            pub fn IupMessageDlg() -> *mut Ihandle; // https://webserver2.tecgraf.puc-rio.br/iup/en/dlg/iupmessagedlg.html
+            // pub fn IupClose();
+            pub fn IupMessageDlg() -> *mut Ihandle; // https://tecgraf.puc-rio.br/iup/en/dlg/iupmessagedlg.html
             pub fn IupDestroy(ih: *mut Ihandle);
             pub fn IupPopup(ih: *mut Ihandle, x: i32, y: i32) -> i32;
             //    pub fn IupSetAttributes(ih: *mut Ihandle, str: *const c_char) -> *mut Ihandle;
@@ -1051,7 +1061,7 @@ cfg_if::cfg_if! {
 
             /* look for sc block in opensc.conf */
             let ctx = unsafe { &mut *card.ctx };
-            for elem in ctx.conf_blocks.iter() {
+            for elem in &ctx.conf_blocks {
                 if elem.is_null() { break; }
 
                 let blocks_ptr = unsafe { scconf_find_blocks(ctx.conf, *elem,
@@ -1073,17 +1083,19 @@ cfg_if::cfg_if! {
             SC_SUCCESS
         }
 
-        /**
-         * Ask for user consent.
-         *
-         * Check for user consent configuration,
-         * Invoke proper gui app and check result
-         *
-         * @param card pointer to sc_card structure
-         * @param title Text to appear in the window header
-         * @param text Message to show to the user
-         * @return SC_SUCCESS on user consent OK , else error code
-         */
+
+        /// Ask for user consent.
+        ///
+        /// Check for user consent configuration,
+        /// Invoke proper gui app and check result
+        ///
+        /// @param card pointer to sc_card structure
+        /// @param title Text to appear in the window header
+        /// @param text Message to show to the user
+        /// @return SC_SUCCESS on user consent OK , else error code
+        ///
+        /// # Panics
+        #[must_use]
         pub fn acos5_ask_user_consent() -> i32
         {
             unsafe {

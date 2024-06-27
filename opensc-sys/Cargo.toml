@@ -2,7 +2,7 @@
 name = "opensc-sys"
 links = "opensc"
 version = "0.0.30"
-authors = ["carblue <bluecars@posteo.eu>"]
+authors = ["Carsten Blüggel, carblue <bluecars@posteo.eu>"]
 edition = "2021"
 
 [dependencies]

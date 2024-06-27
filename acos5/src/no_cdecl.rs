@@ -1,7 +1,7 @@
 /*
  * no_cdecl.rs: Driver 'acos5' - Miscellaneous functions
  *
- * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
+ * Copyright (C) 2019-  Carsten Blüggel <bluecars@posteo.eu>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -15,11 +15,12 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
+ * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
 
 //use super::bitintr::Popcnt;
 //#![feature(const_fn)]
+#![allow(clippy::too_many_lines)]
 #![allow(clippy::match_wild_err_arm)]
 
 use std::os::raw::{c_char, c_ulong, c_void};
@@ -78,7 +79,7 @@ use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do
                       wr_do_log_tuv};
 use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES,
                              BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, BLOCKCIPHER_PAD_TYPE_PKCS7,
-                             BLOCKCIPHER_PAD_TYPE_ZEROES, CardCtl_crypt_sym, CardCtl_generate_crypt_asym, DataPrivate,
+                             BLOCKCIPHER_PAD_TYPE_ZEROES, CardCtlSymCrypt, CardCtlGenerateAsymCrypt, DataPrivate,
                              FDB_CYCLIC_EF, FDB_LINEAR_VARIABLE_EF, FDB_RSA_KEY_EF, FDB_SE_FILE,
                              FDB_SYMMETRIC_KEY_EF, NAME_V2, NAME_V3, FDB_ECC_KEY_EF, //PKCS15_FILE_TYPE_ECCPRIVATEKEY,
                              // PKCS15_FILE_TYPE_ECCPUBLICKEY, PKCS15_FILE_TYPE_RSAPRIVATEKEY, PKCS15_FILE_TYPE_RSAPUBLICKEY,
@@ -102,7 +103,7 @@ use crate::crypto::{RAND_bytes, des_ecb3_unpadded_8, Encrypt};
 
 use super::{acos5_process_fci/*, acos5_list_files, acos5_select_file, acos5_set_security_env*/};
 
-#[allow(dead_code)]
+#[allow(dead_code)] // currently unused
 #[cold]
 #[must_use]
 fn sc_ac_op_name_from_idx(idx: usize) -> &'static CStr
@@ -147,7 +148,10 @@ fn sc_ac_op_name_from_idx(idx: usize) -> &'static CStr
 includes getting a challenge from the card. setting card.sm_ctx.info.session.cwa.ssc is not part of this command anymore
 key_host_reference must be enabled for External Authentication and it's Error Counter must have tries_left>0
 */
-#[allow(clippy::missing_errors_doc)]
+///
+/// # Panics
+/// # Errors
+///
 pub fn authenticate_external(card: &mut sc_card, key_host_reference: u8, key_host: &[u8]) -> Result<bool, i32> {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -181,7 +185,10 @@ pub fn authenticate_external(card: &mut sc_card, key_host_reference: u8, key_hos
     Ok(apdu.sw2==0)
 }
 
-#[allow(clippy::missing_errors_doc)]
+///
+/// # Panics
+/// # Errors
+///
 pub fn authenticate_internal(card: &mut sc_card, key_card_reference: u8, key_card: &[u8]) -> Result<bool, i32> {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -215,6 +222,9 @@ pub fn authenticate_internal(card: &mut sc_card, key_card_reference: u8, key_car
 
 // reference: 1..=31
 // TODO adapt for EVO
+///
+/// # Panics
+///
 pub fn logout_pin(card: &mut sc_card, reference: u8) -> i32 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -236,6 +246,9 @@ pub fn logout_pin(card: &mut sc_card, reference: u8) -> i32 {
 
 // reference: 1..=31
 // TODO adapt for EVO and potentially collapse with logout_pin
+///
+/// # Panics
+///
 #[allow(dead_code)]
 #[cold]
 fn logout_key(card: &mut sc_card, reference: u8) -> i32 {
@@ -265,9 +278,14 @@ In principle, iso7816_select_file is usable in a controlled manner, but if file_
 thus issue a correct APDU right away
 The code differs from the C version in 1 line only, where setting apdu.p2 = 0x0C;
 */
+
+///
+/// # Panics
+///
 //allow cognitive_complexity: This is almost equal to iso7816_select_file. Thus for easy comparison, don't split this
-#[allow(dead_code)]
-#[allow(clippy::too_many_lines)]
+//#[allow(clippy::too_many_lines)]
+#[allow(dead_code)] // currently unused
+#[cold]
 fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_out: &mut Option<&mut *mut sc_file>) -> i32
 {
 /*
@@ -553,6 +571,9 @@ same @param and @return as iso7816_select_file
  * @param
  * @return
  */
+///
+/// # Panics
+///
 pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Option<&mut *mut sc_file>, force_process_fci: bool) -> i32
 {
     debug_assert!((path_ref.type_ == SC_PATH_TYPE_FILE_ID && path_ref.len==2) ||
@@ -637,6 +658,9 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Op
  * @param
  * @return
  */
+///
+/// # Panics
+///
 pub fn select_file_by_path(card: &mut sc_card, path_ref: &sc_path, file_out: Option<&mut *mut sc_file>, force_process_fci: bool) -> i32
 {
     /* manage file_out and force_process_fci: They need to be active only eventually for the target file_id */
@@ -674,6 +698,9 @@ pub fn select_file_by_path(card: &mut sc_card, path_ref: &sc_path, file_out: Opt
 
 /* FIPS compliance dictates these values for SC_CARD_TYPE_ACOS5_64_V3 */
 // #[allow(dead_code)]
+///
+/// # Panics
+///
 #[cold]
 fn get_known_sec_env_entry_v3_fips(is_local: bool, rec_nr: u32, buf: &mut [u8])
 {
@@ -724,7 +751,10 @@ fn get_known_sec_env_entry_v3_fips(is_local: bool, rec_nr: u32, buf: &mut [u8])
  * @param
  * @return
  */
-#[allow(clippy::too_many_lines)]
+//#[allow(clippy::too_many_lines)]
+///
+/// # Panics
+///
 pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, depth: i32*/) -> i32
 {
     assert!(!card.ctx.is_null());
@@ -915,6 +945,9 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
     SC_SUCCESS
 } // enum_dir
 
+///
+/// # Panics
+///
 fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*, depth: i32*/) -> i32
 {
     assert!(!card.ctx.is_null());
@@ -969,7 +1002,10 @@ fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*,
 
 ///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
+///
+/// # Panics
+/// # Errors
+///
 pub fn convert_amdo_to_cla_ins_p1_p2_array(amdo_tag: u8, amdo_bytes: &[u8]) -> Result<[u8; 4], i32> //Access Mode Data Object
 {
     assert!(!amdo_bytes.is_empty() && amdo_bytes.len() <= 4);
@@ -998,10 +1034,11 @@ pub const ACL_CATEGORY_SE     : u8 =  4;
 /*
 This MUST match exactly how *mut sc_acl_entry are added in acos5_process_fci or profile.c
 */
+//#[allow(clippy::too_many_lines)]
 ///
+/// # Panics
 /// # Errors
-#[allow(clippy::too_many_lines)]
-#[allow(clippy::missing_errors_doc)]
+///
 pub fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl: &[*mut sc_acl_entry; SC_MAX_AC_OPS], acl_category: u8) -> Result<[u8; 8], i32>
 {
     // let ctx = unsafe { &mut *card.ctx };
@@ -1174,7 +1211,7 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl: &[*mu
     }
 
     Ok(result)
-}
+} // convert_acl_array_to_bytes_tag_fcp_sac
 
 
 /*
@@ -1183,6 +1220,9 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl: &[*mu
  * @param
  * @return
  */
+///
+/// # Panics
+///
 pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left: &mut i32) -> i32
 {
 /* when is AODF read for the pin details info info ? */
@@ -1397,6 +1437,9 @@ pub fn get_sec_env_mod_len(card: &mut sc_card) -> usize
     result
 }
 
+///
+/// # Panics
+///
 fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
 {
     let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
@@ -1434,6 +1477,9 @@ fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
 /// This function should not be called before the horsemen are ready.
 /* this is tailored for a special testing use case, don't use generally, SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC */
 //TODO integrate this into encrypt_asym
+///
+/// # Panics
+///
 #[allow(dead_code)]
 #[cold]
 fn encrypt_public_rsa(card_ptr: *mut sc_card, signature: *const u8, siglen: usize)
@@ -1491,7 +1537,10 @@ fn encrypt_public_rsa(card_ptr: *mut sc_card, signature: *const u8, siglen: usiz
     println!("{:X?}", &rbuf[480..512]);
 }
 
-pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtl_generate_crypt_asym, print: bool) -> i32
+///
+/// # Panics
+///
+pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtlGenerateAsymCrypt, print: bool) -> i32
 {
     /*  don't use print==true: it's a special, tailored case (with some hard-code crypt_data) for testing purposes */
     assert!(!card.ctx.is_null());
@@ -1572,7 +1621,10 @@ pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtl_generate_crypt_
     0
 }
 
-pub fn generate_asym(card: &mut sc_card, data: &mut CardCtl_generate_crypt_asym) -> i32
+///
+/// # Panics
+///
+pub fn generate_asym(card: &mut sc_card, data: &mut CardCtlGenerateAsymCrypt) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -1704,6 +1756,9 @@ RFC 8017                      PKCS #1 v2.2                 November 2016
     false
 }
 
+///
+/// # Panics
+///
 #[must_use]
 fn trailing_blockcipher_padding_calculate(
     block_size   : u8, // 16 or 8
@@ -1752,8 +1807,9 @@ fn trailing_blockcipher_padding_calculate(
 }
 
 ///
+/// # Panics
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
+///
 fn trailing_blockcipher_padding_get_length(
     block_size   : u8, // 16 or 8
     padding_type : u8, // any of BLOCKCIPHER_PAD_TYPE_*
@@ -1831,6 +1887,9 @@ Ok(0)
 }
 
 // omitted signature verification and V2.00/V3.00 RSA signing acc. ISO 9796-2
+///
+/// # Errors
+///
 #[allow(clippy::match_bool)]
 pub fn algo_ref_mse_sedo(card_type: i32, // one of: SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4
                          sec_operation: i32, // required only for CRT_TAG_DST: one of: SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_ECCPRIVATE
@@ -1964,6 +2023,9 @@ pub fn algo_ref_mse_sedo(card_type: i32, // one of: SC_CARD_TYPE_ACOS5_64_V2, SC
     }
 }
 
+///
+/// # Errors
+///
 pub fn algo_ref_sym_store(card_type: i32,
                           #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
                           algorithm: u32,
@@ -1994,7 +2056,6 @@ pub fn algo_ref_sym_store(card_type: i32,
 
 ///
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
 fn vecu8_from_file(path_ptr: *const c_char) -> std::io::Result<Vec<u8>>
 {
     if path_ptr.is_null() {
@@ -2022,9 +2083,12 @@ TODO as of 2020-12-19: The input method `inbuf` (for OpenSC) got tested to be wo
 including for messages > max_send_size
 but the other input methods `infile` and `indata` (for acos5_gui) still need to be checked !
 */
+///
+/// # Panics
+///
 #[allow(non_snake_case)]
-#[allow(clippy::too_many_lines)]
-pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtl_crypt_sym) -> i32
+//#[allow(clippy::too_many_lines)]
+pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -2313,9 +2377,9 @@ wr_do_log_sds(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv: i32/*,
 
 
 ///
+/// # Panics
 /// # Errors
-#[allow(clippy::missing_errors_doc)]
-#[allow(clippy::missing_panics_doc)]
+///
 pub fn get_files_hashmap_info(card: &mut sc_card, key: u16) -> Result<[u8; 32], i32>
 {
     assert!(!card.ctx.is_null());
@@ -2370,6 +2434,9 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
 /// over-complicated code from acos5_gui to the driver and overhaul that
 /// @apiNote  Called from acos5_gui and ? (pccs15_init sanity_check ?)
 /// @param    card
+///
+/// # Panics
+///
 pub fn update_hashmap(card: &mut sc_card) {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -2403,6 +2470,9 @@ pub fn update_hashmap(card: &mut sc_card) {
 /*
 TODO: Optimization possible for EVO: Able to read 256-4096 bytes in 1 go, no need for repeated calls
 of cos 8.1.3.  Read Binary, see especially the coding for 256 bytes ! */
+///
+/// # Panics
+///
 pub fn common_read(card: &mut sc_card,
                    idx: u16,
                    buf: &mut [u8],
@@ -2479,6 +2549,9 @@ pub fn common_read(card: &mut sc_card,
 }
 
 
+///
+/// # Panics
+///
 pub fn common_update(card: &mut sc_card,
                      idx: u16,
                      buf: &[u8],
@@ -2737,3 +2810,80 @@ mod tests {
     }
 
 }
+/*
+Beginning script execution...
+
+Sending: 00 A4 00 00 02 41 00
+Received: 61 32
+0x32 bytes of response still available.
+
+Sending: 00 C0 00 00 32
+Received: 6F 30 83 02 41 00 88 01 00 8A 01 05 82 02 38 00
+8D 02 41 03 84 10 41 43 4F 53 50 4B 43 53 2D 31
+35 76 31 2E 30 30 8C 08 7F 03 FF 03 03 01 01 01
+AB 00 90 00
+Normal processing.
+
+Sending: 00 A4 00 00 02 41 10
+Received: 61 20
+0x20 bytes of response still available.
+
+Sending: 00 C0 00 00 20
+Received: 6F 1E 83 02 41 10 88 01 10 8A 01 05 82 02 01 00
+80 02 03 00 8C 08 7F 00 FF 00 03 FF 00 00 AB 00
+90 00
+Normal processing.
+
+Sending: 00 B0 00 00 FF
+Received: A0 2B 30 0F 0C 06 43 41 72 6F 6F 74 03 02 06 C0
+04 01 01 30 0A 04 01 01 03 01 00 03 02 03 B8 A1
+0C 30 0A 30 08 04 06 3F 00 41 00 12 01 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 90
+00
+Normal processing.
+
+Sending: 00 A4 00 00 02 41 11
+Received: 61 20
+0x20 bytes of response still available.
+
+Sending: 00 C0 00 00 20
+Received: 6F 1E 83 02 41 11 88 01 11 8A 01 05 82 02 01 00
+80 02 03 00 8C 08 7F 00 FF 00 03 FF 00 00 AB 00
+90 00
+Normal processing.
+
+Sending: 00 B0 00 00 FF
+Received: A0 28 30 0C 0C 06 43 41 72 6F 6F 74 03 02 06 40
+30 0A 04 01 01 03 01 00 03 02 03 48 A1 0C 30 0A
+30 08 04 06 3F 00 41 00 11 01 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 90
+00
+Normal processing.
+
+Script was executed without error...
+
+ */

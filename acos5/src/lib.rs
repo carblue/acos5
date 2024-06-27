@@ -1,7 +1,7 @@
 /*
  * lib.rs: Driver 'acos5' - main library file
  *
- * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
+ * Copyright (C) 2019-  Carsten Blüggel <bluecars@posteo.eu>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
+ * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
 /*
  https://www.acs.com.hk/en/products/18/cryptomate64-usb-cryptographic-tokens/
@@ -60,10 +60,9 @@ it has a child DF that has been selected.
 //#![allow(clippy::module_name_repetitions)]
 #![allow(clippy::similar_names)]
 //#![allow(clippy::cognitive_complexity)]
-// #![allow(clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
 // #![allow(clippy::too_many_arguments)]
 #![allow(clippy::if_not_else)]
-
 
 use std::os::raw::{c_char, c_ulong, c_void};
 use std::ffi::CStr;
@@ -73,7 +72,19 @@ use std::slice::{from_raw_parts, from_raw_parts_mut};
 
 // use ::function_name::named;
 
-use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_security_env, sc_pin_cmd_data, sc_get_iso7816_driver, sc_get_mf_path, sc_file_set_prop_attr, sc_select_file, sc_read_binary, sc_transmit_apdu, sc_check_sw, sc_get_version, SC_ALGORITHM_RSA_HASH_NONE, SC_ALGORITHM_ECDSA_RAW, SC_CARD_CAP_RNG, SC_CARD_CAP_USE_FCI_AC, SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_ALGORITHM_RSA, SC_ALGORITHM_ONBOARD_KEY_GEN, SC_ALGORITHM_RSA_RAW, SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_DERIVE, SC_PIN_CMD_GET_INFO, SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK, SC_ALGORITHM_RSA_PAD_PKCS1, SC_ALGORITHM_RSA_PAD_ISO9796, SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT, SC_SEC_ENV_ALG_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR, SC_CARD_CAP_ISO7816_PIN_INFO, SC_ALGORITHM_AES, SC_ALGORITHM_EXT_EC_NAMEDCURVE, SC_CARD_CAP_APDU_EXT, SC_ALGORITHM_EC, SC_PROTO_T1};
+use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_security_env, sc_pin_cmd_data,
+                         sc_get_iso7816_driver, sc_get_mf_path, sc_file_set_prop_attr, sc_select_file,
+                         sc_read_binary, sc_transmit_apdu, sc_check_sw, sc_get_version,
+                         SC_ALGORITHM_RSA_HASH_NONE, SC_ALGORITHM_ECDSA_RAW, SC_CARD_CAP_RNG,
+                         SC_CARD_CAP_USE_FCI_AC, SC_READER_SHORT_APDU_MAX_SEND_SIZE,
+                         SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_ALGORITHM_RSA, SC_ALGORITHM_ONBOARD_KEY_GEN,
+                         SC_ALGORITHM_RSA_RAW, SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER,
+                         SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_DERIVE, SC_PIN_CMD_GET_INFO,
+                         SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK, SC_ALGORITHM_RSA_PAD_PKCS1,
+                         SC_ALGORITHM_RSA_PAD_ISO9796, SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT,
+                         SC_SEC_ENV_ALG_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR,
+                         SC_CARD_CAP_ISO7816_PIN_INFO, SC_ALGORITHM_AES, SC_ALGORITHM_EXT_EC_NAMEDCURVE,
+                         SC_CARD_CAP_APDU_EXT, SC_ALGORITHM_EC, SC_PROTO_T1, SC_ALGORITHM_EXT_EC_COMPRESS};
 //#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
 //use opensc_sys::opensc::{SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM};
 //use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
@@ -130,8 +141,8 @@ mod constants_types;
 use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES,
                       BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, BLOCKCIPHER_PAD_TYPE_PKCS7,
                       BLOCKCIPHER_PAD_TYPE_ZEROES, CARD_DRV_NAME, CARD_DRV_SHORT_NAME,
-                      CardCtlArray32, CardCtlArray8, CardCtlAuthState, CardCtl_crypt_sym,
-                      CardCtl_generate_crypt_asym, CardCtl_generate_inject_asym, DataPrivate,
+                      CardCtlArray32, CardCtlArray8, CardCtlAuthState, CardCtlSymCrypt,
+                      CardCtlGenerateAsymCrypt, CardCtlGenerateAsymInject, DataPrivate,
                       FDB_CHV_EF, FDB_CYCLIC_EF, FDB_DF, FDB_ECC_KEY_EF, FDB_LINEAR_FIXED_EF,
                       FDB_LINEAR_VARIABLE_EF, FDB_MF, FDB_PURSE_EF, FDB_RSA_KEY_EF, FDB_SE_FILE,
                       FDB_SYMMETRIC_KEY_EF, FDB_TRANSPARENT_EF, ISO7816_RFU_TAG_FCP_SAC,
@@ -259,7 +270,6 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 /// # Safety
 ///
 /// This function should not be called before the horsemen are ready.
-//#[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> *mut c_void {
     if !name.is_null() && CStr::from_ptr(name) == CARD_DRV_SHORT_NAME {
@@ -580,7 +590,7 @@ what can we rely on, when this gets called:
  * @param
  * @return
  */
-#[allow(clippy::too_many_lines)]
+//#[allow(clippy::too_many_lines)]
 extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
@@ -674,7 +684,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     if card.type_ == SC_CARD_TYPE_ACOS5_EVO_V4 {
         let flags = SC_ALGORITHM_ONBOARD_KEY_GEN | SC_ALGORITHM_ECDSA_RAW; /*| SC_ALGORITHM_ECDH_CDH_RAW |
                            SC_ALGORITHM_ECDSA_HASH_NONE | SC_ALGORITHM_ECDSA_HASH_SHA1*/
-        let ext_flags = SC_ALGORITHM_EXT_EC_NAMEDCURVE; /*| SC_ALGORITHM_EXT_EC_UNCOMPRESES*/
+        let ext_flags = SC_ALGORITHM_EXT_EC_NAMEDCURVE | SC_ALGORITHM_EXT_EC_COMPRESS;
         for elem in &mut acos5_supported_ec_curves() {
             #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
             unsafe { _sc_card_add_ec_alg(card, elem.size, c_ulong::from(flags), c_ulong::from(ext_flags), &mut elem.curve_oid) };
@@ -725,8 +735,8 @@ cfg_if::cfg_if! {
         pkcs15_definitions,
         files,
         sec_env: sc_security_env::default(),
-        agc: CardCtl_generate_crypt_asym::default(),
-        agi: CardCtl_generate_inject_asym::default(),
+        agc: CardCtlGenerateAsymCrypt::default(),
+        agi: CardCtlGenerateAsymInject::default(),
         time_stamp: std::time::Instant::now(),
         sm_cmd: 0,
         rsa_caps: rsa_algo_flags,
@@ -766,8 +776,8 @@ println!("offset_of pkcs15_definitions:               {}, Δnext:    {}, size_of
 
 println!("offset_of files:                            {}, Δnext:   {}, size_of:   {}, align_of: {}", offset_of!(DataPrivate, files),   offset_of!(DataPrivate, sec_env)-offset_of!(DataPrivate, files), std::mem::size_of::<HashMap<KeyTypeFiles,ValueTypeFiles>>(), std::mem::align_of::<HashMap<KeyTypeFiles,ValueTypeFiles>>());
 println!("offset_of sec_env:                         {}, Δnext: {}, size_of: {}, align_of: {}", offset_of!(DataPrivate, sec_env),      offset_of!(DataPrivate, agc)-offset_of!(DataPrivate, sec_env), std::mem::size_of::<sc_security_env>(), std::mem::align_of::<sc_security_env>());
-println!("offset_of agc:                           {}, Δnext:  {}, size_of:  {}, align_of: {}", offset_of!(DataPrivate, agc),          offset_of!(DataPrivate, agi)-offset_of!(DataPrivate, agc), std::mem::size_of::<CardCtl_generate_crypt_asym>(), std::mem::align_of::<CardCtl_generate_crypt_asym>());
-println!("offset_of agi:                           {}, Δnext:   {}, size_of:   {}, align_of: {}", offset_of!(DataPrivate, agi),        offset_of!(DataPrivate, time_stamp)-offset_of!(DataPrivate, agi), std::mem::size_of::<CardCtl_generate_inject_asym>(), std::mem::align_of::<CardCtl_generate_inject_asym>());
+println!("offset_of agc:                           {}, Δnext:  {}, size_of:  {}, align_of: {}", offset_of!(DataPrivate, agc),          offset_of!(DataPrivate, agi)-offset_of!(DataPrivate, agc), std::mem::size_of::<CardCtlGenerateAsymCrypt>(), std::mem::align_of::<CardCtlGenerateAsymCrypt>());
+println!("offset_of agi:                           {}, Δnext:   {}, size_of:   {}, align_of: {}", offset_of!(DataPrivate, agi),        offset_of!(DataPrivate, time_stamp)-offset_of!(DataPrivate, agi), std::mem::size_of::<CardCtlGenerateAsymInject>(), std::mem::align_of::<CardCtlGenerateAsymInject>());
 println!("offset_of time_stamp:                    {}, Δnext:   {}, size_of:   {}, align_of: {}", offset_of!(DataPrivate, time_stamp), offset_of!(DataPrivate, sm_cmd)-offset_of!(DataPrivate, time_stamp), std::mem::size_of::<std::time::Instant>(), std::mem::align_of::<std::time::Instant>());
 println!("offset_of sm_cmd:                        {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, sm_cmd),     offset_of!(DataPrivate, rsa_caps)-offset_of!(DataPrivate, sm_cmd), std::mem::size_of::<u32>(), std::mem::align_of::<u32>());
 println!("offset_of rsa_caps:                      {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, rsa_caps),   offset_of!(DataPrivate, sec_env_mod_len)-offset_of!(DataPrivate, rsa_caps), std::mem::size_of::<u32>(), std::mem::align_of::<u32>());
@@ -1074,8 +1084,8 @@ println!("sc_update_binary: rv: {}", rv);
     }
     cfg_if::cfg_if! {
         if #[cfg(finish_verbose)] {
-            println!("EEPROM remaining free memory space: ~ {} of {}, in kB", f64::try_from(get_free_space(card).unwrap()).unwrap()/1000.,
-                if card.type_> SC_CARD_TYPE_ACOS5_64_V3 {192} else {64});
+            println!("EEPROM remaining free memory space: ~ {} of {}, in kB", f64::from(get_free_space(card).unwrap())/1000.,
+                if card.type_ > SC_CARD_TYPE_ACOS5_64_V3 {192} else {64});
 //println!("Hashmap: {:02X?}", dp.files);
         }
     }
@@ -1187,7 +1197,7 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
  * @param
  * @return
  */
-#[allow(clippy::too_many_lines)]
+//#[allow(clippy::too_many_lines)]
 extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr: p_void) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
@@ -1374,7 +1384,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET =>
             {
                 let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
-                unsafe { *data_ptr.cast::<CardCtl_generate_inject_asym>() = dp.agi };
+                unsafe { *data_ptr.cast::<CardCtlGenerateAsymInject>() = dp.agi };
                 Box::leak(dp);
                 // card.drv_data = Box::into_raw(dp) as p_void;
                 SC_SUCCESS
@@ -1382,20 +1392,20 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET =>
             {
                 let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
-                dp.agi = unsafe { *data_ptr.cast::<CardCtl_generate_inject_asym>() };
+                dp.agi = unsafe { *data_ptr.cast::<CardCtlGenerateAsymInject>() };
                 card.drv_data = Box::into_raw(dp).cast::<c_void>();
                 SC_SUCCESS
             },
         SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES =>
             /* suppose select_file, authenticate, (possibly setting MSE) etc. was done already */
-            generate_asym(card, unsafe { &mut *data_ptr.cast::<CardCtl_generate_crypt_asym>() }),
+            generate_asym(card, unsafe { &mut *data_ptr.cast::<CardCtlGenerateAsymCrypt>() }),
         SC_CARDCTL_ACOS5_ENCRYPT_ASYM =>
             /* suppose select_file, authenticate, (possibly setting MSE) etc. was done already */
-            encrypt_asym(card, unsafe { &mut *data_ptr.cast::<CardCtl_generate_crypt_asym>() }, false),
+            encrypt_asym(card, unsafe { &mut *data_ptr.cast::<CardCtlGenerateAsymCrypt>() }, false),
         SC_CARDCTL_ACOS5_ENCRYPT_SYM |
         SC_CARDCTL_ACOS5_DECRYPT_SYM     =>
             {
-                let crypt_sym_data = unsafe { &mut *data_ptr.cast::<CardCtl_crypt_sym>() };
+                let crypt_sym_data = unsafe { &mut *data_ptr.cast::<CardCtlSymCrypt>() };
                 if !((crypt_sym_data.outdata_len > 0) ^ !crypt_sym_data.outfile.is_null())  ||
                    !((crypt_sym_data.indata_len  > 0) ^ !crypt_sym_data.infile.is_null())   ||
                    ![8_u8, 16].contains(&crypt_sym_data.block_size)  ||
@@ -1482,7 +1492,7 @@ SW1 SW2   Definition
  * @param  buf
  * @return how many bytes can be expected to be fetched the next time, this function gets called: It's a guess only
  */
-#[allow(clippy::suspicious_else_formatting)]
+//#[allow(clippy::suspicious_else_formatting)]
 extern "C" fn acos5_get_response(card_ptr: *mut sc_card, count_ptr: *mut usize, buf_ptr: *mut u8) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || count_ptr.is_null() || buf_ptr.is_null() {
@@ -2185,7 +2195,7 @@ println!("Failure: Non-match in let acl_category. file_ref.type_: {}", file_ref.
  * @param
  * @return
  */
-#[allow(clippy::too_many_lines)]
+//#[allow(clippy::too_many_lines)]
 extern "C" fn acos5_pin_cmd(card_ptr: *mut sc_card, data_ptr: *mut sc_pin_cmd_data, tries_left_ptr: *mut i32) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } /*|| data_ptr.is_null()*/ {
@@ -2256,8 +2266,7 @@ extern "C" fn acos5_pin_cmd(card_ptr: *mut sc_card, data_ptr: *mut sc_pin_cmd_da
         //log3if!(ctx,f,line!(), c"pin_cmd_data.pin_type:  %u", pin_cmd_data.pin_type);
         //log3if!(ctx,f,line!(), c"pin_cmd_data.pin1.len:  %lu", pin_cmd_data.pin1.len);
         //log3if!(ctx,f,line!(), c"pin_cmd_data.pin1.data: %p", pin_cmd_data.pin1.data);
-        #[allow(clippy::nonminimal_bool)]
-        if SC_AC_CHV != pin_cmd_data.pin_type || !(pin_cmd_data.pin1.len > 0) || pin_cmd_data.pin1.data.is_null() {
+        if SC_AC_CHV != pin_cmd_data.pin_type || pin_cmd_data.pin1.len == 0 || pin_cmd_data.pin1.data.is_null() {
             //log3if!(ctx,f,line!(), c"returning from here with SC_ERROR_INVALID_ARGUMENTS!");
             return SC_ERROR_INVALID_ARGUMENTS;
         }
@@ -2382,9 +2391,8 @@ println!();
     }
 
     else if SC_PIN_CMD_CHANGE   == pin_cmd_data.cmd { // pin1 is old pin, pin2 is new pin
-        #[allow(clippy::nonminimal_bool)]
-        if !(pin_cmd_data.pin1.len > 0) || pin_cmd_data.pin1.data.is_null() ||
-           !(pin_cmd_data.pin2.len > 0) || pin_cmd_data.pin2.data.is_null() ||
+        if pin_cmd_data.pin1.len == 0 || pin_cmd_data.pin1.data.is_null() ||
+           pin_cmd_data.pin2.len == 0 || pin_cmd_data.pin2.data.is_null() ||
            pin_cmd_data.pin1.len != pin_cmd_data.pin2.len ||
            pin_cmd_data.pin1.len  > 8 {
             return SC_ERROR_INVALID_ARGUMENTS;
@@ -2425,9 +2433,8 @@ println!();
     }
 
     else if SC_PIN_CMD_UNBLOCK  == pin_cmd_data.cmd { // pin1 is PUK, pin2 is new pin for the one blocked
-        #[allow(clippy::nonminimal_bool)]
-        if  !(pin_cmd_data.pin1.len > 0) || pin_cmd_data.pin1.data.is_null() ||
-            !(pin_cmd_data.pin2.len > 0) || pin_cmd_data.pin2.data.is_null() ||
+        if  pin_cmd_data.pin1.len == 0 || pin_cmd_data.pin1.data.is_null() ||
+            pin_cmd_data.pin2.len == 0 || pin_cmd_data.pin2.data.is_null() ||
             pin_cmd_data.pin1.len != pin_cmd_data.pin2.len ||
             pin_cmd_data.pin1.len  > 8 {
             return SC_ERROR_INVALID_ARGUMENTS;
@@ -2513,10 +2520,11 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
         return rv;
     }
     if SC_ALGORITHM_EC  == algorithm {
-        return read_public_key_EC(card, key_path_ptr, out, out_len);
+        return read_public_key_ec(card, key_path_ptr, out, out_len);
     }
 
     assert!((512..=4096).contains(&modulus_length));
+    assert!(num_integer::Integer::is_multiple_of(&modulus_length, &8));
     let mlbyte = usize::try_from(modulus_length).unwrap()/8; /* key modulus_length in byte (expected to be a multiple of 32)*/
     let le_total = mlbyte + 21;
     log3if!(ctx,f,line!(), c"read public key(ref:%i; modulus_length:%i; modulus_bytes:%zu)", key_reference,
@@ -2578,14 +2586,13 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
     SC_SUCCESS
 }
 
-#[allow(non_snake_case)]
-fn read_public_key_EC(card: &mut sc_card,
+fn read_public_key_ec(card: &mut sc_card,
                       key_path_ptr: *mut sc_path,
                       out: *mut *mut u8,
                       out_len: *mut usize) -> i32
 {
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"read_public_key_EC";
+    let f = c"read_public_key_ec";
     log3ifc!(ctx,f,line!());
 
     let mut rv = unsafe { sc_select_file(card, key_path_ptr, null_mut()) };
@@ -2597,19 +2604,24 @@ fn read_public_key_EC(card: &mut sc_card,
     let mut rbuf = [0; ECPUB_MAX_LEN];
     rv = unsafe { cfg_if::cfg_if! {
         if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
-            sc_read_binary(card, 0, rbuf.as_mut_ptr(), ECPUB_MAX_LEN, 0)
+            sc_read_binary(card, 0, rbuf.as_mut_ptr(), 6, 0)
         }
         else {
             let mut flags : c_ulong = 0;
-            sc_read_binary(card, 0, rbuf.as_mut_ptr(), ECPUB_MAX_LEN, &mut flags)
+            sc_read_binary(card, 0, rbuf.as_mut_ptr(), 6, &mut flags)
         }
     }};
 
-   if rv < i32::try_from(ECPUB_MAX_LEN).unwrap() {
+   if rv < 6 {
         log3if!(ctx,f,line!(), c"get key failed");
         return rv;
     }
-
+/*
+1 ->     224 = 8*28  +6 = 34
+2 ->     256 = 8*32  +6 = 38
+3 ->     384 = 8*48  +6 = 54
+4 -> 521 528 = 8*66  +6 = 72
+*/
     if rbuf[0] != 0 // 00 04 12 01 0A 03   00 3C 00 B0 23 40 DD 4A 44 31 AF 1E 5E 0F 4F 7F 8F 98 02 D9 0D 7E 68 3A 89 49 71 16 F0 A3 8A 8C B6 9D 4A 85 37 12 79 4C 47 9D 6F 26 20 55 E2 5D 96 B1 0B 37 60 34 88 6D DC 55 36 C7 C3 3F 1A 7C 86 DF
         || ![1,2,3,4].contains(&rbuf[1]) // != u8::try_from((modulus_length+8)/128).unwrap() /* encode_key_RSA_ModulusBitLen(modulus_length) */
 //     || rbuf[2] != key_path_ref.value[key_path_ref.len-2] /* FIXME RSAKEYID_CONVENTION */
@@ -2621,10 +2633,34 @@ fn read_public_key_EC(card: &mut sc_card,
             within the first 5 bytes there is content that indicates an invalid public key ###");
         return SC_ERROR_INCOMPATIBLE_KEY;
     }
+    let curve_indicator = rbuf[1];
+//    let point_format_indicator = rbuf[5];
+    let point_length_readable /* starting from position 5, not 6 !!! */ = match curve_indicator {
+        1 => 28_u8+1,
+        2 => 32+1,
+        3 => 48+1,
+        4 => 66+1,
+        _ => 0,
+    };
+    rv = unsafe { cfg_if::cfg_if! {
+        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
+            sc_read_binary(card, 5, rbuf.as_mut_ptr(), point_length_readable.into(), 0)
+        }
+        else {
+            let mut flags : c_ulong = 0;
+            sc_read_binary(card, 5, rbuf.as_mut_ptr(), point_length_readable.into(), &mut flags)
+        }
+    }};
+
+    if rv < point_length_readable.into() {
+        log3if!(ctx,f,line!(), c"get key failed");
+        return rv;
+    }
+
     let mut ec_key = sc_pkcs15_pubkey_ec {
-        params: sc_ec_parameters { named_curve: c"nistp521".as_ptr() as *mut _, id: sc_object_id { value : [1, 3, 132, 0, 35,  -1,0,0,0,0,0,0,0,0,0,0] },
-                                   der: sc_lv_data::default(), type_: 0, field_length: 521 },
-        ecpointQ: sc_pkcs15_u8 { value: unsafe { rbuf.as_mut_ptr().add(6) }, len: ECPUB_MAX_LEN-6 }
+        params: sc_ec_parameters { named_curve: c"nistp521".as_ptr().cast_mut(), id: sc_object_id { value : [1, 3, 132, 0, 35,  -1,0,0,0,0,0,0,0,0,0,0] },
+                                   der: sc_lv_data::default(), type_: 1, field_length: 521 },
+        ecpointQ: sc_pkcs15_u8 { value: rbuf.as_mut_ptr(), len: point_length_readable.into() }
     };
 
     /* transform the raw content to der-encoded */
@@ -2637,7 +2673,7 @@ fn read_public_key_EC(card: &mut sc_card,
     SC_SUCCESS
 }
 
-#[allow(clippy::too_many_lines)]
+//#[allow(clippy::too_many_lines)]
 extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const sc_security_env, _se_num: i32) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || env_ref_ptr.is_null() {
@@ -3088,8 +3124,8 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
  * @param
  * @return  error code (neg. value) or number of bytes written into out
  */
-#[allow(clippy::suspicious_else_formatting)]
-#[allow(clippy::too_many_lines)]
+//#[allow(clippy::suspicious_else_formatting)]
+//#[allow(clippy::too_many_lines)]
 extern "C" fn acos5_compute_signature(card_ptr: *mut sc_card, data_ref_ptr: *const u8, data_len: usize,
                                                                    out_ptr:   *mut u8,   outlen: usize) -> i32
 {
@@ -3336,7 +3372,7 @@ when pkcs1_strip_PSS_padding works
    i.e. it's assumed that the unwrapped key is of AES type ! */
 // FIXME this doesn't work currently:  the SKDF entry is created already with some data missing, see also acos5_pkcs15/src/lib.rs comment in the end
 // FIXME sc_pkcs15init_store_secret_key get's called, but without calling  profile->ops->store_key (keyargs->key.data_len == 0)
-#[allow(dead_code)]
+#[allow(dead_code)]  // no usage currently
 #[cold]
 extern "C" fn acos5_unwrap(card_ptr: *mut sc_card, crgram: *const u8, crgram_len: usize) -> i32
 {
@@ -3535,7 +3571,7 @@ extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, pl
 //println!("acos5_encrypt_sym input: algorithm: {:02X}, algorithm_flags: {:02X}, key_ref[0]: {:02X}, plaintext_len: {}, plaintext: {:02X?}",
 //algorithm, algorithm_flags, unsafe{ (*_key_ref)[0] }, plaintext_len, unsafe { from_raw_parts(plaintext, plaintext_len) });
     // temporarily route via sym_en_decrypt
-    let mut crypt_sym_data = CardCtl_crypt_sym {
+    let mut crypt_sym_data = CardCtlSymCrypt {
         inbuf        : plaintext,
         indata_len   : plaintext_len,
         outbuf       : out,
@@ -3545,7 +3581,7 @@ extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, pl
         pad_type     : BLOCKCIPHER_PAD_TYPE_PKCS7,
         cbc          : (algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) >0 || (algorithm_flags & SC_ALGORITHM_AES_CBC) > 0,
         encrypt      : true,
-        .. CardCtl_crypt_sym::default()
+        .. CardCtlSymCrypt::default()
     };
     sym_en_decrypt(card,  &mut crypt_sym_data)
 }
@@ -3566,7 +3602,7 @@ extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, crgram: *const u8, crgra
 //println!("acos5_decrypt_sym input: algorithm: {:02X}, algorithm_flags: {:02X}, key_ref[0]: {:02X}, crgram_len: {}, crgram: {:02X?}",
 //algorithm, algorithm_flags, unsafe{ (*key_ref)[0] }, crgram_len, unsafe { from_raw_parts(crgram, crgram_len) });
     // temporarily route via sym_en_decrypt
-    let mut crypt_sym_data = CardCtl_crypt_sym {
+    let mut crypt_sym_data = CardCtlSymCrypt {
         inbuf        : crgram,
         indata_len   : crgram_len,
         outbuf       : out,
@@ -3580,7 +3616,7 @@ extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, crgram: *const u8, crgra
         pad_type     : BLOCKCIPHER_PAD_TYPE_PKCS7,
         cbc          : (algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) >0 || (algorithm_flags & SC_ALGORITHM_AES_CBC) > 0,
         encrypt      : false,
-        .. CardCtl_crypt_sym::default()
+        .. CardCtlSymCrypt::default()
     };
     sym_en_decrypt(card,  &mut crypt_sym_data)
 }

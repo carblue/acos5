@@ -1,3 +1,23 @@
+/*
+ * lib.rs: Driver 'acos5_pkcs15' - main library file
+ *
+ * Copyright (C) 2019-  Carsten Blüggel <bluecars@posteo.eu>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
+ */
+
 //! This is an optional shared library, meant to be used alongside the driver library from carblue/acos5
 //! It provides functions, that OpenSC categorizes within pkcs15init (see opensc_sys::pkcs15_init struct sc_pkcs15init_operations)
 
@@ -72,24 +92,14 @@ unloaded by: src/pkcs15init/pkcs15-lib.c:sc_pkcs15init_unbind
 Message in debug_file: successfully loaded pkcs15init driver 'acos5-external'
 */
 
-#![allow(unused_unsafe)]
-#![allow(unused_macros)]
-
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
-#![allow(clippy::doc_markdown)]
-//#![allow(clippy::module_name_repetitions)]
 
+#![allow(unused_macros)]  // unused macro definition: `log3ift`
+#![allow(clippy::doc_markdown)]
 #![allow(clippy::similar_names)]
-#![allow(clippy::cognitive_complexity)]
 #![allow(clippy::too_many_lines)]
 #![allow(clippy::too_many_arguments)]
-#![allow(clippy::if_not_else)]
-
-//extern crate libc;
-//extern crate opensc_sys;
-//extern crate pkcs11;
-//extern crate libloading as lib;
 
 use libc::{free}; // strlen
 //use pkcs11::types::{CKM_DES_ECB, CKM_DES3_ECB, CKM_AES_ECB};
@@ -97,7 +107,6 @@ use libc::{free}; // strlen
 use std::os::raw::{c_char, c_void};
 use std::ffi::CStr;
 use std::ptr::{null_mut, addr_of_mut, from_mut};
-// use std::collections::HashSet;
 use std::slice::from_raw_parts;
 
 use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_select_file, sc_card_ctl, SC_ALGORITHM_DES,
@@ -132,9 +141,9 @@ use opensc_sys::log::{/*sc_do_log, SC_LOG_DEBUG_NORMAL,*/ sc_dump_hex};
 
 
 #[macro_use]
-pub mod    macros;
+pub mod    macros; // shared file among modules acos5, acos5_pkcs15
 
-pub mod    constants_types; // shared file among modules acos5, acos5_pkcs15 and acos5_sm
+pub mod    constants_types; // shared file among modules acos5, acos5_pkcs15
 use crate::constants_types::{CARD_DRV_SHORT_NAME, DataPrivate, SC_CARDCTL_ACOS5_SDO_CREATE,
                              SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, SC_CARD_TYPE_ACOS5_64_V3, build_apdu,
                              SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile, file_id_from_path_value,
@@ -151,12 +160,12 @@ use crate::no_cdecl::{check_enlarge_prkdf_pukdf};
 
 cfg_if::cfg_if! {
     if #[cfg(not(target_os = "windows"))] {
-        mod tasn1_pkcs15_util;
-        mod tasn1_sys;
+        mod tasn1_pkcs15_util; // shared file among modules acos5, acos5_pkcs15
+        mod tasn1_sys;         // shared file among modules acos5, acos5_pkcs15
     }
 }
 
-pub mod    wrappers; // shared file among modules acos5, acos5_pkcs15 and acos5_sm
+pub mod    wrappers; // shared file among modules acos5, acos5_pkcs15
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tu};
 
 
@@ -183,16 +192,18 @@ const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 /// In this example, cfg!(v0_23_0) will then match that
 ///
 /// @return   The OpenSC release/imaginary version, that this driver implementation supports
-#[allow(clippy::if_same_then_else)]
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = unsafe { sc_get_version() };
-    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1))  { version_ptr }
-    // else if cfg!(v0_26_0)  { version_ptr } // experimental only:  Latest OpenSC github master commit covered:
+    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1/*, v0_26_0*/))  { version_ptr }
+    // v0_26_0: experimental only:  Latest OpenSC gitHub master commit covered:
     else                   { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
 }
 
-#[allow(clippy::missing_safety_doc)]
+///
+/// # Safety
+///
+/// This function should not be called before the horsemen are ready.
 #[no_mangle]
 pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> *mut c_void {
     if !name.is_null() && CStr::from_ptr(name) == CARD_DRV_SHORT_NAME {
@@ -220,8 +231,8 @@ extern "C" fn acos5_get_pkcs15init_ops() -> *mut sc_pkcs15init_operations {
              Create a "pin domain". This is for cards such as the cryptoflex that need to put their pins into separate directories
          */
         create_domain        : None, // called only from src/pkcs15init/pkcs15-lib.c:  sc_pkcs15init_create_pin
-        select_pin_reference : Some(acos5_pkcs15_select_pin_reference), // does nothing
-        create_pin : Some(acos5_pkcs15_create_pin), // does nothing
+        select_pin_reference : None, //Some(acos5_pkcs15_select_pin_reference), // does nothing
+        create_pin : None, //Some(acos5_pkcs15_create_pin), // does nothing
         select_key_reference : None, // called only from src/pkcs15init/pkcs15-lib.c:  sc_pkcs15init_init_prkdf
         /* create_key :
            For generate_key (RSA) this does all of the required work before calling generate_key
@@ -231,8 +242,8 @@ extern "C" fn acos5_get_pkcs15init_ops() -> *mut sc_pkcs15init_operations {
         generate_key : Some(acos5_pkcs15_generate_key),
         encode_private_key : None, // doesn't get called by OpenSC
         encode_public_key  : None, // doesn't get called by OpenSC
-        finalize_card : Some(acos5_pkcs15_finalize_card), // does nothing // probably not required for ACOS5; called only from src/pkcs15init/pkcs15-lib.c:sc_pkcs15init_finalize_card
-        delete_object : Some(acos5_pkcs15_delete_object), // does nothing
+        finalize_card : None, //Some(acos5_pkcs15_finalize_card), // does nothing // probably not required for ACOS5; called only from src/pkcs15init/pkcs15-lib.c:sc_pkcs15init_finalize_card
+        delete_object : None, //Some(acos5_pkcs15_delete_object), // does nothing
         // how about the emu support at all? is that required? What exactly is that?
         emu_update_dir : None,
         emu_update_any_df : None,// : Some(acos5_pkcs15_emu_update_any_df), // does nothing
@@ -300,7 +311,8 @@ extern "C" fn acos5_pkcs15_erase_card(profile_ptr: *mut sc_profile, p15card_ptr:
  *
  * Called only from   src/pkcs15init/pkcs15-lib.c:  sc_pkcs15init_add_app  and  sc_pkcs15_create_pin_domain
  */
-#[allow(dead_code)]
+#[allow(dead_code)]  // no usage currently
+#[cold]
 extern "C" fn acos5_pkcs15_create_dir(profile_ptr: *mut sc_profile, p15card_ptr: *mut sc_pkcs15_card,
                                       df_ptr: *mut sc_file) -> i32
 {
@@ -345,7 +357,7 @@ extern "C" fn acos5_pkcs15_create_dir(profile_ptr: *mut sc_profile, p15card_ptr:
 //    LOG_FUNC_RETURN(p15card.card.ctx, rv);
 
     SC_SUCCESS
-}
+} // acos5_pkcs15_create_dir
 
 
 /*
@@ -353,6 +365,8 @@ extern "C" fn acos5_pkcs15_create_dir(profile_ptr: *mut sc_profile, p15card_ptr:
  *
  * Called only from   src/pkcs15init/pkcs15-lib.c:  sc_pkcs15init_add_app  and  sc_pkcs15init_create_pin
  */
+#[allow(dead_code)]  // no usage currently
+#[cold]
 extern "C" fn acos5_pkcs15_select_pin_reference(profile_ptr: *mut sc_profile, p15card_ptr: *mut sc_pkcs15_card,
                                                 pin_ainfo_ptr: *mut sc_pkcs15_auth_info) -> i32
 {
@@ -375,6 +389,8 @@ extern "C" fn acos5_pkcs15_select_pin_reference(profile_ptr: *mut sc_profile, p1
  *
  * Called only from   src/pkcs15init/pkcs15-lib.c:  sc_pkcs15init_add_app,  sc_pkcs15init_store_puk  and  sc_pkcs15init_create_pin
  */
+#[allow(dead_code)]  // no usage currently
+#[cold]
 extern "C" fn acos5_pkcs15_create_pin(profile_ptr: *mut sc_profile, p15card_ptr: *mut sc_pkcs15_card,
                                       file_ptr: *mut sc_file,
                                       _object_ptr: *mut sc_pkcs15_object, _arg5: *const u8, _arg6: usize,
@@ -399,6 +415,8 @@ extern "C" fn acos5_pkcs15_create_pin(profile_ptr: *mut sc_profile, p15card_ptr:
  * file id s may already exist and must then be first deleted. TODO deleting is not yet covered
  *
  */
+///
+/// # Panics
 extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
                                       p15card_ptr: *mut sc_pkcs15_card,
                                       object_ptr: *mut sc_pkcs15_object) -> i32
@@ -478,11 +496,6 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         rv = SC_ERROR_INVALID_ARGUMENTS;
         log3ifr!(ctx,f,line!(), c"Error: EC key pair creation not yet supported by driver", rv);
         return rv;
-        /*
-        error: Unknown algorithm "ec/prime256v1"
-        error: Invalid symmetric key spec: "ec/prime256v1"
-        Failed to generate key: Invalid arguments
-*/
     }
 
     /* TODO Think about other checks or possibly refuse to generate keys if file access rights are wrong */
@@ -697,7 +710,7 @@ log3if!(ctx,f,line!(), c"file_priv.path: %s",
 //        return rv;
 //    }
     #[cfg(rsa_key_gen_verbose)]
-    { println!("This file id will be chosen for the private RSA key:  {:X}", ax); }
+    { println!("This file id will be chosen for the private RSA key:  {ax:X}"); }
     /* The final values for path and fid_priv */
     // file_priv.path.value[file_priv.path.len-1] = u8::try_from(fid_priv_possible_min & 0x00FF).unwrap();
     file_priv.path.value[file_priv.path.len-2..file_priv.path.len].copy_from_slice(&ax.to_be_bytes());
@@ -886,6 +899,8 @@ int sc_pkcs15init_store_private_key(struct sc_pkcs15_card *p15card, struct sc_pr
 int sc_pkcs15init_store_secret_key (struct sc_pkcs15_card *p15card, struct sc_profile *profile, struct sc_pkcs15init_skeyargs  *keyargs, struct sc_pkcs15_object **res_obj)
 not called by C_GenerateKeyPair
 */
+///
+/// # Panics
 extern "C" fn acos5_pkcs15_store_key(profile_ptr: *mut sc_profile, p15card_ptr: *mut sc_pkcs15_card,
                                      object_ptr: *mut sc_pkcs15_object, key_ptr: *mut sc_pkcs15_prkey) -> i32
 {
@@ -993,6 +1008,8 @@ extern "C" fn acos5_pkcs15_store_key(profile_ptr: *mut sc_profile, p15card_ptr: 
  *           sc_pkcs15_encode_pubkey
  *
  */
+///
+/// # Panics
 extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
                                         p15card_ptr: *mut sc_pkcs15_card,
                                         p15object_ptr: *mut sc_pkcs15_object,
@@ -1103,6 +1120,8 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
  *
  * Called only from   src/pkcs15init/pkcs15-lib.c:
  */
+#[allow(dead_code)]  // no usage currently
+#[cold]
 extern "C" fn acos5_pkcs15_finalize_card(card_ptr: *mut sc_card) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
@@ -1123,6 +1142,8 @@ extern "C" fn acos5_pkcs15_finalize_card(card_ptr: *mut sc_card) -> i32
 /*
  * Delete object
  */
+#[allow(dead_code)]  // no usage currently
+#[cold]
 extern "C" fn acos5_pkcs15_delete_object(profile_ptr: *mut sc_profile, p15card_ptr: *mut sc_pkcs15_card,
     object_ptr: *mut sc_pkcs15_object, path_ptr: *const sc_path) -> i32
 {
@@ -1250,7 +1271,7 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
         }
     }
     SC_SUCCESS
-}
+} // acos5_pkcs15_emu_store_data
 
 extern "C" fn acos5_pkcs15_sanity_check(_profile: *mut sc_profile, p15card: *mut sc_pkcs15_card) -> i32
 {

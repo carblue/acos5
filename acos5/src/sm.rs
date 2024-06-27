@@ -1,7 +1,7 @@
 /*
  * sm.rs: Driver 'acos5' - Secure Messaging file
  *
- * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
+ * Copyright (C) 2019-  Carsten Blüggel <bluecars@posteo.eu>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
+ * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
 /*
 Secure Messaging is handled transparently towards OpenSC, meaning, it's done when necessary, but not communicated
@@ -499,7 +499,7 @@ mac_resp:
 
 // TODO all code below assumes block_size is 8, i.e. using exclusively TDES for SM, which is not true anymore for ACOS5-EVO
 
-//#[no_mangle] // original APDU type (without SM): SC_APDU_CASE_2_SHORT: no command data, but expects response data (with SM, there are command data: the tagged le)
+// original APDU type (without SM): SC_APDU_CASE_2_SHORT: no command data, but expects response data (with SM, there are command data: the tagged le)
 pub fn sm_common_read(card: &mut sc_card,
                       idx: u16,
                       buf: &mut [u8],
@@ -614,7 +614,7 @@ pub fn sm_common_read(card: &mut sc_card,
 }
 
 
-//#[no_mangle] // original APDU type (without SM): SC_APDU_CASE_3_SHORT: yes command data, but doesn't expect response data (with SM, there are response data)
+// original APDU type (without SM): SC_APDU_CASE_3_SHORT: yes command data, but doesn't expect response data (with SM, there are response data)
 pub fn sm_common_update(card: &mut sc_card,
                         idx: u16,
                         buf: &[u8],
@@ -731,7 +731,7 @@ pub fn sm_common_update(card: &mut sc_card,
 } // sm_common_update
 
 
-//#[no_mangle] // original APDU type (without SM): SC_APDU_CASE_3_SHORT:
+// original APDU type (without SM): SC_APDU_CASE_3_SHORT:
 // no command data, but expects response data (with SM, there are command data: the tagged le)
 pub fn sm_erase_binary(card: &mut sc_card, idx: u16, count: u16, flags: c_ulong, has_ct: bool) -> i32
 {
@@ -818,7 +818,7 @@ pub fn sm_erase_binary(card: &mut sc_card, idx: u16, count: u16, flags: c_ulong,
 } // sm_erase_binary
 
 
-//#[no_mangle] // original APDU type (without SM): SC_APDU_CASE_1 or SC_APDU_CASE_3_SHORT:
+// original APDU type (without SM): SC_APDU_CASE_1 or SC_APDU_CASE_3_SHORT:
 // Doesn't expect response data (with SM, )
 pub fn sm_delete_file(card: &mut sc_card) -> i32
 {

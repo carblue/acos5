@@ -1,7 +1,7 @@
 /*
  * se.rs: Driver 'acos5' - Security Environment (SE) related code
  *
- * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
+ * Copyright (C) 2019-  Carsten Blüggel <bluecars@posteo.eu>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110-1335  USA
+ * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
 
 /*
@@ -159,7 +159,7 @@ pub fn map_scb8_to_acl(card: &mut sc_card, file: &mut sc_file, scb8: [u8; 8], fd
  *                     in associated Sec. Env. file, or it's an encoding of either SC_AC_NONE or SC_AC_NEVER
  * @param  op    IN    the operation that @param scb refers to, e.g. SC_AC_OP_READ
  */
-#[allow(clippy::needless_return)]
+//#[allow(clippy::needless_return)]
 fn se_file_add_acl_entry(card: &mut sc_card, file: &mut sc_file, scb: u8, op: u32)
 {
 //    assert!(!card.ctx.is_null());
