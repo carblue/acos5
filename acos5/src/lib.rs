@@ -1207,7 +1207,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
     let ctx = unsafe { &mut *card.ctx };
     log3ifc!(ctx, c"acos5_card_ctl", line!());
 
-    if data_ptr.is_null() && ![SC_CARDCTL_LIFECYCLE_SET, SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO, SC_CARDCTL_ACOS5_SANITY_CHECK].contains(&command)
+    if data_ptr.is_null() && ![SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO, SC_CARDCTL_ACOS5_SANITY_CHECK].contains(&command)
     { return SC_ERROR_INVALID_ARGUMENTS; }
 
     match command {
