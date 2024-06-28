@@ -1250,21 +1250,22 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
     data.pin1.max_tries = 8;//pin_tries_max; /* Used for signaling back from SC_PIN_CMD_GET_INFO */ /* assume: 8 as factory setting; max allowed number of retries is unretrievable with proper file access condition NEVER read */
 
     let mut apdu = build_apdu(ctx, &[0x00_u8, 0x20, 0x00, u8::try_from(data.pin_reference).unwrap()], SC_APDU_CASE_1, &mut[]);
-    let rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
-    if rv != SC_SUCCESS || apdu.sw1 != 0x63 || (apdu.sw2 & 0xC0) != 0xC0 {
+    let rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    if apdu.sw1 == 0x63 && ((apdu.sw2 & 0xC0) == 0xC0) {}
+    else {
         log3if!(ctx,f,line!(), c"Error: 'Get remaining number of retries left for the PIN' failed");
         return SC_ERROR_KEYPAD_MSG_TOO_LONG;
     }
     data.pin1.tries_left = i32::try_from(apdu.sw2 & 0x0F_u32).unwrap(); //  63 Cnh     n is remaining tries
     *tries_left = data.pin1.tries_left;
-    if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 {
-        data.pin1.logged_in = SC_PIN_STATE_LOGGED_IN; // without this, session will be closed for pkcs11-tool -t -l, since v0.20.0
-    }
-    else {
+    if card.type_ == SC_CARD_TYPE_ACOS5_64_V3 {
         match get_is_pin_authenticated(card, data.pin_reference.try_into().unwrap()) {
             Ok(val) => data.pin1.logged_in = if val {SC_PIN_STATE_LOGGED_IN} else {SC_PIN_STATE_LOGGED_OUT},
             Err(_e) => data.pin1.logged_in = SC_PIN_STATE_UNKNOWN,
         }
+    }
+    else {
+//        data.pin1.logged_in = SC_PIN_STATE_LOGGED_IN; // without this, session will be closed for pkcs11-tool -t -l, since v0.20.0
     }
     SC_SUCCESS
 }
