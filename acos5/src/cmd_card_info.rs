@@ -34,25 +34,25 @@ use crate::wrappers::{wr_do_log};
 /// @apiNote  Exempt from this function, card.serialnr MUST be treated as immutable. It's not clear to me if for
 /// `SC_CARD_TYPE_ACOS5_64_V3` the last 2 bytes are meaningful if not in FIPS mode
 /// (at least they are the same for each call, thus this uncertainty doesn't matter).\
-/// This function is also callable via libopensc.so/dll:sc_card_ctl via `SC_CARDCTL_GET_SERIALNR`:
+/// This function is also callable via `libopensc.so/dll:sc_card_ctl` via `SC_CARDCTL_GET_SERIALNR`:
 ///
-/// @return  Result::Ok(serial number); 6 bytes for `SC_CARD_TYPE_ACOS5_64_V2`, otherwise 8 bytes, or an OpenSC error
+/// @return  `Result::Ok(serial` number); 6 bytes for `SC_CARD_TYPE_ACOS5_64_V2`, otherwise 8 bytes, or an `OpenSC` error
 ///
 /// # Errors
 ///
-/// Will return `Result::Err` if sc_transmit_apdu or sc_check_sw fails, or apdu.resplen is wrong (for the card type),
+/// Will return `Result::Err` if `sc_transmit_apdu` or `sc_check_sw` fails, or apdu.resplen is wrong (for the card type),
 /// though this never happened so far. Thus its save to unwrap/expect the Ok variant.
 ///
 /// # Examples
 ///
-/// no_run
+/// `no_run`
 /// // may be run only with a card connected (and thus variable `card` populated accordingly)
-/// use opensc_sys::{types::sc_serial_number, opensc::sc_card_ctl, cardctl::SC_CARDCTL_GET_SERIALNR, errors::SC_SUCCESS};
-/// use std::os::raw::c_void;
-/// let mut serial_number = sc_serial_number::default();
-/// let rv = unsafe { sc_card_ctl(card, SC_CARDCTL_GET_SERIALNR, &mut serial_number as *mut _ as *mut c_void) };
-/// assert_eq!(SC_SUCCESS, rv);
-/// println!("serial_number: {:X?}", serial_number);
+/// use `opensc_sys::{types::sc_serial_number`, `opensc::sc_card_ctl`, `cardctl::SC_CARDCTL_GET_SERIALNR`, `errors::SC_SUCCESS`};
+/// use `std::os::raw::c_void`;
+/// let mut `serial_number` = `sc_serial_number::default()`;
+/// let rv = unsafe { `sc_card_ctl(card`, `SC_CARDCTL_GET_SERIALNR`, &mut `serial_number` as *mut _ as *mut `c_void`) };
+/// `assert_eq!(SC_SUCCESS`, rv);
+/// `println!("serial_number`: {:X?}", `serial_number`);
 ///
 pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
 {
@@ -85,16 +85,16 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
 //QS
 /// Get count of files/dirs within currently selected DF.
 ///
-/// @return  Result::Ok(count_files_curr_df), or an OpenSC error
+/// @return  `Result::Ok(count_files_curr_df`), or an `OpenSC` error
 ///
 /// # Panics
 /// ATTENTION: There shouldn't be more than 255 files in a DF, but if there are more, then the function panics,
-/// because the following command get_file_info works based on byte-size indexing only !\
-/// This function is also callable via libopensc.so/dll:sc_card_ctl via `SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF`:
+/// because the following command `get_file_info` works based on byte-size indexing only !\
+/// This function is also callable via `libopensc.so/dll:sc_card_ctl` via `SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF`:
 ///
 /// # Errors
 ///
-/// Will return `Result::Err` if sc_transmit_apdu or sc_check_sw fails, though this never happened so far.
+/// Will return `Result::Err` if `sc_transmit_apdu` or `sc_check_sw` fails, though this never happened so far.
 /// Thus it is save to unwrap/expect the Ok variant.
 ///
 /// # Examples
@@ -136,14 +136,14 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
 
 //QS
 /// Get compact file information (8 bytes) of file referenced within currently selected DF.\
-/// For hardware versions SC_CARD_TYPE_ACOS5_64_V2 and SC_CARD_TYPE_ACOS5_64_V3 the 8 bytes are:
+/// For hardware versions `SC_CARD_TYPE_ACOS5_64_V2` and `SC_CARD_TYPE_ACOS5_64_V3` the 8 bytes are:
 ///   FDB, DCB, FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI
-/// For hardware version SC_CARD_TYPE_ACOS5_64_V4 the 8 bytes are:
+/// For hardware version `SC_CARD_TYPE_ACOS5_64_V4` the 8 bytes are:
 ///   FDB, DCB, FILE ID, FILE ID, SIZE or MRL, SIZE or MRL, NOR or SFI, NOR or LCSI
 ///
-/// @apiNote  `SC_CARDCTL_ACOS5_GET_FILE_INFO`; for clients: for both card types SC_CARD_TYPE_ACOS5_64_* indexing starts
+/// @apiNote  `SC_CARDCTL_ACOS5_GET_FILE_INFO`; for clients: for both card types `SC_CARD_TYPE_ACOS5_64`_* indexing starts
 /// from 0, for EVO starts from 1.\
-/// @return  file information (8 bytes) or an OpenSC error
+/// @return  file information (8 bytes) or an `OpenSC` error
 ///
 /// # Errors
 pub fn get_file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> Result<[u8; 8], i32>
@@ -171,8 +171,8 @@ pub fn get_file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> R
 //QS
 /// Get free EEPROM space in bytes.
 ///
-/// @apiNote  SC_CARDCTL_ACOS5_GET_FREE_SPACE
-/// @return  free EEPROM space or an OpenSC error
+/// @apiNote  `SC_CARDCTL_ACOS5_GET_FREE_SPACE`
+/// @return  free EEPROM space or an `OpenSC` error
 ///
 /// # Errors
 pub fn get_free_space(card: &mut sc_card) -> Result<u32, i32>

@@ -32,9 +32,9 @@ const CSTR_INT_CSTR       : &CStr =             c"%s: %d (%s)\n";
 
 
 /// # Panics
-/// The expanded expression for the 'line' macro has type `u32`, but the OpenSC logging functions
-/// sc_do_log and sc_do_log_color expect i32 arguments (what a bad developer's decision). Thus we
-/// need a 'i32::try_from'-conversion, which theoretically may panic, but here in practice, will never do.
+/// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
+/// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
+/// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
 pub fn wr_do_log        (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr)
 {
     if cfg!(log) {
@@ -43,9 +43,9 @@ pub fn wr_do_log        (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr)
 }
 
 /// # Panics
-/// The expanded expression for the 'line' macro has type `u32`, but the OpenSC logging functions
-/// sc_do_log and sc_do_log_color expect i32 arguments (what a bad developer's decision). Thus we
-/// need a 'i32::try_from'-conversion, which theoretically may panic, but here in practice, will never do.
+/// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
+/// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
+/// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
 pub fn wr_do_log_t<T>   (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg: T)
 {
     if cfg!(log) {
@@ -54,9 +54,9 @@ pub fn wr_do_log_t<T>   (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, 
 }
 
 /// # Panics
-/// The expanded expression for the 'line' macro has type `u32`, but the OpenSC logging functions
-/// sc_do_log and sc_do_log_color expect i32 arguments (what a bad developer's decision). Thus we
-/// need a 'i32::try_from'-conversion, which theoretically may panic, but here in practice, will never do.
+/// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
+/// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
+/// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
 pub fn wr_do_log_tt<T>  (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: T)
 {
     if cfg!(log) {
@@ -65,9 +65,9 @@ pub fn wr_do_log_tt<T>  (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, 
 }
 
 /// # Panics
-/// The expanded expression for the 'line' macro has type `u32`, but the OpenSC logging functions
-/// sc_do_log and sc_do_log_color expect i32 arguments (what a bad developer's decision). Thus we
-/// need a 'i32::try_from'-conversion, which theoretically may panic, but here in practice, will never do.
+/// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
+/// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
+/// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
 pub fn wr_do_log_ttt<T> (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: T, arg3: T)
 {
     if cfg!(log) {
@@ -76,9 +76,9 @@ pub fn wr_do_log_ttt<T> (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, 
 }
 
 /// # Panics
-/// The expanded expression for the 'line' macro has type `u32`, but the OpenSC logging functions
-/// sc_do_log and sc_do_log_color expect i32 arguments (what a bad developer's decision). Thus we
-/// need a 'i32::try_from'-conversion, which theoretically may panic, but here in practice, will never do.
+/// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
+/// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
+/// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
 pub fn wr_do_log_tttt<T>(ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: T, arg3: T, arg4: T)
 {
     if cfg!(log) {
@@ -87,9 +87,9 @@ pub fn wr_do_log_tttt<T>(ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, 
 }
 
 /// # Panics
-/// The expanded expression for the 'line' macro has type `u32`, but the OpenSC logging functions
-/// sc_do_log and sc_do_log_color expect i32 arguments (what a bad developer's decision). Thus we
-/// need a 'i32::try_from'-conversion, which theoretically may panic, but here in practice, will never do.
+/// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
+/// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
+/// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
 pub fn wr_do_log_tu<T,U>      (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: U)
 {
     if cfg!(log) {
@@ -98,9 +98,9 @@ pub fn wr_do_log_tu<T,U>      (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &
 }
 
 /// # Panics
-/// The expanded expression for the 'line' macro has type `u32`, but the OpenSC logging functions
-/// sc_do_log and sc_do_log_color expect i32 arguments (what a bad developer's decision). Thus we
-/// need a 'i32::try_from'-conversion, which theoretically may panic, but here in practice, will never do.
+/// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
+/// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
+/// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
 pub fn wr_do_log_tuv<T,U,V>   (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: U, arg3: V)
 {
     if cfg!(log) {
@@ -109,9 +109,9 @@ pub fn wr_do_log_tuv<T,U,V>   (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &
 }
 
 /// # Panics
-/// The expanded expression for the 'line' macro has type `u32`, but the OpenSC logging functions
-/// sc_do_log and sc_do_log_color expect i32 arguments (what a bad developer's decision). Thus we
-/// need a 'i32::try_from'-conversion, which theoretically may panic, but here in practice, will never do.
+/// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
+/// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
+/// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
 pub fn wr_do_log_tuvw<T,U,V,W>(ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: U, arg3: V, arg4: W)
 {
     if cfg!(log) {
@@ -135,9 +135,9 @@ pub fn wr_do_log_8u8_i32(ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, 
 
 // usage for error return (<0) with: LOG_TEST_RET, LOG_TEST_GOTO_ERR
 /// # Panics
-/// The expanded expression for the 'line' macro has type `u32`, but the OpenSC logging functions
-/// sc_do_log and sc_do_log_color expect i32 arguments (what a bad developer's decision). Thus we
-/// need a 'i32::try_from'-conversion, which theoretically may panic, but here in practice, will never do.
+/// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
+/// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
+/// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
 pub fn wr_do_log_sds(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv: i32/*, arg3: &CStr*/)
 {
     if cfg!(log) {
@@ -148,9 +148,9 @@ pub fn wr_do_log_sds(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv:
 
 // usage for ordinary return with: LOG_FUNC_RETURN
 /// # Panics
-/// The expanded expression for the 'line' macro has type `u32`, but the OpenSC logging functions
-/// sc_do_log and sc_do_log_color expect i32 arguments (what a bad developer's decision). Thus we
-/// need a 'i32::try_from'-conversion, which theoretically may panic, but here in practice, will never do.
+/// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
+/// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
+/// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
 pub fn wr_do_log_rv(ctx: &mut sc_context, f: &CStr, line: u32, rv: i32)
 {
     if cfg!(log) { unsafe {

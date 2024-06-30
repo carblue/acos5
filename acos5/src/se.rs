@@ -151,13 +151,13 @@ pub fn map_scb8_to_acl(card: &mut sc_card, file: &mut sc_file, scb8: [u8; 8], fd
 }
 
 /**
- * Controls 'decoding' of SCB meaning and finally calls sc_file_add_acl_entry
- * @apiNote TODO add SM and logical AND/OR of access control conditions (if OpenSc can handle that)
+ * Controls 'decoding' of SCB meaning and finally calls `sc_file_add_acl_entry`
+ * @apiNote TODO add SM and logical AND/OR of access control conditions (if `OpenSc` can handle that)
  * @param  card  INOUT
- * @param  file  INOUT it's field acl (Access Control List) will get an sc_acl_entry added
+ * @param  file  INOUT it's field acl (Access Control List) will get an `sc_acl_entry` added
  * @param  scb   IN    the Security Condition Byte (SCB) for @param op, as retrieved from FCI; it's pointing to an SE id
- *                     in associated Sec. Env. file, or it's an encoding of either SC_AC_NONE or SC_AC_NEVER
- * @param  op    IN    the operation that @param scb refers to, e.g. SC_AC_OP_READ
+ *                     in associated Sec. Env. file, or it's an encoding of either `SC_AC_NONE` or `SC_AC_NEVER`
+ * @param  op    IN    the operation that @param scb refers to, e.g. `SC_AC_OP_READ`
  */
 //#[allow(clippy::needless_return)]
 fn se_file_add_acl_entry(card: &mut sc_card, file: &mut sc_file, scb: u8, op: u32)
@@ -312,12 +312,12 @@ SCB: 81; [80 01 01  A4 09 83 01 81 83 01 01 95 01 88]                           
 
 
 /**
- * Performs look-up of SCB meaning in the database - HashMap dp.files - based on a search_template
+ * Performs look-up of SCB meaning in the database - `HashMap` dp.files - based on a `search_template`
  * @apiNote
  * @param   card             INOUT
- * @param   file_id          IN    the file_id, for which info is requested; relevant is the SE file info of file_id's directory
- * @param   se_reference     IN    the SE file record's id (3.byte) matching SCB & 0x0F, though 0x0F is RFU for cos5 !
- * @param   search_template  IN    usually searching for CRT_TAG_AT, CRT_TAG_CCT or CRT_TAG_CT_SYM
+ * @param   `file_id`          IN    the `file_id`, for which info is requested; relevant is the SE file info of `file_id`'s directory
+ * @param   `se_reference`     IN    the SE file record's id (3.byte) matching SCB & 0x0F, though 0x0F is RFU for cos5 !
+ * @param   `search_template`  IN    usually searching for `CRT_TAG_AT`, `CRT_TAG_CCT` or `CRT_TAG_CT_SYM`
  * @return  pin/sym. key reference ==  pin/sym. key id (global)  or  pin/sym. key id | 0x80 (local)
  */
 pub fn se_get_references(card: &mut sc_card, file_id: u16, se_reference: u8, search_template: &sc_crt, skip_usage: bool) -> Vec<u32>
@@ -379,11 +379,11 @@ pub fn se_get_references(card: &mut sc_card, file_id: u16, se_reference: u8, sea
 }
 
 /**
- * Performs look-up of SCB meaning in the database - HashMap dp.files - (internal search_templates)
+ * Performs look-up of SCB meaning in the database - `HashMap` dp.files - (internal `search_templates`)
  * @apiNote
  * @param   card             INOUT
- * @param   file_id          IN    the file_id, for which info is requested; relevant is the SE file info of file_id's directory
- * @param   se_reference     IN    the SE file record's id (3.byte) matching SCB & 0x0F, though 0x0F is RFU for cos5 !
+ * @param   `file_id`          IN    the `file_id`, for which info is requested; relevant is the SE file info of `file_id`'s directory
+ * @param   `se_reference`     IN    the SE file record's id (3.byte) matching SCB & 0x0F, though 0x0F is RFU for cos5 !
  * @return  a tuple: 1. elem: whether the CRT templates match the requirements for SM, forcing at least SM mode Authenticity (SM-sign)
                      2. elem: whether there also is a CT template, forcing SM mode Confidentiality (SM-sign + SM-enc)
  */

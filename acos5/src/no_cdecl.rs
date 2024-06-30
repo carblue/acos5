@@ -21,7 +21,6 @@
 //use super::bitintr::Popcnt;
 //#![feature(const_fn)]
 #![allow(clippy::too_many_lines)]
-#![allow(clippy::match_wild_err_arm)]
 
 use std::os::raw::{c_char, c_ulong, c_void};
 use std::ffi::CStr;
@@ -283,7 +282,6 @@ The code differs from the C version in 1 line only, where setting apdu.p2 = 0x0C
 /// # Panics
 ///
 //allow cognitive_complexity: This is almost equal to iso7816_select_file. Thus for easy comparison, don't split this
-//#[allow(clippy::too_many_lines)]
 #[allow(dead_code)] // currently unused
 #[cold]
 fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_out: &mut Option<&mut *mut sc_file>) -> i32
@@ -595,14 +593,17 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Op
 //println!("file_out.is_null: {}", file_out.is_none());
     let file_tmp : Option<&mut *mut sc_file> = if force_process_fci {unsafe{guard_file.as_mut()}} else {file_out};
     #[allow(clippy::unnecessary_unwrap)]
-    let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).select_file.unwrap()(card, path_ref, if file_tmp.is_some() {file_tmp.unwrap()} else {&mut file} ) };
+    let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).select_file.
+        expect("The OpenSC iso7816_driver didn't implement the method 'select_file' !")
+        (card, path_ref, if file_tmp.is_some() {file_tmp.unwrap()} else {&mut file} ) };
 //    let rv = iso7816_select_file_replica(card, path_ref, &mut file_tmp);
-    #[allow(clippy::if_same_then_else)]
-    let mut file_id : u16 =
+    let mut file_id : u16 = 0;
+/*
         if rv==SC_SUCCESS && path_ref.type_ == SC_PATH_TYPE_DF_NAME {
             0//u16::try_from(unsafe { (*(*file_tmp.unwrap())).id } ).unwrap()  // TODO
         }
         else {0};
+*/
     /*
     0x6283, SC_ERROR_CARD_CMD_FAILED, "Selected file invalidated" //// Target file has been blocked but selected
     0x6982, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, "Security status not satisfied" //// Target file has wrong checksum in its header or file is corrupted; probably selected, but inaccessible: test that
@@ -751,7 +752,6 @@ fn get_known_sec_env_entry_v3_fips(is_local: bool, rec_nr: u32, buf: &mut [u8])
  * @param
  * @return
  */
-//#[allow(clippy::too_many_lines)]
 ///
 /// # Panics
 ///
@@ -1034,7 +1034,6 @@ pub const ACL_CATEGORY_SE     : u8 =  4;
 /*
 This MUST match exactly how *mut sc_acl_entry are added in acos5_process_fci or profile.c
 */
-//#[allow(clippy::too_many_lines)]
 ///
 /// # Panics
 /// # Errors
@@ -2088,7 +2087,6 @@ but the other input methods `infile` and `indata` (for acos5_gui) still need to 
 /// # Panics
 ///
 #[allow(non_snake_case)]
-//#[allow(clippy::too_many_lines)]
 pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt) -> i32
 {
     assert!(!card.ctx.is_null());
@@ -2429,11 +2427,11 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
 /// The function ensures, that
 ///   all dp.files[?].2 are Some, and
 ///   all dp.files[?].1[6] are set for internal EF +? (this currently doesn't include detecting file content matches the OpenSC-implemented PKCS#15
-///   conformance; OpenSC is not 2016:ISO/IEC 7816-15 compliant)
+///   conformance; `OpenSC` is not 2016:ISO/IEC 7816-15 compliant)
 ///
 /// Possibly this function will be followed by another one that does the PKCS#15 introspection into files to detect the type, thus moving the
-/// over-complicated code from acos5_gui to the driver and overhaul that
-/// @apiNote  Called from acos5_gui and ? (pccs15_init sanity_check ?)
+/// over-complicated code from `acos5_gui` to the driver and overhaul that
+/// @apiNote  Called from `acos5_gui` and ? (`pccs15_init` `sanity_check` ?)
 /// @param    card
 ///
 /// # Panics

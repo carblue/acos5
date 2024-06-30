@@ -104,7 +104,7 @@ pub fn me_apdu_get_length(apdu: &sc_apdu, proto: u32) -> usize
 }
 */
 
-/// An equivalent copy of: src/libopensc/card.c:  size_t sc_get_max_recv_size(const sc_card_t *card)
+/// An equivalent copy of: src/libopensc/card.c:  `size_t` `sc_get_max_recv_size(const` `sc_card_t` *card)
 /* for acos5_get_response and iso7816_select_file_replica only */
 #[must_use]
 pub fn me_get_max_recv_size(card: &sc_card) -> usize
@@ -333,17 +333,17 @@ PKCS #1: RSA Cryptography Specifications  Version 2.2  https://tools.ietf.org/ht
                                                        http://www.rfc-editor.org/errata/rfc8017
 */
 
-///  Strips PKCS#1-v1.5 padding (BT==0x01); @param in_dat is meant to be signed, using the private part of RSA key pair
-///  @apiNote replaces internals.rs:sc_pkcs1_strip_01_padding, ATTENTION: Intentionally not identical to opensc code !
-///  @param  in_dat  IN Input data for sign operation, having PKCS#1-v1.5 padding (with BT==0x01)
-///  @return         A view into in_dat after stripping (BlockType==0x01) padding, which is DigestInfo, or
+///  Strips PKCS#1-v1.5 padding (BT==0x01); @param `in_dat` is meant to be signed, using the private part of RSA key pair
+///  @apiNote replaces `internals.rs:sc_pkcs1_strip_01_padding`, ATTENTION: Intentionally not identical to opensc code !
+///  @param  `in_dat`  IN Input data for sign operation, having PKCS#1-v1.5 padding (with BT==0x01)
+///  @return         A view into `in_dat` after stripping (BlockType==0x01) padding, which is `DigestInfo`, or
 ///                  if no valid PKCS#1-v1.5 padding for sign operation could be detected, the function returns
-///                  either SC_ERROR_INTERNAL or SC_ERROR_WRONG_PADDING.
-///                  If an error occurs, in_dat may still be: Input data for sign operation, having PKCS#1-PSS padding,
+///                  either `SC_ERROR_INTERNAL` or `SC_ERROR_WRONG_PADDING`.
+///                  If an error occurs, `in_dat` may still be: Input data for sign operation, having PKCS#1-PSS padding,
 ///                  which has format: Let EM = maskedDB || H || 0xbc; (or maybe ISO 9796-2 scheme 1 padding ?)
-///                  if in_dat's last byte is not 0xbc, in_dat's type of data is unknown
+///                  if `in_dat`'s last byte is not 0xbc, `in_dat`'s type of data is unknown
 ///
-/// Example: me_pkcs1_strip_01_padding for in_dat:
+/// Example: `me_pkcs1_strip_01_padding` for `in_dat`:
 /// 0001FFFFFFFFFFFFFFFFFFFFFFFFFFFF FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 /// FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 /// FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF

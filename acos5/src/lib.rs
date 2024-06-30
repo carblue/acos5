@@ -52,17 +52,11 @@ it has a child DF that has been selected.
 
 //#![feature(const_fn)]
 
-#![allow(unused_unsafe)]
-//#![allow(unused_macros)]
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
-#![allow(clippy::doc_markdown)]
-//#![allow(clippy::module_name_repetitions)]
+
 #![allow(clippy::similar_names)]
-//#![allow(clippy::cognitive_complexity)]
 #![allow(clippy::too_many_lines)]
-// #![allow(clippy::too_many_arguments)]
-#![allow(clippy::if_not_else)]
 
 use std::os::raw::{c_char, c_ulong, c_void};
 use std::ffi::CStr;
@@ -233,27 +227,27 @@ mod   test_v2_v3;
 //   for the time being, be explicit using  #[no_mangle] pub extern "C" fn
 
 
-/// A mandatory library export  It MUST BE identical for acos5 and acos5_pkcs15
+/// A mandatory library export  It MUST BE identical for acos5 and `acos5_pkcs15`
 ///
 /// @apiNote
-/// If @return doesn't match the version of OpenSC binary libopensc.so/dll installed, then this library
-/// will be rejected/unloaded immediately by OpenSC; depends on build.rs setup ref. "cargo:rustc-cfg=v0_??_0".
+/// If @return doesn't match the version of `OpenSC` binary libopensc.so/dll installed, then this library
+/// will be rejected/unloaded immediately by `OpenSC`; depends on build.rs setup ref. "cargo:rustc-cfg=v0_??_0".
 ///
 /// Its essential, that this doesn't merely echo, what a call to `sc_get_version` reports:
-/// It is my/developers statement, that the support as reported by sc_driver_version got checked !
-/// Thus, if e.g. a new OpenSC version 0.22.0 got released and if I didn't reflect that in sc_driver_version,
-/// (updating opensc-sys binding and code of acos5 and acos5_pkcs15),
-/// then the driver won't accidentally malfunction for a not yet supported OpenSC environment/version !
+/// It is my/developers statement, that the support as reported by `sc_driver_version` got checked !
+/// Thus, if e.g. a new `OpenSC` version 0.22.0 got released and if I didn't reflect that in `sc_driver_version`,
+/// (updating opensc-sys binding and code of acos5 and `acos5_pkcs15`),
+/// then the driver won't accidentally malfunction for a not yet supported `OpenSC` environment/version !
 ///
-/// The support of not yet released OpenSC code (i.e. gitHub/master) is somewhat experimental:
+/// The support of not yet released `OpenSC` code (i.e. gitHub/master) is somewhat experimental:
 /// Its accuracy depends on how closely the opensc-sys binding and driver code has covered the possible
-/// differences in API and behavior (this function mentions the last OpenSC commit covered).
+/// differences in API and behavior (this function mentions the last `OpenSC` commit covered).
 /// master will be handled as an imaginary new version release:
-/// E.g. while currently the latest release is 0.22.0, build OpenSC from source such that it reports imaginary
-/// version 0.23.0 (change configure.ac; define([PACKAGE_VERSION_MINOR], [23]) )
-/// In this example, cfg!(v0_23_0) will then match that
+/// E.g. while currently the latest release is 0.22.0, build `OpenSC` from source such that it reports imaginary
+/// version 0.23.0 (change configure.ac; define([`PACKAGE_VERSION_MINOR`], [23]) )
+/// In this example, `cfg!(v0_23_0`) will then match that
 ///
-/// @return   The OpenSC release/imaginary version, that this driver implementation supports
+/// @return   The `OpenSC` release/imaginary version, that this driver implementation supports
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = unsafe { sc_get_version() };
@@ -264,8 +258,8 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 
 /// A mandatory library export
 /// @apiNote TODO inspect behavior in multi-threading context
-/// @param   name passed in by OpenSC (acc. opensc.conf: assoc. 'acos5_external' <-> ATR or card_driver acos5_external
-/// @return  function pointer; calling that returns acos5_external's sc_card_driver struct address
+/// @param   name passed in by `OpenSC` (acc. opensc.conf: assoc. `acos5_external` <-> ATR or `card_driver` `acos5_external`
+/// @return  function pointer; calling that returns `acos5_external`'s `sc_card_driver` struct address
 ///
 /// # Safety
 ///
@@ -449,7 +443,7 @@ check operation Mode Byte Setting for V3
 TODO how to set opensc.conf, such that a minimum of trials to match atr is done
 */
 /**
- *  @param  card  sc_card object (treated as *const sc_card)
+ *  @param  `card`  `sc_card` object (treated as *const `sc_card`)
  *  @return 1 on succcess i.e. card did match, otherwise 0
  */
 /*
@@ -581,8 +575,8 @@ what can we rely on, when this gets called:
      a no-match on ATR and nevertheless calls init, thus rule out non-matching ATR card finally here
 */
 /**
- *  @param  card  struct sc_card object
- *  @return SC_SUCCESS or error code from errors.rs
+ *  @param  `card`  struct `sc_card` object
+ *  @return `SC_SUCCESS` or error code from errors.rs
  */
 /*
  * What it does
@@ -590,7 +584,6 @@ what can we rely on, when this gets called:
  * @param
  * @return
  */
-//#[allow(clippy::too_many_lines)]
 extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
@@ -1098,17 +1091,17 @@ println!("sc_update_binary: rv: {}", rv);
 
 /**
   Erases bytes (i.e. sets bytes to value 0x00) in a transparent file, within a chosen range of file's size
-  The underlying card command does that beginning from a start_offset until either end_offset or end of file
-  This OpenSC function has the parameter idx for start_offset, and a parameter 'count' for how many bytes shall be cleared to zero.
+  The underlying card command does that beginning from a `start_offset` until either `end_offset` or end of file
+  This `OpenSC` function has the parameter idx for `start_offset`, and a parameter `count` for how many bytes shall be cleared to zero.
   Use the special value count=0xFFFF (a value far beyond possible file sizes) in order to denote clearing bytes until the end of the file
-  TODO check what happens if end_offset > file's size
+  TODO check what happens if `end_offset` > file's size
 
-@param count indicates the number of bytes to erase
-@return SC_SUCCESS or other SC_..., NO length !
+@param `count` indicates the number of bytes to erase
+@return `SC_SUCCESS` or other SC_..., NO length !
  * @return number of bytes written or an error code
 @requires prior file selection
 
-called only from sc_erase_binary, but that is used nowhere in OpenSC, except in some card drivers, tested in acos5/src/test_v2_v3.rs
+called only from `sc_erase_binary`, but that is used nowhere in `OpenSC`, except in some card drivers, tested in `acos5/src/test_v2_v3.rs`
 */
 extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize, flags: c_ulong) -> i32
 {
@@ -1144,17 +1137,17 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
     }
     else if (scb_erase & 0x40) == 0x40 {
         let res_se_sm = se_get_is_scb_suitable_for_sm_has_ct(card, file_id, scb_erase & 0x0F);
-        if !res_se_sm.0 {
-            log3if!(ctx,f,line!(), c"No erase_binary will be done: The file has acl SM-protected ERASE");
-            SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
-        }
-        else {
+        if res_se_sm.0 {
             // forward to SM processing, no P3==0
             if idx + count > size {
-               count = size - idx;
+                count = size - idx;
             }
             card.sm_ctx.info.cmd = SM_CMD_FILE_UPDATE;
             sm_erase_binary(card, idx, count, flags, res_se_sm.1)
+        }
+        else {
+            log3if!(ctx,f,line!(), c"No erase_binary will be done: The file has acl SM-protected ERASE");
+            SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
         }
     }
     else {
@@ -1197,7 +1190,6 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
  * @param
  * @return
  */
-//#[allow(clippy::too_many_lines)]
 extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr: p_void) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
@@ -1421,8 +1413,8 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_SANITY_CHECK =>
             {
                 match sanity_check(card, unsafe {
-                    if !ctx.app_name.is_null() { CStr::from_ptr(ctx.app_name) }
-                    else { c"" } } )
+                    if ctx.app_name.is_null() { c"" }
+                    else { CStr::from_ptr(ctx.app_name) } } )
                 {
                     Ok(()) => SC_SUCCESS,
                     Err(e) => e,
@@ -1492,7 +1484,6 @@ SW1 SW2   Definition
  * @param  buf
  * @return how many bytes can be expected to be fetched the next time, this function gets called: It's a guess only
  */
-//#[allow(clippy::suspicious_else_formatting)]
 extern "C" fn acos5_get_response(card_ptr: *mut sc_card, count_ptr: *mut usize, buf_ptr: *mut u8) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || count_ptr.is_null() || buf_ptr.is_null() {
@@ -1696,10 +1687,7 @@ extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) 
     let func_ptr = unsafe { (*(*sc_get_iso7816_driver()).ops).create_file.unwrap() };
     rv = unsafe { func_ptr(card, file_ptr) };
 
-    if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), c"Error: failed with", rv);
-    }
-    else {
+    if rv == SC_SUCCESS {
         let file_ref : &sc_file = file;
         let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         dp.files.insert(u16::try_from(file_ref.id).unwrap(),
@@ -1723,6 +1711,9 @@ extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) 
         card.drv_data = Box::into_raw(dp).cast::<c_void>();
 
         log3if!(ctx,f,line!(), c"file_id %04X added to hashmap", file_ref.id);
+    }
+    else {
+        log3ifr!(ctx,f,line!(), c"Error: failed with", rv);
     }
     rv
 }
@@ -1759,7 +1750,7 @@ println!("file_id: {file_id:X} is not a key of hashmap dp.files");
     }
     let x = &dp.files[&file_id];
     let need_to_select_or_process_fci = x.2.is_none() || file_id != file_id_from_cache_current_path(card);
-    let mut scb_delete_self = if !need_to_select_or_process_fci {x.2.unwrap()[6]} else {0xFF};
+    let mut scb_delete_self = if need_to_select_or_process_fci {0xFF} else {x.2.unwrap()[6]};
     Box::leak(dp);
     // card.drv_data = Box::into_raw(dp) as p_void;
 
@@ -1784,13 +1775,13 @@ println!("file_id: {file_id:X} is not a key of hashmap dp.files");
     }
     else if (scb_delete_self & 0x40) == 0x40 { // sc_select_file was done, as SM doesn't accept path.len==2
         let res_se_sm = se_get_is_scb_suitable_for_sm_has_ct(card, file_id, scb_delete_self & 0x0F);
-        if !res_se_sm.0 {
-            log3if!(ctx,f,line!(), c"No delete_file will be done: The file has acl SM-protected DELETE_SELF");
-            rv = SC_ERROR_SECURITY_STATUS_NOT_SATISFIED;
-        }
-        else {
+        if res_se_sm.0 {
             card.sm_ctx.info.cmd = SM_CMD_FILE_DELETE;
             rv = sm_delete_file(card);
+        }
+        else {
+            log3if!(ctx,f,line!(), c"No delete_file will be done: The file has acl SM-protected DELETE_SELF");
+            rv = SC_ERROR_SECURITY_STATUS_NOT_SATISFIED;
         }
     }
     else {
@@ -1802,18 +1793,18 @@ println!("file_id: {file_id:X} is not a key of hashmap dp.files");
         rv = unsafe { func_ptr(card, &path) };
     }
 ////
-    if rv != SC_SUCCESS {
-        log3if!(ctx,f,line!(), c"acos5_delete_file failed. rv: %d", rv);
-    }
-    else {
+    if rv == SC_SUCCESS {
         let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         let rm_result = dp.files.remove(&file_id);
         assert!(rm_result.is_some());
         card.drv_data = Box::into_raw(dp).cast::<c_void>();
         assert!(card.cache.current_path.len > 2);
         card.cache.current_path.len   -= 2;
-//println!("acos5_delete_file  card.cache.current_path: {:X?}", &card.cache.current_path.value[..card.cache.current_path.len]);
+        //println!("acos5_delete_file  card.cache.current_path: {:X?}", &card.cache.current_path.value[..card.cache.current_path.len]);
         log3if!(ctx,f,line!(), c"file_id %04X deleted from hashmap", file_id);
+    }
+    else {
+        log3if!(ctx,f,line!(), c"acos5_delete_file failed. rv: %d", rv);
     }
     rv
 }
@@ -2195,7 +2186,6 @@ println!("Failure: Non-match in let acl_category. file_ref.type_: {}", file_ref.
  * @param
  * @return
  */
-//#[allow(clippy::too_many_lines)]
 extern "C" fn acos5_pin_cmd(card_ptr: *mut sc_card, data_ptr: *mut sc_pin_cmd_data, tries_left_ptr: *mut i32) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } /*|| data_ptr.is_null()*/ {
@@ -2237,16 +2227,16 @@ extern "C" fn acos5_pin_cmd(card_ptr: *mut sc_card, data_ptr: *mut sc_pin_cmd_da
             else if (scb_verify & 0x40) == 0x40  &&  SC_AC_CHV == pin_cmd_data.pin_type {
                 let res_se_sm = se_get_is_scb_suitable_for_sm_has_ct(card, file_id, scb_verify & 0x1F);
 //println!("res_se_sm: {:?}", res_se_sm);
-                if !res_se_sm.0 {
+                if res_se_sm.0 {
+                    card.sm_ctx.info.cmd = SM_CMD_PIN;
+                    sm_pin_cmd_get_policy(card, pin_cmd_data,
+                                          if tries_left_ptr.is_null() { &mut dummy_tries_left }
+                                          else { unsafe { &mut *tries_left_ptr } })
+                }
+                else {
                     log3if!(ctx,f,line!(),
                         c"SC_PIN_CMD_GET_INFO won't be done: It's SM protected, but the CRT template(s) don't accomplish requirements");
                     SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
-                }
-                else { /*let rv =*/
-                    card.sm_ctx.info.cmd = SM_CMD_PIN;
-                    sm_pin_cmd_get_policy(card, pin_cmd_data,
-                        if tries_left_ptr.is_null() { &mut dummy_tries_left }
-                        else { unsafe { &mut *tries_left_ptr } })
                 }
             }
             else {
@@ -2363,25 +2353,25 @@ println!();
                 let res_se_sm = se_get_is_scb_suitable_for_sm_has_ct(card, file_id, scb_verify & 0x1F);
 //println!("res_se_sm: {:?}", res_se_sm);
                 // TODO think about whether SM mode Confidentiality should be enforced
-                if !res_se_sm.0 {
+                if res_se_sm.0 {
+                    card.sm_ctx.info.cmd = SM_CMD_PIN_VERIFY;
+                    /*let rv =*/ sm_pin_cmd(card, pin_cmd_data, if tries_left_ptr.is_null() { &mut dummy_tries_left }
+                    else { unsafe { &mut *tries_left_ptr } }, res_se_sm.1)
+                    /*
+                    println!("SC_PIN_CMD_VERIFY: after execution:");
+                    println!("pin_cmd_data.pin1.offset:          {}", pin_cmd_data.pin1.offset);
+                    println!("pin_cmd_data.pin1.length_offset:   {}", pin_cmd_data.pin1.length_offset);
+                    println!("pin_cmd_data.pin1.max_tries:   {}", pin_cmd_data.pin1.max_tries);
+                    println!("pin_cmd_data.pin1.tries_left:  {}", pin_cmd_data.pin1.tries_left);
+                    println!("pin_cmd_data.pin1.logged_in:   {}", pin_cmd_data.pin1.logged_in);
+                    println!();
+                                        rv
+                    */
+                }
+                else {
                     log3if!(ctx,f,line!(), c"SC_PIN_CMD_VERIFY won't be done: It's SM protected, but the CRT }\
                         template(s) don't accomplish requirements");
                     SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
-                }
-                else {
-                    card.sm_ctx.info.cmd = SM_CMD_PIN_VERIFY;
-                    /*let rv =*/ sm_pin_cmd(card, pin_cmd_data, if tries_left_ptr.is_null() { &mut dummy_tries_left }
-                        else { unsafe { &mut *tries_left_ptr } }, res_se_sm.1)
-/*
-println!("SC_PIN_CMD_VERIFY: after execution:");
-println!("pin_cmd_data.pin1.offset:          {}", pin_cmd_data.pin1.offset);
-println!("pin_cmd_data.pin1.length_offset:   {}", pin_cmd_data.pin1.length_offset);
-println!("pin_cmd_data.pin1.max_tries:   {}", pin_cmd_data.pin1.max_tries);
-println!("pin_cmd_data.pin1.tries_left:  {}", pin_cmd_data.pin1.tries_left);
-println!("pin_cmd_data.pin1.logged_in:   {}", pin_cmd_data.pin1.logged_in);
-println!();
-                    rv
-*/
                 }
             }
             else {
@@ -2415,15 +2405,15 @@ println!();
                 let res_se_sm = se_get_is_scb_suitable_for_sm_has_ct(card, file_id, scb_change_code & 0x1F);
 //println!("res_se_sm: {:?}", res_se_sm);
                 // TODO think about whether SM mode Confidentiality should be enforced
-                if !res_se_sm.0 {
+                if res_se_sm.0 {
+                    card.sm_ctx.info.cmd = SM_CMD_PIN_SET_PIN; /*let rv =*/
+                    sm_pin_cmd(card, pin_cmd_data, if tries_left_ptr.is_null() { &mut dummy_tries_left }
+                    else { unsafe { &mut *tries_left_ptr } }, res_se_sm.1)
+                }
+                else {
                     log3if!(ctx,f,line!(), c"SC_PIN_CMD_CHANGE won't be done: It's SM protected, but the CRT \
                         template(s) don't accomplish requirements");
                     SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
-                }
-                else {
-                    card.sm_ctx.info.cmd = SM_CMD_PIN_SET_PIN; /*let rv =*/
-                    sm_pin_cmd(card, pin_cmd_data, if tries_left_ptr.is_null() { &mut dummy_tries_left }
-                        else { unsafe { &mut *tries_left_ptr } }, res_se_sm.1)
                 }
             }
             else {
@@ -2457,15 +2447,15 @@ println!();
                 let res_se_sm = se_get_is_scb_suitable_for_sm_has_ct(card, file_id, scb_unblock_pin & 0x1F);
 //println!("res_se_sm: {:?}", res_se_sm);
                 // TODO think about whether SM mode Confidentiality should be enforced
-                if !res_se_sm.0 {
+                if res_se_sm.0 {
+                    card.sm_ctx.info.cmd = SM_CMD_PIN_RESET; /*let rv =*/
+                    sm_pin_cmd(card, pin_cmd_data, if tries_left_ptr.is_null() { &mut dummy_tries_left }
+                    else { unsafe { &mut *tries_left_ptr } }, res_se_sm.1)
+                }
+                else {
                     log3if!(ctx,f,line!(), c"SC_PIN_CMD_CHANGE won't be done: It's SM protected, but the CRT \
                         template(s) don't accomplish requirements");
                     SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
-                }
-                else {
-                    card.sm_ctx.info.cmd = SM_CMD_PIN_RESET; /*let rv =*/
-                    sm_pin_cmd(card, pin_cmd_data, if tries_left_ptr.is_null() { &mut dummy_tries_left }
-                        else { unsafe { &mut *tries_left_ptr } }, res_se_sm.1)
                 }
             }
             else {
@@ -2488,14 +2478,14 @@ println!();
  */
 /// Reads an RSA or EC public key file and outputs formatted as DER
 /// wrong documentation
-/// @param  card       INOUT
-/// @param  algorithm  IN     Number of bytes available in buf from position buf onwards\
-/// @param  key_path   OUT    Receiving address for: Class\
-/// @param  tag_out  OUT    Receiving address for: Tag\
-/// @param  taglen   OUT    Receiving address for: Number of bytes available in V\
-/// @return          SC_SUCCESS or error code\
-/// On error, buf may have been set to NULL, and (except on SC_ERROR_ASN1_END_OF_CONTENTS) no OUT param gets set\
-/// OUT tag_out and taglen are guaranteed to have values set on SC_SUCCESS (cla_out only, if also (buf[0] != 0xff && buf[0] != 0))\
+/// @param  `card`       INOUT
+/// @param  `algorithm`  IN     Number of bytes available in buf from position buf onwards\
+/// @param  `key_path`   OUT    Receiving address for: Class\
+/// @param  `tag_out`  OUT    Receiving address for: Tag\
+/// @param  `taglen`   OUT    Receiving address for: Number of bytes available in V\
+/// @return          `SC_SUCCESS`  or error code\
+/// On error, buf may have been set to NULL, and (except on `SC_ERROR_ASN1_END_OF_CONTENTS`) no OUT param gets set\
+/// OUT `tag_out` and `taglen` are guaranteed to have values set on `SC_SUCCESS`  (`cla_out` only, if also (buf[0] != 0xff && buf[0] != 0))\
 extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
                                     algorithm: u32,
                                     key_path_ptr: *mut sc_path,
@@ -2673,7 +2663,6 @@ fn read_public_key_ec(card: &mut sc_card,
     SC_SUCCESS
 }
 
-//#[allow(clippy::too_many_lines)]
 extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const sc_security_env, _se_num: i32) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || env_ref_ptr.is_null() {
@@ -3124,8 +3113,6 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
  * @param
  * @return  error code (neg. value) or number of bytes written into out
  */
-//#[allow(clippy::suspicious_else_formatting)]
-//#[allow(clippy::too_many_lines)]
 extern "C" fn acos5_compute_signature(card_ptr: *mut sc_card, data_ref_ptr: *const u8, data_len: usize,
                                                                    out_ptr:   *mut u8,   outlen: usize) -> i32
 {
@@ -3152,11 +3139,9 @@ extern "C" fn acos5_compute_signature(card_ptr: *mut sc_card, data_ref_ptr: *con
         log3ifr!(ctx,f,line!(), c"returning with: Inadmissible data_len !", rv);
         return rv;
     }
-    #[allow(non_snake_case)]
-    let digestAlgorithm_sha1      =
+    let digest_algorithm_sha1      =
     [0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x04, 0x14];
-    #[allow(non_snake_case)]
-    let digestAlgorithm_sha256    =
+    let digest_algorithm_sha256    =
     [0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20];
     // #[allow(non_snake_case)]
     // let digestAlgorithm_sha512    =
@@ -3168,10 +3153,10 @@ extern "C" fn acos5_compute_signature(card_ptr: *mut sc_card, data_ref_ptr: *con
        if data_len==32, assume it's a SHA-256 digest and prepend digestAlgorithm
      */
     if      data_len == 20 {
-        vec_in.extend_from_slice(&digestAlgorithm_sha1[..]);
+        vec_in.extend_from_slice(&digest_algorithm_sha1[..]);
     }
     else if data_len == 32 {
-        vec_in.extend_from_slice(&digestAlgorithm_sha256[..]);
+        vec_in.extend_from_slice(&digest_algorithm_sha256[..]);
     }
     vec_in.extend_from_slice(unsafe { from_raw_parts(data_ref_ptr, data_len) });
 
@@ -3202,8 +3187,8 @@ Trick: cache last security env setting, retrieve file id (priv) and deduce key l
 */
                     }
                     if [35, 51].contains(&vec_in.len()) /* TODO && &vec_in[0..15] != digestAlgorithm_ripemd160*/ {
-                        if (vec_in.len() == 35 && vec_in[0..15] == digestAlgorithm_sha1) ||
-                           (vec_in.len() == 51 && vec_in[0..19] == digestAlgorithm_sha256)
+                        if (vec_in.len() == 35 && vec_in[0..15] == digest_algorithm_sha1) ||
+                           (vec_in.len() == 51 && vec_in[0..19] == digest_algorithm_sha256)
                         {
                             vec_in.as_slice()
                         }
@@ -3234,11 +3219,11 @@ Trick: cache last security env setting, retrieve file id (priv) and deduce key l
     // id_rsassa_pkcs1_v1_5_with_sha512_256 and id_rsassa_pkcs1_v1_5_with_sha3_256 also have a digest_info.len() == 51
 
     if  ( digest_info.len() == 35 /*SHA-1*/ || digest_info.len() == 51 /*SHA-256*/ /*|| digest_info.len() == 83 / *SHA-512* / */ )  && // this first condition is superfluous but get's a faster decision in many cases
-        ((digest_info.len() == 35 && digest_info[..15]==digestAlgorithm_sha1)   ||
-         (digest_info.len() == 51 && digest_info[..19]==digestAlgorithm_sha256) /* ||
+        ((digest_info.len() == 35 && digest_info[..15]==digest_algorithm_sha1)   ||
+         (digest_info.len() == 51 && digest_info[..19]==digest_algorithm_sha256) /* ||
          (digest_info.len() == 83 && digest_info[..19]==digestAlgorithm_sha512) */ )
     {
-//println!("acos5_compute_signature: digest_info.len(): {}, digest_info[..15]==digestAlgorithm_sha1[..]: {}, digest_info[..19]==digestAlgorithm_sha256[..]: {}", digest_info.len(), digest_info[..15]==digestAlgorithm_sha1[..], digest_info[..19]==digestAlgorithm_sha256[..]);
+//println!("acos5_compute_signature: digest_info.len(): {}, digest_info[..15]==digest_algorithm_sha1[..]: {}, digest_info[..19]==digest_algorithm_sha256[..]: {}", digest_info.len(), digest_info[..15]==digest_algorithm_sha1[..], digest_info[..19]==digest_algorithm_sha256[..]);
         #[cfg(iup_user_consent)]
         {
             if get_ui_ctx(card).user_consent_enabled == 1 {

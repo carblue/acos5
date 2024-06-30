@@ -24,12 +24,12 @@
 #![allow(dead_code, non_upper_case_globals/*, non_camel_case_types, non_snake_case*/)]
 
 /**
- * libtasn1:Short_Description:
+ * `libtasn1:Short_Description`:
  *
  * GNU ASN.1 library
  */
 /**
- * libtasn1:Long_Description:
+ * `libtasn1:Long_Description`:
  *
  * The Libtasn1 library provides Abstract Syntax Notation One (ASN.1, as
  * specified by the X.680 ITU-T recommendation) parsing and structures
@@ -73,35 +73,35 @@ use std::os::raw::{c_uchar, c_char, c_uint, c_int, c_ulong, c_long, c_void};
 use std::ptr::null;
 
 /**
- * ASN1_VERSION:
+ * `ASN1_VERSION`:
  *
  * Version of the library as a string.
  */
 pub const ASN1_VERSION: &[u8; 7_usize] = b"4.16.0\0";
 
 /**
- * ASN1_VERSION_MAJOR:
+ * `ASN1_VERSION_MAJOR`:
  *
  * Major version number of the library.
  */
 pub const ASN1_VERSION_MAJOR: u32 = 4;
 
 /**
- * ASN1_VERSION_MINOR:
+ * `ASN1_VERSION_MINOR`:
  *
  * Minor version number of the library.
  */
 pub const ASN1_VERSION_MINOR: u32 = 16;
 
 /**
- * ASN1_VERSION_PATCH:
+ * `ASN1_VERSION_PATCH`:
  *
  * Patch version number of the library.
  */
 pub const ASN1_VERSION_PATCH: u32 = 0;
 
 /**
- * ASN1_VERSION_NUMBER:
+ * `ASN1_VERSION_NUMBER`:
  *
  * Version number of the library as a number.
  */
@@ -187,7 +187,7 @@ pub const ASN1_TAG_UTF8_STRING      : u32 = 0x0C;
 pub const ASN1_TAG_VISIBLE_STRING   : u32 = 0x1A;
 
 /**
- * asn1_node:
+ * `asn1_node`:
  *
  * Structure definition used for the node of the tree
  * that represents an ASN.1 DEFINITION.
@@ -204,7 +204,7 @@ pub type asn1_node = *mut asn1_node_st;
 pub type asn1_node_const = *const asn1_node_st;
 
 /**
- * ASN1_MAX_NAME_SIZE:
+ * `ASN1_MAX_NAME_SIZE`:
  *
  * Maximum number of characters of a name
  * inside a file with ASN1 definitions.
@@ -213,12 +213,12 @@ pub const ASN1_MAX_NAME_SIZE: u32 = 64;
 
 
 /**
- * asn1_static_node:
+ * `asn1_static_node`:
  * @name: Node name
  * @type: Node typ
  * @value: Node value
  *
- * For the on-disk format of ASN.1 trees, created by asn1_parser2array().
+ * For the on-disk format of ASN.1 trees, created by `asn1_parser2array()`.
  */
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -281,34 +281,34 @@ pub const ASN1_ETYPE_UTC_TIME: u32 = 36;
 pub const ASN1_ETYPE_GENERALIZED_TIME: u32 = 37;
 
 /**
- * ASN1_DELETE_FLAG_ZEROIZE:
+ * `ASN1_DELETE_FLAG_ZEROIZE`:
  *
- * Used by: asn1_delete_structure2()
+ * Used by: `asn1_delete_structure2()`
  *
  * Zeroize values prior to deinitialization.
  */
 pub const ASN1_DELETE_FLAG_ZEROIZE: u32 = 1;
 
 /**
- * ASN1_DECODE_FLAG_ALLOW_PADDING:
+ * `ASN1_DECODE_FLAG_ALLOW_PADDING`:
  *
- * Used by: asn1_der_decoding2()
+ * Used by: `asn1_der_decoding2()`
  *
  * This flag would allow arbitrary data past the DER data.
  */
 pub const ASN1_DECODE_FLAG_ALLOW_PADDING: u32 = 1;
 /**
- * ASN1_DECODE_FLAG_STRICT_DER:
+ * `ASN1_DECODE_FLAG_STRICT_DER`:
  *
- * Used by: asn1_der_decoding2()
+ * Used by: `asn1_der_decoding2()`
  *
  * This flag would ensure that no BER decoding takes place.
  */
 pub const ASN1_DECODE_FLAG_STRICT_DER: u32 = 2;
 /**
- * ASN1_DECODE_FLAG_ALLOW_INCORRECT_TIME:
+ * `ASN1_DECODE_FLAG_ALLOW_INCORRECT_TIME`:
  *
- * Used by: asn1_der_decoding2()
+ * Used by: `asn1_der_decoding2()`
  *
  * This flag will tolerate Time encoding errors when in strict DER.
  */
@@ -316,13 +316,13 @@ pub const ASN1_DECODE_FLAG_ALLOW_INCORRECT_TIME: u32 = 4;
 
 
 /**
- * asn1_data_node_st:
+ * `asn1_data_node_st`:
  * @name: Node name
  * @value: Node value
- * @value_len: Node value size
- * @type: Node value type (ASN1_ETYPE_*)
+ * @`value_len`: Node value size
+ * @type: Node value type (`ASN1_ETYPE`_*)
  *
- * Data node inside a #asn1_node structure.
+ * Data node inside a #`asn1_node` structure.
  */
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -338,7 +338,7 @@ pub struct asn1_data_node_st {
 /***********************************/
 
 /**
- * ASN1_MAX_ERROR_DESCRIPTION_SIZE:
+ * `ASN1_MAX_ERROR_DESCRIPTION_SIZE`:
  *
  * Maximum number of characters
  * of a description message

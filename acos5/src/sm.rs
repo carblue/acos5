@@ -549,7 +549,7 @@ pub fn sm_common_read(card: &mut sc_card,
     let hdr =
         if bin {
             let idx_arr : [u8; 2] = idx.to_be_bytes();
-            [0x89_u8,4, if fdb!=9 {0x0C}else{0x8C}, if fdb!=9 {0xB0}else{0xCA}, idx_arr[0],idx_arr[1], 0x97,1,len_read]
+            [0x89_u8,4, if fdb==9 {0x8C} else {0x0C}, if fdb==9 {0xCA} else {0xB0}, idx_arr[0],idx_arr[1], 0x97,1,len_read]
         }
         else {
             assert!(idx<32);
@@ -1149,12 +1149,12 @@ pub fn sm_pin_cmd_get_policy(card: &mut sc_card,
 ////println!("mac_resp:                 {:X?}", mac_resp);
     log3ift!(ctx,f,line!(), c"mac_resp verification: [%02X %02X %02X %02X]",
         mac_resp[0], mac_resp[1], mac_resp[2], mac_resp[3]);
-    if rbuf[6..10] != mac_resp[..4] {
-        rv = SC_ERROR_SM;
-    }
-    else {
+    if rbuf[6..10] == mac_resp[..4] {
         pin_cmd_data.pin1.tries_left = i32::from(rbuf[3] & 0x0F); //  63 Cnh     n is remaining tries
         *tries_left = pin_cmd_data.pin1.tries_left;
+    }
+    else {
+        rv = SC_ERROR_SM;
     }
     log3ifr!(ctx,f,line!(), rv);
     rv

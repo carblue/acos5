@@ -380,7 +380,7 @@ impl Fci {
     */
 /// # Panics
 /// All Reference Manuals are congruent about:
-/// Tag 0x82 (ISO7816_TAG_FCP_TYPE) is followed by either 1,2,5 or 6 bytes !
+/// Tag 0x82 (`ISO7816_TAG_FCP_TYPE`) is followed by either 1,2,5 or 6 bytes !
 /// Thus, the assert macro should never emit a panic !
 /// Similar for the other asserts or unreachable etc. macros:
 /// According to the Reference Manual, correct working of the card operating system
@@ -743,7 +743,6 @@ impl Default for CardCtlSymCrypt {
 
 /////////////////////////////////////////////////////////////////////////////////
 /* Stores 1 record of Security Environment File, intended to be placed in a Vec, stored with the DF */
-//#[allow(clippy::upper_case_acronyms)]
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub struct SACinfo /*SeInfo*/ {
@@ -779,7 +778,6 @@ pub struct SCDO { // for SCDO_TAGs Always_Deny ..AuthT every scdo content is in 
 
 /* Stores SAE information for an instruction from <AMDO><SCDO> simple-TLV, intended to be placed in a Vec, stored with the DF
    TODO SCDO Tags 0xA0 and 0xAF are not yet covered */
-//#[allow(clippy::upper_case_acronyms)]
 #[allow(non_snake_case)]
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
@@ -854,10 +852,10 @@ pub fn is_DFMF(fdb: u8) -> bool
     (fdb & FDB_DF) == FDB_DF
 }
 
-/// Wraps sc_bytes2apdu
+/// Wraps `sc_bytes2apdu`
 ///
 /// Additionally, it
-/// 1. Asserts SC_SUCCESS of call to sc_bytes2apdu
+/// 1. Asserts `SC_SUCCESS` of call to `sc_bytes2apdu`
 /// 2. Asserts, that the provided argument `cse` actually got assigned to apdu.cse
 /// 3. If rbuf is not empty, then it assigns the provided argument `rbuf` to apdu.resp and apdu.resplen
 ///
