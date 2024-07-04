@@ -81,18 +81,12 @@ cfg_if::cfg_if! {
         pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
     }
 }
-// cfg_if::cfg_if! {
-//     if #[cfg(sym_hw_encrypt)] {
-//        pub const SC_SEC_OPERATION_ENCRYPT_SYM  : i32 = 0x0007;
-//        pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
-//     }
-// }
 
 /* sc_security_env flags */
 pub const SC_SEC_ENV_ALG_REF_PRESENT         : c_ulong = 0x0001;
 pub const SC_SEC_ENV_FILE_REF_PRESENT        : c_ulong = 0x0002;
 pub const SC_SEC_ENV_KEY_REF_PRESENT         : c_ulong = 0x0004;
-pub const SC_SEC_ENV_KEY_REF_SYMMETRIC       : c_ulong = 0x0008;
+pub const SC_SEC_ENV_KEY_REF_SYMMETRIC       : c_ulong = 0x0008; // when will this be used?
 pub const SC_SEC_ENV_ALG_PRESENT             : c_ulong = 0x0010;
 pub const SC_SEC_ENV_TARGET_FILE_REF_PRESENT : c_ulong = 0x0020;  /* unused */
 
@@ -1286,22 +1280,13 @@ pub struct sc_card_operations {
 
     pub wrap : Option< unsafe extern "C" fn (card: *mut sc_card, out: *mut u8, outlen: usize) -> i32 >,
 
-   pub unwrap : Option< unsafe extern "C" fn (card: *mut sc_card, crgram: *const u8, crgram_len: usize) -> i32 >,
+    pub unwrap : Option< unsafe extern "C" fn (card: *mut sc_card, crgram: *const u8, crgram_len: usize) -> i32 >,
 
     #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
     pub encrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, plaintext: *const u8, plaintext_len: usize, out: *mut u8, outlen: *mut usize) -> i32 >,
 
     #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
     pub decrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, EncryptedData: *const u8, EncryptedDataLen: usize, out: *mut u8, outlen: *mut usize) -> i32 >,
-/*
-    #[cfg(sym_hw_encrypt)]
-    pub encrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, plaintext: *const u8, plaintext_len: usize, out: *mut u8, outlen: usize,
-                                                    algorithm: u32, algorithm_flags: u32, key_ref: *const [u8; 8]) -> i32 >,
-
-    #[cfg(sym_hw_encrypt)]
-    pub decrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, crgram: *const u8, crgram_len: usize, out: *mut u8, outlen: usize,
-                                                    algorithm: u32, algorithm_flags: u32, key_ref: *const [u8; 8]) -> i32 >,
-*/
 }
 
 #[repr(C)]
@@ -2079,17 +2064,6 @@ pub fn sc_encrypt_sym(card: *mut sc_card, Data: *const u8, DataLen: usize, out: 
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
 pub fn sc_decrypt_sym(card: *mut sc_card, EncryptedData: *const u8, EncryptedDataLen: usize,
                       out: *mut u8, outlen: *mut usize) -> i32;
-
-/*
-#[cfg(sym_hw_encrypt)]
-pub fn sc_encrypt_sym(card: *mut sc_card, plaintext: *const u8, plaintext_len: usize,
-    out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32,
-    key_ref: *const [u8; 8]) -> i32;
-#[cfg(sym_hw_encrypt)]
-pub fn sc_decrypt_sym(card: *mut sc_card, crgram: *const u8, crgram_len: usize,
-    out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32,
-    key_ref: *const [u8; 8]) -> i32;
-*/
 
 /********************************************************************/
 /*               ISO 7816-9 related functions                       */

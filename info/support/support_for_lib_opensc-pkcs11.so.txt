@@ -1,7 +1,7 @@
 
 Much is known to work, but not all tested so far
 
-OpenSC: CKR_FUNCTION_NOT_SUPPORTED : as of version 0.21.0
+OpenSC: CKR_FUNCTION_NOT_SUPPORTED : as of version 0.25.0
 
 How to interpret the following: Usually, functionality/ functions like e.g. C_Login is used by calls into opensc-plcs11.so/.dll etc.
 If OpenSC doesn't support a function (CKR_FUNCTION_NOT_SUPPORTED), then there usually is no implementation in the driver either, but
@@ -10,11 +10,10 @@ libopensc's sc_card_ctl function. Look at src/constants_types.rs and import that
 functionality accessible from the driver directly (it's extensively used by acos5_gui).
 Some of the following functions require acos5_pkcs15 to be installed and configured in opensc.conf in order to be operational.
 
-It's not detailed here, that some support may be only partial: E.g. C_Decrypt is supported by OpenSC only referring to asym. key algorithms RSA and ECC
+It's not detailed here, that some support may be only partial: E.g. C_Decrypt was supported by OpenSC only referring to asym. key algorithms RSA and ECC
 
-Note that "symmetric on-card crypto" beyond C_UnwrapKey, C_WrapKey is not yet available from OpenSC, but inofficially from my branch
-https://github.com/carblue/OpenSC-1/tree/sym_hw_encrypt
-for: C_EncryptInit, C_Encrypt, C_DecryptInit, C_Decrypt for AES: ECB, CBC, CBC_PAD
+Note that "symmetric on-card crypto" beyond C_UnwrapKey, C_WrapKey is available from OpenSC since version 0.23.0 for:
+C_EncryptInit, C_Encrypt, C_DecryptInit, C_Decrypt for AES: ECB, CBC, CBC_PAD
 ------------------------------------------------------------------------------------------
 user@host:~$ nm -D /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so
 

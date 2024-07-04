@@ -1,8 +1,5 @@
-/* mmain_RO_sym_decrypt.rs : do hardware/on-card symmetric decryption with an AES key */
-/* This example requires existence of an AES key on card and listed in SKDF **AND**
-    requires OpenSC code from my dev branch (it's on top of current OpenSC master)  at
-    https://github.com/carblue/OpenSC-1/tree/sym_hw_encrypt
-    and requires compiler switch --cfg sym_hw_encrypt  in opensc_sys and acos5 and acos5_pkcs15 build.rs
+/* main_RO_sym_decrypt.rs : do hardware/on-card symmetric decryption with an AES key */
+/* This example requires existence of an AES key on card and listed in SKDF
 
    Functions used:
    C_Initialize
@@ -28,7 +25,7 @@ use pkcs11::{Ctx, errors::Error};
 use pkcs11::types::{CKF_SERIAL_SESSION, CKU_USER,CK_OBJECT_CLASS, CK_ATTRIBUTE, CKA_ENCRYPT,
                     CKA_DECRYPT, CK_VOID_PTR, CKA_CLASS, CK_OBJECT_HANDLE, CK_BYTE, CKA_KEY_TYPE,
                     CK_KEY_TYPE, CK_BBOOL, CKO_SECRET_KEY, CKA_TOKEN, CKR_ENCRYPTED_DATA_LEN_RANGE,
-                    CK_MECHANISM, CKK_AES, CK_TRUE, CKM_AES_CBC_PAD, CKM_AES_CBC, CKM_AES_ECB
+                    CK_MECHANISM, CKK_AES, CK_TRUE, CKM_AES_CBC_PAD//, CKM_AES_CBC, CKM_AES_ECB
 };
 
 
@@ -147,10 +144,12 @@ fn main() -> Result<(), Error> {
         0xC2, 0xDC, 0xB0, 0x66, 0x74, 0xA9, 0x27, 0x63, 0xC5, 0x74, 0x66, 0xF7, 0xEB, 0x1B, 0x49, 0x0F
 /* */
     ];
+//println!("encrypted:\n{:02X?}", encrypted_data);
     let mut decrypted = ctx.decrypt(session, &encrypted_data)?; // -> Result<Vec<CK_BYTE>, Error>
+//println!("decrypted:\n{:02X?}", decrypted);
 
-    // remove padding PKCS#7
     if !decrypted.is_empty() && mechanism.mechanism != CKM_AES_CBC_PAD {
+        // remove padding PKCS#7
         // BLOCKCIPHER_PAD_TYPE_PKCS7
         let pad_byte = decrypted[decrypted.len()-1];
         if pad_byte > 16 || pad_byte == 0  { return Err(Error::Pkcs11(CKR_ENCRYPTED_DATA_LEN_RANGE)) }
@@ -163,7 +162,7 @@ fn main() -> Result<(), Error> {
         decrypted.truncate(decrypted.len()-count_pad_byte);
     }
 
-println!("{:02X?}", decrypted);
+//println!("decrypted:\n{:02X?}", decrypted);
 
     ctx.logout(session)?;
     ctx.close_session(session)

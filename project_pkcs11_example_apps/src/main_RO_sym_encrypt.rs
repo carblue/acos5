@@ -1,8 +1,6 @@
 /* main_RO_sym_encrypt.rs : do hardware/on-card symmetric encryption with an AES key */
-/* This example requires existence of an AES key on card and listed in SKDF **AND**
-    requires OpenSC code from my dev branch (it's on top of current OpenSC master)  at
-    https://github.com/carblue/OpenSC-1/tree/sym_hw_encrypt
-    and requires compiler switch --cfg sym_hw_encrypt  in opensc_sys and acos5 and acos5_pkcs15 build.rs
+/* This example requires existence of an AES key on card and listed in SKDF
+
    Functions used:
    C_Initialize
    C_GetSlotList

@@ -89,7 +89,6 @@ and activate line:
 //println!("cargo:rustc-cfg=ifd_serial_constrained_for_sm");
 Obviously this makes sense only, if You have no more than 1 ACOS5 token with SM enabled.
 
-//println!("cargo:rustc-cfg=sym_hw_encrypt"); // experimental only: May be enabled **only** with OpenSC compiled and installed from my branch https://github.com/carblue/OpenSC-1/tree/sym_hw_encrypt ; that is current OpenSC github master 0e55a34 + on top my patches  
 //println!("cargo:rustc-cfg=rsa_key_gen_verbose"); // enable to print to console some info while generating RSA key pair (see function acos5_pkcs15/src/lib.rs: acos5_pkcs15_create_key)  
 //println!("cargo:rustc-cfg=finish_verbose"); // enable to print to console some info short before finishing driver process (see function acos5_finish)
 

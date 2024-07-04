@@ -222,10 +222,8 @@ pub const SC_SEC_OPERATION_AUTHENTICATE : i32 = 0x0003;
 pub const SC_SEC_OPERATION_DERIVE       : i32 = 0x0004;
 pub const SC_SEC_OPERATION_WRAP         : i32 = 0x0005;
 pub const SC_SEC_OPERATION_UNWRAP       : i32 = 0x0006;
-//#[cfg(sym_hw_encrypt)]
-//pub const SC_SEC_OPERATION_ENCRYPT_SYM  : i32 = 0x0007;
-//#[cfg(sym_hw_encrypt)]
-//pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
+pub const SC_SEC_OPERATION_ENCRYPT_SYM  : i32 = 0x0007;
+pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
 
 */
 //pub const SC_SEC_OPERATION_ENCIPHER : i32 = 0x0009;

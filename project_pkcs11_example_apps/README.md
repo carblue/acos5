@@ -4,18 +4,19 @@ https://www.rust-lang.org/tools/install
 
 It uses crate pkcs11, which encapsulates all calls to cryptoki, thus You won't see any calls like C_Initialize etc.
 in the first place.
+Currently I'm about to change from crate pkcs11 to crate cryptoki.
 We need to name the cryptoki library - here opensc-pkcs11.so - or it's alternate namings for other OS: 
 let ctx = Ctx::new_and_initialize("opensc-pkcs11.so")?;
 
 It's assumed that driver components libacos5.so *AND* libacos5_pkcs15.so are installed and opensc.conf updated to use them.
-But the code may be used as well for any card supported by OpenSC.
+But, the code may be used as well for any card supported by OpenSC.
 
 All applications "C_Login" into Your card as User with PIN 12345678:
 Either change Your card's User PIN temporarily to "12345678" or change the source code with Your actual User PIN.
 
 
 The src/ directory contains several main_* files, each for a different application, some don't change card content
-(main_RO*), while others do so (main_RW*). Currently:
+(main_RO*), while others do so, ReadWrite (main_RW*). Currently:
 
 main.rs == main_RO_inspect_keys.rs  
 main_RW_create_key_pair.rs  
@@ -45,12 +46,9 @@ trial encryption/decryption takes to much time), but in general it should work (
 The same can be achieved by invoking  
 pkcs15-init -G rsa/1024 -a 01 -i a1 -l mykey -u sign,decrypt,unwrap
 
+
 **Notes referring to  main_RO_sym_decrypt.rs:**  
-In order to run this, OpenSC needs to be replaced by an installation compiled from code at https://github.com/carblue/OpenSC-1/tree/sym_hw_encrypt  
-That adds OpenSC support for hardware/on-card symmetric key algorithm (AES) decrypt on top of OpenSC github master.  
-It's planned to be possibly included in official OpenSC for version 0.22.0 ?
+
 
 **Notes referring to  main_RO_sym_encrypt.rs:**  
-In order to run this, OpenSC needs to be replaced by an installation compiled from code at https://github.com/carblue/OpenSC-1/tree/sym_hw_encrypt  
-That adds OpenSC support for hardware/on-card symmetric key algorithm (AES) encrypt on top of OpenSC github master.  
-It's planned to be possibly included in official OpenSC for version 0.22.0 ?
+

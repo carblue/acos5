@@ -1903,6 +1903,7 @@ pub fn algo_ref_mse_sedo(card_type: i32, // one of: SC_CARD_TYPE_ACOS5_64_V2, SC
                          op_mode_cbc: bool, //  true  => cbc,  false => ecb
                          cmac: bool,        //  true  => cmac, false => N/A  used in CCT only
 ) -> Result<u8, i32>  {
+//println!("algo_ref_mse_sedo called");
     match sedo_tag {
         CRT_TAG_HT  =>  match len_bytes {
             /*SHA1*/        0x14 => match card_type {
@@ -2372,7 +2373,7 @@ wr_do_log_sds(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv: i32/*,
                            else {c"decryption: returning with "});
 */
     rv
-}
+} // sym_en_decrypt
 
 
 ///

@@ -11,9 +11,9 @@ pkcs15-init --sanity-check). This will print to stdout everything notable about 
 The catch-22 with ACS tool card initialization is, that any (Security Environment) SE-file (which provides information
 i.a. about how to do PIN verification) is readable only after PIN verification has been completed.
 
-Note, that the philosophy of OpenSC is to have free access (reading always allowed or SM constraints satisfiable without
-any PIN entry) to PKCS#15 directory file EF.DIR and PKCS#15 object directory file EF.ODF and to all what they point to.
-Also to EF.TokenInfo. The driver requires free access to all SE-files.
+Note, that the philosophy of OpenSC is to have free reading access (reading always allowed or SM (Secure Messaging)
+constraints satisfiable without any PIN entry) to PKCS#15 directory file EF.DIR and PKCS#15 object directory file EF.ODF
+and to all what they point to. Also to EF.TokenInfo. The driver requires free reading access to all SE-files.
 
 OpenSC in general has provisions for card initialization, but I didn't implement this (so far, and havn't made up my
 mind if I ever will do).<br>
@@ -35,15 +35,15 @@ Note, that current card_initialization.scriptor *DOES NOT* force anything to hap
 records #5 and #6 in file 0x3F0041004103 that may be used for SM inside PKCS#15 Application DF 0x3F004100.
 I recommend to use SM gradually and get used to it, e.g. by removing comment characters from lines 131-134 in
 card_initialization.scriptor.
-This will then create a test file sized 16 bytes, that i.a. forces read_binary to use SM as specified in record #6,
-i.e. transmit response encrypted, the driver will then decrypt and e.g. opensc-tool -f will display that plain text.
+This will then create a test file sized 16 bytes, that i.a. forces read_binary to use SM as specified in SE Fike's record
+#6, i.e. transmit response encrypted; the driver will then decrypt and e.g. opensc-tool -f will display that plain text.
 If opensc-tool -f doesn't display any content, then SM is not setup correctly (keys in file 0x4102 and/or keyset* in
 opensc.conf; see details in opensc-debug.log).
 
 But, don't rely too much on 'Secure' Messaging if Your crypto card/token is plugged into a hostile environment: An
 attacker, that controls the computer can eavedrop the card <-> terminal communication and can read the opensc.conf
 file and hence reconstruct the generated session keys. Well, I can think of ways to enhance SM's security for ACOS5,
-but thats not disclosable publicly.
+but that is not disclosable publicly.
 
 scriptor from package pcsc-tools (see https://pcsc-tools.apdu.fr/) or some equivalent tool
 that can send APDUs to a smart card in batch mode will be required.
@@ -72,7 +72,9 @@ directory files, because e.g. Your card has no Data Object files or no PUKDF_TRU
 1. Adapt the script referring to content (see explanation inside the script: comments).
 2. With Linux: Invoke ./ODF_file_customization.scriptor
 
-Set new PINs (e.g. with opensc-explorer)
+Set new PINs, e.g. for
+the user pin: pkcs15-tool --change-pin --auth-id 01 --pin 12345678 --new-pin 23456789
+the   so pin: pkcs15-tool --change-pin --auth-id 02 --pin 87654321 --new-pin 98765432
 
 Add new content, e.g. RSA key pair (either with tool acos5_gui or the following command) and<br>
 read public RSA file content for e.g. placing that in Your GitHub settings and then test the ssh connection:<br>

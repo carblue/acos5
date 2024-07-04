@@ -9,7 +9,7 @@
 # new SO_PIN:   38 37 36 35 34 33 32 31 (which reads in ascii as character string: 87654321)  SO_PUK set to same value as SO_PIN,     SO_PIN/SO_PUK set at first/second appearance in line 79
 # new USER_PIN: 31 32 33 34 35 36 37 38 (which reads in ascii as character string: 12345678)  USER_PUK set to same value as USER_PIN, USER_PIN/USER_PUK set at first/second appearance in line 104
 
-# This script will set 2 3DES/192 keys for Secure Messaging (the last 24 non-zero bytes in lines 108,109) (PREFERABLY CHANGE THEM NOW AND DO THE SAME IN opensc.conf for keyset...02...):
+# This script will set 2 3DES/192 keys for Secure Messaging (the last 24 non-zero bytes in lines 110,111) (PREFERABLY CHANGE THEM NOW AND DO THE SAME IN opensc.conf for keyset...02...):
 # Check for all of the 24 key bytes that they have odd parity == count of 1 in binary coded representation is NOT even, e.g. byte 0xBD=0b10111101 is disallowed, must be changed to 0xBC=0b10111100
 # line 110: this is the host/terminal key Kt for external authentication with an unlimited error counter
 # line 111: this is the card          key Kc for internal authentication with an unlimited usage counter

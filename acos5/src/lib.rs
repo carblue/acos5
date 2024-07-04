@@ -58,6 +58,7 @@ it has a child DF that has been selected.
 #![allow(clippy::similar_names)]
 #![allow(clippy::too_many_lines)]
 
+use std::cmp;
 use std::os::raw::{c_char, c_ulong, c_void};
 use std::ffi::CStr;
 use std::ptr::{copy_nonoverlapping, null_mut, null};
@@ -75,13 +76,12 @@ use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_securit
                          SC_ALGORITHM_RSA_RAW, SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER,
                          SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_DERIVE, SC_PIN_CMD_GET_INFO,
                          SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK, SC_ALGORITHM_RSA_PAD_PKCS1,
-                         SC_ALGORITHM_RSA_PAD_ISO9796, SC_SEC_ENV_KEY_REF_PRESENT, SC_SEC_ENV_ALG_REF_PRESENT,
+                         SC_ALGORITHM_RSA_PAD_ISO9796, SC_SEC_ENV_ALG_REF_PRESENT, // SC_SEC_ENV_KEY_REF_PRESENT,
                          SC_SEC_ENV_ALG_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR,
                          SC_CARD_CAP_ISO7816_PIN_INFO, SC_ALGORITHM_AES, SC_ALGORITHM_EXT_EC_NAMEDCURVE,
                          SC_CARD_CAP_APDU_EXT, SC_ALGORITHM_EC, SC_PROTO_T1, SC_ALGORITHM_EXT_EC_COMPRESS};
-//#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
-//use opensc_sys::opensc::{SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM};
-//use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
+use opensc_sys::opensc::{SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM};
 //use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_PSS};
 use opensc_sys::opensc::{sc_update_record, SC_SEC_ENV_PARAM_IV, SC_SEC_ENV_PARAM_TARGET_FILE,
                          SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, SC_SEC_OPERATION_UNWRAP,
@@ -227,7 +227,7 @@ mod   test_v2_v3;
 //   for the time being, be explicit using  #[no_mangle] pub extern "C" fn
 
 
-/// A mandatory library export  It MUST BE identical for acos5 and `acos5_pkcs15`
+/// A mandatory library export.  It MUST BE identical for acos5 and `acos5_pkcs15`
 ///
 /// @apiNote
 /// If @return doesn't match the version of `OpenSC` binary libopensc.so/dll installed, then this library
@@ -235,7 +235,7 @@ mod   test_v2_v3;
 ///
 /// Its essential, that this doesn't merely echo, what a call to `sc_get_version` reports:
 /// It is my/developers statement, that the support as reported by `sc_driver_version` got checked !
-/// Thus, if e.g. a new `OpenSC` version 0.22.0 got released and if I didn't reflect that in `sc_driver_version`,
+/// Thus, if e.g. a new `OpenSC` version 0.26.0 got released and if I didn't reflect that in `sc_driver_version`,
 /// (updating opensc-sys binding and code of acos5 and `acos5_pkcs15`),
 /// then the driver won't accidentally malfunction for a not yet supported `OpenSC` environment/version !
 ///
@@ -243,9 +243,9 @@ mod   test_v2_v3;
 /// Its accuracy depends on how closely the opensc-sys binding and driver code has covered the possible
 /// differences in API and behavior (this function mentions the last `OpenSC` commit covered).
 /// master will be handled as an imaginary new version release:
-/// E.g. while currently the latest release is 0.22.0, build `OpenSC` from source such that it reports imaginary
-/// version 0.23.0 (change configure.ac; define([`PACKAGE_VERSION_MINOR`], [23]) )
-/// In this example, `cfg!(v0_23_0`) will then match that
+/// E.g. while currently the latest release is 0.25.1, build `OpenSC` from source such that it reports imaginary
+/// version 0.26.0 (change configure.ac; define([`PACKAGE_VERSION_MINOR`], [26]) )
+/// In this example, `cfg!(v0_26_0`) will then match that
 ///
 /// @return   The `OpenSC` release/imaginary version, that this driver implementation supports
 #[no_mangle]
@@ -384,17 +384,10 @@ static struct sc_card_operations iso_ops = {
         /* card_reader_lock_obtained:                            NULL */
         /* wrap:                                                 NULL */
         unwrap:                None, //Some(acos5_unwrap),            // NULL
-
-//        #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
-//        pub encrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, plaintext: *const u8, plaintext_len: usize, out: *mut u8, outlen: *mut usize) -> i32 >,
-
-//        #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
-//        pub decrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, EncryptedData: *const u8, EncryptedDataLen: usize, out: *mut u8, outlen: *mut usize) -> i32 >,
-
-        #[cfg(all(sym_hw_encrypt, not(any(v0_20_0, v0_21_0))))]
-        encrypt_sym:           Some(acos5_encrypt_sym),       // NULL
-        #[cfg(all(sym_hw_encrypt, not(any(v0_20_0, v0_21_0))))]
-        decrypt_sym:           Some(acos5_decrypt_sym),       // NULL
+        #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
+        encrypt_sym:           None,//Some(acos5_encrypt_sym),       // NULL
+        #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
+        decrypt_sym:           None, //Some(acos5_decrypt_sym),       // NULL
         ..*iso_ops // untested so far whether remaining functionality from libopensc/iso7816.c is sufficient for cos5
 /* from iso_ops:
     NULL,            /* verify,                deprecated */
@@ -2673,7 +2666,7 @@ extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const
     let f = c"acos5_set_security_env";
     let env_ref  = unsafe { & *env_ref_ptr };
     log3if!(ctx,f,line!(), c"called  for operation %d", env_ref.operation);
-//println!("set_security_env: *env_ref_ptr: sc_security_env: {:0X?}", *env_ref);
+//println!("set_security_env: *env_ref_ptr: sc_security_env: {:0X?}\n\n", *env_ref);
 /*
 Tokenunfo
 30 7F 02 01 01 04 08 B0 35 00 5B A1 0A 65 00 0C 1A 41 64 76 61 6E 63 65 64 20 43 61 72 64 20 53 79 73 74 65 6D 73 20 4C 74 64 2E 80 14 4E 36 34
@@ -2805,29 +2798,18 @@ Tokenunfo
         }
     }
 
-    else if cfg!(all(sym_hw_encrypt, not(any(v0_20_0, v0_21_0)))) &&
-//        [SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM].contains(&env_ref.operation)  &&
-        (env_ref.flags & SC_SEC_ENV_KEY_REF_PRESENT) > 0 &&
-        (env_ref.flags & SC_SEC_ENV_ALG_PRESENT) > 0
-        // (env_ref.flags & SC_SEC_ENV_ALG_REF_PRESENT) > 0  // FIXME relax and don't require this
-        {
-        if env_ref.key_ref_len == 0 {
+    else if cfg!(not(any(v0_20_0, v0_21_0, v0_22_0))) &&
+        [SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM].contains(&env_ref.operation)
+        //&& (env_ref.flags & SC_SEC_ENV_KEY_REF_PRESENT) > 0  // FIXME relax and don't require this
+        && (env_ref.flags & SC_SEC_ENV_ALG_PRESENT) > 0
+        && (env_ref.flags & SC_SEC_ENV_ALG_REF_PRESENT) > 0
+    {
+        if env_ref.key_ref_len == 0 || ![SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES].contains(&env_ref.algorithm) {
             rv = SC_ERROR_NOT_SUPPORTED;
             log3ifr!(ctx,f,line!(), rv);
             return rv;
         }
-        if ![SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES].contains(&env_ref.algorithm) {
-            rv = SC_ERROR_NOT_SUPPORTED;
-            log3ifr!(ctx,f,line!(), rv);
-            return rv;
-        }
-/*
-            if env_ref.flags & SC_SEC_ENV_KEY_REF_SYMMETRIC == 0 {
-                rv = SC_ERROR_NOT_SUPPORTED;
-                log3ifr!(ctx,f,line!(), rv);
-                return rv;
-            }
-*/
+
         let mut cbc : bool = true;
         if (env_ref.algorithm & SC_ALGORITHM_AES) > 0 {
             if ![SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB].contains(&env_ref.algorithm_flags) {
@@ -3542,12 +3524,15 @@ extern "C" fn acos5_update_record(card_ptr: *mut sc_card, rec_nr: u32, _idx: u32
 
 /* the return value will later be assigned to *pulDataLen in pkcs15_skey_encrypt */
 // plaintext_len is allowed to be not a multiple of block_size 16 for SC_ALGORITHM_AES_CBC_PAD only
-#[cfg(all(sym_hw_encrypt, not(any(v0_20_0, v0_21_0))))]
+#[allow(dead_code)] // currently unused
+#[cold]
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
 extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, plaintext_len: usize,
-    out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32, _key_ref: *const [u8; 8]) -> i32
+                                out: *mut u8, outlen: *mut usize) -> i32
+//    out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32, _key_ref: *const [u8; 8]) -> i32
 {
-    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || algorithm != SC_ALGORITHM_AES ||
-        ![SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB].contains(&algorithm_flags) {
+    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || outlen.is_null() {
+//        || algorithm != SC_ALGORITHM_AES || ![SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB].contains(&algorithm_flags)
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *card_ptr };
@@ -3560,11 +3545,11 @@ extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, pl
         inbuf        : plaintext,
         indata_len   : plaintext_len,
         outbuf       : out,
-        outdata_len  : outlen,
-        algorithm,
-        algorithm_flags,
+        outdata_len  : unsafe {*outlen},
+        algorithm      :0,
+        algorithm_flags:0,
         pad_type     : BLOCKCIPHER_PAD_TYPE_PKCS7,
-        cbc          : (algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) >0 || (algorithm_flags & SC_ALGORITHM_AES_CBC) > 0,
+        cbc          : true,//(algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) >0 || (algorithm_flags & SC_ALGORITHM_AES_CBC) > 0,
         encrypt      : true,
         .. CardCtlSymCrypt::default()
     };
@@ -3573,37 +3558,66 @@ extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, pl
 
 
 /* the return value will later be assigned to *pulDataLen in pkcs15_skey_decrypt */
-#[cfg(all(sym_hw_encrypt, not(any(v0_20_0, v0_21_0))))]
-extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, crgram: *const u8, crgram_len: usize,
-    out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32, key_ref: *const [u8; 8]) -> i32
+#[allow(dead_code)] // currently unused
+#[cold]
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
+extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, encrypted_data: *const u8, encrypted_data_len: usize,
+                                out: *mut u8, outlen: *mut usize) -> i32
+ //   out: *mut u8, outlen: usize, algorithm: u32, algorithm_flags: u32, key_ref: *const [u8; 8]) -> i32
 {
-    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || algorithm != SC_ALGORITHM_AES ||
-        ![SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB].contains(&algorithm_flags) {
+    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
+//        || algorithm != SC_ALGORITHM_AES || ![SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB].contains(&algorithm_flags)
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     log3ifc!(ctx,c"acos5_decrypt_sym",line!());
-//println!("acos5_decrypt_sym input: algorithm: {:02X}, algorithm_flags: {:02X}, key_ref[0]: {:02X}, crgram_len: {}, crgram: {:02X?}",
-//algorithm, algorithm_flags, unsafe{ (*key_ref)[0] }, crgram_len, unsafe { from_raw_parts(crgram, crgram_len) });
+println!("called for decryption: encrypted_data_len  {:?}", encrypted_data_len);
+    if out.is_null() {
+println!("called for decryption: out , outlen   {:p} . {:p}", out, outlen);
+        if outlen.is_null() { return 3; }
+        else { unsafe {*outlen = cmp::max(encrypted_data_len, 256);} return 0; }
+    }
+    if encrypted_data_len == 0 {
+        log3if!(ctx,c"acos5_decrypt_sym",line!(), c"nothing to do here: returning with 0");
+        return 0;
+    }
+
+    if outlen.is_null() {
+        log3ifc!(ctx,c"acos5_decrypt_sym",line!());
+println!("called for decryption: outlen {:p}", outlen);
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+//println!("acos5_decrypt_sym input: algorithm: {:02X}, algorithm_flags: {:02X}, key_ref[0]: {:02X}, encrypted_data_len: {}, encrypted_data: {:02X?}",
+//algorithm, algorithm_flags, unsafe{ (*key_ref)[0] }, encrypted_data_len, unsafe { from_raw_parts(encrypted_data, encrypted_data_len) });
     // temporarily route via sym_en_decrypt
     let mut crypt_sym_data = CardCtlSymCrypt {
-        inbuf        : crgram,
-        indata_len   : crgram_len,
+        inbuf        : encrypted_data,
+        indata_len   : encrypted_data_len,
         outbuf       : out,
-        outdata_len  : outlen,
+        outdata_len  : encrypted_data_len,
 
-        iv_len: if (algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) > 0 || (algorithm_flags & SC_ALGORITHM_AES_CBC) > 0 {16} else {0},
-        algorithm,
-        algorithm_flags,
-        key_ref      : unsafe { (*key_ref)[0] },
+        iv_len: 16, //if (algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) > 0 || (algorithm_flags & SC_ALGORITHM_AES_CBC) > 0 {16} else {0},
+        algorithm      : SC_ALGORITHM_AES,
+        algorithm_flags: SC_ALGORITHM_AES_CBC_PAD,
 
         pad_type     : BLOCKCIPHER_PAD_TYPE_PKCS7,
-        cbc          : (algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) >0 || (algorithm_flags & SC_ALGORITHM_AES_CBC) > 0,
+        cbc          : true,//(algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) >0 || (algorithm_flags & SC_ALGORITHM_AES_CBC) > 0,
         encrypt      : false,
         .. CardCtlSymCrypt::default()
     };
-    sym_en_decrypt(card,  &mut crypt_sym_data)
+/* this is okay, used in debug.log
+00 22 01 B8 1B
+95 01 40  bit 6 allows for PSO
+80 01 06  AES-CBC page 43 of 129
+83 01 83  local key 03
+87 10 10 54 82 A9 68 8B 7B FF 8E CB B5 D7 26 AD A2 A9
+*/
+println!("called for decryption\n");
+
+    let rv = sym_en_decrypt(card,  &mut crypt_sym_data);
+    unsafe { *outlen = crypt_sym_data.outdata_len; }
+    rv
 }
 
 /*
