@@ -2,16 +2,16 @@ This is meant to be used as a separate cargo project.
 If You don't have installed the Rust compiler rustc and build tool cargo, get it bundled from
 https://www.rust-lang.org/tools/install
 
-It uses crate pkcs11, which encapsulates all calls to cryptoki, thus You won't see any calls like C_Initialize etc.
-in the first place.
-Currently I'm about to change from crate pkcs11 to crate cryptoki.
+It uses PKCS#11-wrapping crate cryptoki (former pkcs11), which encapsulates all calls to the PKCS#11 API called "cryptoki",
+thus You won't see any calls like C_Initialize etc. in the first place.
+Currently I still need to change dependancy on crate pkcs11 to crate cryptoki for 2 main-files.
 We need to name the cryptoki library - here opensc-pkcs11.so - or it's alternate namings for other OS: 
-let ctx = Ctx::new_and_initialize("opensc-pkcs11.so")?;
+let ctx = Pkcs11::new("/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so")?;
 
 It's assumed that driver components libacos5.so *AND* libacos5_pkcs15.so are installed and opensc.conf updated to use them.
-But, the code may be used as well for any card supported by OpenSC.
+But, the code may be used as well for any other card supported by OpenSC.
 
-All applications "C_Login" into Your card as User with PIN 12345678:
+All applications "C_Login" into Your card as User with PIN 12345678 :
 Either change Your card's User PIN temporarily to "12345678" or change the source code with Your actual User PIN.
 
 
@@ -32,7 +32,7 @@ $ cargo run
 It will change Your cards contents:
 New public and private key files will be created, sized to exactly match the requirements and with file ids selected 
 by the driver, something like 0x5000, 0x5001 or higher values.
-modulus_bits : CK_ULONG = 1024; This is not recommended for production use; used here just to demonstrate that it works
+modulus_bits : CK_ULONG = 2048; This is not recommended for production use; used here just to demonstrate that it works
 and to save time. For high modulus_bits, generation takes considerable time, up to ~ 5 min for 4096 bit !
 
 Note that PKCS#11/OpenSC doesn't allow to individually set all options for RSA key pair generation that ACOS5 provides.
@@ -44,11 +44,12 @@ otherwise allows max. 3072 bit only.
 Occasionally the ACOS5 chip fails to generate the keys for large moduli (I assume, its a timing issue when generation and
 trial encryption/decryption takes to much time), but in general it should work (just retry).
 The same can be achieved by invoking  
-pkcs15-init -G rsa/1024 -a 01 -i a1 -l mykey -u sign,decrypt,unwrap
+pkcs15-init -G rsa/2048 -a 01 -i a1 -l mykey -u sign,decrypt,unwrap
 
 
 **Notes referring to  main_RO_sym_decrypt.rs:**  
-
+Not yet runnable
 
 **Notes referring to  main_RO_sym_encrypt.rs:**  
+Not yet runnable
 

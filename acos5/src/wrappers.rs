@@ -146,6 +146,15 @@ pub fn wr_do_log_sds(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv:
     }
 }
 
+pub fn wr_do_log_sds_ret(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv: i32/*, arg3: &CStr*/) -> i32
+{
+    if cfg!(log) {
+        unsafe { sc_do_log_color(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(), SC_COLOR_FG_RED,
+                                 CSTR_INT_CSTR.as_ptr(), arg1.as_ptr(), rv, sc_strerror(rv)); }
+    }
+    rv
+}
+
 // usage for ordinary return with: LOG_FUNC_RETURN
 /// # Panics
 /// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
@@ -163,4 +172,19 @@ pub fn wr_do_log_rv(ctx: &mut sc_context, f: &CStr, line: u32, rv: i32)
                                          c"returning with: %d\n".as_ptr(), rv);
         }
     }}
+}
+
+pub fn wr_do_log_rv_ret(ctx: &mut sc_context, f: &CStr, line: u32, rv: i32) -> i32
+{
+    if cfg!(log) { unsafe {
+        if rv <= 0 {
+            sc_do_log_color(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(),
+                            SC_COLOR_FG_RED, RETURNING_INT_CSTR.as_ptr(), rv, sc_strerror(rv));
+        }
+        else {
+            sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(),
+                      c"returning with: %d\n".as_ptr(), rv);
+        }
+    }}
+    rv
 }

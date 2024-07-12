@@ -18,7 +18,7 @@ Platforms tested: Those that I use:
 Linux/Kubuntu 24.04 LTS (extensively tested, everything implemented works as expected),
 Windows 11 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: SM and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Seems to be a privileges/access right issue. Note that, for the time being, after all this annoying, time consuming hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow i.a. for sanity-check).
 
-In the future, I'll test only Linux and the last OpenSC version supported, which is 0.25.1 currently. It's advised to install that OpenSC version.
+In the future, I'll test only Linux and the latest OpenSC version supported, which is 0.25.1 currently. It's advised to install that OpenSC version.
 Also, testing will be limited to 1 hardware version, which is CryptoMate64 currently.
 
 Release tags get added irregularly, mainly i.o. to refer to something from `acos5_gui` (as a minimum driver release requirement). In any case, master's HEAD has the best driver code for You.

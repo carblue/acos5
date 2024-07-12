@@ -43,6 +43,11 @@ macro_rules! log3ifr {
     ($a:expr, $b:expr, $c:expr,           $e:expr, $f:expr)                   => (wr_do_log_sds ($a, $b, $c,  $e, $f)); // not explicitly related to 'returning'
 }
 
+macro_rules! log3ifr_ret {
+    ($a:expr, $b:expr, $c:expr,           $e:expr)                            => (wr_do_log_rv_ret  ($a, $b, $c,  $e));
+    ($a:expr, $b:expr, $c:expr,           $e:expr, $f:expr)                   => (wr_do_log_sds_ret ($a, $b, $c,  $e, $f)); // not explicitly related to 'returning'
+}
+
 // log3ifc` : with implicit format-string and for 0 arguments
 //    3 == SC_LOG_DEBUG_NORMAL
 //     if : because it depends on cargo:rustc-cfg=log: if set, the macro will log, otherwise logging will be suppressed

@@ -25,7 +25,7 @@ use opensc_sys::types::{sc_serial_number, SC_MAX_SERIALNR, SC_APDU_CASE_1, SC_AP
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_CARD_CMD_FAILED, SC_ERROR_INVALID_ARGUMENTS};
 
 use crate::constants_types::{build_apdu, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3};
-use crate::wrappers::{wr_do_log};
+use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_rv_ret, wr_do_log_sds, wr_do_log_sds_ret};
 //use crate::missing_exports::me_apdu_get_length;
 
 //QS
@@ -61,23 +61,25 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
     let f = c"get_serialnr";
     log3ifc!(ctx,f,line!());
     if card.serialnr.len > 0 {
+        log3ifr!(ctx,f,line!(), SC_SUCCESS);
         return Ok(card.serialnr);
     }
 
     let len_serial_num: usize = if card.type_ > SC_CARD_TYPE_ACOS5_64_V2 {8} else {6};
     debug_assert!(SC_MAX_SERIALNR >= len_serial_num);
     let mut serial = sc_serial_number::default();
-    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 0, 0, u8::try_from(len_serial_num).unwrap()], SC_APDU_CASE_2_SHORT, 
-                              &mut serial.value);
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut apdu = build_apdu(ctx, &[0x80, 0x14, 0, 0, u8::try_from(len_serial_num).
+                       unwrap()], SC_APDU_CASE_2_SHORT, &mut serial.value);
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen != len_serial_num {
-        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Serial Number' failed");
-        return Err(SC_ERROR_CARD_CMD_FAILED);
+        log3ifr!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Serial Number' failed. Returning with", rv);
+        return Err(if rv != SC_SUCCESS {rv} else {SC_ERROR_CARD_CMD_FAILED});
     }
     serial.len = len_serial_num;
     card.serialnr.value = serial.value;
     card.serialnr.len   = serial.len;
+    log3ifr!(ctx,f,line!(), SC_SUCCESS);
     Ok(serial)
 }
 
@@ -117,12 +119,11 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 1, 0], SC_APDU_CASE_1, &mut[]);
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Number of files \
-                under the currently selected DF' failed");
-        return Err(SC_ERROR_CARD_CMD_FAILED);
+        return Err(log3ifr_ret!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Number of files under \
+          the currently selected DF' failed. Returning with", rv /*SC_ERROR_CARD_CMD_FAILED*/));
     }
     /*
         driver's working currently depends on populating the HashMap files with all card content during card_init, but
@@ -130,6 +131,7 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
         and all assertions that any file is contained in  HashMap files  would be wrong !
     */
     assert!(apdu.sw2 <= 255, "There are more than 255 children in this DF !");
+    log3ifr!(ctx,f,line!(), SC_SUCCESS);
     Ok(u16::try_from(apdu.sw2).unwrap())
 }
 
@@ -156,14 +158,14 @@ pub fn get_file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> R
     let reference: u8 = if card.type_ <= SC_CARD_TYPE_ACOS5_64_V3 {reference} else {reference+1};
     let mut rbuf = [0; 8];
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 2, reference, 8], SC_APDU_CASE_2_SHORT, &mut rbuf);
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.resplen == rbuf.len() {
+        log3ifr!(ctx,f,line!(), SC_SUCCESS);
         Ok(rbuf)
     }
     else {
-        log3if!(ctx,f,line!(), c"Error: ACOS5 'File Info'-retrieval failed");
-        Err(SC_ERROR_CARD_CMD_FAILED)
+        Err(log3ifr_ret!(ctx,f,line!(), c"Error: ACOS5 'File Info'-retrieval failed. Returning with", rv/*SC_ERROR_CARD_CMD_FAILED*/))
     }
 }
 
@@ -185,15 +187,16 @@ pub fn get_free_space(card: &mut sc_card) -> Result<u32, i32>
     let mut rbuf = [0; 4];
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 4, 0, if card.type_> SC_CARD_TYPE_ACOS5_64_V3 {3} else {2}],
                               SC_APDU_CASE_2_SHORT, &mut rbuf);
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && (card.type_>  SC_CARD_TYPE_ACOS5_64_V3 && apdu.resplen == 3 ||
-                            card.type_<= SC_CARD_TYPE_ACOS5_64_V3 && apdu.resplen == 2) {
+                            card.type_<= SC_CARD_TYPE_ACOS5_64_V3 && apdu.resplen == 2)
+    {
+        log3ifr!(ctx,f,line!(), SC_SUCCESS);
         Ok(u32::from_be_bytes(rbuf) >> if card.type_> SC_CARD_TYPE_ACOS5_64_V3 {8} else {16})
     }
     else {
-        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Get Free Space' failed");
-        Err(SC_ERROR_CARD_CMD_FAILED)
+        Err(log3ifr_ret!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Get Free Space' failed. Returning with", SC_ERROR_CARD_CMD_FAILED))
     }
 }
 
@@ -211,14 +214,16 @@ pub fn get_is_ident_self_okay(card: &mut sc_card, candidate_card_type: i32) -> R
     let card_type: i32 = if candidate_card_type !=0 {candidate_card_type} else {card.type_};
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 5, 0], SC_APDU_CASE_1, &mut[]);
 
-    let rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     if apdu.sw1 == 0x95 && (card_type >  SC_CARD_TYPE_ACOS5_64_V3 && apdu.sw2 == 0xC0 ||
-                            card_type <= SC_CARD_TYPE_ACOS5_64_V3 && apdu.sw2 == 0x40) {
+                            card_type <= SC_CARD_TYPE_ACOS5_64_V3 && apdu.sw2 == 0x40)
+    {
+        log3ifr!(ctx,f,line!(), SC_SUCCESS);
         Ok(true)
     }
     else {
-        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Identity Self'-check reports \
-                an unexpected, non-ACOS5 response ! ### Card doesn't match ###");
+        log3ifr!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Identity Self'-check reports an unexpected,\
+                 non-ACOS5 response ! ### Card doesn't match ###. Returning with", SC_SUCCESS);
         Ok(false)
     }
 }
@@ -237,14 +242,14 @@ pub fn get_cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
     let mut apdu = /*if active_protocol!=SC_PROTO_T1 {*/ build_apdu(ctx, &[0x80, 0x14, 6, 0, 8], SC_APDU_CASE_2_SHORT, &mut rbuf) /*}
                    else                            { build_apdu(ctx, &[0x80, 0x14, 6, 0, 0,0,8], SC_APDU_CASE_2_EXT, &mut rbuf) }*/;
 //println!("me_apdu_get_length for 'get_cos_version': {}\n", me_apdu_get_length(&apdu, active_protocol));
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.resplen == rbuf.len() {
+        log3ifr!(ctx,f,line!(), SC_SUCCESS);
         Ok(rbuf)
     }
     else {
-        log3if!(ctx,f,line!(), c"Error: 'ACOS5 version'-retrieval failed");
-        Err(SC_ERROR_CARD_CMD_FAILED)
+        Err(log3ifr_ret!(ctx,f,line!(), c"Error: 'ACOS5 version'-retrieval failed. Returning with", rv/*SC_ERROR_CARD_CMD_FAILED*/))
     }
 }
 
@@ -260,14 +265,15 @@ pub fn get_manufacture_date(card: &mut sc_card) -> Result<u32, i32>
 
     let mut rbuf = [0; 4];
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 7, 0, 4], SC_APDU_CASE_2_SHORT, &mut rbuf);
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.resplen == rbuf.len() {
+        log3ifr!(ctx,f,line!(), SC_SUCCESS);
         Ok(u32::from_be_bytes(rbuf))
     }
     else {
-        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Get ROM_Manufacture_Date' failed");
-        Err(SC_ERROR_CARD_CMD_FAILED)
+        Err(log3ifr_ret!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Get ROM_Manufacture_Date' \
+          failed. Returning with", SC_ERROR_CARD_CMD_FAILED))
     }
 }
 
@@ -283,14 +289,14 @@ pub fn get_rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
 
     let mut rbuf = [0; 20];
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 8, 0, 20], SC_APDU_CASE_2_SHORT, &mut rbuf);
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.resplen == rbuf.len() {
+        log3ifr!(ctx,f,line!(), SC_SUCCESS);
         Ok(rbuf)
     }
     else {
-        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Get ROM SHA1'-retrieval failed");
-        Err(SC_ERROR_CARD_CMD_FAILED)
+        Err(log3ifr_ret!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Get ROM SHA1'-retrieval failed. Returning with", SC_ERROR_CARD_CMD_FAILED))
     }
 }
 
@@ -306,15 +312,14 @@ pub fn get_op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 9, 0], SC_APDU_CASE_1, &mut[]);
-    let /*mut*/ rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv));  }
 //    rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     /* the reference manuals says: the response status word is 0x95NN, but actually for V2.00 and V3.00 it's 0x90NN */
     /* the reference manuals says: the response status word is 0x95NN, and it actually is for V4 */
-    if rv == SC_SUCCESS && (
-        (card.type_ == SC_CARD_TYPE_ACOS5_64_V3 && [0,1, 2,16].contains(&apdu.sw2)) ||
-        (card.type_ != SC_CARD_TYPE_ACOS5_64_V3 && [0,1].contains(&apdu.sw2)) )  {
+    if (card.type_ == SC_CARD_TYPE_ACOS5_64_V3 && [0,1, 2,16].contains(&apdu.sw2)) ||
+       (card.type_ != SC_CARD_TYPE_ACOS5_64_V3 && [0,1].contains(&apdu.sw2))  {
         /*
-            for SC_CARD_TYPE_ACOS5_EVO_V4: apdu.sw2:
+            for SC_CARD_TYPE_ACOS5_64_V2: apdu.sw2:
              0: 64K Mode (Non-FIPS)                (factory default) RECOMMENDED FOR THIS DRIVER !!!
              1: Emulated 32K Mode
 
@@ -328,11 +333,11 @@ pub fn get_op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
              0: FIPS 140-2 Level 3–Compliant Mode
              1: Default Mode (Non-FIPS)            (factory default) RECOMMENDED FOR THIS DRIVER !!!
         */
+        log3ifr!(ctx,f,line!(), SC_SUCCESS);
         Ok(u8::try_from(apdu.sw2).unwrap())
     }
     else {
-        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Operation Mode Byte' failed");
-        Err(SC_ERROR_CARD_CMD_FAILED)
+        Err(log3ifr_ret!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Operation Mode Byte' failed. Returning with", SC_ERROR_CARD_CMD_FAILED))
     }
 }
 
@@ -348,14 +353,14 @@ pub fn get_op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 
     let mut rbuf = [0xFF; 1];
     let mut apdu = build_apdu(ctx, &[0, 0xB0, 0xC1, 0x91, 1], SC_APDU_CASE_2_SHORT, &mut rbuf);
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.resplen == 1 {
+        log3ifr!(ctx,f,line!(), SC_SUCCESS);
         Ok(rbuf[0]) // also called compatibility byte
     }
     else {
-        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Operation Mode Byte' failed");
-        Err(SC_ERROR_CARD_CMD_FAILED)
+        Err(log3ifr_ret!(ctx,f,line!(), c"Error: ACOS5 'Get Operation Mode Byte' failed. Returning with", SC_ERROR_CARD_CMD_FAILED))
     }
 }
 
@@ -370,16 +375,17 @@ pub fn get_is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_FIPS
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 10, 0], SC_APDU_CASE_1, &mut[]);
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.sw2==0 {
-        log3if!(ctx,f,line!(), c"'Get Card Info: Verify FIPS Compliance' returned: Card's \
-                file system **does** comply with FIPS requirements and Operation Mode is FIPS");
+        log3ifr!(ctx,f,line!(), c"'Get Card Info: Verify FIPS Compliance' returned: Card's file \
+                 system **does** comply with FIPS requirements and Operation Mode is FIPS. \
+                 Returning with", SC_SUCCESS);
         Ok(true)
     }
     else {
         log3if!(ctx,f,line!(), c"'Get Card Info: Verify FIPS Compliance' returned: Card's file \
-                system **does not** comply with FIPS requirements or Operation Mode is other than FIPS");
+                system **does not** comply with FIPS requirements or Operation Mode is different from FIPS");
         Ok(false)
     }
 }
@@ -395,17 +401,19 @@ pub fn get_is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<boo
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 11, reference], SC_APDU_CASE_1, &mut[]);
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS {
+        log3ifr!(ctx,f,line!(), rv);
         Ok(true)
     }
     else if apdu.sw1 == 0x6F && apdu.sw2 == 0 {
+        log3ifr!(ctx,f,line!(), rv);
         Ok(false)
     }
     else {
-        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Get Pin Authentication State' failed");
-        Err(SC_ERROR_CARD_CMD_FAILED)
+        Err(log3ifr_ret!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Get Pin Authentication State' \
+          failed. Returning with", SC_ERROR_CARD_CMD_FAILED))
     }
 }
 
@@ -420,17 +428,19 @@ pub fn get_is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<boo
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 12, reference], SC_APDU_CASE_1, &mut[]);
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS {
+        log3ifr!(ctx,f,line!(), rv);
         Ok(true)
     }
     else if apdu.sw1 == 0x6F && apdu.sw2 == 0 {
+        log3ifr!(ctx,f,line!(), rv);
         Ok(false)
     }
     else {
-        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Get Key Authentication State' failed");
-        Err(SC_ERROR_CARD_CMD_FAILED)
+        Err(log3ifr_ret!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Get Key Authentication State' \
+          failed. Returning with", SC_ERROR_CARD_CMD_FAILED))
     }
 }
 
@@ -446,12 +456,12 @@ pub fn get_zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i3
 
     let mut rbuf = [0xFF; 1];
     let mut apdu = build_apdu(ctx, &[0, 0xB0, 0xC1, 0x92, 1], SC_APDU_CASE_2_SHORT, &mut rbuf);
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen != 1 {
-        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Zeroize Card Disable Byte' failed");
-        return Err(SC_ERROR_CARD_CMD_FAILED);
+        return Err(log3ifr_ret!(ctx,f,line!(), c"Error: ACOS5 'Get Zeroize Card Disable Byte' failed. Returning with", SC_ERROR_CARD_CMD_FAILED));
     }
+    log3ifr!(ctx,f,line!(), SC_SUCCESS);
     Ok(rbuf[0])
 }
 
@@ -467,11 +477,10 @@ pub fn get_card_life_cycle_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 
     let mut rbuf = [0xFF; 1];
     let mut apdu = build_apdu(ctx, &[0, 0xB0, 0xC1, 0x84, 1], SC_APDU_CASE_2_SHORT, &mut rbuf);
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen != 1 {
-        log3if!(ctx,f,line!(), c"Error: ACOS5 'Get Card Life Cycle Byte' failed");
-        return Err(SC_ERROR_CARD_CMD_FAILED);
+        return Err(log3ifr_ret!(ctx,f,line!(), c"Error: ACOS5 'Get Card Life Cycle Byte' failed. Returning with", SC_ERROR_CARD_CMD_FAILED));
     }
     Ok(rbuf[0])
 }

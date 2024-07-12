@@ -101,7 +101,7 @@ use opensc_sys::types::{/*sc_aid,*/ SC_MAX_AID_SIZE};
 use opensc_sys::errors::{SC_SUCCESS/*, SC_ERROR_INTERNAL*/, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
                          SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY, SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING,
                          SC_ERROR_INCORRECT_PARAMETERS, SC_ERROR_NOT_SUPPORTED, SC_ERROR_BUFFER_TOO_SMALL, SC_ERROR_NOT_ALLOWED,
-                         SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_CARD_CMD_FAILED/*, SC_ERROR_FILE_NOT_FOUND*/};
+                         SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_CARD_CMD_FAILED, SC_ERROR_FILE_ALREADY_EXISTS};
 
 // #[cfg(sanity)]
 use opensc_sys::errors::{SC_ERROR_INVALID_CARD};
@@ -214,7 +214,8 @@ if #[cfg(not(target_os = "windows"))] {
 }}
 
 mod wrappers;
-use wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tt, wr_do_log_tu, wr_do_log_tuv};
+use wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_rv_ret, wr_do_log_sds, wr_do_log_sds_ret,
+               wr_do_log_t, wr_do_log_tt, wr_do_log_tu, wr_do_log_tuv};
 
 /*
 #[cfg(test)]
@@ -468,8 +469,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
 ////println!("reader.supported_protocols: {}, reader.active_protocol: {}\n", reader.supported_protocols, reader.active_protocol);
 ////println!("idx_acos5_atrs: {}, card.type_: {}, type_out: {}, &card.atr.value[..20]: {:X?}\n", idx_acos5_atrs, card.type_, type_out, &card.atr.value[..20]);
     if idx_acos5_atrs < 0 || idx_acos5_atrs >= i32::try_from(acos5_atrs.len()).unwrap() {
-        log3if!(ctx,f,line!(), c"Card doesn't match: Differing ATR");
-        return 0;
+        return log3ifr_ret!(ctx,f,line!(), c"Card doesn't match: Differing ATR. Returning with 0 (no match)", 0);
     }
 
     if type_out == SC_CARD_TYPE_ACOS5_EVO_V4 && reader.active_protocol == SC_PROTO_T1 {
@@ -479,14 +479,17 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
 
     /* check for 'Identity Self' */
     match get_is_ident_self_okay(card, type_out) {
-        Ok(val) => if !val { log3if!(ctx,f,line!(), c"Card doesn't match: get_is_ident_self_okay: SW2 different from expected!"); return 0 },
-        Err(_e) => { log3if!(ctx,f,line!(), c"Card doesn't match: get_is_ident_self_okay failed!"); return 0 },
+        Ok(val) => if !val { log3if!(ctx,f,line!(), c"Card doesn't match: get_is_ident_self_okay: \
+            SW2 different from expected! Returning with 0 (no match)"); return 0 },
+        Err(_e) => { log3if!(ctx,f,line!(), c"Card doesn't match: get_is_ident_self_okay failed! \
+            Returning with 0 (no match)"); return 0 },
     };
 
     /* check for 'Card OS Version' */
     let rbuf_card_os_version = match get_cos_version(card) {
         Ok(val) => val,
-        Err(_e) => { log3if!(ctx,f,line!(), c"Card doesn't match: get_cos_version failed!"); return 0 },
+        Err(_e) => { log3if!(ctx,f,line!(), c"Card doesn't match: get_cos_version failed! }
+            Returning with 0 (no match)"); return 0 },
     };
 
 ////println!("rbuf_card_os_version: {:X?}", &rbuf_card_os_version[..]);
@@ -497,7 +500,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
     //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x04, 0x30,  0xC0]  CryptoMate EVO revision 3 in op mode
     if rbuf_card_os_version[..5] != [0x41, 0x43, 0x4F, 0x53, 0x05]  ||
         SC_CARD_TYPE_ACOS5_BASE + i32::from(rbuf_card_os_version[5]) != type_out   /*|| rbuf_card_os_version[7] != 0x40*/ {
-        log3if!(ctx,f,line!(), c"Card doesn't match: ACOS5 'Card OS Version'-check failed");
+        log3if!(ctx,f,line!(), c"Card doesn't match: ACOS5 'Card OS Version'-check failed. Returning with 0 (no match)");
         return 0;
     }
 
@@ -556,7 +559,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
 
     // Only now, on success, set card.type
     card.type_ = type_out;
-    log3if!(ctx,f,line!(), c"'%s'  ##### card matched ! #####", acos5_atrs[usize::try_from(idx_acos5_atrs).unwrap()].name);
+    log3if!(ctx,f,line!(), c"'%s'  ##### card matched ! #####. Returning with 1", acos5_atrs[usize::try_from(idx_acos5_atrs).unwrap()].name);
     1
 }
 
@@ -587,19 +590,20 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     let f = c"acos5_init";
     log3if!(ctx,f,line!(), c"called with card.type: %d, card.atr.value: %s", card.type_,
         unsafe {sc_dump_hex(card.atr.value.as_ptr(), card.atr.len) });
+/* */
     let mut app_name = f;
     if !ctx.app_name.is_null() {
         app_name = unsafe { CStr::from_ptr(ctx.app_name) }; // app_name: e.g. "pkcs15-init"
         log3if!(ctx,f,line!(), c"The driver was loaded for application: %s", app_name.as_ptr());
         // println!("{}", String::from("The driver was loaded for application: ") + app_name.to_str().unwrap());
     }
-
+/* */
     /* Undo 'force_card_driver = acos5_external;'  if match_card reports 'no match' */
     for elem in &acos5_supported_atrs() {
         if elem.atr.is_null() {
-            log3if!(ctx,f,line!(), c"### Error, have to skip driver 'acos5_external'! Got here, \
-            though match_card reported 'no match' (probably by using  'force_card_driver = acos5_external;') ###");
-            return SC_ERROR_WRONG_CARD;
+            return log3ifr_ret!(ctx,f,line!(), c"### Error, have to skip driver 'acos5_external'! Got here, \
+            though match_card reported 'no match' (probably by using  'force_card_driver = acos5_external;')\
+            ###. Returning with", SC_ERROR_WRONG_CARD);
         }
         if elem.type_ == card.type_ {
             card.name = elem.name;
@@ -662,7 +666,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
                                            rsa_algo_flags,
                                            0/*0x10001*/) };
         if rv != SC_SUCCESS {
-            return rv;
+            return log3ifr_ret!(ctx,f,line!(), rv);
         }
         rsa_key_len += rsa_key_len_step;
     }
@@ -823,22 +827,21 @@ DataPrivate:                                                size_of: 1792, align
     #[cfg(ifd_serial_constrained_for_sm)]
     match get_serialnr(card) {
         Ok(_val) => (),
-        Err(e) => return e,
+        Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
     }
 // enum_dir
     let path_mf = unsafe { *sc_get_mf_path() };
     card.cache.current_path = path_mf;
     rv = enum_dir(card, &path_mf, true/*, 0*/); /* FIXME Doing to much here degrades performance, possibly for no value */
-    if rv != SC_SUCCESS { return rv; } // enum_dir returns SC_SUCCESS also for does_mf_exist==false
+    if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); } // enum_dir returns SC_SUCCESS also for does_mf_exist==false
     // #[cfg(sanity)]
     {
         let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         let does_mf_exist = dp.does_mf_exist;
         Box::leak(dp);
-        // card.drv_data = Box::into_raw(dp) as p_void;
         if !does_mf_exist {
             let _rv = sanity_check(card, app_name);
-            return SC_ERROR_INVALID_CARD;
+            return log3ifr_ret!(ctx,f,line!(), SC_ERROR_INVALID_CARD);
         }
     }
     // final selection in acos5_init  After the card powers up or resets, the MF is selected by default.
@@ -885,13 +888,11 @@ cfg_if::cfg_if! {
         rv = set_ui_ctx(card, &mut dp.ui_ctx);
 //println!("dp.ui_ctx.user_consent_enabled: {}", dp.ui_ctx.user_consent_enabled);
         if rv < SC_SUCCESS {
-            log3ifr!(ctx,f,line!(), c"set_ui_ctx failed.", rv);
+            log3ifr!(ctx,f,line!(), c"set_ui_ctx failed. Returning with", rv);
         }
     }
     card.drv_data = Box::into_raw(dp).cast::<c_void>();
-
-    log3ifr!(ctx,f,line!(), rv);
-    rv
+    log3ifr_ret!(ctx,f,line!(), rv)
 } // acos5_init
 
 
@@ -908,7 +909,8 @@ extern "C" fn acos5_finish(card_ptr: *mut sc_card) -> i32
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    log3ifc!(ctx,c"acos5_finish",line!());
+    let f = c"acos5_finish";
+    log3ifc!(ctx,f,line!());
 ////////////////////
 //     let _rv = sanity_check(card, unsafe { CStr::from_ptr(ctx.app_name) });
 /* * /
@@ -1078,7 +1080,7 @@ println!("sc_update_binary: rv: {}", rv);
 
     drop(dp);
     card.drv_data = null_mut();
-    SC_SUCCESS
+    log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
 }
 
 
@@ -1101,15 +1103,15 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
-    if count==0 {
-        return SC_SUCCESS;
-    }
     let idx = u16::try_from(idx).unwrap();
     let mut count = u16::try_from(count).unwrap();
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     let f = c"acos5_erase_binary";
     log3ifc!(ctx,f,line!());
+    if count==0 {
+        return log3ifr_ret!(ctx,f,line!(), SC_SUCCESS);
+    }
 
     let file_id = file_id_from_cache_current_path(card);
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
@@ -1121,12 +1123,12 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
     // card.drv_data = Box::into_raw(dp) as p_void;
 ////println!("idx: {}, count: {}, flags: {}, fdb: {}, size: {}, scb_erase: {}", idx, count, flags, fdb, size, scb_erase);
     if ![1, 9].contains(&fdb) || idx >= size {
-        return SC_ERROR_INVALID_ARGUMENTS;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_INVALID_ARGUMENTS);
     }
 
     if scb_erase == 0xFF {
-        log3if!(ctx,f,line!(), c"No erase_binary will be done: The file has acl NEVER ERASE");
-        SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
+        log3ifr_ret!(ctx,f,line!(), c"No erase_binary will be done: The file has acl NEVER ERASE. \
+          Returning with", SC_ERROR_SECURITY_STATUS_NOT_SATISFIED)
     }
     else if (scb_erase & 0x40) == 0x40 {
         let res_se_sm = se_get_is_scb_suitable_for_sm_has_ct(card, file_id, scb_erase & 0x0F);
@@ -1139,8 +1141,8 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
             sm_erase_binary(card, idx, count, flags, res_se_sm.1)
         }
         else {
-            log3if!(ctx,f,line!(), c"No erase_binary will be done: The file has acl SM-protected ERASE");
-            SC_ERROR_SECURITY_STATUS_NOT_SATISFIED
+            log3ifr_ret!(ctx,f,line!(), c"No erase_binary will be done: The file has acl \
+              SM-protected ERASE. Returning with", SC_ERROR_SECURITY_STATUS_NOT_SATISFIED)
         }
     }
     else {
@@ -1167,13 +1169,12 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
             apdu.data = end_offset.as_ptr();
         }
 
-        let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+        let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
         if rv != SC_SUCCESS {
-            log3if!(ctx,f,line!(), c"Error: #### Failed to erase binary");
-            return rv;
+            return log3ifr_ret!(ctx,f,line!(), c"Error: #### Failed to erase binary. Returning with", rv);
         }
-        i32::from(count)
+        log3ifr_ret!(ctx,f,line!(), i32::from(count))
     }
 }
 
@@ -1190,10 +1191,11 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    log3ifc!(ctx, c"acos5_card_ctl", line!());
+    let f = c"acos5_card_ctl";
+    log3if!(ctx,f,line!(), c"called for command: %u", command);
 
     if data_ptr.is_null() && ![SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO, SC_CARDCTL_ACOS5_SANITY_CHECK].contains(&command)
-    { return SC_ERROR_INVALID_ARGUMENTS; }
+    { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_INVALID_ARGUMENTS); }
 
     match command {
 //        SC_CARDCTL_GENERIC_BASE |
@@ -1205,140 +1207,140 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
 //        SC_CARDCTL_GET_CHV_REFERENCE_IN_SE |
 //        SC_CARDCTL_PKCS11_INIT_TOKEN |
 //        SC_CARDCTL_PKCS11_INIT_PIN |
-            SC_ERROR_NOT_SUPPORTED, // see sc_pkcs15init_bind
+            log3ifr_ret!(ctx,f,line!(), SC_ERROR_NOT_SUPPORTED), // see sc_pkcs15init_bind
         SC_CARDCTL_GET_SERIALNR =>
             {
                 let rm_serialnr = unsafe { &mut *data_ptr.cast::<sc_serial_number>() };
                 *rm_serialnr = match get_serialnr(card) {
                     Ok(val) => val,
-                    Err(e) => return e,
+                    Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
         SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE =>
             {
                 let rm_algo_ref_sym_store = unsafe { &mut *data_ptr.cast::<CardCtlAlgoRefSymStore>() };
                 rm_algo_ref_sym_store.value = match algo_ref_sym_store(rm_algo_ref_sym_store.card_type, rm_algo_ref_sym_store.algorithm, rm_algo_ref_sym_store.key_len_bytes) {
                     Ok(val) => val,
-                    Err(e) => return e,
+                    Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
         SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF =>
             {
                 let rm_count_files_curr_df = unsafe { &mut *data_ptr.cast::<u16>() };
                 *rm_count_files_curr_df = match get_count_files_curr_df(card) {
                     Ok(val) => val,
-                    Err(e) => return e,
+                    Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
         SC_CARDCTL_ACOS5_GET_FILE_INFO =>
             {
                 let rm_file_info = unsafe { &mut *data_ptr.cast::<CardCtlArray8>() };
                 rm_file_info.value = match get_file_info(card, rm_file_info.reference) {
                     Ok(val) => val,
-                    Err(e) => return e,
+                    Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
         SC_CARDCTL_ACOS5_GET_FREE_SPACE =>
             {
                 let rm_free_space = unsafe { &mut *data_ptr.cast::<u32>() };
                 *rm_free_space = match get_free_space(card) {
                     Ok(val) => val,
-                    Err(e) => return e,
+                    Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
         SC_CARDCTL_ACOS5_GET_IDENT_SELF =>
             {
                 let rm_is_hw_acos5 = unsafe { &mut *data_ptr.cast::<bool>() };
                 *rm_is_hw_acos5 = match get_is_ident_self_okay(card, 0) {
                     Ok(val) => val,
-                    Err(e) => return e,
+                    Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
         SC_CARDCTL_ACOS5_GET_COS_VERSION =>
             {
                 let rm_cos_version = unsafe { &mut *data_ptr.cast::<[u8; 8]>() };
                 *rm_cos_version = match get_cos_version(card) {
                     Ok(val) => val,
-                    Err(e) => return e,
+                    Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
 
 
         SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE =>
             {
-                if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return SC_ERROR_NO_CARD_SUPPORT; }
+                if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT); }
                 let rm_manufacture_date = unsafe { &mut *data_ptr.cast::<u32>() };
                 *rm_manufacture_date = match get_manufacture_date(card) {
                     Ok(val) => val,
-                    Err(e) => return e,
+                    Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
         SC_CARDCTL_ACOS5_GET_ROM_SHA1 =>
             {
-                if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return SC_ERROR_NO_CARD_SUPPORT; }
+                if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT); }
                 let rm_rom_sha1 = unsafe { &mut *data_ptr.cast::<[u8; 20]>() };
                 *rm_rom_sha1 = match get_rom_sha1(card) {
                     Ok(val) => val,
-                    Err(e) => return e,
+                    Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
         SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE =>
             {
-                if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return SC_ERROR_NO_CARD_SUPPORT; }
+                if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT); }
                 let rm_op_mode_byte = unsafe { &mut *data_ptr.cast::<u8>() };
                 *rm_op_mode_byte = match get_op_mode_byte(card) {
                     Ok(val) => val,
-                    Err(e) => return e,
+                    Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
         SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE =>
             {
-                if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return SC_ERROR_NO_CARD_SUPPORT; }
+                if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT); }
                 let rm_is_fips_compliant = unsafe { &mut *data_ptr.cast::<bool>() };
                 *rm_is_fips_compliant = match get_is_fips_compliant(card) {
                     Ok(val) => val,
-                    Err(e) => return e,
+                    Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
         SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE =>
             {
-                if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return SC_ERROR_NO_CARD_SUPPORT; }
+                if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT); }
                 let rm_pin_auth_state = unsafe { &mut *data_ptr.cast::<CardCtlAuthState>() };
                 rm_pin_auth_state.value = match get_is_pin_authenticated(card, rm_pin_auth_state.reference) {
                     Ok(val) => val,
-                    Err(e) => return e,
+                    Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
         SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE =>
             {
-                if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return SC_ERROR_NO_CARD_SUPPORT; }
+                if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT); }
                 let rm_key_auth_state = unsafe { &mut *data_ptr.cast::<CardCtlAuthState>() };
                 rm_key_auth_state.value = match get_is_key_authenticated(card, rm_key_auth_state.reference) {
                     Ok(val) => val,
-                    Err(e) => return e,
+                    Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
         SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO =>
             {
                 let rm_files_hashmap_info = unsafe { &mut *data_ptr.cast::<CardCtlArray32>() };
                 rm_files_hashmap_info.value = match get_files_hashmap_info(card, rm_files_hashmap_info.key) {
                     Ok(val) => val,
-                    Err(e) => return e,
+                    Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
         SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO =>
             {
@@ -1354,7 +1356,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
                     let mut aid = sc_aid::default();
                     let res = analyze_PKCS15_DIRRecord_2F00(card, &mut aid);
                     if res.is_err() || !res.unwrap() {
-                        return -1;
+                        return log3ifr_ret!(ctx,f,line!(), -1);
                     }
                     //println!("AID: {:X?}", &aid.value[..aid.len]);
                     analyze_PKCS15_PKCS15Objects_5031(card);
@@ -1362,31 +1364,30 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
                     // analyze_PKCS15_TokenInfo_5032(card);
                 }
                 /* */
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
         SC_CARDCTL_ACOS5_SDO_CREATE =>
-                acos5_create_file(card, data_ptr.cast::<sc_file>()),
+            log3ifr_ret!(ctx,f,line!(), acos5_create_file(card, data_ptr.cast::<sc_file>())),
         SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET =>
             {
                 let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
                 unsafe { *data_ptr.cast::<CardCtlGenerateAsymInject>() = dp.agi };
                 Box::leak(dp);
-                // card.drv_data = Box::into_raw(dp) as p_void;
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
         SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET =>
             {
                 let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
                 dp.agi = unsafe { *data_ptr.cast::<CardCtlGenerateAsymInject>() };
                 card.drv_data = Box::into_raw(dp).cast::<c_void>();
-                SC_SUCCESS
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
         SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES =>
             /* suppose select_file, authenticate, (possibly setting MSE) etc. was done already */
-            generate_asym(card, unsafe { &mut *data_ptr.cast::<CardCtlGenerateAsymCrypt>() }),
+            log3ifr_ret!(ctx,f,line!(), generate_asym(card, unsafe { &mut *data_ptr.cast::<CardCtlGenerateAsymCrypt>() })),
         SC_CARDCTL_ACOS5_ENCRYPT_ASYM =>
             /* suppose select_file, authenticate, (possibly setting MSE) etc. was done already */
-            encrypt_asym(card, unsafe { &mut *data_ptr.cast::<CardCtlGenerateAsymCrypt>() }, false),
+            log3ifr_ret!(ctx,f,line!(), encrypt_asym(card, unsafe { &mut *data_ptr.cast::<CardCtlGenerateAsymCrypt>() }, false)),
         SC_CARDCTL_ACOS5_ENCRYPT_SYM |
         SC_CARDCTL_ACOS5_DECRYPT_SYM     =>
             {
@@ -1398,9 +1399,9 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
                         BLOCKCIPHER_PAD_TYPE_PKCS7, BLOCKCIPHER_PAD_TYPE_ANSIX9_23/*, BLOCKCIPHER_PAD_TYPE_W3C*/]
                         .contains(&crypt_sym_data.pad_type)
 //                    || crypt_sym_data.iv != [0u8; 16]
-                { return SC_ERROR_INVALID_ARGUMENTS; }
+                { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_INVALID_ARGUMENTS); }
 
-                if sym_en_decrypt(card, crypt_sym_data) > 0 {SC_SUCCESS} else {SC_ERROR_KEYPAD_MSG_TOO_LONG}
+                log3ifr_ret!(ctx,f,line!(), if sym_en_decrypt(card, crypt_sym_data) > 0 {SC_SUCCESS} else {SC_ERROR_KEYPAD_MSG_TOO_LONG})
             },
         // #[cfg(sanity)]
         SC_CARDCTL_ACOS5_SANITY_CHECK =>
@@ -1409,11 +1410,11 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
                     if ctx.app_name.is_null() { c"" }
                     else { CStr::from_ptr(ctx.app_name) } } )
                 {
-                    Ok(()) => SC_SUCCESS,
-                    Err(e) => e,
+                    Ok(()) => log3ifr_ret!(ctx,f,line!(), SC_SUCCESS),
+                    Err(e) => log3ifr_ret!(ctx,f,line!(), e),
                 }
             },
-        _   => SC_ERROR_NO_CARD_SUPPORT
+        _   => log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT)
     } // match command
 } // acos5_card_ctl
 
@@ -1429,11 +1430,13 @@ extern "C" fn acos5_select_file(card_ptr: *mut sc_card, path_ptr: *const sc_path
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *card_ptr };
+    let ctx = unsafe { &mut *card.ctx };
+    let f = c"acos5_card_ctl";
     let path_ref = unsafe { & *path_ptr };
     // first setting of  card.cache.current_path.len  done in acos5_init
     if card.cache.current_path.len==0 || (path_ref.type_==SC_PATH_TYPE_FILE_ID && path_ref.len!=2) ||
         !(path_ref.len>=2 && path_ref.len<=16 && (path_ref.len%2==0 || path_ref.type_==SC_PATH_TYPE_DF_NAME)) {
-        return SC_ERROR_INVALID_ARGUMENTS;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_INVALID_ARGUMENTS);
     }
     let target_file_id = file_id_from_path_value(&path_ref.value[..path_ref.len]); // wrong result for SC_PATH_TYPE_DF_NAME, but doesn't matter
 
@@ -1444,16 +1447,16 @@ extern "C" fn acos5_select_file(card_ptr: *mut sc_card, path_ptr: *const sc_path
     let force_process_fci = !dp.is_running_init && file_out_ptr.is_null() &&
         ( path_ref.type_==SC_PATH_TYPE_DF_NAME || (does_file_exist && dp.files[&target_file_id].2.is_none()) );
     card.drv_data = Box::into_raw(dp).cast::<c_void>();
-    if !does_mf_exist { return SC_ERROR_NOT_ALLOWED; }
-    // if !does_file_exist { return SC_ERROR_FILE_NOT_FOUND; }
+    if !does_mf_exist { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NOT_ALLOWED); }
+    // if !does_file_exist { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_FILE_NOT_FOUND); }
     let file_opt = unsafe { file_out_ptr.as_mut() };
 
     match path_ref.type_ {
-        SC_PATH_TYPE_PATH     => select_file_by_path(card, path_ref, file_opt, force_process_fci),
+        SC_PATH_TYPE_PATH     => log3ifr_ret!(ctx,f,line!(), select_file_by_path(card, path_ref, file_opt, force_process_fci)),
         SC_PATH_TYPE_DF_NAME |
-        SC_PATH_TYPE_FILE_ID  => tracking_select_file(card, path_ref, file_opt, force_process_fci),
-        /*SC_PATH_TYPE_PATH_PROT | SC_PATH_TYPE_FROM_CURRENT | SC_PATH_TYPE_PARENT  => SC_ERROR_NO_CARD_SUPPORT,*/
-        _  => SC_ERROR_NO_CARD_SUPPORT,
+        SC_PATH_TYPE_FILE_ID  => log3ifr_ret!(ctx,f,line!(), tracking_select_file(card, path_ref, file_opt, force_process_fci)),
+        /*SC_PATH_TYPE_PATH_PROT | SC_PATH_TYPE_FROM_CURRENT | SC_PATH_TYPE_PARENT  => log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT),*/
+        _  => log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT),
     }
 }
 
@@ -1517,14 +1520,14 @@ println!("### acos5_get_response returned apdu.sw1: {:X}, apdu.sw2: {:X}   Unkno
         }
         log3if!(ctx,f,line!(), fmt_1, unsafe { *count_ptr }, rv);
         card.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE;
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), rv);
     }
     if !(apdu.sw1==0x6A && apdu.sw2==0x88) && apdu.resplen == 0 {
 //    LOG_FUNC_RETURN(card->ctx, sc_check_sw(card, apdu.sw1, apdu.sw2));
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
         log3if!(ctx,f,line!(), fmt_1, unsafe { *count_ptr }, rv);
         card.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE;
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), rv);
     }
 
     unsafe { *count_ptr = apdu.resplen };
@@ -1556,7 +1559,7 @@ println!("### acos5_get_response returned apdu.sw1: {:X}, apdu.sw2: {:X}   Unkno
     log3if!(ctx,f,line!(), fmt_1, unsafe { *count_ptr }, rv);
 
     card.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE;
-    rv
+    log3ifr_ret!(ctx,f,line!(), rv)
 }
 
 /*
@@ -1586,19 +1589,19 @@ extern "C" fn acos5_get_challenge(card_ptr: *mut sc_card, buf_ptr: *mut u8, coun
     for i in 0..loop_count {
         if i+1<loop_count || is_count_multiple {
             let rv = unsafe { func_ptr(card, buf_ptr.add(i*chunk_size), chunk_size) };
-            if rv != chunk_size.try_into().unwrap() { return rv; }
+            if rv != chunk_size.try_into().unwrap() { return log3ifr_ret!(ctx,f,line!(), rv); }
             len_rem -= chunk_size;
         }
         else {
             assert!(len_rem>0 && len_rem<chunk_size);
             let mut buf_temp = vec![0; chunk_size];
             let rv = unsafe { func_ptr(card, buf_temp.as_mut_ptr(), chunk_size) };
-            if rv != chunk_size.try_into().unwrap() { return rv; }
+            if rv != chunk_size.try_into().unwrap() { return log3ifr_ret!(ctx,f,line!(), rv); }
             unsafe { copy_nonoverlapping(buf_temp.as_ptr(), buf_ptr.add(i*chunk_size), len_rem) };
         }
     }
 //    log3if!(ctx,f,line!(), c"returning with requested %zu bytes supplied", count);
-    i32::try_from(count).unwrap()
+    log3ifr_ret!(ctx,f,line!(), i32::try_from(count).unwrap())
 }
 
 /* currently refers to pins only, but what about authenticated keys */
@@ -1616,8 +1619,7 @@ extern "C" fn acos5_logout(card_ptr: *mut sc_card) -> i32
     let mut p15card_ptr = null_mut();
     let mut rv = unsafe { sc_pkcs15_bind(card, null_mut(), &mut p15card_ptr) };
     if rv < SC_SUCCESS {
-        log3if!(ctx,f,line!(), c"Error: sc_pkcs15_bind");
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), c"Error: sc_pkcs15_bind. Returning with", rv);
     }
     assert!(!p15card_ptr.is_null());
     let mut p15objects = [null_mut(); 10]; // TODO there should be less than 10 AUTH_PIN
@@ -1629,16 +1631,15 @@ extern "C" fn acos5_logout(card_ptr: *mut sc_card) -> i32
 //        apdu.p2 = u8::try_from(unsafe { auth_info_ref.attrs.pin.reference }).unwrap();
         rv = logout_pin(card, u8::try_from(unsafe { auth_info_ref.attrs.pin.reference }).unwrap());
         if rv != SC_SUCCESS {
-            log3if!(ctx,f,line!(), c"Error: ACOS5 'Logout' failed");
-            return SC_ERROR_CARD_CMD_FAILED;
+            return log3ifr_ret!(ctx,f,line!(), c"Error: ACOS5 'Logout' failed. Returning with", SC_ERROR_CARD_CMD_FAILED);
         }
     }
     rv = unsafe { sc_pkcs15_unbind(p15card_ptr) }; // calls sc_pkcs15_pincache_clear
     if rv != SC_SUCCESS {
         log3if!(ctx,f,line!(), c"Error: sc_pkcs15_unbind failed");
-//        return rv;
+//        return log3ifr_ret!(ctx,f,line!(), rv);
     }
-    SC_SUCCESS
+    log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
 }
 
 
@@ -1659,10 +1660,7 @@ extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) 
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     if dp.files.contains_key(&(u16::try_from(file.id).unwrap())) {
         Box::leak(dp);
-        // card.drv_data = Box::into_raw(dp) as p_void;
-        rv = SC_ERROR_NOT_ALLOWED;
-        log3ifr!(ctx,f,line!(),c"### Duplicate file id disallowed by the driver ! ###", rv);
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(),c"### Duplicate file id disallowed by the driver ! ###", SC_ERROR_NOT_ALLOWED);
     }
     Box::leak(dp);
     // card.drv_data = Box::into_raw(dp) as p_void;
@@ -1834,27 +1832,26 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
     /* retrieve the number of files in the currently selected directory*/
     let numfiles = match get_count_files_curr_df(card) {
         Ok(val) => std::cmp::min(val, u16::try_from(buflen/2).unwrap()),
-        Err(e) => return e,
+        Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
     };
     // TODO : log if truncation occured
     if numfiles > 0 {
         let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         let is_running_init = dp.is_running_init;
         Box::leak(dp);
-        // card.drv_data = Box::into_raw(dp) as p_void;
 
         /* collect the IDs of files in the currently selected directory, restrict to max. 255, because addressing has 1 byte only */
         for i  in 0..u8::try_from(numfiles).unwrap() {
             let idx = usize::from(i) * 2;
             let mut rbuf = match get_file_info(card, i) {
                 Ok(val) => val,
-                Err(e)    => return e,
+                Err(e)    => return log3ifr_ret!(ctx,f,line!(), e),
             };
 //println!("{:X?}", rbuf);
             buf[idx..idx+2].copy_from_slice(&rbuf[2..4]);
             if card.type_ > SC_CARD_TYPE_ACOS5_64_V3 && [FDB_LINEAR_FIXED_EF, FDB_LINEAR_VARIABLE_EF,
                 FDB_CYCLIC_EF, FDB_CHV_EF, FDB_SYMMETRIC_KEY_EF, FDB_PURSE_EF, FDB_SE_FILE].contains(&rbuf[0]) {
-                if rbuf[4]>0 || rbuf[6]>0 {return -1;}
+                if rbuf[4]>0 || rbuf[6]>0 {return log3ifr_ret!(ctx,f,line!(), c"Only 1 byte allowed for  MRL or NOR (driver constrained)", SC_ERROR_NOT_ALLOWED);}
                 rbuf[4] = rbuf[5]; //  {FDB, DCB, FILE ID, FILE ID,4 SIZE or MRL,5 SIZE or NOR,6 SFI,7 LCSI};
                 rbuf[5] = rbuf[7];
             }
@@ -1872,14 +1869,12 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
                                                   ([0; SC_MAX_PATH_SIZE], rbuf, None, None, None));
                 card.drv_data = Box::into_raw(dp).cast::<c_void>();
                 if predecessor.is_some() {
-                    let rv = SC_ERROR_NOT_ALLOWED;
-                    log3ifr!(ctx,f,line!(), c"### Duplicate file id disallowed by the driver ! ###", rv);
-                    return rv;
+                    return log3ifr_ret!(ctx,f,line!(), c"### Duplicate file id disallowed by the driver ! ###", SC_ERROR_FILE_ALREADY_EXISTS)
                 }
             }
         } // for
     }
-    i32::from(numfiles)*2
+    log3ifr_ret!(ctx,f,line!(), i32::from(numfiles)*2 )
 }
 
 
@@ -2169,8 +2164,7 @@ println!("Failure: Non-match in let acl_category. file_ref.type_: {}", file_ref.
     unsafe { *out_ptr.add(1) = u8::try_from(ptr_diff_sum-2).unwrap(); };
     *outlen = ptr_diff_sum;
 
-    log3ifr!(ctx,f,line!(), SC_SUCCESS);
-    SC_SUCCESS
+    log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
 }
 
 /*
@@ -2498,12 +2492,10 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
     let algorithm : c_ulong = algorithm.into();
 
     if ![SC_ALGORITHM_RSA, SC_ALGORITHM_EC].contains(&algorithm) {
-        let rv = SC_ERROR_NO_CARD_SUPPORT;
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT);
     }
     if SC_ALGORITHM_EC  == algorithm {
-        return read_public_key_ec(card, key_path_ptr, out, out_len);
+        return log3ifr_ret!(ctx,f,line!(), read_public_key_ec(card, key_path_ptr, out, out_len));
     }
 
     assert!((512..=4096).contains(&modulus_length));
@@ -2563,8 +2555,7 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
     /* transform the raw content to der-encoded */
     rv = unsafe { sc_pkcs15_encode_pubkey_rsa(ctx, &rsa_key, out, out_len) };
     if rv < 0 {
-        log3ifr!(ctx,f,line!(), c"Error: sc_pkcs15_encode_pubkey_rsa failed: returning with", rv);
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), c"Error: sc_pkcs15_encode_pubkey_rsa failed: returning with", rv);
     }
     SC_SUCCESS
 }
@@ -2650,8 +2641,7 @@ fn read_public_key_ec(card: &mut sc_card,
     rv = unsafe { sc_pkcs15_encode_pubkey_ec(ctx, &mut ec_key, out, out_len) };
 
     if rv < 0 {
-        log3ifr!(ctx,f,line!(), c"Error: sc_pkcs15_encode_pubkey_ec failed: returning with", rv);
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), c"Error: sc_pkcs15_encode_pubkey_ec failed: returning with", rv);
     }
     SC_SUCCESS
 }
@@ -2681,9 +2671,7 @@ Tokenunfo
     if SC_SEC_OPERATION_DERIVE == env_ref.operation
 //        || (SC_SEC_OPERATION_WRAP == env_ref.operation)
     {
-        rv = SC_ERROR_NO_CARD_SUPPORT;
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT);
     }
 
     else if [SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_RSAPUBLIC,
@@ -2707,9 +2695,7 @@ Tokenunfo
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
 //println!("rv: {}, apdu: {:?}", rv, apdu);
         if rv != SC_SUCCESS {
-            log3if!(ctx,f,line!(), c"Error: 'Set Security Environment for Generate Key pair' failed");
-            log3ifr!(ctx,f,line!(), rv);
-            return rv;
+            return log3ifr_ret!(ctx,f,line!(), c"Error: 'Set Security Environment for Generate Key pair' failed. Returning with", rv);
         }
     }
 
@@ -2730,10 +2716,8 @@ Tokenunfo
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
 //println!("rv: {}, apdu: {:?}", rv, apdu);
         if rv != SC_SUCCESS {
-            rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
-            log3if!(ctx,f,line!(), c"Error: 'Set Security Environment for Sign' failed");
-            log3ifr!(ctx,f,line!(), rv);
-            return rv;
+            //rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
+            return log3ifr_ret!(ctx,f,line!(), c"Error: 'Set Security Environment for Sign' failed-Returning with", rv);
         }
         /* sign may need decrypt (for non-SHA1/SHA256 hashes), thus prepare for a CT as well */
         algo = algo_ref_mse_sedo(card.type_, 0, CRT_TAG_CT,
@@ -2745,10 +2729,8 @@ Tokenunfo
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
 //println!("rv: {}, apdu: {:?}", rv, apdu);
         if rv != SC_SUCCESS {
-            rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
-            log3if!(ctx,f,line!(), c"Error: 'Set Security Environment for Decrypt' failed");
-            log3ifr!(ctx,f,line!(), rv);
-            return rv;
+            //rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
+            return log3ifr_ret!(ctx,f,line!(), c"Error: 'Set Security Environment for Decrypt' failed. Returning with", rv);
         }
     }
 
@@ -2768,10 +2750,8 @@ Tokenunfo
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
 //println!("rv: {}, apdu: {:?}", rv, apdu);
         if rv != SC_SUCCESS {
-            rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
-            log3if!(ctx,f,line!(), c"Error: 'Set Security Environment for Decrypt' failed");
-            log3ifr!(ctx,f,line!(), rv);
-            return rv;
+            //rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
+            return log3ifr_ret!(ctx,f,line!(), c"Error: 'Set Security Environment for Decrypt' failed. Returning with", rv);
         }
     }
 
@@ -2791,10 +2771,8 @@ Tokenunfo
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
 //    println!("rv: {}, apdu: {:?}", rv, apdu);
         if rv != SC_SUCCESS {
-            rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
-            log3if!(ctx,f,line!(), c"Error: 'Set Security Environment for encrypt_asym' failed");
-            log3ifr!(ctx,f,line!(), rv);
-            return rv;
+            //rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
+            return log3ifr_ret!(ctx,f,line!(), c"Error: 'Set Security Environment for encrypt_asym' failed", rv);
         }
     }
 
@@ -2805,17 +2783,13 @@ Tokenunfo
         && (env_ref.flags & SC_SEC_ENV_ALG_REF_PRESENT) > 0
     {
         if env_ref.key_ref_len == 0 || ![SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES].contains(&env_ref.algorithm) {
-            rv = SC_ERROR_NOT_SUPPORTED;
-            log3ifr!(ctx,f,line!(), rv);
-            return rv;
+            return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NOT_SUPPORTED);
         }
 
-        let mut cbc : bool = true;
+        let mut cbc = true;
         if (env_ref.algorithm & SC_ALGORITHM_AES) > 0 {
             if ![SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB].contains(&env_ref.algorithm_flags) {
-                rv = SC_ERROR_NOT_SUPPORTED;
-                log3ifr!(ctx,f,line!(), rv);
-                return rv;
+                return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NOT_SUPPORTED);
             }
             cbc =  env_ref.algorithm_flags != SC_ALGORITHM_AES_ECB;
         }
@@ -2891,8 +2865,7 @@ pub const SC_SEC_ENV_PARAM_DES_CBC           : u32 = 4;
         rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
         if rv != SC_SUCCESS {
-            log3ifr!(ctx,f,line!(), rv);
-            return rv;
+            return log3ifr_ret!(ctx,f,line!(), rv);
         }
     }
 
@@ -2915,10 +2888,8 @@ pub const SC_SEC_ENV_PARAM_DES_CBC           : u32 = 4;
             rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
 //println!("rv: {}, apdu: {:?}", rv, apdu);
             if rv != SC_SUCCESS {
-                rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
-                log3if!(ctx,f,line!(), c"'Set SecEnv for RSA Decrypt' failed");
-                log3ifr!(ctx,f,line!(), rv);
-                return rv;
+                //rv = SC_ERROR_KEYPAD_MSG_TOO_LONG;
+                return log3ifr_ret!(ctx,f,line!(), c"'Set SecEnv for RSA Decrypt' failed. Returning with", rv);
             }
 /*
                 println!("set_security_env_Unwrap: env_ref.flags: {:X?}", env_ref.flags);                            // 0x12: SC_SEC_ENV_FILE_REF_PRESENT | SC_SEC_ENV_ALG_PRESENT
@@ -2935,14 +2906,11 @@ pub const SC_SEC_ENV_PARAM_DES_CBC           : u32 = 4;
 */
         }
         else {
-            rv = SC_ERROR_NO_CARD_SUPPORT;
-            log3ifr!(ctx,f,line!(), rv);
-            return rv;
+            return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT);
         }
     }
 
-    log3ifr!(ctx,f,line!(), SC_SUCCESS);
-    SC_SUCCESS
+    log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
 }
 
 /* Should this be restricted by inspecting the padding for correctness ? */

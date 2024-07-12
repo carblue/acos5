@@ -55,16 +55,13 @@ use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, SC_CARD_CAP
                          SC_ALGORITHM_RSA_HASH_MD5_SHA1*/
 };
 
-use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL, SC_ERROR_OUT_OF_MEMORY
-//                        ,SC_ERROR_NOT_SUPPORTED,
-//                         , SC_ERROR_KEYPAD_MSG_TOO_LONG
-};
+use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL, SC_ERROR_OUT_OF_MEMORY, SC_ERROR_INVALID_ARGUMENTS};
 
 use opensc_sys::types::{sc_object_id /*, sc_apdu, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_2_EXT,
                         SC_APDU_CASE_3_SHORT, SC_APDU_CASE_3_EXT, SC_APDU_CASE_4_SHORT, SC_APDU_CASE_4_EXT*/};
 
 //use crate::constants_types::p_void;
-//use crate::wrappers::*;
+use crate::wrappers::{wr_do_log, wr_do_log_rv_ret};
 
 /*
 /** Calculates the length of the encoded APDU in octets.
@@ -154,18 +151,24 @@ pub fn me_get_max_send_size(card: &sc_card) -> usize
 
 fn me_card_add_algorithm(card: &mut sc_card, info: &sc_algorithm_info) -> i32
 {
+    if card.ctx.is_null() {
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+    let ctx = unsafe { &mut *card.ctx };
+    let f = c"acos5_delete_file";
+    log3ifc!(ctx,f,line!());
     let p_ptr = unsafe { libc::realloc(card.algorithms.cast::<c_void>(), usize::try_from(card.algorithm_count + 1).unwrap() *
         std::mem::size_of::<sc_algorithm_info>()) }.cast::<sc_algorithm_info>();
 
     if p_ptr.is_null() {
-        return SC_ERROR_OUT_OF_MEMORY;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_OUT_OF_MEMORY);
     }
     card.algorithms = p_ptr;
     let p = unsafe { &mut * p_ptr.add(card.algorithm_count.try_into().unwrap()) };
     card.algorithm_count += 1;
     *p = *info;
 //println!("card.algorithm_count: {}, p.algorithm: {}, p.key_length: {}, p.flags: {}", card.algorithm_count, p.algorithm, p.key_length, p.flags);
-    SC_SUCCESS
+    log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
 }
 
 pub fn me_card_add_symmetric_alg(card: &mut sc_card,
@@ -188,7 +191,7 @@ pub fn me_card_add_symmetric_alg(card: &mut sc_card,
                                        algorithm,
         #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
                                        algorithm: algorithm.try_into().unwrap(),
-                                       key_length, flags, .. sc_algorithm_info::default()
+        key_length, flags, .. sc_algorithm_info::default()
     };
     me_card_add_algorithm(card, &info)
 }
@@ -308,14 +311,11 @@ pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: u32, caps: u32,
         }
         else {
             // LOG_TEST_RET(ctx, SC_ERROR_NOT_SUPPORTED, "unsupported algorithm");
-            let rv = SC_ERROR_NOT_SUPPORTED;
-            log3ifr!(ctx,f,line!(), c"unsupported algorithm", rv);
-            return rv;
+            return log3ifr_ret!(ctx,f,line!(), c"unsupported algorithm. Returning with", SC_ERROR_NOT_SUPPORTED);
         }
     }
     log3ift!(ctx,f,line!(), c"pad flags 0x%X, secure algorithm flags 0x%X", *pflags, *sflags);
-    log3ifr!(ctx,f,line!(), SC_SUCCESS);
-    SC_SUCCESS
+    log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
 } // pub fn me_get_encoding_flags
 */
 

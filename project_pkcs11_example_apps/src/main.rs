@@ -16,16 +16,16 @@
    C_Finalize
  */
 
-use pkcs11::{Ctx, errors::Error};
-use pkcs11::types::{CKF_SERIAL_SESSION, CKU_USER, CK_SESSION_HANDLE, CK_OBJECT_CLASS, CK_ATTRIBUTE, CKO_PRIVATE_KEY,
-                    CK_VOID_PTR, CKA_CLASS, CK_OBJECT_HANDLE/*, CK_UTF8CHAR, CK_BYTE*/, CKA_LABEL, CKA_ID, CKA_KEY_TYPE,
-                    CK_KEY_TYPE, CKA_DECRYPT, CK_BBOOL, CKA_SIGN, CKA_UNWRAP, CKO_SECRET_KEY, CKA_LOCAL,
-                    CKA_EXTRACTABLE, CKA_SENSITIVE, CKA_TOKEN, CKA_PRIVATE, CKA_MODIFIABLE, //CKA_COPYABLE,
-                    CKA_ALWAYS_SENSITIVE, CKA_NEVER_EXTRACTABLE, CKA_ENCRYPT, CKA_VERIFY, CKA_SIGN_RECOVER,
-                    CKA_VERIFY_RECOVER, CKA_WRAP, CKO_PUBLIC_KEY};
-use std::mem::size_of;
+use cryptoki::context::{Pkcs11, CInitializeArgs};
+use cryptoki::session::{UserType, Session};
+use cryptoki::types::AuthPin;
+use cryptoki::object::{ObjectClass, Attribute, ObjectHandle, AttributeType};
+use cryptoki::error::Error;
 
-fn show_key_info(ctx: &Ctx, session: CK_SESSION_HANDLE, key: CK_OBJECT_HANDLE) -> Result<(), Error> {
+
+fn show_key_info(/*_ctx: &Pkcs11,*/ session: &Session, key: ObjectHandle) -> Result<(), Error> {
+    println!("key {:?}", key);
+/*
     let mut label = [0_u8; 80]; //CK_UTF8CHAR *label = (CK_UTF8CHAR *) malloc(80);
     let mut id = [0_u8; 10]; //CK_BYTE *id = (CK_BYTE *) malloc(10);
     let mut key_type: CK_KEY_TYPE = 0xFFFFFFFF;
@@ -126,9 +126,38 @@ fn show_key_info(ctx: &Ctx, session: CK_SESSION_HANDLE, key: CK_OBJECT_HANDLE) -
                        pValue: &mut can_unwrap as *mut _ as CK_VOID_PTR,
                        ulValueLen: 1 },
     ];
-
-    ctx.get_attribute_value(session, key, &mut template)?;
-
+    //ctx.get_attribute_value(session, key, &mut template)?;
+*/
+    let template = [
+        AttributeType::Label,
+        AttributeType::Id,
+        AttributeType::KeyType,
+        AttributeType::Token,
+        AttributeType::Private,
+        AttributeType::Modifiable,
+        //AttributeType::,
+        AttributeType::Sensitive,
+        AttributeType::Extractable,
+        AttributeType::AlwaysSensitive,
+        AttributeType::NeverExtractable,
+        AttributeType::Local,
+        AttributeType::Encrypt,
+        AttributeType::Decrypt,
+        AttributeType::Sign,
+        AttributeType::Verify,
+        AttributeType::SignRecover,
+        AttributeType::VerifyRecover,
+        AttributeType::Wrap,
+        AttributeType::Unwrap,
+    ];
+    let attributes_vec = session.get_attributes(key, &template)?;
+    for elem in attributes_vec {
+        match elem {
+            Attribute::Label(vec) => println!("attrib {:?}", unsafe { std::str::from_utf8_unchecked(&vec) } ),
+            _ => println!("attrib {:?}", elem),
+        }
+    }
+    /*
     print!("Found a key:  ");
     let label_len : usize = template[0].ulValueLen.try_into().unwrap();
 
@@ -189,58 +218,41 @@ fn show_key_info(ctx: &Ctx, session: CK_SESSION_HANDLE, key: CK_OBJECT_HANDLE) -
     else { print!("\tKey is_token_object too large, or not found"); }
     if template[18].ulValueLen > 0 { println!("\t can_unwrap: {}", can_unwrap==1); }
     else { println!("\tKey is_token_object too large, or not found"); }
-
+*/
     Ok(())
 }
 
-fn read_keys(ctx: &Ctx, session: CK_SESSION_HANDLE, key_class: CK_OBJECT_CLASS) -> Result<(), Error> {
-    let template = [
-        CK_ATTRIBUTE { attrType: CKA_CLASS,
-                       pValue: &key_class as *const _ as CK_VOID_PTR,
-                       ulValueLen: size_of::<CK_OBJECT_CLASS>().try_into().unwrap() }
-    ];
-    ctx.find_objects_init(session, &template)?;
-
-    let mut res : Vec<CK_OBJECT_HANDLE> = ctx.find_objects(session, 1)?;
-    while !res.is_empty() {
-        show_key_info(ctx, session, res[0])?;
-        res = ctx.find_objects(session, 1)?;
-        // println!("object_count: {}", res.len());
+fn read_keys(/*ctx: &Pkcs11,*/ session: &Session, key_class: ObjectClass) -> Result<(), Error> {
+    let template = [ Attribute::Class(key_class) ];
+    for elem in session.find_objects(&template)? {
+        show_key_info(/*ctx,*/ session, elem)?;
     }
-    ctx.find_objects_final(session)
+    Ok(())
 }
 
 fn main() -> Result<(), Error> {
     cfg_if::cfg_if! {
         if #[cfg(target_os = "windows")] {
-            let ctx = Ctx::new_and_initialize("C:/Program Files/OpenSC Project/OpenSC/pkcs11/opensc-pkcs11.dll")?;
+            let ctx = Pkcs11::new("C:/Program Files/OpenSC Project/OpenSC/pkcs11/opensc-pkcs11.dll")?;
         }
         else {
-            // let ctx = Ctx::new_and_initialize("/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so")?;
-            let ctx = Ctx::new_and_initialize("opensc-pkcs11.so")?;
+            //let ctx = Pkcs11::new("/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so")?;
             /* if p11-kit installed and opensc-pkcs11.so configured with highest priority */
-            //let ctx = Ctx::new_and_initialize("p11-kit-proxy.so")?;
+            let ctx = Pkcs11::new("/usr/lib/x86_64-linux-gnu/p11-kit-proxy.so")?;
         }
     }
+    ctx.initialize(CInitializeArgs::OsThreads)?;
 
-    let slot_list = ctx.get_slot_list(true)?;
-    if slot_list.is_empty() {
-        eprintln!("Error; could not find any slots");
-        return Err(Error::UnavailableInformation);
-    }
-    let slot = slot_list[0];
-    println!("slot count: {}. Selected slotId: {}", slot_list.len(), slot);
-
-    let session = ctx.open_session(slot, CKF_SERIAL_SESSION, None, None)?;
-    ctx.login(session, CKU_USER, Some("12345678"))?;
+    let slot = ctx.get_slots_with_initialized_token()?.remove(0);
+    let session = ctx.open_ro_session(slot)?;
+    session.login(UserType::User, Some(&AuthPin::new("12345678".into())))?;
     println!("CKO_PUBLIC_KEY:");
-    read_keys(&ctx, session, CKO_PUBLIC_KEY)?;
+    read_keys(/*&ctx,*/ &session, ObjectClass::PUBLIC_KEY)?;
     println!("CKO_PRIVATE_KEY:");
-    read_keys(&ctx, session, CKO_PRIVATE_KEY)?;
+    read_keys(/*&ctx,*/ &session, ObjectClass::PRIVATE_KEY)?;
     println!("CKO_SECRET_KEY:");
-    read_keys(&ctx, session, CKO_SECRET_KEY)?;
-    ctx.logout(session)?;
-    ctx.close_session(session)
+    read_keys(/*&ctx,*/ &session, ObjectClass::SECRET_KEY)?;
+    session.logout()
 }
 
 /*

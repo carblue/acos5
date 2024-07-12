@@ -122,7 +122,8 @@ use opensc_sys::pkcs15::{sc_pkcs15_card, sc_pkcs15_object, sc_pkcs15_prkey, sc_p
                          SC_PKCS15_DODF, sc_pkcs15_read_pubkey, sc_pkcs15_free_pubkey, sc_pkcs15_der,
                          SC_PKCS15_PRKEY_ACCESS_EXTRACTABLE, SC_PKCS15_TYPE_PUBKEY_EC,
                          SC_PKCS15_PRKEY_USAGE_SIGN, SC_PKCS15_PRKEY_USAGE_DECRYPT, SC_PKCS15_TYPE_CLASS_MASK, SC_PKCS15_TYPE_SKEY,
-                         SC_PKCS15_PRKEY_ACCESS_SENSITIVE, SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE, SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE, SC_PKCS15_PRKEY_ACCESS_LOCAL
+                         SC_PKCS15_PRKEY_ACCESS_SENSITIVE, SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE,
+                         SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE, SC_PKCS15_PRKEY_ACCESS_LOCAL, SC_PKCS15_TYPE_PRKEY
 };
 //, sc_pkcs15_bignum, sc_pkcs15_pubkey_rsa
 use opensc_sys::pkcs15_init::{sc_pkcs15init_operations, sc_pkcs15init_authenticate/*, sc_pkcs15init_pubkeyargs*/};
@@ -445,9 +446,10 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     let profile = unsafe { &mut *profile_ptr };
     let object = unsafe { &mut *object_ptr };
     let mut rv;
-    log3if!(ctx,f,line!(), c"object.type: %X", object.type_);
+    log3if!(ctx,f,line!(), c"object.type: %X  (SC_PKCS15_TYPE_PRKEY_EC = 0x104;)", object.type_);
 // println!("acos5_pkcs15_create_key, object: {:X?}", *object);
-    if SC_PKCS15_TYPE_SKEY == (object.type_ & SC_PKCS15_TYPE_CLASS_MASK) {
+    let object_class = object.type_ & SC_PKCS15_TYPE_CLASS_MASK;
+    if SC_PKCS15_TYPE_SKEY == object_class {
         log3if!(ctx,f,line!(),c"Currently we won't create any sym. secret key file, but presume that it exists already");
         return SC_SUCCESS;
     }
@@ -457,6 +459,7 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         Ok((ax, ay)) => (ax, ay),
         Err(e) => return e,
     };
+    assert_eq!(SC_PKCS15_TYPE_PRKEY, object_class);
     let key_info = unsafe { &mut *object.data.cast::<sc_pkcs15_prkey_info>() };
     if ![SC_PKCS15_TYPE_PRKEY_RSA, SC_PKCS15_TYPE_PRKEY_EC].contains(&object.type_) ||
         (key_info.usage & (SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT)) == 0 {
@@ -493,9 +496,9 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         }}
     }
     else /*SC_PKCS15_TYPE_PRKEY_EC == object.type_*/ {
-        rv = SC_ERROR_INVALID_ARGUMENTS;
-        log3ifr!(ctx,f,line!(), c"Error: EC key pair creation not yet supported by driver", rv);
-        return rv;
+        keybits = 0;
+        //rv = SC_ERROR_INVALID_ARGUMENTS;
+        //return log3ifr_ret!(ctx,f,line!(), c"Error: EC key pair creation not yet supported by driver", rv);
     }
 
     /* TODO Think about other checks or possibly refuse to generate keys if file access rights are wrong */
@@ -642,7 +645,10 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         dp.agc.rsa_pub_exponent = [0; 16];
     }
     let do_create_files = dp.agc.do_create_files;
-    file_priv.size = 5 + keybits/16 * if dp.agc.do_generate_rsa_crt {5} else {2};
+    file_priv.size =
+        if SC_PKCS15_TYPE_PRKEY_RSA == object.type_
+             { 5 + keybits/16 * if dp.agc.do_generate_rsa_crt {5} else {2} }
+        else { 71 };
     card.drv_data = Box::into_raw(dp).cast::<c_void>();
 //
     if !file_priv.prop_attr.is_null() {
@@ -737,7 +743,10 @@ log3if!(ctx,f,line!(), c"file_priv.path: %s",
         return SC_ERROR_OUT_OF_MEMORY;
     }
     let file_pub = unsafe { &mut *file_pub };
-    file_pub.size = 21 + keybits/8;
+    file_pub.size =
+        if SC_PKCS15_TYPE_PRKEY_RSA == object.type_
+             { 21 + keybits/8 }
+        else { 72 };
     // file_pub.path.value[file_pub.path.len-1] += 0x30;
     file_pub.path.value[file_pub.path.len-2..file_pub.path.len].copy_from_slice(&ay.to_be_bytes());
     file_pub.id = i32::from(file_id_from_path_value(&file_pub.path.value[..file_pub.path.len]));
