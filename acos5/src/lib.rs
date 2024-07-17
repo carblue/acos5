@@ -468,7 +468,11 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
     let idx_acos5_atrs = unsafe { _sc_match_atr(card, acos5_atrs.as_ptr(), &mut type_out) };
 ////println!("reader.supported_protocols: {}, reader.active_protocol: {}\n", reader.supported_protocols, reader.active_protocol);
 ////println!("idx_acos5_atrs: {}, card.type_: {}, type_out: {}, &card.atr.value[..20]: {:X?}\n", idx_acos5_atrs, card.type_, type_out, &card.atr.value[..20]);
-    if idx_acos5_atrs < 0 || idx_acos5_atrs >= i32::try_from(acos5_atrs.len()).unwrap() {
+    if idx_acos5_atrs < 0 {
+        return log3ifr_ret!(ctx,f,line!(), c"Card doesn't match: Differing ATR. Returning with 0 (no match)", 0);
+    }
+    let idx_acos5_atrs = usize::try_from(idx_acos5_atrs).unwrap();
+    if idx_acos5_atrs >= acos5_atrs.len() {
         return log3ifr_ret!(ctx,f,line!(), c"Card doesn't match: Differing ATR. Returning with 0 (no match)", 0);
     }
 
@@ -488,20 +492,22 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
     /* check for 'Card OS Version' */
     let rbuf_card_os_version = match get_cos_version(card) {
         Ok(val) => val,
-        Err(_e) => { log3if!(ctx,f,line!(), c"Card doesn't match: get_cos_version failed! }
-            Returning with 0 (no match)"); return 0 },
+        Err(_e) => return log3ifr_ret!(ctx,f,line!(), c"Card doesn't match: get_cos_version failed! \
+            Returning with 0 (no match)", 0),
     };
 
 ////println!("rbuf_card_os_version: {:X?}", &rbuf_card_os_version[..]);
-    //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x02, 0x00,  0x40]  Cryptomate64  b"ACOS___@"
-    //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x03, 0x01,  0x40]  CryptoMate Nano in op mode 64 K
-    //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x03, 0x00,  0x40]  CryptoMate Nano in op mode FIPS
-    //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x04, 0x20,  0xC0]  CryptoMate EVO revision 2 in op mode
-    //        rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x04, 0x30,  0xC0]  CryptoMate EVO revision 3 in op mode
-    if rbuf_card_os_version[..5] != [0x41, 0x43, 0x4F, 0x53, 0x05]  ||
-        SC_CARD_TYPE_ACOS5_BASE + i32::from(rbuf_card_os_version[5]) != type_out   /*|| rbuf_card_os_version[7] != 0x40*/ {
-        log3if!(ctx,f,line!(), c"Card doesn't match: ACOS5 'Card OS Version'-check failed. Returning with 0 (no match)");
-        return 0;
+/*
+              rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x02, 0x00,  0x40]  Cryptomate64  b"ACOS___@"
+              rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x03, 0x01,  0x40]  CryptoMate Nano in op mode 64 K
+              rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x03, 0x00,  0x40]  CryptoMate Nano in op mode FIPS
+              rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x04, 0x20,  0xC0]  CryptoMate EVO revision 2 in op mode
+              rbuf_card_os_version: [0x41, 0x43, 0x4F, 0x53, 0x05,  0x04, 0x30,  0xC0]  CryptoMate EVO revision 3 in op mode */
+    if rbuf_card_os_version[..=4] != [0x41, 0x43, 0x4F, 0x53, 0x05]  ||
+        SC_CARD_TYPE_ACOS5_BASE + i32::from(rbuf_card_os_version[5]) != type_out  ||
+        ![0x40, 0xC0].contains(&rbuf_card_os_version[7]) {
+        return log3ifr_ret!(ctx,f,line!(), c"Card doesn't match: ACOS5 'Card OS Version'-check \
+        failed. Returning with 0 (no match)", 0);
     }
 
     /*  //optional checks
@@ -559,7 +565,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
 
     // Only now, on success, set card.type
     card.type_ = type_out;
-    log3if!(ctx,f,line!(), c"'%s'  ##### card matched ! #####. Returning with 1", acos5_atrs[usize::try_from(idx_acos5_atrs).unwrap()].name);
+    log3if!(ctx,f,line!(), c"'%s'  ##### card matched ! #####. Returning with 1", acos5_atrs[idx_acos5_atrs].name);
     1
 }
 
@@ -1654,7 +1660,6 @@ extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) 
     let ctx = unsafe { &mut *card.ctx };
     let f = c"acos5_create_file";
     let file = unsafe { &mut *file_ptr };
-    let rv;
     log3ifc!(ctx,f,line!());
 
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
@@ -1663,7 +1668,6 @@ extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) 
         return log3ifr_ret!(ctx,f,line!(),c"### Duplicate file id disallowed by the driver ! ###", SC_ERROR_NOT_ALLOWED);
     }
     Box::leak(dp);
-    // card.drv_data = Box::into_raw(dp) as p_void;
 
     if file.path.len == 0 {
         let current_path_df_slice = current_path_df(card);
@@ -1676,7 +1680,7 @@ extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) 
 
     /* iso7816_create_file calls acos5_construct_fci */
     let func_ptr = unsafe { (*(*sc_get_iso7816_driver()).ops).create_file.unwrap() };
-    rv = unsafe { func_ptr(card, file_ptr) };
+    let rv = unsafe { func_ptr(card, file_ptr) };
 
     if rv == SC_SUCCESS {
         let file_ref : &sc_file = file;
@@ -1797,7 +1801,7 @@ println!("file_id: {file_id:X} is not a key of hashmap dp.files");
     else {
         log3if!(ctx,f,line!(), c"acos5_delete_file failed. rv: %d", rv);
     }
-    rv
+    log3ifr_ret!(ctx,f,line!(), rv)
 }
 
 /*
@@ -3540,11 +3544,12 @@ extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, encrypted_data: *const u
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     log3ifc!(ctx,c"acos5_decrypt_sym",line!());
-println!("called for decryption: encrypted_data_len  {:?}", encrypted_data_len);
+println!("called for decryption: encrypted_data_len  {encrypted_data_len:?}");
     if out.is_null() {
-println!("called for decryption: out , outlen   {:p} . {:p}", out, outlen);
+println!("called for decryption: out , outlen   {out:p} , {outlen:p}");
         if outlen.is_null() { return 3; }
-        else { unsafe {*outlen = cmp::max(encrypted_data_len, 256);} return 0; }
+        unsafe { *outlen = cmp::max(encrypted_data_len, 256) };
+        return 0;
     }
     if encrypted_data_len == 0 {
         log3if!(ctx,c"acos5_decrypt_sym",line!(), c"nothing to do here: returning with 0");
@@ -3553,7 +3558,7 @@ println!("called for decryption: out , outlen   {:p} . {:p}", out, outlen);
 
     if outlen.is_null() {
         log3ifc!(ctx,c"acos5_decrypt_sym",line!());
-println!("called for decryption: outlen {:p}", outlen);
+println!("called for decryption: outlen {outlen:p}");
         return SC_ERROR_INVALID_ARGUMENTS;
     }
 //println!("acos5_decrypt_sym input: algorithm: {:02X}, algorithm_flags: {:02X}, key_ref[0]: {:02X}, encrypted_data_len: {}, encrypted_data: {:02X?}",

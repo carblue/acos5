@@ -57,8 +57,8 @@ use crate::constants_types::{ACOS5_OBJECT_REF_LOCAL, ACOS5_OBJECT_REF_MAX, CARD_
 use crate::crypto::{DES_KEY_SZ, DES_KEY_SZ_u8, des_ecb3_unpadded_8, des_ede3_cbc_pad_80_mac, des_ede3_cbc_pad_80,
                     DES_set_odd_parity, DES_cblock, Encrypt, Decrypt};
 use crate::no_cdecl::{authenticate_external, authenticate_internal};
-use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tttt, wr_do_log_tu, wr_do_log_tuv,
-                      wr_do_log_tuvw};
+use crate::wrappers::{wr_do_log, wr_do_log_t, wr_do_log_tttt, wr_do_log_tu, wr_do_log_tuv,
+                      wr_do_log_tuvw, wr_do_log_rv_ret, wr_do_log_sds_ret};
 
 
 #[allow(clippy::cast_possible_truncation)]
@@ -185,7 +185,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
     if value.is_null() {
 ////                sc_debug(ctx, SC_LOG_DEBUG_VERBOSE, "No %s value in OpenSC config", name);
         log3if!(ctx,f,line!(), c"No %s value in OpenSC config", name.as_ptr());
-        return SC_ERROR_SM_KEYSET_NOT_FOUND;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_KEYSET_NOT_FOUND);
     }
 
 ////            sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "keyset::enc(%"SC_FORMAT_LEN_SIZE_T"u) %s", strlen(value), value);
@@ -201,13 +201,13 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
         if rv != SC_SUCCESS {
 ////sc_debug(ctx, SC_LOG_DEBUG_VERBOSE, "SM get %s: hex to bin failed for '%s'; error %i", name, value, rv);
             log3if!(ctx,f,line!(), c"SM get %s: hextobin failed for '%s'; error %i", name.as_ptr(),value,rv);
-            return SC_ERROR_UNKNOWN_DATA_RECEIVED;
+            return log3ifr_ret!(ctx,f,line!(), SC_ERROR_UNKNOWN_DATA_RECEIVED);
         }
 
 ////sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "ENC(%"SC_FORMAT_LEN_SIZE_T"u) %s", hex_len, sc_dump_hex(hex, hex_len));
         log3if!(ctx,f,line!(), c"ENC(%zu) %s", hex_len, unsafe {sc_dump_hex(hex.as_ptr(), hex_len)});
         if hex_len != 3*DES_KEY_SZ {
-            return SC_ERROR_INVALID_DATA;
+            return log3ifr_ret!(ctx,f,line!(), SC_ERROR_INVALID_DATA);
         }
         cwa_keyset.enc.copy_from_slice(&hex[..2*DES_KEY_SZ]);
         cwa_session.icc.k[..DES_KEY_SZ].copy_from_slice(&hex[2*DES_KEY_SZ..3*DES_KEY_SZ]);
@@ -231,7 +231,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
     if value.is_null() {
 ////                sc_debug(ctx, SC_LOG_DEBUG_VERBOSE, "No %s value in OpenSC config", name);
         log3if!(ctx,f,line!(), c"No %s value in OpenSC config", name.as_ptr());
-        return SC_ERROR_SM_KEYSET_NOT_FOUND;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_KEYSET_NOT_FOUND);
     }
 
 ////sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "keyset::mac(%"SC_FORMAT_LEN_SIZE_T"u) %s", strlen(value), value);
@@ -247,13 +247,13 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
         if rv != SC_SUCCESS {
 ////sc_debug(ctx, SC_LOG_DEBUG_VERBOSE, "SM get '%s': hex to bin failed for '%s'; error %i", name, value, rv);
             log3if!(ctx,f,line!(), c"SM get %s: hextobin failed for '%s'; error %i",name.as_ptr(), value, rv);
-            return SC_ERROR_UNKNOWN_DATA_RECEIVED;
+            return log3ifr_ret!(ctx,f,line!(), SC_ERROR_UNKNOWN_DATA_RECEIVED);
         }
 
 ////sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "MAC(%"SC_FORMAT_LEN_SIZE_T"u) %s", hex_len, sc_dump_hex(hex, hex_len));
         log3if!(ctx,f,line!(), c"MAC(%zu) %s", hex_len, unsafe {sc_dump_hex(hex.as_ptr(), hex_len)});
         if hex_len != 3*DES_KEY_SZ {
-            return SC_ERROR_INVALID_DATA;
+            return log3ifr_ret!(ctx,f,line!(), SC_ERROR_INVALID_DATA);
         }
 
         cwa_keyset.mac.copy_from_slice(&hex[..2*DES_KEY_SZ]);
@@ -270,14 +270,14 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
 //            value = scconf_get_str(sm_conf_block, "ifd_serial", NULL);
     value = unsafe { scconf_get_str(sm_conf_block, c"ifd_serial".as_ptr(), null::<c_char>()) };
     if value.is_null() {
-        return SC_ERROR_SM_IFD_DATA_MISSING;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_IFD_DATA_MISSING);
     }
     hex_len = hex.len();
     rv = unsafe { sc_hex_to_bin(value, hex.as_mut_ptr(), &mut hex_len) };
     if rv != SC_SUCCESS   {
 //sc_debug(ctx, SC_LOG_DEBUG_VERBOSE, "SM get 'ifd_serial': hex to bin failed for '%s'; error %i", value, rv);
         log3if!(ctx,f,line!(), c"SM get 'ifd_serial': hex to bin failed for '%s'; error %i", value, rv);
-        return SC_ERROR_UNKNOWN_DATA_RECEIVED;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_UNKNOWN_DATA_RECEIVED);
     }
 
     if hex_len != cwa_session.ifd.sn.len() {
@@ -285,7 +285,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
 //                        "SM get 'ifd_serial': invalid IFD serial length: %"SC_FORMAT_LEN_SIZE_T"u",
 //                        hex_len);
         log3if!(ctx,f,line!(), c"SM get 'ifd_serial': invalid IFD serial length: %zu", hex_len);
-        return SC_ERROR_UNKNOWN_DATA_RECEIVED;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_UNKNOWN_DATA_RECEIVED);
     }
 
 //            memcpy(cwa_session->ifd.sn, hex, hex_len);
@@ -293,21 +293,21 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
 // println!("cwa_session.ifd.sn: {:X?}", cwa_session.ifd.sn);
 // println!("sm_info.serialnr:   {:X?}", sm_info.serialnr);
     if cwa_session.ifd.sn != sm_info.serialnr.value[..sm_info.serialnr.len] {
-        return SC_ERROR_SM;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM);
     }
 
     /*
                 rv = RAND_bytes(cwa_session->ifd.rnd, DES_KEY_SZ_u8 as i32);
                 if (!rv)   {
                     sc_debug(ctx, SC_LOG_DEBUG_VERBOSE, "Generate random error: %i", rv);
-                    return SC_ERROR_SM_RAND_FAILED;
+                    return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_RAND_FAILED);
                 }
     */
     /*
                 rv = RAND_bytes(cwa_session->ifd.k, 32);
                 if (!rv)   {
                     sc_debug(ctx, SC_LOG_DEBUG_VERBOSE, "Generate random error: %i", rv);
-                    return SC_ERROR_SM_RAND_FAILED;
+                    return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_RAND_FAILED);
                 }
     */
     /*
@@ -315,7 +315,7 @@ sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "IFD.Serial: %s", sc_dump_hex(cwa_session->if
 sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "IFD.Rnd: %s", sc_dump_hex(cwa_session->ifd.rnd, sizeof(cwa_session->ifd.rnd)));
 sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "IFD.K: %s", sc_dump_hex(cwa_session->ifd.k, sizeof(cwa_session->ifd.k)));
     */
-    SC_SUCCESS
+    log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
 }
 
 fn sm_cwa_initialize(card: &mut sc_card/*, sm_info: &mut sm_info, _rdata: &mut sc_remote_data*/) -> i32
@@ -333,13 +333,13 @@ fn sm_cwa_initialize(card: &mut sc_card/*, sm_info: &mut sm_info, _rdata: &mut s
     log3ifc!(ctx,f,line!());
     /* Mutual Authentication Procedure with 2 different keys, (key card) kc and (key terminal/host) kh */
     match authenticate_external(card, 0x81, &get_ck_mac_host(card)) {
-        Ok(val) => if !val { return SC_ERROR_SM_AUTHENTICATION_FAILED; },
-        Err(_e) => { return SC_ERROR_SM_AUTHENTICATION_FAILED; },
+        Ok(val) => if !val { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_AUTHENTICATION_FAILED); },
+        Err(_e) => { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_AUTHENTICATION_FAILED); },
     }
     unsafe { card.sm_ctx.info.session.cwa.ssc = card.sm_ctx.info.session.cwa.card_challenge };
     match authenticate_internal(card, 0x82, &get_ck_enc_card(card)) {
-        Ok(val) => if !val { return SC_ERROR_SM_AUTHENTICATION_FAILED; },
-        Err(_e) => { return SC_ERROR_SM_AUTHENTICATION_FAILED; },
+        Ok(val) => if !val { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_AUTHENTICATION_FAILED); },
+        Err(_e) => { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_AUTHENTICATION_FAILED); },
     }
     /* session key(s) generation. acos5 does it internally automatically and we must do the same here */
     /* EVO: allows TDES and AES; for TDES the ref. manual is inconsistent: 32 byte deriv data for a max 24 byte session key ? */
@@ -400,7 +400,7 @@ fn sm_manage_keyset(card: &mut sc_card) -> i32
     let f = c"sm_manage_keyset";
     log3ifc!(ctx,f,line!());
     if unsafe { card.sm_ctx.info.session.cwa.session_mac.ne(&[0; 16]) } {
-        SC_SUCCESS
+        log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
     }
     else {
 /* */
@@ -414,11 +414,14 @@ fn sm_manage_keyset(card: &mut sc_card) -> i32
             let mut aid = sc_aid::default();
             let res = crate::tasn1_pkcs15_util::analyze_PKCS15_DIRRecord_2F00(card, &mut aid);
             if res.is_err() || !res.unwrap(){
-                return -1;
+                return log3ifr_ret!(ctx,f,line!(), -1);
             }
             //println!("AID: {:X?}", &aid.value[..aid.len]);
             card.sm_ctx.info.current_aid = aid;
-            unsafe { sc_select_file(card, &curr_path, null_mut()) };
+            let rv = unsafe { sc_select_file(card, &curr_path, null_mut()) };
+            if rv != SC_SUCCESS {
+                return log3ifr_ret!(ctx,f,line!(), rv);
+            }
         }
 /* */
         log3if!(ctx,f,line!(), c"Current AID: %s",
@@ -427,9 +430,9 @@ fn sm_manage_keyset(card: &mut sc_card) -> i32
 //        case SM_TYPE_CWA14890:
         let rv = sm_cwa_config_get_keyset(ctx, &mut card.sm_ctx.info);
         if rv < SC_SUCCESS {
-            log3ifr!(ctx,f,line!(), c"SM acos5 configuration error", rv);
+            return log3ifr_ret!(ctx,f,line!(), c"SM acos5 configuration error. Returning with", rv);
         }
-        rv
+        log3ifr_ret!(ctx,f,line!(), rv)
     }
 }
 
@@ -470,12 +473,11 @@ fn sm_manage_initialize(card: &mut sc_card) -> i32
 
         let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         dp.time_stamp = std::time::Instant::now();
-        card.drv_data = Box::into_raw(dp).cast::<c_void>()
-        ;
-        rv
+        card.drv_data = Box::into_raw(dp).cast::<c_void>();
+        log3ifr_ret!(ctx,f,line!(), rv)
     }
     else {
-        SC_SUCCESS
+        log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
     }
 }
 
@@ -515,7 +517,7 @@ pub fn sm_common_read(card: &mut sc_card,
     log3if!(ctx,f,line!(), c"called with flags %zu", flags);
 
     if sm_manage_keyset(card) != SC_SUCCESS || sm_manage_initialize(card) != SC_SUCCESS {
-        return SC_ERROR_SM_NOT_INITIALIZED;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_NOT_INITIALIZED);
     }
 
     /* sc_read_binary has a loop to chunk input into max. sc_get_max_recv_size(card) bytes,
@@ -568,16 +570,14 @@ pub fn sm_common_read(card: &mut sc_card,
     let mut apdu = build_apdu(ctx, &cmd, SC_APDU_CASE_4_SHORT, &mut rbuf);
     assert_eq!(apdu.le, rbuf.len());
 
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), rv);
     }
     rv = unsafe { sc_check_sw(card, u32::from(rbuf[2]), u32::from(rbuf[3])) };
     if rv != SC_SUCCESS {
-        log3ifr!(ctx,f, line!(), rv);
-        return rv;
+        return log3ifr_ret!(ctx,f, line!(), rv);
     }
 
     /* verify mac_resp */
@@ -593,7 +593,7 @@ pub fn sm_common_read(card: &mut sc_card,
     log3ift!(ctx,f,line!(), c"mac_resp verification: [%02X %02X %02X %02X]",
         mac_resp[0], mac_resp[1], mac_resp[2], mac_resp[3]);
     if rbuf[6..10] != mac_resp[..4] {
-        return SC_ERROR_SM;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM);
     }
 
     if has_ct {
@@ -608,9 +608,7 @@ pub fn sm_common_read(card: &mut sc_card,
         buf[..usize::from(len_read)].copy_from_slice(&rbuf[pos..pos+usize::from(len_read)]);
     }
 
-    rv = i32::from(len_read);
-    log3ifr!(ctx,f,line!(), rv);
-    rv
+    log3ifr_ret!(ctx,f,line!(), i32::from(len_read))
 }
 
 
@@ -630,7 +628,7 @@ pub fn sm_common_update(card: &mut sc_card,
     log3if!(ctx,f,line!(), c"called with flags %zu", flags);
 
     if sm_manage_keyset(card) != SC_SUCCESS || sm_manage_initialize(card) != SC_SUCCESS {
-        return SC_ERROR_SM_NOT_INITIALIZED;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_NOT_INITIALIZED);
     }
 
     /* sc_update_binary has a loop to chunk input into max. sc_get_max_recv_size(card) bytes, i.e. count<=255; it's okay to update less*/
@@ -701,17 +699,15 @@ pub fn sm_common_update(card: &mut sc_card,
     let mut apdu = build_apdu(ctx, &cmd_vec, SC_APDU_CASE_4_SHORT, &mut rbuf);
     assert_eq!(apdu.le, rbuf.len());
 
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), rv);
     }
 
     rv = unsafe { sc_check_sw(card, u32::from(rbuf[2]), u32::from(rbuf[3])) };
     if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), rv);
     }
 
     /* verify mac_resp */
@@ -723,11 +719,9 @@ pub fn sm_common_update(card: &mut sc_card,
     log3ift!(ctx,f,line!(), c"mac_resp verification: [%02X %02X %02X %02X]",
         mac_resp[0], mac_resp[1], mac_resp[2], mac_resp[3]);
     if rbuf[6..10] != mac_resp[..4] {
-        return SC_ERROR_SM;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM);
     }
-    rv = i32::from(len_update);
-    log3ifr!(ctx,f,line!(), rv);
-    rv
+    log3ifr_ret!(ctx,f,line!(), i32::from(len_update))
 } // sm_common_update
 
 
@@ -741,7 +735,7 @@ pub fn sm_erase_binary(card: &mut sc_card, idx: u16, count: u16, flags: c_ulong,
     log3if!(ctx,f,line!(), c"called with flags %zu", flags);
 
     if sm_manage_keyset(card) != SC_SUCCESS || sm_manage_initialize(card) != SC_SUCCESS {
-        return SC_ERROR_SM_NOT_INITIALIZED;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_NOT_INITIALIZED);
     }
 
 //println!("sm_erase_binary         get_cs_enc:  {:X?}\n", get_cs_enc(card));
@@ -789,16 +783,14 @@ pub fn sm_erase_binary(card: &mut sc_card, idx: u16, count: u16, flags: c_ulong,
     let mut rbuf = [0; 10];
     let mut apdu = build_apdu(ctx, &cmd_vec, SC_APDU_CASE_4_SHORT, &mut rbuf);
     debug_assert_eq!(apdu.le, rbuf.len());
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), rv);
     }
     rv = unsafe { sc_check_sw(card, u32::from(rbuf[2]), u32::from(rbuf[3])) };
     if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), rv);
     }
 
     /* verify mac_resp */
@@ -810,11 +802,10 @@ pub fn sm_erase_binary(card: &mut sc_card, idx: u16, count: u16, flags: c_ulong,
     log3ift!(ctx,f,line!(), c"mac_resp verification: [%02X %02X %02X %02X]",
         mac_resp[0], mac_resp[1], mac_resp[2], mac_resp[3]);
     if rbuf[6..10] != mac_resp[..4] {
-        return SC_ERROR_SM;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM);
     }
     rv = i32::from(count);
-    log3ifr!(ctx,f,line!(), rv);
-    rv
+    log3ifr_ret!(ctx,f,line!(), rv)
 } // sm_erase_binary
 
 
@@ -828,7 +819,7 @@ pub fn sm_delete_file(card: &mut sc_card) -> i32
     log3ifc!(ctx,f,line!());
 
     if sm_manage_keyset(card) != SC_SUCCESS || sm_manage_initialize(card) != SC_SUCCESS {
-        return SC_ERROR_SM_NOT_INITIALIZED;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_NOT_INITIALIZED);
     }
 //println!("sm_delete_file          get_cs_enc:  {:X?}\n", get_cs_enc(card));
 //println!("sm_delete_file          get_cs_mac:  {:X?}\n", get_cs_mac(card));
@@ -844,16 +835,14 @@ pub fn sm_delete_file(card: &mut sc_card) -> i32
     let mut rbuf = [0; 10];
     let mut apdu = build_apdu(ctx, &cmd, SC_APDU_CASE_4_SHORT, &mut rbuf);
     debug_assert_eq!(apdu.le, rbuf.len());
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), rv);
     }
     rv = unsafe { sc_check_sw(card, u32::from(rbuf[2]), u32::from(rbuf[3])) };
     if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), rv);
     }
 
     /* verify mac_resp */
@@ -865,10 +854,9 @@ pub fn sm_delete_file(card: &mut sc_card) -> i32
     log3ift!(ctx,f,line!(), c"mac_resp verification: [%02X %02X %02X %02X]",
         mac_resp[0], mac_resp[1], mac_resp[2], mac_resp[3]);
     if rbuf[6..10] != mac_resp[..4] {
-        return SC_ERROR_SM;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM);
     }
-    log3ifr!(ctx,f,line!(), rv);
-    rv
+    log3ifr_ret!(ctx,f,line!(), rv)
 } // sm_delete_file
 
 
@@ -884,7 +872,7 @@ fn sm_create_file(card: &mut sc_card,
     log3ifc!(ctx,f,line!());
 
     if sm_manage_keyset(card) != SC_SUCCESS || sm_manage_initialize(card) != SC_SUCCESS {
-        return SC_ERROR_SM_NOT_INITIALIZED;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_NOT_INITIALIZED);
     }
 
 //println!("sm_create_file          get_cs_enc:  {:X?}\n", get_cs_enc(card));
@@ -941,17 +929,15 @@ fn sm_create_file(card: &mut sc_card,
     let mut rbuf = [0; 10];
     let mut apdu = build_apdu(ctx, &cmd_vec, SC_APDU_CASE_4_SHORT, &mut rbuf);
     assert_eq!(apdu.le, rbuf.len());
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), rv);
     }
 
     rv = unsafe { sc_check_sw(card, u32::from(rbuf[2]), u32::from(rbuf[3])) };
     if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), rv);
     }
 
     /* verify mac_resp */
@@ -964,11 +950,9 @@ fn sm_create_file(card: &mut sc_card,
     log3if!(ctx,f,line!(), c"mac_resp verification: [%02X %02X %02X %02X]",
         mac_resp[0], mac_resp[1], mac_resp[2], mac_resp[3]);
     if rbuf[6..10] != mac_resp[..4] {
-        return SC_ERROR_SM;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM);
     }
-//    rv = i32::from(len_update);
-    log3ifr!(ctx,f,line!(), rv);
-    rv
+    log3ifr_ret!(ctx,f,line!(), rv)
 } // sm_create_file
 
 
@@ -986,7 +970,7 @@ pub fn sm_pin_cmd(card: &mut sc_card,
     *tries_left = pin_cmd_data.pin1.tries_left;
 
     if sm_manage_keyset(card) != SC_SUCCESS || sm_manage_initialize(card) != SC_SUCCESS {
-        return SC_ERROR_SM_NOT_INITIALIZED;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_NOT_INITIALIZED);
     }
 
 //println!("sm_pin_cmd  verify      get_cs_enc:  {:X?}\n", get_cs_enc(card));
@@ -1062,11 +1046,10 @@ pub fn sm_pin_cmd(card: &mut sc_card,
     let mut rbuf = [0; 10];
     let mut apdu = build_apdu(ctx, &cmd_vec, SC_APDU_CASE_4_SHORT, &mut rbuf);
     assert_eq!(apdu.le, rbuf.len());
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), rv);
     }
     let mut cmd_failure = false;
     rv = unsafe { sc_check_sw(card, u32::from(rbuf[2]), u32::from(rbuf[3])) };
@@ -1077,8 +1060,7 @@ pub fn sm_pin_cmd(card: &mut sc_card,
                                                    *tries_left = pin_cmd_data.pin1.tries_left; }
         else if rv==SC_ERROR_AUTH_METHOD_BLOCKED { pin_cmd_data.pin1.tries_left = 0;
                                                    *tries_left = pin_cmd_data.pin1.tries_left; }
-//        log3ifr!(ctx,f,line!(), rv);
-//        return rv;
+//        return log3ifr_ret!(ctx,f,line!(), rv);
     }
 
     /* verify mac_resp */
@@ -1089,14 +1071,14 @@ pub fn sm_pin_cmd(card: &mut sc_card,
 ////println!("mac_resp:                 {:X?}", mac_resp);
     log3ift!(ctx,f,line!(), c"mac_resp verification: [%02X %02X %02X %02X]",
         mac_resp[0], mac_resp[1], mac_resp[2], mac_resp[3]);
-    if cmd_failure || rbuf[2]!=0x90 || rbuf[3]!=0 { log3ifr!(ctx,f,line!(), rv); return rv; }
+    if cmd_failure || rbuf[2]!=0x90 || rbuf[3]!=0 { return log3ifr_ret!(ctx,f,line!(),
+        if rv == SC_SUCCESS {SC_ERROR_SM} else {rv}); }
     if rbuf[6..10] != mac_resp[..4] {
-        return SC_ERROR_SM;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM);
     }
     pin_cmd_data.pin1.logged_in = SC_PIN_STATE_LOGGED_IN;
 
-    log3ifr!(ctx,f,line!(), rv);
-    rv
+    log3ifr_ret!(ctx,f,line!(), rv)
 }
 
 pub fn sm_pin_cmd_get_policy(card: &mut sc_card,
@@ -1112,7 +1094,7 @@ pub fn sm_pin_cmd_get_policy(card: &mut sc_card,
     *tries_left = pin_cmd_data.pin1.tries_left;
 
     if sm_manage_keyset(card) != SC_SUCCESS || sm_manage_initialize(card) != SC_SUCCESS {
-        return SC_ERROR_SM_NOT_INITIALIZED;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_NOT_INITIALIZED);
     }
 //println!("sm_pin_cmd_get_policy   get_cs_enc:  {:X?}\n", get_cs_enc(card));
 //println!("sm_pin_cmd_get_policy   get_cs_mac:  {:X?}\n", get_cs_mac(card));
@@ -1128,16 +1110,15 @@ pub fn sm_pin_cmd_get_policy(card: &mut sc_card,
     let mut rbuf = [0; 10];
     let mut apdu = build_apdu(ctx, &cmd, SC_APDU_CASE_4_SHORT, &mut rbuf);
     assert_eq!(apdu.le, rbuf.len());
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        log3ifr!(ctx,f,line!(), rv);
-        return rv;
+        return log3ifr_ret!(ctx,f,line!(), rv);
     }
 
     if !(u32::from(rbuf[2]) == 0x63 && (u32::from(rbuf[3]) & 0xC0) == 0xC0) {
         log3if!(ctx,f,line!(), c"Error: 'Get remaining number of retries left for the PIN' failed");
-        return SC_ERROR_KEYPAD_MSG_TOO_LONG;
+        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_KEYPAD_MSG_TOO_LONG);
     }
 
 
@@ -1156,6 +1137,5 @@ pub fn sm_pin_cmd_get_policy(card: &mut sc_card,
     else {
         rv = SC_ERROR_SM;
     }
-    log3ifr!(ctx,f,line!(), rv);
-    rv
+    log3ifr_ret!(ctx,f,line!(), rv)
 }

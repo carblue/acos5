@@ -74,7 +74,7 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen != len_serial_num {
         log3ifr!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Serial Number' failed. Returning with", rv);
-        return Err(if rv != SC_SUCCESS {rv} else {SC_ERROR_CARD_CMD_FAILED});
+        return Err(if rv == SC_SUCCESS {SC_ERROR_CARD_CMD_FAILED} else {rv});
     }
     serial.len = len_serial_num;
     card.serialnr.value = serial.value;

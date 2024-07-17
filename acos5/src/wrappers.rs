@@ -146,6 +146,7 @@ pub fn wr_do_log_sds(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv:
     }
 }
 
+/// # Panics
 pub fn wr_do_log_sds_ret(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv: i32/*, arg3: &CStr*/) -> i32
 {
     if cfg!(log) {
@@ -174,6 +175,7 @@ pub fn wr_do_log_rv(ctx: &mut sc_context, f: &CStr, line: u32, rv: i32)
     }}
 }
 
+/// # Panics
 pub fn wr_do_log_rv_ret(ctx: &mut sc_context, f: &CStr, line: u32, rv: i32) -> i32
 {
     if cfg!(log) { unsafe {
