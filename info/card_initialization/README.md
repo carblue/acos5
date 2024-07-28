@@ -35,7 +35,7 @@ Note, that current card_initialization.scriptor *DOES NOT* force anything to hap
 records #5 and #6 in file 0x3F0041004103 that may be used for SM inside PKCS#15 Application DF 0x3F004100.
 I recommend to use SM gradually and get used to it, e.g. by removing comment characters from lines 131-134 in
 card_initialization.scriptor.
-This will then create a test file sized 16 bytes, that i.a. forces read_binary to use SM as specified in SE Fike's record
+This will then create a test file sized 16 bytes, that i.a. forces read_binary to use SM as specified in SE File's record
 #6, i.e. transmit response encrypted; the driver will then decrypt and e.g. opensc-tool -f will display that plain text.
 If opensc-tool -f doesn't display any content, then SM is not setup correctly (keys in file 0x4102 and/or keyset* in
 opensc.conf; see details in opensc-debug.log).

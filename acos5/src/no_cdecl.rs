@@ -1365,8 +1365,7 @@ pub fn set_rsa_caps(card: &mut sc_card, value: u32)
     dp.rsa_caps = value;
     card.drv_data = Box::into_raw(dp).cast::<c_void>();
 }
-*/
-#[cfg(v0_26_0)]
+
 #[allow(dead_code)]
 #[cold]
 #[must_use]
@@ -1378,6 +1377,7 @@ fn get_rsa_caps(card: &mut sc_card) -> c_ulong
     // card.drv_data = Box::into_raw(dp) as p_void;
     result
 }
+*/
 
 pub fn set_sec_env(card: &mut sc_card, value: &sc_security_env)
 {

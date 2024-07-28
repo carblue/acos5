@@ -4,6 +4,16 @@ version = "0.0.30"
 authors = ["Carsten Blüggel, carblue <bluecars@posteo.eu>"]
 edition = "2021"
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(v0_20_0)', 'cfg(v0_21_0)', 'cfg(v0_22_0)', 'cfg(v0_23_0)', 'cfg(v0_24_0)', 'cfg(v0_25_0)', 'cfg(v0_25_1)',
+  'cfg(dev_relax_signature_constraints_for_raw)',
+  'cfg(dont_test__this_signature_changed)',
+  'cfg(finish_verbose)',
+  'cfg(ifd_serial_constrained_for_sm)',
+  'cfg(iup_user_consent)',
+  'cfg(log)'
+] }
+
 [dependencies]
 libc = "0.2"
 cfg-if = "1.0"

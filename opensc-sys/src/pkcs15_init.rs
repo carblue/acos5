@@ -258,9 +258,9 @@ pub struct sc_pkcs15init_prkeyargs {
     pub label : *mut c_char,
     pub guid : *mut u8,
     pub guid_len : usize,
-    #[cfg(    any(v0_20, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+    #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub usage : c_ulong,
-    #[cfg(not(any(v0_20, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
     pub usage : u32,
     pub x509_usage : c_ulong,
     pub flags : u32,

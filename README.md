@@ -13,7 +13,7 @@ user@host:~/path/to/opensc-0.25.1$ patch -b src/libopensc/apdu.c diff_apdu_c.txt
 
 The respective reference manual for Your hardware is available on request from: info@acs.com.hk
 
-Platforns supported: Those that the Rust compiler targets: [rustc platform-support](https://doc.rust-lang.org/nightly/rustc/platform-support.html "https://doc.rust-lang.org/nightly/rustc/platform-support.html").  
+Platforms supported: Those that the Rust compiler targets: [rustc platform-support](https://doc.rust-lang.org/nightly/rustc/platform-support.html "https://doc.rust-lang.org/nightly/rustc/platform-support.html").
 Platforms tested: Those that I use:  
 Linux/Kubuntu 24.04 LTS (extensively tested, everything implemented works as expected),
 Windows 11 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: SM and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Seems to be a privileges/access right issue. Note that, for the time being, after all this annoying, time consuming hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow i.a. for sanity-check).
@@ -46,7 +46,7 @@ Mandatory:
 
 Recommended:  
 - [pcsc-tools](http://ludovic.rousseau.free.fr/softwares/pcsc-tools/ "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/"), provides `scriptor` for card initialization as a batch run of commands, see [info/card_initialization/README.md](https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md "https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md")<br>
-gscriptor is nice in order to communicate with Your crypto hardware without any PKCS#11 software, i.e. only PC/SC layer (on byte level, and definitely not without the reference manual)
+`gscriptor` is nice in order to communicate with Your crypto hardware without any PKCS#11 software, i.e. only PC/SC layer (on byte level, and definitely not without the reference manual)
 ```
 $ sudo apt-get update
 $ sudo apt-get upgrade
@@ -81,7 +81,7 @@ Common usage won't exceed these limits and the driver will "just work". E.g. pro
 An 18-byte path length won't work, as OpenSC data structures are limited to a path length of 16 bytes.  
 File ids 0x5000 - 0x5FFF are reserved for the driver and PKCS#15 files 0x5031, 0x5032 and 0x5033. The driver will place generated RSA files into this range of file ids and will delete - if necessary - any other types of files in this range of file ids (and even RSA files that are not listed in PrKDF/PuKDF).  
 And a driver rule to name explicitly: In case of manually adding records to 'PIN file', 'Symmetric Key file' or 'Security Environment file': These are record-based file types, i.e. content gets addressed by a record no. **and** store inside that record an ID (of pin, sym. key or SE condition): Record no. and ID always must be the same ! This can be checked only for readable files, and 'PIN file' / 'Symmetric Key file' never are readable.  
-If a manually added 'Symmetric Key' is not listed in SKDF, then it does not exist for OpenSC/driver and the record/key will be overwritten next time a 'key store' or 'unwrap' operation occurs !
+If a manually added 'Symmetric Key' (e.g. by using `gscriptor` or `scriptor`) is not listed in SKDF, then it does not exist for OpenSC/driver and the record/key will be overwritten next time a 'key store' or 'unwrap' operation occurs !
 
 So this is the point: It would be graceful to react upon limits/rules violations with error returns and respective error messages in opensc-debug.log, but all too often the driver isn't yet that polite and just deliberately aborts ("panic" in Rust lingo, due to an assert violation).
 So, if anybody wants to contribute, removing these rough edges is an easy way to start.  

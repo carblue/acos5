@@ -96,10 +96,11 @@ Message in debug_file: successfully loaded pkcs15init driver 'acos5-external'
 #![warn(clippy::pedantic)]
 
 #![allow(unused_macros)]  // unused macro definition: `log3ift`
+#![allow(clippy::doc_lazy_continuation)]
 #![allow(clippy::doc_markdown)]
 #![allow(clippy::similar_names)]
-#![allow(clippy::too_many_lines)]
 #![allow(clippy::too_many_arguments)]
+#![allow(clippy::too_many_lines)]
 
 use libc::{free}; // strlen
 //use pkcs11::types::{CKM_DES_ECB, CKM_DES3_ECB, CKM_AES_ECB};

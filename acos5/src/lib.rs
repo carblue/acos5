@@ -55,6 +55,7 @@ it has a child DF that has been selected.
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 
+#![allow(clippy::doc_lazy_continuation)]
 #![allow(clippy::similar_names)]
 #![allow(clippy::too_many_lines)]
 
@@ -122,8 +123,8 @@ use opensc_sys::sm::{SM_TYPE_CWA14890, SM_CMD_PIN, SM_CMD_PIN_VERIFY, SM_CMD_PIN
 #[macro_use]
 mod macros;
 
-#[cfg(card_initialization)]
-mod card_initialization;
+//#[cfg(card_initialization)]
+//mod card_initialization;
 // use card_initialization::{};
 
 mod cmd_card_info;
@@ -483,10 +484,10 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
 
     /* check for 'Identity Self' */
     match get_is_ident_self_okay(card, type_out) {
-        Ok(val) => if !val { log3if!(ctx,f,line!(), c"Card doesn't match: get_is_ident_self_okay: \
-            SW2 different from expected! Returning with 0 (no match)"); return 0 },
-        Err(_e) => { log3if!(ctx,f,line!(), c"Card doesn't match: get_is_ident_self_okay failed! \
-            Returning with 0 (no match)"); return 0 },
+        Ok(val) => if !val { return log3ifr_ret!(ctx,f,line!(), c"Card doesn't match: \
+            get_is_ident_self_okay: SW2 different from expected! Returning with 0 (no match)", 0) },
+        Err(_e) => return log3ifr_ret!(ctx,f,line!(), c"Card doesn't match: get_is_ident_self_okay \
+            failed! Returning with 0 (no match)", 0),
     };
 
     /* check for 'Card OS Version' */

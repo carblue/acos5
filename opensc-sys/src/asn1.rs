@@ -542,7 +542,7 @@ pub const SC_ASN1_CLASS_MASK            : u32 = 0x3000_0000;
 pub const SC_ASN1_CLASS_MASK            : u32 = 0xC000_0000;
 pub const SC_ASN1_UNI                   : u32 = 0x0000_0000; /* Universal */
 
-#[cfg(    any(vv0_20_0, v0_21_0))]
+#[cfg(    any(v0_20_0, v0_21_0))]
 pub const SC_ASN1_APP                   : u32 = 0x1000_0000; /* Application */
 #[cfg(not(any(v0_20_0, v0_21_0)))]
 pub const SC_ASN1_APP                   : u32 = 0x4000_0000; /* Application */

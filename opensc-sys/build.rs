@@ -31,7 +31,7 @@ fn main() {
     let version;
     /* OpenSC version detection */
     match unsafe { Library::new(if cfg!(unix) {"libopensc.so"}
-                       else if cfg!(macos) {"libopensc.dylib"}
+                       else if cfg!(target_os = "macos") {"libopensc.dylib"}
                        else if cfg!(windows) {"opensc"}
                        else {"unknown_library_opensc"} ) }
     {

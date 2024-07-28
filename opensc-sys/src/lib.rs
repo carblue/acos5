@@ -252,6 +252,7 @@
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::doc_markdown)]
+#![allow(clippy::doc_lazy_continuation)]
 #![allow(clippy::module_name_repetitions)]
 
 

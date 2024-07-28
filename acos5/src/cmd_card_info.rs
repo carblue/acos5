@@ -21,7 +21,7 @@
 /* functions, (most of) callable via sc_card_ctl(acos5_card_ctl), mostly used by acos5_gui */
 
 use opensc_sys::opensc::{sc_card, sc_transmit_apdu, sc_check_sw/*, SC_PROTO_T1*/};
-use opensc_sys::types::{sc_serial_number, SC_MAX_SERIALNR, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT/*, SC_APDU_CASE_2_EXT*/};
+use opensc_sys::types::{sc_serial_number, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT/*, SC_MAX_SERIALNR, SC_APDU_CASE_2_EXT*/};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_CARD_CMD_FAILED, SC_ERROR_INVALID_ARGUMENTS};
 
 use crate::constants_types::{build_apdu, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3};
@@ -65,8 +65,8 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
         return Ok(card.serialnr);
     }
 
-    let len_serial_num: usize = if card.type_ > SC_CARD_TYPE_ACOS5_64_V2 {8} else {6};
-    debug_assert!(SC_MAX_SERIALNR >= len_serial_num);
+    let len_serial_num: usize = if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 {6} else {8};
+    //debug_assert!(SC_MAX_SERIALNR >= len_serial_num);
     let mut serial = sc_serial_number::default();
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 0, 0, u8::try_from(len_serial_num).
                        unwrap()], SC_APDU_CASE_2_SHORT, &mut serial.value);
