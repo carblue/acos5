@@ -84,13 +84,13 @@ SC_AC_OP_CREATE_DF, SC_AC_OP_INVALIDATE, SC_AC_OP_REHABILITATE, SC_AC_OP_LOCK, S
 SC_AC_OP_UPDATE, SC_AC_OP_CRYPTO, SC_AC_OP_DELETE_SELF, SC_AC_OP_CREATE, SC_AC_OP_WRITE,
 SC_AC_OP_GENERATE, SC_MAX_CRTS_IN_SE};
 
-use opensc_sys::errors::{SC_SUCCESS};
+use opensc_sys::errors::SC_SUCCESS;
 use opensc_sys::asn1::{sc_asn1_read_tag, SC_ASN1_TAG_EOC};
 
 use crate::constants_types::{DataPrivate, FDB_RSA_KEY_EF, FDB_SE_FILE, FDB_SYMMETRIC_KEY_EF, SACinfo, SAEinfo, Tlv,
                              is_DFMF, FDB_ECC_KEY_EF, UPDATE, CRYPTO, DELETE_SELF, CREATE_EF, CREATE_DF,
                              file_id_from_path_value /*, p_void*/};
-use crate::path::{current_path_df};
+use crate::path::current_path_df;
 
 /*
 It's not possible to map file access conditions from ACOS5 (scb8) to OpenSC exactly:
@@ -370,8 +370,7 @@ pub fn se_get_references(card: &mut sc_card, file_id: u16, se_reference: u8, sea
         }
     }
 
-    Box::leak(dp);
-    // card.drv_data = Box::into_raw(dp) as p_void;
+    let _unused = Box::leak(dp);
     if result.is_empty() /*== SC_AC_KEY_REF_NONE*/ {
 //        println!("No entries crt.refs for file_id: {}, se_reference: {}, search_template: {:?}", file_id, se_reference, search_template);
     }
@@ -453,8 +452,7 @@ pub fn se_get_is_scb_suitable_for_sm_has_ct(card: &mut sc_card, file_id: u16, se
             }
         }
     }
-    Box::leak(dp);
-    // card.drv_data = Box::into_raw(dp) as p_void;
+    let _unused = Box::leak(dp);
     result
 }
 
@@ -484,8 +482,7 @@ pub fn se_get_sae_scb(card: &mut sc_card, cla_ins_p1_p2: [u8; 4]) -> u8
             }
         }
     }
-    Box::leak(dp);
-    // card.drv_data = Box::into_raw(dp) as p_void;
+    let _unused = Box::leak(dp);
     scb
 }
 
@@ -588,7 +585,7 @@ pub fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], se_info
 /// Will return `Err` if there are errors in the SAE encoding
 pub fn se_parse_sae(vec_sac_info_opt: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp_sae: &[u8]) -> Result<Vec<SAEinfo>, i32>
 {
-    use crate::no_cdecl::{convert_amdo_to_cla_ins_p1_p2_array};
+    use crate::no_cdecl::convert_amdo_to_cla_ins_p1_p2_array;
 
     // add the A4 tag as virtual SE-file record (SAC), starting with se record id 16, the max. of real ones is 14
     let mut idx_virtual = 15_u8;

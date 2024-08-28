@@ -23,7 +23,7 @@
 
 use std::os::raw::{c_char, c_ulong};
 #[cfg(not(v0_20_0))]
-use crate::pkcs15::{sc_pkcs15_tokeninfo};
+use crate::pkcs15::sc_pkcs15_tokeninfo;
 
 //#define _CTL_PREFIX(a, b, c) (((a) << 24) | ((b) << 16) | ((c) << 8))
 

@@ -20,37 +20,50 @@
 
 //use libc::strlen;
 //use std::ffi::CStr;
-use std::os::raw::{c_void};
+use std::os::raw::c_void;
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
-use std::os::raw::{c_ulong};
+use std::os::raw::c_ulong;
 use std::collections::HashSet;
-use std::ptr::{/*null, */ null_mut, addr_of_mut};
+use std::ptr::addr_of_mut;
+#[cfg(not(target_os = "windows"))]
+use std::ptr::null_mut;
 use std::cmp::Ordering;
 // use std::slice::from_raw_parts;
 
-use opensc_sys::opensc::{SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_select_file, sc_read_binary,
-                         sc_delete_file, sc_create_file, sc_update_binary, sc_card_ctl, sc_transmit_apdu, sc_card};
+use opensc_sys::opensc::{SC_ALGORITHM_AES, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_card_ctl, sc_card};
+#[cfg(not(target_os = "windows"))]
+use opensc_sys::opensc::{sc_select_file, sc_read_binary,
+                         sc_delete_file, sc_create_file, sc_update_binary, sc_transmit_apdu};
+
+#[cfg(not(target_os = "windows"))]
 use opensc_sys::types::{SC_AC_OP_DELETE, SC_AC_OP_DELETE_SELF, SC_AC_OP_CREATE_EF, SC_AC_OP_UPDATE, SC_APDU_CASE_1};
 use opensc_sys::pkcs15::{sc_pkcs15_card, SC_PKCS15_SKDF, SC_PKCS15_TYPE_SKEY, sc_pkcs15_skey_info,
                          SC_PKCS15_SEARCH_CLASS_PRKEY, SC_PKCS15_SEARCH_CLASS_PUBKEY,
-                         SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, /*SC_PKCS15_PUKDF_TRUSTED, sc_pkcs15_object, */
                          sc_pkcs15_prkey_info, sc_pkcs15_pubkey_info, sc_pkcs15_parse_df};
+#[cfg(not(target_os = "windows"))]
+use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF};
+#[cfg(not(target_os = "windows"))]
 use opensc_sys::pkcs15_init::sc_pkcs15init_authenticate;
+#[cfg(not(target_os = "windows"))]
 use opensc_sys::profile::sc_profile;
-use opensc_sys::errors::{SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_CARD_CMD_FAILED, SC_SUCCESS, SC_ERROR_INTERNAL,
-                         SC_ERROR_NOT_ENOUGH_MEMORY
-                         /*, SC_ERROR_CLASS_NOT_SUPPORTED*/};
-use opensc_sys::log::{sc_dump_hex};
+use opensc_sys::errors::{SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_CARD_CMD_FAILED, SC_SUCCESS, SC_ERROR_INTERNAL};
+#[cfg(not(target_os = "windows"))]
+use opensc_sys::errors::SC_ERROR_NOT_ENOUGH_MEMORY;
+use opensc_sys::log::sc_dump_hex;
 
-use crate::constants_types::{SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4, GuardFile,
-                             DataPrivate, file_id_from_path_value, file_id_se, SC_CARDCTL_ACOS5_GET_FREE_SPACE, //p_void,
-                             build_apdu, CardCtlAlgoRefSymStore, SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE //, FCI
+use crate::constants_types::{SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4,
+                             file_id_from_path_value, CardCtlAlgoRefSymStore, SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE //, FCI
 };
-use crate::wrappers::{wr_do_log, wr_do_log_t, wr_do_log_rv, wr_do_log_sds};
-use crate::missing_exports::{find_df_by_type};
+#[cfg(not(target_os = "windows"))]
+use crate::constants_types::{GuardFile, DataPrivate, file_id_se, SC_CARDCTL_ACOS5_GET_FREE_SPACE, build_apdu};
+use crate::wrappers::{wr_do_log, wr_do_log_t, wr_do_log_rv};
+#[cfg(not(target_os = "windows"))]
+use crate::wrappers::wr_do_log_sds;
+use crate::missing_exports::find_df_by_type;
 #[cfg(not(target_os = "windows"))]
 use crate::tasn1_pkcs15_util::DirectoryRange;
 
+#[cfg(not(target_os = "windows"))]
 const INC : usize = 0x100;
 
 #[must_use]
@@ -79,7 +92,7 @@ pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mu
         return -1;
     }
     let mut index_possible : HashSet<u8> = HashSet::with_capacity(255);
-    for i in 0..255 { index_possible.insert(i+1); }
+    for i in 0..255 { let _unused = index_possible.insert(i+1); }
 
     while !obj_list_ptr.is_null() {
         let obj_list = unsafe { &*obj_list_ptr };
@@ -100,7 +113,7 @@ pub fn first_of_free_indices(p15card: &mut sc_pkcs15_card, file_id_sym_keys: &mu
             // log3if!(ctx,f,line!(), c"skey_info.path.index: %d",    skey_info.path.index);
             // log3if!(ctx,f,line!(), c"skey_info.path.count: %d",    skey_info.path.count);
             assert!(skey_info.path.index >= 0 && skey_info.path.index <= 255);
-            index_possible.remove(& u8::try_from(skey_info.path.index).unwrap());
+            let _unused = index_possible.remove(& u8::try_from(skey_info.path.index).unwrap());
             if  *file_id_sym_keys == 0 {
                 *file_id_sym_keys = file_id_from_path_value(&skey_info.path.value[..skey_info.path.len]);
             }
@@ -143,9 +156,10 @@ pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
         }
         /* Enumerate the DF's, so p15card->obj_list is populated. */
         unsafe {
-            if p15card.ops.parse_df.is_some() { p15card.ops.parse_df.unwrap()(p15card, df); }
-            else                               { sc_pkcs15_parse_df(p15card, df); }
-        }
+            let _unused =
+            if p15card.ops.parse_df.is_some() { p15card.ops.parse_df.unwrap()(p15card, df) }
+            else                              { sc_pkcs15_parse_df(p15card, df) }
+        ;}
         df = df_ref.next;
     }
 
@@ -273,8 +287,7 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
     // let dp_files_value = &dp.files[&file_priv_id];
     let size_priv : usize = file_id_se(dp.files[&file_priv_id].1).into();
     let size_pub  : usize = file_id_se(dp.files[&file_pub_id].1).into();
-    Box::leak(dp);
-    // card.drv_data = Box::into_raw(dp) as p_void;
+    let _unused = Box::leak(dp);
 
     let mut file_parent = null_mut();
     let guard_file_parent = GuardFile::new(&mut file_parent);

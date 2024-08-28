@@ -34,7 +34,7 @@ see file src/libopensc/libopensc.exports
 2. In the meantime, for the external driver, that code must be duplicated here in Rust
 */
 
-use std::os::raw::{c_void};
+use std::os::raw::c_void;
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
 use std::os::raw::c_ulong;
 
@@ -57,8 +57,8 @@ use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, SC_CARD_CAP
 
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL, SC_ERROR_OUT_OF_MEMORY, SC_ERROR_INVALID_ARGUMENTS};
 
-use opensc_sys::types::{sc_object_id /*, sc_apdu, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_2_EXT,
-                        SC_APDU_CASE_3_SHORT, SC_APDU_CASE_3_EXT, SC_APDU_CASE_4_SHORT, SC_APDU_CASE_4_EXT*/};
+use opensc_sys::types::sc_object_id; /*, sc_apdu, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_2_EXT,
+                        SC_APDU_CASE_3_SHORT, SC_APDU_CASE_3_EXT, SC_APDU_CASE_4_SHORT, SC_APDU_CASE_4_EXT*/
 
 //use crate::constants_types::p_void;
 use crate::wrappers::{wr_do_log, wr_do_log_rv_ret};
@@ -155,10 +155,10 @@ fn me_card_add_algorithm(card: &mut sc_card, info: &sc_algorithm_info) -> i32
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_delete_file";
+    let f = c"me_card_add_algorithm";
     log3ifc!(ctx,f,line!());
     let p_ptr = unsafe { libc::realloc(card.algorithms.cast::<c_void>(), usize::try_from(card.algorithm_count + 1).unwrap() *
-        std::mem::size_of::<sc_algorithm_info>()) }.cast::<sc_algorithm_info>();
+        size_of::<sc_algorithm_info>()) }.cast::<sc_algorithm_info>();
 
     if p_ptr.is_null() {
         return log3ifr_ret!(ctx,f,line!(), SC_ERROR_OUT_OF_MEMORY);
@@ -437,7 +437,7 @@ pub fn me_pkcs1_strip_02_padding(vec: &mut Vec<u8>) -> i32 //-> Result<Vec<u8>, 
     if pos < 11 {
         return SC_ERROR_WRONG_PADDING;
     }
-    vec.drain(..pos);
+    drop(vec.drain(..pos));
     i32::try_from(pos).unwrap()
 }
 

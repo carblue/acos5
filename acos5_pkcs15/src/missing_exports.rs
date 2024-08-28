@@ -99,7 +99,7 @@ fn me_profile_find_file(profile: &mut sc_profile, _path: *const sc_path, name: *
         }
         fi = fi_ref.next;
     }
-    std::ptr::null_mut()
+    null_mut()
 }
 
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -203,7 +203,7 @@ pub fn me_pkcs15_dup_bignum(dst: &mut sc_pkcs15_bignum, src: &sc_pkcs15_bignum) 
         if dst.data.is_null() {
             return SC_ERROR_OUT_OF_MEMORY;
         }
-        unsafe { memcpy(dst.data.cast::<c_void>(), src.data as *const c_void, src.len) };
+        let _unused = unsafe { memcpy(dst.data.cast::<c_void>(), src.data as *const c_void, src.len) };
         dst.len = src.len;
     }
 

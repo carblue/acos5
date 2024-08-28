@@ -3,7 +3,7 @@
 //! [`OpenSC wiki`]\
 //! [`Rust website`]
 //!
-//! This binding supports OpenSC release versions 0.17.0 - 0.25.0
+//! This binding supports OpenSC release versions 0.20.0 - 0.25.1
 //!
 //! The state is Work In Progress WIP, though usable.\
 //! The focus is on the generic header subset, i.o. to support new driver etc. external module development.\
@@ -249,15 +249,60 @@
 //! [`OpenSC releases`]: https://github.com/OpenSC/OpenSC/releases
 //! [`test`]: ../../../info/README.html
 
+#![warn(absolute_paths_not_starting_with_crate)]
+#![warn(deprecated_safe)]
+#![warn(elided_lifetimes_in_paths)]
+#![warn(explicit_outlives_requirements)]
+#![warn(ffi_unwind_calls)]
+//#![warn(fuzzy_provenance_casts)]
+//#![warn(impl_trait_overcaptures)]
+#![warn(keyword_idents_2018)]
+#![warn(keyword_idents_2024)]
+#![warn(let_underscore_drop)]
+//#![warn(lossy_provenance_casts)]
+#![warn(macro_use_extern_crate)]
+#![warn(meta_variable_misuse)]
+#![warn(missing_abi)]
+
+#![warn(missing_copy_implementations)]
+////#![warn(missing_debug_implementations)]
+////#![warn(missing_docs)]
+#![warn(missing_unsafe_on_extern)]
+//#![warn(multiple_supertrait_upcastable)]
+//#![warn(must_not_suspend)]
+#![warn(non_ascii_idents)]
+//#![warn(non_exhaustive_omitted_patterns)]
+#![warn(non_local_definitions)]
+#![warn(redundant_lifetimes)]
+#![warn(rust_2021_incompatible_closure_captures)]
+#![warn(rust_2021_incompatible_or_patterns)]
+#![warn(rust_2021_prefixes_incompatible_syntax)]
+#![warn(rust_2021_prelude_collisions)]
+//#![warn(rust_2024_incompatible_pat)]
+#![warn(single_use_lifetimes)]
+////#![warn(trivial_casts)]
+#![warn(trivial_numeric_casts)]
+#![warn(unit_bindings)]
+#![warn(unnameable_types)]
+////#![warn(unreachable_pub)]
+////#![warn(unsafe_code)]
+#![warn(unsafe_op_in_unsafe_fn)]
+#![warn(unstable_features)]
+#![warn(unused_crate_dependencies)]
+#![warn(unused_extern_crates)]
+#![warn(unused_import_braces)]
+#![warn(unused_lifetimes)]
+#![warn(unused_macro_rules)]
+#![warn(unused_qualifications)]
+#![warn(unused_results)]
+#![warn(variant_size_differences)]
+
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 #![allow(clippy::doc_markdown)]
 #![allow(clippy::doc_lazy_continuation)]
 #![allow(clippy::module_name_repetitions)]
 
-
-// for FILE and free
-extern crate libc;
 
 #[doc = " ASN.1 handling"]
 #[allow(dead_code)]
@@ -341,29 +386,29 @@ mod tests {
 
     #[test]
     fn test_struct_sizeof() { // $ cargo test test_struct_sizeof -- --nocapture
-        let sl   = std::mem::size_of::<crate::simclist::list_t>();
-        let sc   = std::mem::size_of::<crate::opensc::sc_card>();   // has 4x c_ulong
-        let sr   = std::mem::size_of::<crate::opensc::sc_reader>(); // has 2x c_ulong
-        let sse  = std::mem::size_of::<crate::opensc::sc_security_env>(); // changed  // since opensc source release v0.18.0
-        let sef  = std::mem::size_of::<crate::opensc::sc_ef_atr>();
-        let srd  = std::mem::size_of::<crate::opensc::sc_reader_driver>();
-        let pcp  = std::mem::size_of::<crate::opensc::sc_pin_cmd_pin>();
-        let pcd  = std::mem::size_of::<crate::opensc::sc_pin_cmd_data>();
-        let sco  = std::mem::size_of::<crate::opensc::sc_card_operations>();
-        let scc  = std::mem::size_of::<crate::opensc::sc_context>();
-        let spo  = std::mem::size_of::<crate::pkcs15::sc_pkcs15_object>();
-        let sca  = std::mem::size_of::<crate::pkcs15::sc_pkcs15_card>();
-        let sf   = std::mem::size_of::<crate::types::sc_file>();
-        let sccc = std::mem::size_of::<crate::scconf::scconf_context>();
-        let ip   = std::mem::size_of::<crate::pkcs15_init::sc_pkcs15init_prkeyargs>();
-        let is   = std::mem::size_of::<crate::pkcs15_init::sc_pkcs15init_skeyargs>();
-        let prki = std::mem::size_of::<crate::pkcs15::sc_pkcs15_prkey_info>();
-        let puki = std::mem::size_of::<crate::pkcs15::sc_pkcs15_pubkey_info>();
-        let ski  = std::mem::size_of::<crate::pkcs15::sc_pkcs15_skey_info>();
-        let sai  = std::mem::size_of::<crate::opensc::sc_supported_algo_info>();
-        let sp   = std::mem::size_of::<crate::profile::sc_profile>();
-        let ssep = std::mem::size_of::<crate::opensc::sc_sec_env_param>();
-        let ai   = std::mem::size_of::<crate::opensc::sc_algorithm_info>();
+        let sl   = size_of::<crate::simclist::list_t>();
+        let sc   = size_of::<crate::opensc::sc_card>();   // has 4x c_ulong
+        let sr   = size_of::<crate::opensc::sc_reader>(); // has 2x c_ulong
+        let sse  = size_of::<crate::opensc::sc_security_env>(); // changed  // since opensc source release v0.18.0
+        let sef  = size_of::<crate::opensc::sc_ef_atr>();
+        let srd  = size_of::<crate::opensc::sc_reader_driver>();
+        let pcp  = size_of::<crate::opensc::sc_pin_cmd_pin>();
+        let pcd  = size_of::<crate::opensc::sc_pin_cmd_data>();
+        let sco  = size_of::<crate::opensc::sc_card_operations>();
+        let scc  = size_of::<crate::opensc::sc_context>();
+        let spo  = size_of::<crate::pkcs15::sc_pkcs15_object>();
+        let sca  = size_of::<crate::pkcs15::sc_pkcs15_card>();
+        let sf   = size_of::<crate::types::sc_file>();
+        let sccc = size_of::<crate::scconf::scconf_context>();
+        let ip   = size_of::<crate::pkcs15_init::sc_pkcs15init_prkeyargs>();
+        let is   = size_of::<crate::pkcs15_init::sc_pkcs15init_skeyargs>();
+        let prki = size_of::<crate::pkcs15::sc_pkcs15_prkey_info>();
+        let puki = size_of::<crate::pkcs15::sc_pkcs15_pubkey_info>();
+        let ski  = size_of::<crate::pkcs15::sc_pkcs15_skey_info>();
+        let sai  = size_of::<crate::opensc::sc_supported_algo_info>();
+        let sp   = size_of::<crate::profile::sc_profile>();
+        let ssep = size_of::<crate::opensc::sc_sec_env_param>();
+        let ai   = size_of::<crate::opensc::sc_algorithm_info>();
 
         assert_eq!(sl,  120);
 

@@ -40,7 +40,7 @@ use opensc_sys::opensc::{sc_context, sc_card, sc_hex_to_bin, sc_transmit_apdu,
                          sc_check_sw, sc_pin_cmd_data, SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT,
                          SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK};
 #[cfg(not(target_os = "windows"))]
-use opensc_sys::opensc::{sc_select_file};
+use opensc_sys::opensc::sc_select_file;
 use opensc_sys::types::{SC_APDU_CASE_4_SHORT, sc_aid};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_SM_KEYSET_NOT_FOUND, SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_INVALID_DATA,
                          SC_ERROR_SM_IFD_DATA_MISSING, SC_ERROR_SM_AUTHENTICATION_FAILED,
@@ -49,7 +49,7 @@ use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_SM_KEYSET_NOT_FOUND, SC_ERROR_UNKN
     /*, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_NOT_SUPPORTED*/
 use opensc_sys::sm::{sm_info, SM_SMALL_CHALLENGE_LEN, SM_CMD_FILE_READ, SM_CMD_FILE_UPDATE, SM_CMD_PIN};
     /*, sm_cwa_session, SM_CMD_PIN_VERIFY, SM_CMD_FILE_CREATE, SM_CMD_FILE_DELETE, SM_CMD_FILE,*/
-use opensc_sys::log::{sc_dump_hex}; /*, SC_LOG_DEBUG_NORMAL, SC_LOG_DEBUG_SM*/
+use opensc_sys::log::sc_dump_hex; /*, SC_LOG_DEBUG_NORMAL, SC_LOG_DEBUG_SM*/
 use opensc_sys::scconf::{scconf_block, scconf_find_blocks, scconf_get_str};
 
 use crate::constants_types::{ACOS5_OBJECT_REF_LOCAL, ACOS5_OBJECT_REF_MAX, CARD_DRV_SHORT_NAME, DataPrivate, build_apdu,
@@ -408,8 +408,7 @@ fn sm_manage_keyset(card: &mut sc_card) -> i32
         if card.sm_ctx.info.current_aid.len == 0 {
             let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
             assert!(!dp.pkcs15_definitions.is_null());
-            Box::leak(dp);
-            // card.drv_data = Box::into_raw(dp) as p_void;
+            let _unused = Box::leak(dp);
             let curr_path = card.cache.current_path;
             let mut aid = sc_aid::default();
             let res = crate::tasn1_pkcs15_util::analyze_PKCS15_DIRRecord_2F00(card, &mut aid);

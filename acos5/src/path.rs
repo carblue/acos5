@@ -20,10 +20,10 @@
 
 #![allow(clippy::module_name_repetitions)]
 
-use opensc_sys::opensc::{sc_card};
-use opensc_sys::types::{sc_path/*, SC_MAX_PATH_SIZE*/};
-//use opensc_sys::log::{sc_dump_hex};
-//use opensc_sys::errors::{SC_SUCCESS};
+use opensc_sys::opensc::sc_card;
+use opensc_sys::types::sc_path;/*, SC_MAX_PATH_SIZE*/
+//use opensc_sys::log::sc_dump_hex;
+//use opensc_sys::errors::SC_SUCCESS;
 
 use crate::constants_types::{DataPrivate, FDB_CHV_EF, FDB_CYCLIC_EF, FDB_DF, FDB_ECC_KEY_EF, FDB_LINEAR_FIXED_EF,
                              FDB_LINEAR_VARIABLE_EF, FDB_MF, FDB_PURSE_EF, FDB_RSA_KEY_EF, FDB_SE_FILE,
@@ -56,8 +56,7 @@ pub fn current_path_df(card: &mut sc_card) -> &[u8]
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     assert!(dp.files.contains_key(&file_id));
     let fdb = dp.files[&file_id].1[0];
-    Box::leak(dp);
-    // card.drv_data = Box::into_raw(dp) as p_void;
+    let _unused = Box::leak(dp);
 
     if ![FDB_MF, FDB_DF, FDB_TRANSPARENT_EF, FDB_LINEAR_FIXED_EF, FDB_LINEAR_VARIABLE_EF, FDB_CYCLIC_EF, FDB_SE_FILE,
         FDB_RSA_KEY_EF, FDB_CHV_EF, FDB_SYMMETRIC_KEY_EF, FDB_PURSE_EF, FDB_ECC_KEY_EF].contains(&fdb) {
@@ -140,7 +139,7 @@ pub fn cut_path(path_target: &mut [u8], path_target_len: &mut usize, current_pat
 
 #[cfg(test)]
 mod tests {
-    use super::{cut_path};
+    use super::cut_path;
 
     #[test]
     fn test1_cut_path() { // $ cargo test test_cut_path1 -- --nocapture

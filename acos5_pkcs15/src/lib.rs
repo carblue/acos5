@@ -92,6 +92,55 @@ unloaded by: src/pkcs15init/pkcs15-lib.c:sc_pkcs15init_unbind
 Message in debug_file: successfully loaded pkcs15init driver 'acos5-external'
 */
 
+#![warn(absolute_paths_not_starting_with_crate)]
+#![warn(deprecated_safe)]
+#![warn(elided_lifetimes_in_paths)]
+#![warn(explicit_outlives_requirements)]
+#![warn(ffi_unwind_calls)]
+//#![warn(fuzzy_provenance_casts)]
+//#![warn(impl_trait_overcaptures)]
+#![warn(keyword_idents_2018)]
+#![warn(keyword_idents_2024)]
+#![warn(let_underscore_drop)]
+//#![warn(lossy_provenance_casts)]
+#![warn(macro_use_extern_crate)]
+#![warn(meta_variable_misuse)]
+#![warn(missing_abi)]
+
+#![warn(missing_copy_implementations)]
+#![warn(missing_debug_implementations)]
+////#![warn(missing_docs)]
+#![warn(missing_unsafe_on_extern)]
+//#![warn(multiple_supertrait_upcastable)]
+//#![warn(must_not_suspend)]
+#![warn(non_ascii_idents)]
+//#![warn(non_exhaustive_omitted_patterns)]
+#![warn(non_local_definitions)]
+#![warn(redundant_lifetimes)]
+#![warn(rust_2021_incompatible_closure_captures)]
+#![warn(rust_2021_incompatible_or_patterns)]
+#![warn(rust_2021_prefixes_incompatible_syntax)]
+#![warn(rust_2021_prelude_collisions)]
+//#![warn(rust_2024_incompatible_pat)]
+#![warn(single_use_lifetimes)]
+#![warn(trivial_casts)]
+////#![warn(trivial_numeric_casts)]
+#![warn(unit_bindings)]
+////#![warn(unnameable_types)]
+////#![warn(unreachable_pub)]
+//#![warn(unsafe_code)]
+#![warn(unsafe_op_in_unsafe_fn)]
+#![warn(unstable_features)]
+#![warn(unused_crate_dependencies)]
+#![warn(unused_extern_crates)]
+#![warn(unused_import_braces)]
+#![warn(unused_lifetimes)]
+////#![warn(unused_macro_rules)]
+#![warn(unused_qualifications)]
+#![warn(unused_results)]
+#![warn(variant_size_differences)]
+
+
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 
@@ -102,7 +151,7 @@ Message in debug_file: successfully loaded pkcs15init driver 'acos5-external'
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::too_many_lines)]
 
-use libc::{free}; // strlen
+use libc::free; // strlen
 //use pkcs11::types::{CKM_DES_ECB, CKM_DES3_ECB, CKM_AES_ECB};
 
 use std::os::raw::{c_char, c_void};
@@ -114,7 +163,7 @@ use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_select_file, sc_card_ctl, S
                          SC_ALGORITHM_3DES, SC_ALGORITHM_AES, sc_card_find_rsa_alg, sc_file_new, sc_transmit_apdu,
                          sc_file_dup, sc_delete_file, sc_check_sw, sc_update_record, SC_RECORD_BY_REC_NR, sc_get_version};
 
-use opensc_sys::profile::{sc_profile};
+use opensc_sys::profile::sc_profile;
 use opensc_sys::pkcs15::{sc_pkcs15_card, sc_pkcs15_object, sc_pkcs15_prkey, sc_pkcs15_pubkey, sc_pkcs15_skey_info,
                          SC_PKCS15_TYPE_SKEY_DES/*, SC_PKCS15_TYPE_SKEY_2DES*/, SC_PKCS15_TYPE_SKEY_3DES, SC_PKCS15_TYPE_SKEY_GENERIC,
                          sc_pkcs15_prkey_info, sc_pkcs15_pubkey_info, SC_PKCS15_TYPE_PRKEY_EC, //sc_pkcs15_prkey_rsa,
@@ -139,7 +188,7 @@ use opensc_sys::types::{sc_file, sc_path, SC_AC_OP_CREATE_EF, SC_AC_OP_DELETE, S
                         SC_AC_OP_UPDATE, SC_APDU_CASE_1/*, SC_APDU_CASE_3*/, SC_PATH_TYPE_PATH, sc_acl_entry};
 // SC_FILE_EF_TRANSPARENT, SC_FILE_STATUS_CREATION, SC_MAX_PATH_SIZE,  SC_PATH_TYPE_FILE_ID, SC_AC_OP_DELETE
 //use opensc_sys::types::{/*SC_MAX_CRTS_IN_SE, sc_crt*/};
-use opensc_sys::log::{/*sc_do_log, SC_LOG_DEBUG_NORMAL,*/ sc_dump_hex};
+use opensc_sys::log::sc_dump_hex; /*sc_do_log, SC_LOG_DEBUG_NORMAL,*/
 
 
 #[macro_use]
@@ -158,7 +207,7 @@ pub mod    no_cdecl; // this is NOT the same as in acos5
 use crate::no_cdecl::{rsa_modulus_bits_canonical, first_of_free_indices, construct_sym_key_entry, free_fid_asym}; /*call_dynamic_update_hashmap, call_dynamic_sm_test,*/
 
 #[cfg(not(target_os = "windows"))]
-use crate::no_cdecl::{check_enlarge_prkdf_pukdf};
+use crate::no_cdecl::check_enlarge_prkdf_pukdf;
 
 cfg_if::cfg_if! {
     if #[cfg(not(target_os = "windows"))] {
@@ -208,7 +257,7 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 /// This function should not be called before the horsemen are ready.
 #[no_mangle]
 pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> *mut c_void {
-    if !name.is_null() && CStr::from_ptr(name) == CARD_DRV_SHORT_NAME {
+    if !name.is_null() && unsafe { CStr::from_ptr(name) } == CARD_DRV_SHORT_NAME {
         acos5_get_pkcs15init_ops as *mut c_void
     }
     else {
@@ -335,14 +384,15 @@ extern "C" fn acos5_pkcs15_create_dir(profile_ptr: *mut sc_profile, p15card_ptr:
 
     if df.id == /* 0x4100 0x5015*/ 0x4100_i32 {
         log3if!(ctx,f,line!(), c"Select (%X)", df.id);
-        /*let mut rv =*/ unsafe { sc_select_file(card, &df.path, null_mut()) };
+        let mut rv = unsafe { sc_select_file(card, &df.path, null_mut()) };
+        assert_eq!(SC_SUCCESS, rv);
 
         for (_key,value) in &create_dfs {
             log3if!(ctx,f,line!(), c"Create '%s'", value.as_ptr());
 
             let mut file = null_mut();
             let guard_file = GuardFile::new(&mut file);
-            let rv = me_profile_get_file(profile, value.as_ptr(), *guard_file);
+            rv = me_profile_get_file(profile, value.as_ptr(), *guard_file);
             if rv != SC_SUCCESS {
                 log3if!(ctx,f,line!(), c"Inconsistent profile: cannot find %s", value.as_ptr());
                 return SC_ERROR_INCONSISTENT_PROFILE;//LOG_FUNC_RETURN(ctx, SC_ERROR_INCONSISTENT_PROFILE);
@@ -1073,7 +1123,7 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     log3if!(ctx,f,line!(), c"p15pubkey.algorithm: 0x%X", p15pubkey.algorithm);
     log3if!(ctx,f,line!(), c"p15pubkey.alg_id:    %p", p15pubkey.alg_id);
 */
-    Box::leak(dp);
+    let _unused = Box::leak(dp);
     // card.drv_data = Box::into_raw(dp) as *mut c_void;
 /*
     if !is_key_pair_created_and_valid_for_generation {
@@ -1256,8 +1306,7 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
             len: dp_files_value_ref.1[1] as usize, ..sc_path::default()};
 //    }
 //    dp.agc.is_key_pair_created_and_valid_for_generation = false; // this is the antagonist of: acos5_pkcs15_create_key: dp.is_key_pair_created_and_valid_for_generation = true;
-        Box::leak(dp);
-        // card.drv_data = Box::into_raw(dp) as p_void;
+        let _unused = Box::leak(dp);
     }
     else if SC_PKCS15_TYPE_SKEY_GENERIC == object.type_ {
         /* called from unwrapping a RSA_WRAPPED_AES_KEY */

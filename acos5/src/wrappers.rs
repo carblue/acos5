@@ -21,9 +21,9 @@
 
 use std::ffi::CStr;
 
-use opensc_sys::opensc::{sc_context};
+use opensc_sys::opensc::sc_context;
 use opensc_sys::log::{sc_do_log, sc_do_log_color, SC_LOG_DEBUG_NORMAL, SC_COLOR_FG_RED};
-use opensc_sys::errors::{sc_strerror};
+use opensc_sys::errors::sc_strerror;
 
 const CRATE               : &CStr = c"acos5"; // search acos5 mention in debug log file; each function should at least log CALLED, except small helpers or code that is clearly covered by only one possible surrounding function's called
 //const RETURNING_INT     : &CStr = c"returning with: %d\n";

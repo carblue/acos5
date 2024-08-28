@@ -74,7 +74,7 @@ use std::os::raw::{c_char, c_void};
 use std::ptr::{null, null_mut};
 
 use crate::opensc::{sc_context, sc_algorithm_id};
-use crate::types::{sc_object_id};
+use crate::types::sc_object_id;
 
 #[allow(non_camel_case_types)]
 type p_void = *mut c_void;

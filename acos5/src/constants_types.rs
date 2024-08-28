@@ -163,33 +163,39 @@ pub const CRT_TAG_CCT     : u8 = 0xB4;   // Cryptographic Checksum Templ. : AND:
 //pub const SM_MODE_CCT_AND_CT_SYM : u8 = 2; // SM is enforced, providing Authenticity and Confidentiality, specified by a  Cryptographic Checksum Template and Confidentiality Template (ref. key for sym. algorithm)
 
 /* PKCS#15 DF types, see pkcs15.rs */
-pub const PKCS15_FILE_TYPE_PRKDF         : u8 =  SC_PKCS15_PRKDF;         // = 0,
-pub const PKCS15_FILE_TYPE_PUKDF         : u8 =  SC_PKCS15_PUKDF;         // = 1,
-pub const PKCS15_FILE_TYPE_PUKDF_TRUSTED : u8 =  SC_PKCS15_PUKDF_TRUSTED; // = 2,   USES DETECTION LIKE PKCS15_FILE_TYPE_PUKDF !
-pub const PKCS15_FILE_TYPE_SKDF          : u8 =  SC_PKCS15_SKDF;          // = 3,
-pub const PKCS15_FILE_TYPE_CDF           : u8 =  SC_PKCS15_CDF;           // = 4,
-pub const PKCS15_FILE_TYPE_CDF_TRUSTED   : u8 =  SC_PKCS15_CDF_TRUSTED;   // = 5,   USES DETECTION LIKE PKCS15_FILE_TYPE_CDF !
-pub const PKCS15_FILE_TYPE_CDF_USEFUL    : u8 =  SC_PKCS15_CDF_USEFUL;    // = 6,   USES DETECTION LIKE PKCS15_FILE_TYPE_CDF !
-pub const PKCS15_FILE_TYPE_DODF          : u8 =  SC_PKCS15_DODF;          // = 7,
-pub const PKCS15_FILE_TYPE_AODF          : u8 =  SC_PKCS15_AODF;          // = 8,
+cfg_if::cfg_if! {
+if #[cfg(not(target_os = "windows"))] {
+    pub const PKCS15_FILE_TYPE_PRKDF         : u8 =  SC_PKCS15_PRKDF;         // = 0,
+    pub const PKCS15_FILE_TYPE_PUKDF         : u8 =  SC_PKCS15_PUKDF;         // = 1,
+    pub const PKCS15_FILE_TYPE_PUKDF_TRUSTED : u8 =  SC_PKCS15_PUKDF_TRUSTED; // = 2,   USES DETECTION LIKE PKCS15_FILE_TYPE_PUKDF !
+    pub const PKCS15_FILE_TYPE_SKDF          : u8 =  SC_PKCS15_SKDF;          // = 3,
+    pub const PKCS15_FILE_TYPE_CDF           : u8 =  SC_PKCS15_CDF;           // = 4,
+    pub const PKCS15_FILE_TYPE_CDF_TRUSTED   : u8 =  SC_PKCS15_CDF_TRUSTED;   // = 5,   USES DETECTION LIKE PKCS15_FILE_TYPE_CDF !
+    pub const PKCS15_FILE_TYPE_CDF_USEFUL    : u8 =  SC_PKCS15_CDF_USEFUL;    // = 6,   USES DETECTION LIKE PKCS15_FILE_TYPE_CDF !
+    pub const PKCS15_FILE_TYPE_DODF          : u8 =  SC_PKCS15_DODF;          // = 7,
+    pub const PKCS15_FILE_TYPE_AODF          : u8 =  SC_PKCS15_AODF;          // = 8,
 
-pub const PKCS15_FILE_TYPE_DIR           : u8 =  10; // file 0x2F00  (preassigned acc. to ISO/IEC 7816-4)
-pub const PKCS15_FILE_TYPE_ODF           : u8 =  11; // file 0x5031  (preassigned acc. to ISO/IEC 7816-4 or indicated in file 0x2F00)
-pub const PKCS15_FILE_TYPE_TOKENINFO     : u8 =  12; // file 0x5032  (preassigned acc. to ISO/IEC 7816-4 or indicated in file 0x2F00)
-//b const PKCS15_FILE_TYPE_UNUSED        : u8 =  13; // file 0x5033  (preassigned acc. to ISO/IEC 7816-4 or indicated in file 0x2F00)   DOESN'T NEED DETECTION  ???
-pub const PKCS15_FILE_TYPE_APPDF         : u8 =  14; // file 0x4100  (arbitrary, indicated in file 0x2F00)       DOESN'T NEED DETECTION !
+    pub const PKCS15_FILE_TYPE_DIR           : u8 =  10; // file 0x2F00  (preassigned acc. to ISO/IEC 7816-4)
+    pub const PKCS15_FILE_TYPE_ODF           : u8 =  11; // file 0x5031  (preassigned acc. to ISO/IEC 7816-4 or indicated in file 0x2F00)
+    pub const PKCS15_FILE_TYPE_TOKENINFO     : u8 =  12; // file 0x5032  (preassigned acc. to ISO/IEC 7816-4 or indicated in file 0x2F00)
+//  pub const PKCS15_FILE_TYPE_UNUSED        : u8 =  13; // file 0x5033  (preassigned acc. to ISO/IEC 7816-4 or indicated in file 0x2F00)   DOESN'T NEED DETECTION  ???
+    pub const PKCS15_FILE_TYPE_APPDF         : u8 =  14; // file 0x4100  (arbitrary, indicated in file 0x2F00)       DOESN'T NEED DETECTION !
 
-pub const PKCS15_FILE_TYPE_RSAPRIVATEKEY : u8 =  16;
-pub const PKCS15_FILE_TYPE_RSAPUBLICKEY  : u8 =  9;  // e.g. file 0x4131  (arbitrary, when readable by read_public_key, asn1-der-encoded public RSA key file) RSA_PUB
-pub const PKCS15_FILE_TYPE_ECCPRIVATEKEY : u8 =  20;
-pub const PKCS15_FILE_TYPE_ECCPUBLICKEY  : u8 =  21;
+    pub const PKCS15_FILE_TYPE_RSAPRIVATEKEY : u8 =  16;
+    pub const PKCS15_FILE_TYPE_RSAPUBLICKEY  : u8 =  9;  // e.g. file 0x4131  (arbitrary, when readable by read_public_key, asn1-der-encoded public RSA key file) RSA_PUB
+    pub const PKCS15_FILE_TYPE_ECCPRIVATEKEY : u8 =  20;
+    pub const PKCS15_FILE_TYPE_ECCPUBLICKEY  : u8 =  21;
+
+//  pub const PKCS15_FILE_TYPE_SECRETKEY     : u8 =  17; // iEF with cos5
+    pub const PKCS15_FILE_TYPE_CERT          : u8 =  15;
+    pub const PKCS15_FILE_TYPE_DATA          : u8 =  19;
+//  pub const PKCS15_FILE_TYPE_PIN           : u8 =  18; // iEF with cos5
+    pub const PKCS15_FILE_TYPE_BIOMETRIC     : u8 =  22;
+    pub const PKCS15_FILE_TYPE_AUTHKEY       : u8 =  23;
+}}
 
 pub const PKCS15_FILE_TYPE_SECRETKEY     : u8 =  17; // iEF with cos5
-pub const PKCS15_FILE_TYPE_CERT          : u8 =  15;
-pub const PKCS15_FILE_TYPE_DATA          : u8 =  19;
 pub const PKCS15_FILE_TYPE_PIN           : u8 =  18; // iEF with cos5
-pub const PKCS15_FILE_TYPE_BIOMETRIC     : u8 =  22;
-pub const PKCS15_FILE_TYPE_AUTHKEY       : u8 =  23;
 pub const PKCS15_FILE_TYPE_NONE          : u8 =  0xFF; // should not happen to extract a path for this
 
 pub const RSA_MAX_LEN_MODULUS      : usize = 512; // bytes; as bits: 512*8 = 4096
@@ -504,6 +510,7 @@ impl<'a> Iterator for Tlv<'a> {
 }
 
 // #[derive(Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub struct GuardFile(*mut *mut sc_file);
 
 impl GuardFile {
@@ -603,7 +610,7 @@ pub struct CardCtlAuthState {
 // struct for SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST and SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE, SC_CARDCTL_ACOS5_ENCRYPT_ASYM// data: *mut CardCtlGenerateAsymCrypt, do_generate_asym, do_crypt_asym
 // not all data are require for do_crypt_asym (exponent, exponent_std, key_len_code, key_priv_type_code)
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct CardCtlGenerateAsymCrypt {
     pub rsa_pub_exponent : [u8; 16], // public exponent
     pub data : [u8; RSA_MAX_LEN_MODULUS],   // INOUT for crypt_asym (performs cos5  'RSA Public Key Encrypt')
@@ -677,7 +684,7 @@ impl Default for CardCtlGenerateAsymInject {
 
 // struct for SC_CARDCTL_ACOS5_ENCRYPT_SYM and SC_CARDCTL_ACOS5_DECRYPT_SYM// data: *mut CardCtlSymCrypt, do_encrypt_sym
 #[repr(C)]
-#[derive(/*Debug,*/ Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct CardCtlSymCrypt {
     /* input is from : infile xor indata, i.e. assert!(logical_xor(indata_len > 0, !infile.is_null() )); */
     pub infile       : *const c_char, //  path/to/file where the indata may be read from, interpreted as an [u8]; if!= null has preference over indata
@@ -801,7 +808,7 @@ pub type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8]>, Opt
 //                                                     ^            ^ misc., e.g. SE-file id for MF/DF
 //                                                                               ^ PKCS#15 file type or 0xFF, see PKCS15_FILE_TYPE_*
 #[repr(C)]
-#[derive(/*Debug, Copy,*/ Clone)]
+#[derive(Debug, /*Copy,*/ Clone)]
 pub struct DataPrivate { // see settings in acos5_init
     #[cfg(not(target_os = "windows"))]
     pub pkcs15_definitions : crate::tasn1_sys::asn1_node, // used only as asn1_node_const, except in acos5_finish: asn1_delete_structure

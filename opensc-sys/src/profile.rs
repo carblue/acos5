@@ -22,11 +22,11 @@
 use std::os::raw::{c_char, c_void};
 use crate::opensc::{sc_card, sc_app_info};
 use crate::types::{sc_path, sc_file};
-use crate::scconf::{scconf_list};
+use crate::scconf::scconf_list;
 
 use crate::pkcs15::{SC_PKCS15_DF_TYPE_COUNT, sc_pkcs15_card, sc_pkcs15_auth_info, sc_pkcs15_id};
 
-use crate::pkcs15_init::{sc_pkcs15init_operations};
+use crate::pkcs15_init::sc_pkcs15init_operations;
 
 
 //#define SC_PKCS15_PROFILE_SUFFIX    "profile"

@@ -22,13 +22,13 @@
 
 use std::os::raw::{c_char, c_ulong};
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
-use std::os::raw::{c_void};
+use std::os::raw::c_void;
 
 use crate::opensc::{sc_context, sc_card, sc_algorithm_info};
-use crate::opensc::{sc_card_driver};
-use crate::types::{sc_object_id};
-use crate::types::{sc_atr};
-use crate::scconf::{scconf_block};
+use crate::opensc::sc_card_driver;
+use crate::types::sc_object_id;
+use crate::types::sc_atr;
+use crate::scconf::scconf_block;
 
 /*
 #ifdef ENABLE_OPENSSL

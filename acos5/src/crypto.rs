@@ -206,9 +206,9 @@ pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode:
     }
 
     if mode == Decrypt && pi==1 {
-        while output.last().unwrap_or(&1) == &0  { output.pop(); }
+        while output.last().unwrap_or(&1) == &0  { let _unused = output.pop(); }
         if let Some(&b) = output.last() {
-            if b == 0x80  { output.pop(); }
+            if b == 0x80  { let _unused = output.pop(); }
             else { panic!("Incorrect padding detected!") }
         }
     }
@@ -218,7 +218,7 @@ pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode:
 pub fn des_ede3_cbc_pad_80_mac(data: &[u8], key: &[u8], ivec: &mut DES_cblock) -> Vec<u8> {
     let mut result = des_ede3_cbc_pad_80(data, key, ivec, Encrypt, 0);
     assert!(result.len() >= DES_KEY_SZ);
-    while result.len()>DES_KEY_SZ { result.remove(0); }
+    while result.len()>DES_KEY_SZ { let _unused = result.remove(0); }
     result
 }
 
@@ -287,9 +287,9 @@ fn aes_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut [u8; AES_BLOCK_SIZE], mode
     }
 
     if mode == Decrypt && pi==1 {
-        while output.last().unwrap_or(&1) == &0  { output.pop(); }
+        while output.last().unwrap_or(&1) == &0  { let _unused = output.pop(); }
         if let Some(&b) = output.last() {
-            if b == 0x80  { output.pop(); }
+            if b == 0x80  { let _unused = output.pop(); }
             else { panic!("Incorrect padding detected!") }
         }
     }
@@ -316,11 +316,11 @@ mod tests {
 
     #[test]
     fn test_multiple() {
-        assert_eq!(16, num_integer::Integer::prev_multiple_of(&22, &8)); // equivalent: (integral_number / integral_step_size) * integral_step_size
+        assert_eq!(16, Integer::prev_multiple_of(&22, &8)); // equivalent: (integral_number / integral_step_size) * integral_step_size
         assert_eq!(24, 22.next_multiple_of(&8)); // if integral_number % integral_step_size == 0 {integral_number}
                                                        // else { (integral_number / integral_step_size +1) * integral_step_size }
 
-        assert_eq!(24, num_integer::Integer::prev_multiple_of(&24, &8)); // no selection of smaller multiple !!
+        assert_eq!(24, Integer::prev_multiple_of(&24, &8)); // no selection of smaller multiple !!
         assert_eq!(24, 24.next_multiple_of(&8)); // no selection of larger  multiple !!
     }
 
@@ -377,7 +377,7 @@ mod tests {
                      0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let mut ivec : DES_cblock = [0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let e = des_ede3_cbc_pad_80(&data, &key, &mut ivec, Encrypt, 0);
-        assert!(num_integer::Integer::is_multiple_of(&e.len(), &DES_KEY_SZ));
+        assert!(Integer::is_multiple_of(&e.len(), &DES_KEY_SZ));
         ivec = [0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let d = des_ede3_cbc_pad_80(&e, &key, &mut ivec, Decrypt, 1);
 //println!("{:X?}", e);
@@ -386,7 +386,7 @@ mod tests {
 
         ivec = [0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let e = des_ede3_cbc_pad_80_mac(&data, &key, &mut ivec);
-        assert!(num_integer::Integer::is_multiple_of(&e.len(), &DES_KEY_SZ));
+        assert!(Integer::is_multiple_of(&e.len(), &DES_KEY_SZ));
         assert_eq!(&[0xBF, 0x59, 0xFF, 0x28, 0xE3, 0x23, 0xB9, 0xF4][..], e.as_slice());
 //println!("{:X?}", e);
     }
@@ -406,7 +406,7 @@ mod tests {
         let mut ivec : [u8; AES_BLOCK_SIZE] = [0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10,
                                                0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let e = aes_cbc_pad_80(&data, &key, &mut ivec, Encrypt, 0);
-        assert!(num_integer::Integer::is_multiple_of(&e.len(), &AES_BLOCK_SIZE));
+        assert!(Integer::is_multiple_of(&e.len(), &AES_BLOCK_SIZE));
         ivec = [0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10,
                 0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10];
         let d = aes_cbc_pad_80(&e, &key, &mut ivec, Decrypt, 1);

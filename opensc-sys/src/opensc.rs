@@ -1461,7 +1461,7 @@ impl Default for sc_context {
 
 #[cfg(impl_display)]
 impl std::fmt::Display for sc_context {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         assert!(!self.app_name.is_null());
         let app_name = unsafe { std::ffi::CStr::from_ptr(self.app_name) };
         write!(f, "app_name: {:?}, debug: {}, magic: {}, card_drivers[{:?}, {:?}, {:?}, {:?}, ...],\n\

@@ -25,7 +25,7 @@
 use std::os::raw::{c_char, c_ulong, c_void};
 use std::ffi::CStr;
 use std::fs;//::{read/*, write*/};
-use std::ptr::{null_mut};
+use std::ptr::null_mut;
 use std::slice::from_raw_parts;
 
 use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_apdu,
@@ -61,7 +61,7 @@ use opensc_sys::types::{sc_object_id,sc_apdu, /*sc_aid, sc_path, SC_MAX_AID_SIZE
     ,SC_AC_OP_LOCK
     ,SC_AC_OP_DELETE_SELF
 };
-use opensc_sys::log::{sc_dump_hex};
+use opensc_sys::log::sc_dump_hex;
 use opensc_sys::errors::{/*SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKNOWN, SC_ERROR_NOT_SUPPORTED, */
                          SC_SUCCESS, SC_ERROR_INVALID_ARGUMENTS, //SC_ERROR_KEYPAD_TIMEOUT,
                          SC_ERROR_KEYPAD_MSG_TOO_LONG,/*, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL*/
@@ -69,8 +69,8 @@ SC_ERROR_WRONG_LENGTH, SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT_FOUND, SC_ERROR_I
 SC_ERROR_OUT_OF_MEMORY, SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_NO_CARD_SUPPORT,
 SC_ERROR_SM_RAND_FAILED, SC_ERROR_KEYPAD_TIMEOUT, SC_ERROR_INVALID_DATA
 };
-use opensc_sys::internal::{sc_atr_table};
-use opensc_sys::asn1::{sc_asn1_read_tag};
+use opensc_sys::internal::sc_atr_table;
+use opensc_sys::asn1::sc_asn1_read_tag;
 use opensc_sys::iso7816::{ISO7816_TAG_FCI, ISO7816_TAG_FCP};
 use opensc_sys::sm::{SM_SMALL_CHALLENGE_LEN, SM_CMD_FILE_READ, SM_CMD_FILE_UPDATE};
 
@@ -96,11 +96,11 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, current_path_df, is_impossible_file_match};
 use crate::missing_exports::me_get_max_recv_size;
-use crate::cmd_card_info::{get_is_pin_authenticated};
+use crate::cmd_card_info::get_is_pin_authenticated;
 use crate::sm::{SM_SMALL_CHALLENGE_LEN_u8, sm_common_read, sm_common_update};
 use crate::crypto::{RAND_bytes, des_ecb3_unpadded_8, Encrypt};
 
-use super::{acos5_process_fci/*, acos5_list_files, acos5_select_file, acos5_set_security_env*/};
+use super::acos5_process_fci;/*, acos5_list_files, acos5_select_file, acos5_set_security_env*/
 
 #[allow(dead_code)] // currently unused
 #[cold]
@@ -516,7 +516,8 @@ Incoming APDU (2 bytes):
             r = unsafe { sc_asn1_read_tag(&mut buffer, apdu.resplen, &mut cla, &mut tag, &mut buffer_len) };
             if r == SC_SUCCESS {
                 debug_assert_eq!(cla+tag, ISO7816_TAG_FCI.into() /* 0x6F */);
-                acos5_process_fci(card, file, buffer, buffer_len); // card->ops->process_fci(card, file, buffer, buffer_len);
+                r = acos5_process_fci(card, file, buffer, buffer_len); // card->ops->process_fci(card, file, buffer, buffer_len);
+                assert_eq!(SC_SUCCESS, r);
             }
             assert!(file_out.is_some());
             if let Some(file_out_ptr) = file_out {
@@ -609,8 +610,7 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Op
         let dp_files_value = &dp.files[&file_id];
         card.cache.current_path.value = dp_files_value.0;
         card.cache.current_path.len   = usize::from(dp_files_value.1[1]);
-        Box::leak(dp);
-        // card.drv_data = Box::into_raw(dp) as p_void;
+        let _unused = Box::leak(dp);
     }
     else {
         unreachable!("calling `iso7816_select_file_replica` returned the error code rv: {rv}. Function \
@@ -891,7 +891,7 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
                 tmp_path.value[tmp_path.len..tmp_path.len+2].copy_from_slice(chunk);
                 tmp_path.len += 2;
 //              assert_eq!(tmp_path.len, ((depth+2)*2) as usize);
-                enum_dir(card, &tmp_path, only_se_df/*, depth + 1*/);
+                let _unused = enum_dir(card, &tmp_path, only_se_df/*, depth + 1*/);
             }
         }
     }
@@ -936,8 +936,7 @@ fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*,
     let dp_files_value = &dp.files[&file_id];
     let fdb = dp_files_value.1[0];
     let is_none_2 = dp_files_value.2.is_none();
-    Box::leak(dp);
-    // card.drv_data = Box::into_raw(dp) as p_void;
+    let _unused = Box::leak(dp);
 
     if is_DFMF(fdb)
     {
@@ -961,7 +960,7 @@ fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*,
                 tmp_path.value[tmp_path.len  ] = chunk[0];
                 tmp_path.value[tmp_path.len+1] = chunk[1];
                 tmp_path.len += 2;
-                enum_dir_gui(card, &tmp_path/*, only_se_df*/ /*, depth + 1*/);
+                let _unused = enum_dir_gui(card, &tmp_path/*, only_se_df*/ /*, depth + 1*/);
             }
         }
     }
@@ -1339,7 +1338,7 @@ pub fn get_is_running_cmd_long_response(card: &mut sc_card) -> bool
 {
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let result = dp.is_running_cmd_long_response;
-    Box::leak(dp);
+    let _unused = Box::leak(dp);
     result
 }
 
@@ -1354,7 +1353,7 @@ pub fn get_is_running_compute_signature(card: &mut sc_card) -> bool
 {
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let result = dp.is_running_compute_signature;
-    Box::leak(dp);
+    let _unused = Box::leak(dp);
     result
 }
 
@@ -1373,8 +1372,7 @@ fn get_rsa_caps(card: &mut sc_card) -> c_ulong
 {
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let result = dp.rsa_caps.try_into().unwrap();
-    Box::leak(dp);
-    // card.drv_data = Box::into_raw(dp) as p_void;
+    let _unused = Box::leak(dp);
     result
 }
 */
@@ -1393,7 +1391,7 @@ pub fn get_sec_env(card: &mut sc_card) -> sc_security_env
 {
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let result = dp.sec_env;
-    Box::leak(dp);
+    let _unused = Box::leak(dp);
     result
 }
 
@@ -1401,7 +1399,7 @@ pub fn get_sec_env_mod_len(card: &mut sc_card) -> usize
 {
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let result = usize::from(dp.sec_env_mod_len);
-    Box::leak(dp);
+    let _unused = Box::leak(dp);
     result
 }
 
@@ -2354,11 +2352,11 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
         }
     }
     else {
-        Box::leak(dp);
+        let _unused = Box::leak(dp);
         return Err(log3ifr_ret!(ctx,f,line!(), SC_ERROR_FILE_NOT_FOUND));
     }
 
-    Box::leak(dp);
+    let _unused = Box::leak(dp);
     log3ifr!(ctx,f,line!(), SC_SUCCESS);
     Ok(rbuf)
 }
@@ -2402,7 +2400,7 @@ pub fn update_hashmap(card: &mut sc_card) {
             log3if!(ctx,f,line!(), fmt1, *key, unsafe { sc_dump_hex(val.1.as_ptr(), 8) });
         }
     }
-    Box::leak(dp);
+    let _unused = Box::leak(dp);
     log3ifr!(ctx,f,line!(), SC_SUCCESS);
 }
 
@@ -2431,7 +2429,7 @@ pub fn common_read(card: &mut sc_card,
     let fdb      = x.1[0];
     assert!(x.2.is_some());
     let scb_read = x.2.unwrap()[0];
-    Box::leak(dp);
+    let _unused = Box::leak(dp);
     // let _anon = APDUShortExtendedSwitcher::new(card);
 
     if scb_read == 0xFF {
@@ -2510,8 +2508,7 @@ pub fn common_update(card: &mut sc_card,
     let fdb      = x.1[0];
     assert!(x.2.is_some());
     let scb_update = x.2.unwrap()[1];
-    Box::leak(dp);
-    // card.drv_data = Box::into_raw(dp) as p_void;
+    let _unused = Box::leak(dp);
     // idx==0 means 'append_record' is requested
     if !bin && idx==0 && ![FDB_LINEAR_VARIABLE_EF, FDB_CYCLIC_EF, FDB_SYMMETRIC_KEY_EF, FDB_SE_FILE].contains(&fdb) {
         return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NOT_ALLOWED);

@@ -20,14 +20,14 @@
 
 #![allow(clippy::module_name_repetitions)]
 
-use std::ptr::{/*null,*/ null_mut};
+use std::ptr::null_mut;
 use std::ffi::CStr;
 use std::collections::HashSet;
 
 use opensc_sys::opensc::{sc_card, sc_get_mf_path/*, sc_format_path*/, sc_select_file};
-use opensc_sys::types::{sc_crt};
+use opensc_sys::types::sc_crt;
 //#[cfg(not(target_os = "windows"))]
-//use opensc_sys::types::{sc_aid};
+//use opensc_sys::types::sc_aid;
 use opensc_sys::errors::{/*SC_SUCCESS,*/ SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT_FOUND};
 // /*, SC_ERROR_INTERNAL*/, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
 //                          SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY, SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING,
@@ -37,7 +37,7 @@ use opensc_sys::errors::{/*SC_SUCCESS,*/ SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT
 
 use crate::wrappers::{wr_do_log, wr_do_log_ttt};
 use crate::cmd_card_info::{get_card_life_cycle_byte_eeprom, get_op_mode_byte_eeprom, get_zeroize_card_disable_byte_eeprom};
-use crate::no_cdecl::{update_hashmap};
+use crate::no_cdecl::update_hashmap;
 use crate::constants_types::{DataPrivate, is_DFMF, FDB_SE_FILE, READ, file_id_se, is_child_of /*file_id, p_void*/};
 use crate::se::se_get_references;
 /* * /
@@ -170,7 +170,7 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
                 let mut index_used : HashSet<u8> = HashSet::with_capacity(14);
                 for &b in &val.2.unwrap() {
                     if ![0, 255].contains(&b) {
-                        index_used.insert(b);
+                        let _unused = index_used.insert(b);
                     }
                 }
                 for val_child in dp.files.values() {
@@ -180,7 +180,7 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
                     if is_child_of(val_child, val) {
                         for &b in &val_child.2.unwrap() {
                             if ![0, 255].contains(&b) {
-                                index_used.insert(b);
+                                let _unused = index_used.insert(b);
                             }
                         }
                     }
@@ -242,8 +242,7 @@ println!("[X] DF/MF {key_dfmf:04X} references (reduced set) found: {index_used:X
     //         println!("val is_SE  : {:X?}", *val);
     //     }
     // }
-    Box::leak(dp);
-    // card.drv_data = Box::into_raw(dp) as p_void;
+    let _unused = Box::leak(dp);
     Ok(())
 }
 
