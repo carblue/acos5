@@ -29,9 +29,12 @@ use opensc_sys::opensc::{sc_context, sc_card, sc_security_env, sc_file_free, sc_
                          SC_ALGORITHM_AES/*, SC_CARD_CAP_APDU_EXT*/};
 
 use opensc_sys::types::{sc_file, sc_apdu, sc_crt, sc_object_id, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
+use opensc_sys::pkcs15::sc_pkcs15_id;
+#[cfg(not(target_os = "windows"))]
 use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUSTED,
                          SC_PKCS15_SKDF, SC_PKCS15_CDF, SC_PKCS15_CDF_TRUSTED, SC_PKCS15_CDF_USEFUL,
-                         SC_PKCS15_DODF, SC_PKCS15_AODF, sc_pkcs15_id};
+                         SC_PKCS15_DODF, SC_PKCS15_AODF};
+
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_INTERNAL};
 use opensc_sys::iso7816::{/*ISO7816_TAG_FCI, ISO7816_TAG_FCP,*/ ISO7816_TAG_FCP_SIZE, ISO7816_TAG_FCP_TYPE,
                           ISO7816_TAG_FCP_FID, ISO7816_TAG_FCP_DF_NAME, ISO7816_TAG_FCP_LCS};

@@ -13,8 +13,8 @@ fn main() {
     }
     #[cfg(    target_os = "windows")]
     {
-        println!("cargo:rustc-link-search=C:/Program Files/OpenSSL-Win64/lib");
-        println!("cargo:rustc-link-lib=dylib=libcrypto"); // libeay32.lib -> libcrypto.lib; Since version 1.1.0 OpenSSL have changed their library names from: libeay32.dll -> libcrypto.dll etc.
+        println!("cargo:rustc-link-search=C:/Program Files/OpenSSL-Win64/bin");
+        println!("cargo:rustc-link-lib=dylib=libcrypto-3-x64"); // libeay32.lib -> libcrypto.lib; Since version 1.1.0 OpenSSL have changed their library names from: libeay32.dll -> libcrypto.dll etc.
         //let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
         //println!("cargo:rustc-link-search={}/windows-x86_64", manifest_dir);
         //println!("cargo:rustc-link-lib=dylib=msys-tasn1-6");  // see also https://gnutls.gitlab.io/libtasn1/libtasn1.html, dll : mingw-w64-libtasn1 from https://packages.msys2.org/base
