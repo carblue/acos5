@@ -1,9 +1,6 @@
-//! Rust language: A binding to libopensc.so/opensc.dll, reduced extend required for external modules\
-//!(driver/PKCS#15 init/SM etc.)\
+//! Rust language:
 //! [`OpenSC wiki`]\
 //! [`Rust website`]
-//!
-//! This binding supports OpenSC release versions 0.20.0 - 0.25.1
 //!
 
 /*
@@ -76,7 +73,7 @@ it has a child DF that has been selected.
 #![warn(meta_variable_misuse)]
 #![warn(missing_abi)]
 
-#![warn(missing_copy_implementations)]
+////#![warn(missing_copy_implementations)]
 #![warn(missing_debug_implementations)]
 #![warn(missing_docs)]
 #![warn(missing_unsafe_on_extern)]
@@ -118,12 +115,12 @@ it has a child DF that has been selected.
 
 use std::cmp::{min, max};
 use std::os::raw::{c_char, c_ulong, c_void};
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::ptr::{copy_nonoverlapping, null_mut, null};
 use std::collections::HashMap;
 use std::slice::{from_raw_parts, from_raw_parts_mut};
 
-// use ::function_name::named;
+use function_name::named;
 
 use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_security_env, sc_pin_cmd_data,
                          sc_get_iso7816_driver, sc_get_mf_path, sc_file_set_prop_attr, sc_select_file,
@@ -154,8 +151,6 @@ use opensc_sys::types::{SC_AC_CHV, sc_aid, sc_path, sc_file, sc_serial_number, S
                         SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT, sc_object_id, sc_lv_data};
 #[cfg(target_os = "windows")]
 use opensc_sys::types::SC_MAX_AID_SIZE;
-// #[cfg(not(target_os = "windows"))]
-// use opensc_sys::types::sc_aid;
 use opensc_sys::errors::{SC_SUCCESS/*, SC_ERROR_INTERNAL*/, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
                          SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY, SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING,
                          SC_ERROR_INCORRECT_PARAMETERS, SC_ERROR_NOT_SUPPORTED, SC_ERROR_BUFFER_TOO_SMALL, SC_ERROR_NOT_ALLOWED,
@@ -185,9 +180,9 @@ mod macros;
 // use card_initialization::{};
 
 mod cmd_card_info;
-use cmd_card_info::{get_cos_version, get_count_files_curr_df, get_file_info, get_free_space, get_is_fips_compliant,
-                    get_is_ident_self_okay, get_is_key_authenticated, get_is_pin_authenticated, get_manufacture_date,
-                    get_op_mode_byte, get_rom_sha1, get_serialnr};
+use cmd_card_info::{cos_version, count_files_curr_df, file_info, free_space, is_fips_compliant,
+                    is_ident_self_okay, is_key_authenticated, is_pin_authenticated, manufacture_date,
+                    op_mode_byte, rom_sha1, serial_no};
 
 mod constants_types;
 use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES,
@@ -229,14 +224,14 @@ mod crypto;
 
 mod missing_exports;
 use missing_exports::{me_card_add_symmetric_alg, me_card_find_alg, me_get_max_recv_size,
-                             me_pkcs1_strip_01_padding, me_pkcs1_strip_02_padding};//, me_get_encoding_flags
+                      me_pkcs1_strip_01_padding, me_pkcs1_strip_02_padding};//, me_get_encoding_flags
 
 mod no_cdecl;
 use no_cdecl::{select_file_by_path, enum_dir,
     pin_get_policy, tracking_select_file, acos5_supported_atrs,
                       /*encrypt_public_rsa,*/ get_sec_env, set_sec_env,// get_rsa_caps,
     get_is_running_cmd_long_response, set_is_running_cmd_long_response, is_any_known_digestAlgorithm,
-    generate_asym, encrypt_asym, get_files_hashmap_info, update_hashmap,
+    generate_asym, encrypt_asym, files_hashmap_info, update_hashmap,
     /*, create_mf_file_system*/ convert_acl_array_to_bytes_tag_fcp_sac, get_sec_env_mod_len,
     ACL_CATEGORY_DF_MF, ACL_CATEGORY_EF_CHV, ACL_CATEGORY_KEY, ACL_CATEGORY_SE,
     get_is_running_compute_signature, set_is_running_compute_signature, algo_ref_sym_store,
@@ -312,7 +307,7 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = unsafe { sc_get_version() };
     if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1/*, v0_26_0*/))  { version_ptr }
     // v0_26_0: experimental only:  Latest OpenSC gitHub master commit covered:
-    else                   { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
+    else  { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
 }
 
 /// A mandatory library export
@@ -505,7 +500,7 @@ TODO how to set opensc.conf, such that a minimum of trials to match atr is done
  * @param
  * @return 1 on success (this driver will serve the card), 0 otherwise
  */
-//#[named]
+#[named]
 extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || unsafe { (*card_ptr).reader.is_null() } {
@@ -514,8 +509,8 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     let reader = unsafe { &mut *card.reader };
-    // let f_cstring = CString::new(function_name!()).expect("CString::new failed");
-    let f = c"acos5_match_card"; // = f_cstring.as_c_str();
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str(); // c"acos5_match_card";
     log3if!(ctx,f,line!(), c"called. Try to match card with ATR %s",
         unsafe { sc_dump_hex(card.atr.value.as_ptr(), card.atr.len) } );
 
@@ -530,7 +525,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
         return log3ifr_ret!(ctx,f,line!(), c"Card doesn't match: Differing ATR. Returning with 0 (no match)", 0);
     }
     let idx_acos5_atrs = usize::try_from(idx_acos5_atrs).unwrap();
-    if idx_acos5_atrs >= acos5_atrs.len() {
+    if idx_acos5_atrs+1 >= acos5_atrs.len() {
         return log3ifr_ret!(ctx,f,line!(), c"Card doesn't match: Differing ATR. Returning with 0 (no match)", 0);
     }
 
@@ -540,17 +535,17 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
 //println!("card.caps: {:X}\n", card.caps);
 
     /* check for 'Identity Self' */
-    match get_is_ident_self_okay(card, type_out) {
+    match is_ident_self_okay(card, type_out) {
         Ok(val) => if !val { return log3ifr_ret!(ctx,f,line!(), c"Card doesn't match: \
-            get_is_ident_self_okay: SW2 different from expected! Returning with 0 (no match)", 0) },
-        Err(_e) => return log3ifr_ret!(ctx,f,line!(), c"Card doesn't match: get_is_ident_self_okay \
+            is_ident_self_okay: SW2 different from expected! Returning with 0 (no match)", 0) },
+        Err(_e) => return log3ifr_ret!(ctx,f,line!(), c"Card doesn't match: is_ident_self_okay \
             failed! Returning with 0 (no match)", 0),
     };
 
     /* check for 'Card OS Version' */
-    let rbuf_card_os_version = match get_cos_version(card) {
+    let rbuf_card_os_version = match cos_version(card) {
         Ok(val) => val,
-        Err(_e) => return log3ifr_ret!(ctx,f,line!(), c"Card doesn't match: get_cos_version failed! \
+        Err(_e) => return log3ifr_ret!(ctx,f,line!(), c"Card doesn't match: cos_version failed! \
             Returning with 0 (no match)", 0),
     };
 
@@ -583,7 +578,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
         if type_out == SC_CARD_TYPE_ACOS5_64_V3 {
 
             /* check 'Operation Mode Byte Setting', must be set to  */
-            let op_mode_byte = match get_op_mode_byte(card) {
+            let op_mode_byte = match op_mode_byte(card) {
                 Ok(op_mb) => op_mb,
                 Err(_err) =>  0x7FFF_FFFFu32,
             };
@@ -644,6 +639,7 @@ what can we rely on, when this gets called:
  * @param
  * @return
  */
+#[named]
 extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
@@ -651,7 +647,8 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     }
     let card       = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_init";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3if!(ctx,f,line!(), c"called with card.type: %d, card.atr.value: %s", card.type_,
         unsafe {sc_dump_hex(card.atr.value.as_ptr(), card.atr.len) });
 /* */
@@ -705,7 +702,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
 
     let is_fips_mode = match card.type_ {
         SC_CARD_TYPE_ACOS5_64_V3 |
-        SC_CARD_TYPE_ACOS5_EVO_V4 => get_op_mode_byte(card).unwrap()==0,
+        SC_CARD_TYPE_ACOS5_EVO_V4 => op_mode_byte(card).unwrap()==0,
         _ => false,
     };
     let mut rv;
@@ -894,7 +891,7 @@ DataPrivate:                                                size_of: 1792, align
     /* stores serialnr in card.serialnr; enum_dir currently doesn't require that */
     /* stores serialnr in card.serialnr, required for   sm_info.serialnr = card.serialnr; */
     #[cfg(ifd_serial_constrained_for_sm)]
-    match get_serialnr(card) {
+    match serial_no(card) {
         Ok(_val) => (),
         Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
     }
@@ -972,6 +969,7 @@ cfg_if::cfg_if! {
  * @param
  * @return
  */
+#[named]
 extern "C" fn acos5_finish(card_ptr: *mut sc_card) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
@@ -979,7 +977,8 @@ extern "C" fn acos5_finish(card_ptr: *mut sc_card) -> i32
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_finish";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 ////////////////////
 //     let _rv = sanity_check(card, unsafe { CStr::from_ptr(ctx.app_name) });
@@ -1143,7 +1142,7 @@ println!("sc_update_binary: rv: {}", rv);
     }
     cfg_if::cfg_if! {
         if #[cfg(finish_verbose)] {
-            println!("EEPROM remaining free memory space: ~ {} of {}, in kB", f64::from(get_free_space(card).unwrap())/1000.,
+            println!("EEPROM remaining free memory space: ~ {} of {}, in kB", f64::from(free_space(card).unwrap())/1000.,
                 if card.type_ > SC_CARD_TYPE_ACOS5_64_V3 {192} else {64});
 //println!("Hashmap: {:02X?}", dp.files);
         }
@@ -1169,6 +1168,7 @@ println!("sc_update_binary: rv: {}", rv);
 
 called only from `sc_erase_binary`, but that is used nowhere in `OpenSC`, except in some card drivers, tested in `acos5/src/test_v2_v3.rs`
 */
+#[named]
 extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize, flags: c_ulong) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
@@ -1178,7 +1178,8 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
     let mut count = u16::try_from(count).unwrap();
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_erase_binary";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
     if count==0 {
         return log3ifr_ret!(ctx,f,line!(), SC_SUCCESS);
@@ -1254,6 +1255,7 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
  * @param
  * @return
  */
+#[named]
 extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr: p_void) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
@@ -1261,7 +1263,8 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_card_ctl";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3if!(ctx,f,line!(), c"called for command: %u", command);
 
     if data_ptr.is_null() && ![SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO, SC_CARDCTL_ACOS5_SANITY_CHECK].contains(&command)
@@ -1281,7 +1284,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_GET_SERIALNR =>
             {
                 let rm_serialnr = unsafe { &mut *data_ptr.cast::<sc_serial_number>() };
-                *rm_serialnr = match get_serialnr(card) {
+                *rm_serialnr = match serial_no(card) {
                     Ok(val) => val,
                     Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
@@ -1299,7 +1302,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF =>
             {
                 let rm_count_files_curr_df = unsafe { &mut *data_ptr.cast::<u16>() };
-                *rm_count_files_curr_df = match get_count_files_curr_df(card) {
+                *rm_count_files_curr_df = match count_files_curr_df(card) {
                     Ok(val) => val,
                     Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
@@ -1308,7 +1311,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_GET_FILE_INFO =>
             {
                 let rm_file_info = unsafe { &mut *data_ptr.cast::<CardCtlArray8>() };
-                rm_file_info.value = match get_file_info(card, rm_file_info.reference) {
+                rm_file_info.value = match file_info(card, rm_file_info.reference) {
                     Ok(val) => val,
                     Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
@@ -1317,7 +1320,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_GET_FREE_SPACE =>
             {
                 let rm_free_space = unsafe { &mut *data_ptr.cast::<u32>() };
-                *rm_free_space = match get_free_space(card) {
+                *rm_free_space = match free_space(card) {
                     Ok(val) => val,
                     Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
@@ -1326,7 +1329,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_GET_IDENT_SELF =>
             {
                 let rm_is_hw_acos5 = unsafe { &mut *data_ptr.cast::<bool>() };
-                *rm_is_hw_acos5 = match get_is_ident_self_okay(card, 0) {
+                *rm_is_hw_acos5 = match is_ident_self_okay(card, 0) {
                     Ok(val) => val,
                     Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
@@ -1335,7 +1338,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_GET_COS_VERSION =>
             {
                 let rm_cos_version = unsafe { &mut *data_ptr.cast::<[u8; 8]>() };
-                *rm_cos_version = match get_cos_version(card) {
+                *rm_cos_version = match cos_version(card) {
                     Ok(val) => val,
                     Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
@@ -1347,7 +1350,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             {
                 if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT); }
                 let rm_manufacture_date = unsafe { &mut *data_ptr.cast::<u32>() };
-                *rm_manufacture_date = match get_manufacture_date(card) {
+                *rm_manufacture_date = match manufacture_date(card) {
                     Ok(val) => val,
                     Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
@@ -1357,7 +1360,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             {
                 if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT); }
                 let rm_rom_sha1 = unsafe { &mut *data_ptr.cast::<[u8; 20]>() };
-                *rm_rom_sha1 = match get_rom_sha1(card) {
+                *rm_rom_sha1 = match rom_sha1(card) {
                     Ok(val) => val,
                     Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
@@ -1367,7 +1370,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             {
                 if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT); }
                 let rm_op_mode_byte = unsafe { &mut *data_ptr.cast::<u8>() };
-                *rm_op_mode_byte = match get_op_mode_byte(card) {
+                *rm_op_mode_byte = match op_mode_byte(card) {
                     Ok(val) => val,
                     Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
@@ -1377,7 +1380,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             {
                 if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT); }
                 let rm_is_fips_compliant = unsafe { &mut *data_ptr.cast::<bool>() };
-                *rm_is_fips_compliant = match get_is_fips_compliant(card) {
+                *rm_is_fips_compliant = match is_fips_compliant(card) {
                     Ok(val) => val,
                     Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
@@ -1387,7 +1390,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             {
                 if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT); }
                 let rm_pin_auth_state = unsafe { &mut *data_ptr.cast::<CardCtlAuthState>() };
-                rm_pin_auth_state.value = match get_is_pin_authenticated(card, rm_pin_auth_state.reference) {
+                rm_pin_auth_state.value = match is_pin_authenticated(card, rm_pin_auth_state.reference) {
                     Ok(val) => val,
                     Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
@@ -1397,7 +1400,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             {
                 if card.type_ != SC_CARD_TYPE_ACOS5_64_V3 { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT); }
                 let rm_key_auth_state = unsafe { &mut *data_ptr.cast::<CardCtlAuthState>() };
-                rm_key_auth_state.value = match get_is_key_authenticated(card, rm_key_auth_state.reference) {
+                rm_key_auth_state.value = match is_key_authenticated(card, rm_key_auth_state.reference) {
                     Ok(val) => val,
                     Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
@@ -1406,7 +1409,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
         SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO =>
             {
                 let rm_files_hashmap_info = unsafe { &mut *data_ptr.cast::<CardCtlArray32>() };
-                rm_files_hashmap_info.value = match get_files_hashmap_info(card, rm_files_hashmap_info.key) {
+                rm_files_hashmap_info.value = match files_hashmap_info(card, rm_files_hashmap_info.key) {
                     Ok(val) => val,
                     Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
@@ -1494,6 +1497,7 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
  * @param
  * @return
  */
+#[named]
 extern "C" fn acos5_select_file(card_ptr: *mut sc_card, path_ptr: *const sc_path, file_out_ptr: *mut *mut sc_file) -> i32
 {
     if card_ptr.is_null() || path_ptr.is_null() {
@@ -1501,7 +1505,8 @@ extern "C" fn acos5_select_file(card_ptr: *mut sc_card, path_ptr: *const sc_path
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_select_file";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
     let path_ref = unsafe { & *path_ptr };
     // first setting of  card.cache.current_path.len  done in acos5_init
@@ -1551,6 +1556,7 @@ SW1 SW2   Definition
  * @param  buf
  * @return how many bytes can be expected to be fetched the next time, this function gets called: It's a guess only
  */
+#[named]
 extern "C" fn acos5_get_response(card_ptr: *mut sc_card, count_ptr: *mut usize, buf_ptr: *mut u8) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || count_ptr.is_null() || buf_ptr.is_null() {
@@ -1558,7 +1564,8 @@ extern "C" fn acos5_get_response(card_ptr: *mut sc_card, count_ptr: *mut usize, 
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_get_response";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     let cnt_in = unsafe { *count_ptr };
     assert!(cnt_in <= 256);
     let fmt_1 = c"returning with: *count: %zu, rv: %d";
@@ -1639,6 +1646,7 @@ println!("### acos5_get_response returned apdu.sw1: {:X}, apdu.sw2: {:X}   Unkno
  * @param count how many bytes are requested from RNG
  * @return MUST return the number of challenge bytes stored to buf
  */
+#[named]
 extern "C" fn acos5_get_challenge(card_ptr: *mut sc_card, buf_ptr: *mut u8, count: usize) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || buf_ptr.is_null() || count > 1024 {
@@ -1646,7 +1654,8 @@ extern "C" fn acos5_get_challenge(card_ptr: *mut sc_card, buf_ptr: *mut u8, coun
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_get_challenge";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3if!(ctx,f,line!(), c"called with request for %zu bytes", count);
     let func_ptr = unsafe { (*(*sc_get_iso7816_driver()).ops).get_challenge.unwrap() };
     // let is_count_multiple : bool;
@@ -1673,9 +1682,10 @@ extern "C" fn acos5_get_challenge(card_ptr: *mut sc_card, buf_ptr: *mut u8, coun
     }
 //    log3if!(ctx,f,line!(), c"returning with requested %zu bytes supplied", count);
     log3ifr_ret!(ctx,f,line!(), i32::try_from(count).unwrap())
-}
+} // acos5_get_challenge
 
 /* currently refers to pins only, but what about authenticated keys */
+#[named]
 extern "C" fn acos5_logout(card_ptr: *mut sc_card) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
@@ -1683,7 +1693,8 @@ extern "C" fn acos5_logout(card_ptr: *mut sc_card) -> i32
     }
     let card       = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_logout";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
 //    let aid = null_mut();
@@ -1716,6 +1727,7 @@ extern "C" fn acos5_logout(card_ptr: *mut sc_card) -> i32
 
 /* TODO this isn't yet completed: 1. the hashmap-entry/path+fileinfo must be set and 2. there is more to do for MF/DF */
 /* expects some entries in file, see acos5_construct_fci */
+#[named]
 extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || file_ptr.is_null() || unsafe {(*file_ptr).id==0} {
@@ -1723,7 +1735,8 @@ extern "C" fn acos5_create_file(card_ptr: *mut sc_card, file_ptr: *mut sc_file) 
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_create_file";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     let file = unsafe { &mut *file_ptr };
     log3ifc!(ctx,f,line!());
 
@@ -1783,6 +1796,7 @@ iso7816_delete_file: condition: (path->type == SC_PATH_TYPE_FILE_ID && (path->le
 */
 /* expects a path of type SC_PATH_TYPE_FILE_ID and a path.len of 2 or 0 (0 means: delete currently selected file) */
 /* even with a given path with len==2, acos expects a select_file ! */
+#[named]
 extern "C" fn acos5_delete_file(card_ptr: *mut sc_card, path_ref_ptr: *const sc_path) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || path_ref_ptr.is_null() {
@@ -1791,7 +1805,8 @@ extern "C" fn acos5_delete_file(card_ptr: *mut sc_card, path_ref_ptr: *const sc_
     let card       = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     let path_ref= unsafe { &*path_ref_ptr };
-    let f = c"acos5_delete_file";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
     log3if!(ctx,f,line!(), c"card.cache.current_path %s",
         unsafe{sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)});
@@ -1867,7 +1882,7 @@ println!("file_id: {file_id:X} is not a key of hashmap dp.files");
 }
 
 /*
-deficiency: It's not known in advance, how many files will be reported by get_count_files_curr_df, but an arg
+deficiency: It's not known in advance, how many files will be reported by count_files_curr_df, but an arg
 buflen must be supplied to sc_list_files. If that is to small and there are more files, then truncation occurs and
 x files will not be listed by this function: TODO add a warning message
 
@@ -1884,6 +1899,7 @@ x files will not be listed by this function: TODO add a warning message
  * @param
  * @return
  */
+#[named]
 extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen: usize) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || buf_ptr.is_null() || buflen<2 {
@@ -1892,11 +1908,12 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
     let buf = unsafe { from_raw_parts_mut(buf_ptr, buflen) };
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_list_files";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     /* retrieve the number of files in the currently selected directory*/
-    let numfiles = match get_count_files_curr_df(card) {
+    let numfiles = match count_files_curr_df(card) {
         Ok(val) => min(val, u16::try_from(buflen/2).unwrap()),
         Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
     };
@@ -1909,7 +1926,7 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
         /* collect the IDs of files in the currently selected directory, restrict to max. 255, because addressing has 1 byte only */
         for i  in 0..u8::try_from(numfiles).unwrap() {
             let idx = usize::from(i) * 2;
-            let mut rbuf = match get_file_info(card, i) {
+            let mut rbuf = match file_info(card, i) {
                 Ok(val) => val,
                 Err(e)    => return log3ifr_ret!(ctx,f,line!(), e),
             };
@@ -1956,6 +1973,7 @@ extern "C" fn acos5_list_files(card_ptr: *mut sc_card, buf_ptr: *mut u8, buflen:
  *  @param  buflen  IN    L of FCI's first TLV
  *  @return         SC_SUCCESS or error code from errors.rs
  */
+#[named]
 extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
                                 buf_ref_ptr: *const u8, buflen: usize) -> i32
 {
@@ -1965,7 +1983,9 @@ extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     let file = unsafe { &mut *file_ptr };
-    log3ifc!(ctx, c"acos5_process_fci", line!());
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
+    log3ifc!(ctx,f,line!());
 /*
     let mut buf_vec : Vec<u8> = Vec::with_capacity(90);
     buf_vec.extend_from_slice(unsafe { from_raw_parts(buf_ref_ptr, buflen) });
@@ -2048,6 +2068,7 @@ extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
 // assembles the byte string/data part for file creation via command "Create File"
 // TODO special treatment for DF/MF is missing: optional ISO7816_RFU_TAG_FCP_SAE
 // ATTENTION : expects from file.type the fdb , but NOT what usually is in file.type like e.g. SC_FILE_TYPE_WORKING_EF
+#[named]
 extern "C" fn acos5_construct_fci(card_ptr: *mut sc_card, file_ref_ptr: *const sc_file,
                                   out_ptr: *mut u8, outlen_ptr: *mut usize) -> i32
 {
@@ -2089,7 +2110,8 @@ SEQUENCE (6 elem)
     }
     let card       = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_construct_fci";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     let file_ref = unsafe { &*file_ref_ptr };
     log3ifc!(ctx,f,line!());
     log3if!(ctx,f,line!(), c"path: %zu, %s",    file_ref.path.len,
@@ -2247,6 +2269,7 @@ println!("Failure: Non-match in let acl_category. file_ref.type_: {}", file_ref.
  * @param
  * @return
  */
+#[named]
 extern "C" fn acos5_pin_cmd(card_ptr: *mut sc_card, data_ptr: *mut sc_pin_cmd_data, tries_left_ptr: *mut i32) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } /*|| data_ptr.is_null()*/ {
@@ -2254,7 +2277,8 @@ extern "C" fn acos5_pin_cmd(card_ptr: *mut sc_card, data_ptr: *mut sc_pin_cmd_da
     }
     let card       = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_pin_cmd";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     if data_ptr.is_null() {
         log3if!(ctx,f,line!(), c"called for data_ptr: %p", data_ptr);
         return SC_ERROR_INVALID_ARGUMENTS;

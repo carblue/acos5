@@ -33,13 +33,13 @@ see file src/libopensc/libopensc.exports
 1. Try to convince OpenSC to make that callable from libopensc.so/opensc.dll
 2. In the meantime, for the external driver, that code must be duplicated here in Rust
 */
-
+use std::ffi::CString;
 use std::os::raw::c_void;
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
 use std::os::raw::c_ulong;
 
 use std::slice;
-
+use function_name::named;
 use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, SC_CARD_CAP_APDU_EXT,
                          SC_READER_SHORT_APDU_MAX_RECV_SIZE, //SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_PROTO_T0,
                          SC_ALGORITHM_EC, sc_compare_oid
@@ -149,13 +149,15 @@ pub fn me_get_max_send_size(card: &sc_card) -> usize
 }
 */
 
+#[named]
 fn me_card_add_algorithm(card: &mut sc_card, info: &sc_algorithm_info) -> i32
 {
     if card.ctx.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"me_card_add_algorithm";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
     let p_ptr = unsafe { libc::realloc(card.algorithms.cast::<c_void>(), usize::try_from(card.algorithm_count + 1).unwrap() *
         size_of::<sc_algorithm_info>()) }.cast::<sc_algorithm_info>();
@@ -240,6 +242,7 @@ pub fn me_card_find_alg(card: &mut sc_card,
  * @param  sflags  OUT the security env. algorithm flag to use
  * @return SC_SUCCESS on success and an error code otherwise
  */
+#[named]
 pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: u32, caps: u32,
                              pflags: &mut u32, sflags: &mut u32) -> i32
 {
@@ -255,7 +258,8 @@ pub fn me_get_encoding_flags(ctx: *mut sc_context, iflags: u32, caps: u32,
         SC_ALGORITHM_RSA_HASH_MD5_SHA1
     ];
 
-    let f = c"me_get_encoding_flags";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
     log3ift!(ctx,f,line!(), c"iFlags 0x%X, card capabilities 0x%X", iflags, caps);
     {

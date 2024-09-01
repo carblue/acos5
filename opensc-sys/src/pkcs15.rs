@@ -918,7 +918,7 @@ pub struct sc_pkcs15_card__sc_pkcs15_card_opts {
     pub use_pin_cache : i32,
     pub pin_cache_counter : i32,
     pub pin_cache_ignore_user_consent : i32,
-    pub private_certificate : i32,
+    pub pin_protected_certificate : i32,
 }
 
 #[repr(C)]
@@ -973,7 +973,7 @@ pub const SC_PKCS15_OPTS_CACHE_PUBLIC_FILES : u32 = 1;
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
 pub const SC_PKCS15_OPTS_CACHE_ALL_FILES    : u32 = 2;
 
-/* suitable for struct sc_pkcs15_card.opts.private_certificate */
+/* suitable for struct sc_pkcs15_card.opts.pin_protected_certificate */
 pub const SC_PKCS15_CARD_OPTS_PRIV_CERT_PROTECT    : u32 = 0;
 pub const SC_PKCS15_CARD_OPTS_PRIV_CERT_IGNORE     : u32 = 1;
 pub const SC_PKCS15_CARD_OPTS_PRIV_CERT_DECLASSIFY : u32 = 2;

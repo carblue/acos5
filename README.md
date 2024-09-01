@@ -26,9 +26,9 @@ Release tags get added irregularly, mainly i.o. to refer to something from `acos
 
 Motivation:  
 For OS/platform-independent, serious use of a cryptographic hardware/token from software like Firefox, Thunderbird, ssh etc., a [PKCS#11](https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11 "https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11") implementing library is required.
-There is none known to me for ACOS5 that is open-source, nothing in this regard downloadable from ACS for free, instead, one has to pay a lot more for a proprietary ACS PKCS#11 library (bundled with some other software) than for a single hardware token. They even have a proprietary ACS PKCS#11 library for Linux, but don't advertise that, and probably it also needs to be bought.
+There is none known to me for ACOS5 that is open-source, nothing in this regard downloadable from ACS for free, instead, one has to pay a lot more for a proprietary ACS PKCS#11 library (bundled with some other software) than for a single hardware token. They even have a proprietary ACS PKCS#11 library for Linux, but don't advertise that, and probably it also needs to be paid.
 
-The only open-source software downloadable from ACS is [acsccid](https://github.com/acshk/acsccid "https://github.com/acshk/acsccid"), a PC/SC driver for Linux/Mac OS X. PC/SC or WinSCard (Windows) is just the basic layer on which a PKCS#11 library can build upon. I never installed acsccid for production use of my CryptoMate64 and CryptoMate Nano, hence the debian/ubuntu-supplied [ccid](https://ccid.apdu.fr/ "https://ccid.apdu.fr/") seems to be sufficient (if it's new enough to list those cards as supported ones: [shouldwork](https://ccid.apdu.fr/ccid/shouldwork.html "https://ccid.apdu.fr/ccid/shouldwork.html")).  
+The only open-source software downloadable from ACS is [acsccid](https://github.com/acshk/acsccid "https://github.com/acshk/acsccid"), a PC/SC driver for Linux/Mac OS X. PC/SC or WinSCard (Windows) is just the basic layer on which a PKCS#11 implementing library can build upon. I never installed acsccid for production use of my CryptoMate64 and CryptoMate Nano, hence the debian/ubuntu-supplied [ccid](https://ccid.apdu.fr/ "https://ccid.apdu.fr/") seems to be sufficient (if it's new enough to list those cards as supported ones: [shouldwork](https://ccid.apdu.fr/ccid/shouldwork.html "https://ccid.apdu.fr/ccid/shouldwork.html")).
 So be careful what You get from ACS when it's called driver. Perhaps You get something that is behind the "File Upon Request" barrier.
 
 [OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki") supplies i.a. a PKCS#11 implementing open-source library (onepin-opensc-pkcs11.so/opensc-pkcs11.so) if it get's augmented by a hardware specific driver, which is missing currently for ACOS5 smart cards in OpenSC v0.25.1, and the one available in previous versions was rudimentary/incomplete; hence excluded for good reasons.
@@ -79,16 +79,16 @@ There is a huge number of "limits" and "rules" that apply, many originate from s
 Common usage won't exceed these limits and the driver will "just work". E.g. probably You won't have a file in Your file system that will be addressed by such a long 18-byte path, e.g.
 0x3F00_4100_4200_4300_4400_4500_4600_4700_4710  
 An 18-byte path length won't work, as OpenSC data structures are limited to a path length of 16 bytes.  
-File ids 0x5000 - 0x5FFF are reserved for the driver and PKCS#15 files 0x5031, 0x5032 and 0x5033. The driver will place generated RSA files into this range of file ids and will delete - if necessary - any other types of files in this range of file ids (and even RSA files that are not listed in PrKDF/PuKDF).  
-And a driver rule to name explicitly: In case of manually adding records to 'PIN file', 'Symmetric Key file' or 'Security Environment file': These are record-based file types, i.e. content gets addressed by a record no. **and** store inside that record an ID (of pin, sym. key or SE condition): Record no. and ID always must be the same ! This can be checked only for readable files, and 'PIN file' / 'Symmetric Key file' never are readable.  
+File ids 0x5000 - 0x5FFF are reserved for the driver and PKCS#15 files 0x5031, 0x5032 and 0x5033. The driver will place generated RSA files (in case of EVO also ECC files) into this range of file ids and will delete - if necessary - any other types of files in this range of file ids (and even RSA files that are not listed in PrKDF/PuKDF).
+And a driver rule to name explicitly: In case of manually adding (e.g. with tool `gscriptor`) records to 'PIN file', 'Symmetric Key file' or 'Security Environment file': These are record-based file types, i.e. content gets addressed by a record no. **and** store inside that record an ID (of pin, sym. key or SE condition): Record no. and ID always must be the same ! This can be checked only for readable files, and 'PIN file' / 'Symmetric Key file' never are readable.
 If a manually added 'Symmetric Key' (e.g. by using `gscriptor` or `scriptor`) is not listed in SKDF, then it does not exist for OpenSC/driver and the record/key will be overwritten next time a 'key store' or 'unwrap' operation occurs !
 
 So this is the point: It would be graceful to react upon limits/rules violations with error returns and respective error messages in opensc-debug.log, but all too often the driver isn't yet that polite and just deliberately aborts ("panic" in Rust lingo, due to an assert violation).
 So, if anybody wants to contribute, removing these rough edges is an easy way to start.  
-And if the driver is "impolite" currently, it's most likely something about card content, that is different from expected according to PKCS#15 / ISO/IEC 7816-15 / OpenSC. It's tough for outsiders to spot from OpenSC code: What is the exact requirement for ASN.1 content of PKCS#15 files. Maybe it's easier to read from [PKCS15.asn](https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn "https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn"), which is specifically crafted/modified from a module pkcs-15v1_1.asn found by a web search, for compatibility with OpenSC version 0.19.0 ? - 0.25.1, libtasn1 and ACOS5. It's also internally used by the driver in non-Windows builds.
+And if the driver is "impolite" currently, it's most likely something about card content, that is different from expected according to PKCS#15 / ISO/IEC 7816-15 / OpenSC. It's tough for outsiders to spot from OpenSC code: What is the exact requirement for ASN.1 content of PKCS#15 files. Maybe it's easier to read from [PKCS15.asn](https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn "https://github.com/carblue/acos5_gui/blob/master/source/PKCS15.asn"), which is specifically crafted/modified from a module pkcs-15v1_1.asn found by a web search, for compatibility with OpenSC, libtasn1 and ACOS5. It's also internally used by the driver in non-Windows builds.
 
-Akin to the www with it's broken links phenomenon, that may happen with a smart card as well: A lot in PKCS#15 and ACOS5 depends on "pointing to", and that may easily be broken by software bugs or ?. Thus I plan to integrate detection code for this kind of card content errors and more, for pkcs15-init --sanity-check  
-Thus a sanity-check without any errors found should prevent the driver from becoming "impolite" or reporting errors.  
+Akin to the www with it's broken links phenomenon, that may happen with a smart card as well: A lot in PKCS#15 and ACOS5 depends on "pointing to", and that may easily be broken by software bugs or ?. Thus I plan to integrate detection code for this kind of card content errors and more, for '$ pkcs15-init --sanity-check'
+Thus a sanity-check without any errors found should prevent the driver from becoming "impolite" or reporting errors. [Work in progress]
 
 ## Steps towards driver binary builds and setup
 
@@ -110,14 +110,14 @@ Thus a sanity-check without any errors found should prevent the driver from beco
    `$ opensc-tool --serial`
 4. In case build errors or other errors occur:
    You have a copy of the opensc-sys binding on Your system in directory opensc-sys.  
-   If there are build errors, then go to that folder and issue  
+   If there are build errors, then issue
    `$ cargo test test_struct_sizeof -- --nocapture`  
    Likely that fails then, and an error reason is found by asking why didn't that find the library libopensc.so or does the version reported differ, or ?, or as the worst case:  
    OpenSC was built with different settings/switches than the binding requires/assumes.  
    Other errors occur: Likely the opensc.conf file is incorrect.  
    Otherwise file an issue.
 
-When You change/update Your OpenSC installation: Only step 1 needs to be redone, and as I don't know whether Rust's rerun feature is reliable, I first delete folder target and file Cargo.lock, then (re-)build the driver.
+When You change/update Your OpenSC installation: Only step 1 (rebuilding the driver, adapted to the new version) needs to be redone, and as I don't know whether Rust's rerun feature is reliable, I first delete folder target and file Cargo.lock, then (re-)build the driver.
 
 The required opensc.conf entries:  
 The location of opensc.conf on Linux: /etc/opensc/opensc.conf.  
@@ -128,8 +128,7 @@ Content within ... (excluded) must be adapted (/something/like/path/to/acos5/tar
 The line "card_drivers = acos5_external, npa, internal;" is just an example from OpenSC version 0.17.0 opensc.conf: It means: Just prepend  
 acos5_external,  
 to the list of drivers specified by default and remove a leading comment character # in this line, if there is any.  
-When using ACOS5 V2.00, it's also required for any OpenSC release version <= 0.19.0, to bypass the almost non-functional 'acos5' internal driver somehow, thus a painless start is by using  
-    card_drivers = acos5_external, default;  # this excludes all internal drivers, and the default driver does just nothing, so it would fail in a determined way as last resort, if driver acos5_external doesn't match 
+
 
 ```
 app default {
@@ -272,6 +271,7 @@ Then test whether You "could" establish an ssh connection with Your github_key:
 ```
 $ ssh -T -I/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so  git@github.com
 ```
+On success, GitHub will reply:<br>
 Hi your_github_user_name! You've successfully authenticated, but GitHub does not provide shell access.
 
 With this ssh config file I can even abbreviate:<br>
@@ -291,56 +291,4 @@ Recommended info:
 [OpenSSL Certificate Authority](https://jamielinux.com/docs/openssl-certificate-authority/ "https://jamielinux.com/docs/openssl-certificate-authority/") with adaptions from info/howto/HOWTO_Create_Your_own_CA_root_hierarchy_on_Linux
 
 < not yet:[changelog.md](https://github.com/carblue/acos5/tree/master/changelog.md "https://github.com/carblue/acos5/tree/master/changelog.md"): Recent commits (notable ones that deserve some verbosity) >
-
-# Progress in supporting the EVO hardware
-The good news: The following command (listing mechanisms) shows some more capabilities, than the other supported hardware could report:
-```
-$ p11tool --list-token-urls
-pkcs11:model=PKCS%2315;manufacturer=Advanced%20Card%20Systems%20Ltd.;serial=f070001bc4c18800;token=EVO_F070001BC4C18800%20%28User%29
-pkcs11:model=Soft;manufacturer=IBM;serial=;token=pmfa
-pkcs11:model=p11-kit-trust;manufacturer=PKCS%2311%20Kit;serial=1;token=System%20Trust
-
-$ p11tool --list-mechanisms pkcs11:model=PKCS%2315
-[0x0220] CKM_SHA_1 digest
-[0x0255] CKM_SHA224 digest
-[0x0250] CKM_SHA256 digest
-[0x0260] CKM_SHA384 digest
-[0x0270] CKM_SHA512 digest
-[0x0210] CKM_MD5 digest
-[0x0240] CKM_RIPEMD160 digest
-[0x1210] CKM_GOSTR3411 digest
-[0x1042] CKM_ECDSA_SHA1 keysize range (224, 521) sign verify
-[0x1043] CKM_ECDSA_SHA224 keysize range (224, 521) sign verify
-[0x1044] CKM_ECDSA_SHA256 keysize range (224, 521) sign verify
-[0x1045] CKM_ECDSA_SHA384 keysize range (224, 521) sign verify
-[0x1046] CKM_ECDSA_SHA512 keysize range (224, 521) sign verify
-[0x1040] CKM_ECDSA_KEY_PAIR_GEN keysize range (224, 521) hw generate_key_pair ec_namedcurve ec_compress
-[0x0001] CKM_RSA_PKCS keysize range (512, 4096) hw decrypt sign verify
-[0x0006] CKM_SHA1_RSA_PKCS keysize range (512, 4096) sign verify
-[0x0046] CKM_SHA224_RSA_PKCS keysize range (512, 4096) sign verify
-[0x0040] CKM_SHA256_RSA_PKCS keysize range (512, 4096) sign verify
-[0x0041] CKM_SHA384_RSA_PKCS keysize range (512, 4096) sign verify
-[0x0042] CKM_SHA512_RSA_PKCS keysize range (512, 4096) sign verify
-[0x0005] CKM_MD5_RSA_PKCS keysize range (512, 4096) sign verify
-[0x0008] CKM_RIPEMD160_RSA_PKCS keysize range (512, 4096) sign verify
-[0x0000] CKM_RSA_PKCS_KEY_PAIR_GEN keysize range (512, 4096) hw generate_key_pair
-[0x1081] CKM_AES_ECB keysize range (128, 256) encrypt decrypt
-[0x1082] CKM_AES_CBC keysize range (128, 256) encrypt decrypt
-[0x1085] CKM_AES_CBC_PAD keysize range (128, 256) encrypt decrypt
-```
-
-The bad news:
-Almost nothing is tested so far, and what got tested, doesn't work so far:
-
-$ pkcs15-tool --read-ssh-key 01  doesn't work, because the EC key pair generation resulted in compressed format,
-which is not supported by OpenSC.
-EC key pair generation works manually with tool gscriptor, but not via
-$ pkcs15-init --generate-key ec/...  and driver support.
-
-But, on top, the hardware repeatedly refuses to work (out of nothing), no byte transfer.
-Either my hardware is broken, or the communication on PC/SC level needs a fix.
-It feels like a deadlock, and then always accompanied by the LED burning continuously.
-By unplugging it returns to work after some time, but slows me down on top of all the other burden, flawed manual,
-cryptic/mostly undocumented OpenSC software, and so on.
-No fun at the moment...
 

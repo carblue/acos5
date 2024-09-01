@@ -49,6 +49,7 @@ pub const SC_CARDCTL_GET_SE_INFO             : c_ulong =  0x0000_0007;
 pub const SC_CARDCTL_GET_CHV_REFERENCE_IN_SE : c_ulong =  0x0000_0008;
 pub const SC_CARDCTL_PKCS11_INIT_TOKEN       : c_ulong =  0x0000_0009;
 pub const SC_CARDCTL_PKCS11_INIT_PIN         : c_ulong =  0x0000_000A;
+pub const SC_CARDCTL_GET_MODEL               : c_ulong =  0x0000_000B; // since v0_26_0
     }
 }
 

@@ -20,6 +20,8 @@
 
 #![allow(clippy::module_name_repetitions)]
 
+use std::ffi::CString;
+use function_name::named;
 use opensc_sys::opensc::sc_card;
 use opensc_sys::types::sc_path;/*, SC_MAX_PATH_SIZE*/
 //use opensc_sys::log::sc_dump_hex;
@@ -45,6 +47,7 @@ pub fn file_id_from_cache_current_path(card: &sc_card) -> u16
  * @param
  * @return
  */
+#[named]
 pub fn current_path_df(card: &mut sc_card) -> &[u8]
 {
     let len = card.cache.current_path.len;
@@ -61,7 +64,9 @@ pub fn current_path_df(card: &mut sc_card) -> &[u8]
     if ![FDB_MF, FDB_DF, FDB_TRANSPARENT_EF, FDB_LINEAR_FIXED_EF, FDB_LINEAR_VARIABLE_EF, FDB_CYCLIC_EF, FDB_SE_FILE,
         FDB_RSA_KEY_EF, FDB_CHV_EF, FDB_SYMMETRIC_KEY_EF, FDB_PURSE_EF, FDB_ECC_KEY_EF].contains(&fdb) {
         assert!(!card.ctx.is_null());
-        log3if!(unsafe { &mut *card.ctx }, c"current_path_df", line!(),
+        let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+        let f = f_cstr.as_c_str();
+        log3if!(unsafe { &mut *card.ctx },f , line!(),
             c"Error: ### fdb: %d is incorrect ########################", fdb);
         unreachable!("Encountered unknown FDB");
     }

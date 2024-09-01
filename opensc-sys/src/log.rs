@@ -23,6 +23,9 @@
 
 use libc::FILE;
 use std::os::raw::c_char;
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1)))]
+use std::os::raw::c_int;
+
 
 use crate::opensc::sc_context;
 use crate::types::sc_object_id;
@@ -34,8 +37,15 @@ pub const SC_LOG_DEBUG_RFU1        : i32 = 4;        /* RFU */
 pub const SC_LOG_DEBUG_SM          : i32 = 5;        /* secure messaging */  // since opensc source release v0.20.0
 pub const SC_LOG_DEBUG_ASN1        : i32 = 6;        /* asn1.c */
 pub const SC_LOG_DEBUG_MATCH       : i32 = 7;        /* card matching */
-pub const SC_LOG_DEBUG_PIN         : i32 = 8;        /* PIN commands */  // since opensc source release v0.21.0
-
+cfg_if::cfg_if! {
+    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1))] {
+        pub const SC_LOG_DEBUG_PIN         : i32 = 8;        /* PIN commands */  // since opensc source release v0.21.0
+    }
+    else {
+        pub const SC_LOG_DEBUG_DEPS        : i32 = 8;        /* debugging of dependencies, e.g. OpenSSL */
+        pub const SC_LOG_DEBUG_PIN         : i32 = 9;        /* PIN commands */  // since opensc source release v0.21.0
+    }
+}
 pub const SC_COLOR_FG_RED          : i32 = 0x0001;
 pub const SC_COLOR_FG_GREEN        : i32 = 0x0002;
 pub const SC_COLOR_FG_YELLOW       : i32 = 0x0004;
@@ -97,7 +107,11 @@ pub fn sc_do_log_color(ctx: *mut sc_context, level: i32, file: *const c_char, li
 //pub fn sc_do_log_noframe(ctx: *mut sc_context_t, level: i32, format: *const c_char, args: *mut __va_list_tag);
 pub fn _sc_debug(ctx: *mut sc_context, level: i32, format: *const c_char, ...);
 pub fn _sc_log(ctx: *mut sc_context, format: *const c_char, ... );
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1)))]
+pub fn _sc_log_openssl(ctx: *mut sc_context);
 pub fn sc_color_fprintf(colors: i32, ctx: *mut sc_context, stream: *mut FILE, format: *const c_char, ...) -> i32;
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1)))]
+pub fn sc_do_log_openssl(ctx: *mut sc_context, level: c_int, file: *const c_char, line: c_int, func: *const c_char);
 }
 /*
 #endif  // #if defined(__GNUC__)

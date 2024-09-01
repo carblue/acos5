@@ -24,6 +24,7 @@ use std::os::raw::{c_char, c_uchar, c_ulong, c_void};
 use std::ops::{Deref, DerefMut};
 use std::collections::HashMap;
 use std::ffi::CStr;
+use std::ptr::{null, null_mut};
 
 use opensc_sys::opensc::{sc_context, sc_card, sc_security_env, sc_file_free, sc_bytes2apdu,
                          SC_ALGORITHM_AES/*, SC_CARD_CAP_APDU_EXT*/};
@@ -97,7 +98,7 @@ pub const NAME_V2  : &CStr = c"ACOS5-64 V2.00: Smart Card or CryptoMate64";
 pub const NAME_V3  : &CStr = c"ACOS5-64 V3.00: Smart Card or CryptoMate Nano";
 pub const NAME_V4  : &CStr = c"ACOS5-EVO V4.X0: Smart Card EVO or CryptoMate EVO";
 
-pub const CARD_DRV_NAME       : &CStr = c"'acos5_external', supporting ACOS5 Smart Card V2.00 (CryptoMate64), V3.00 (CryptoMate Nano), EVO V4.X0 (CryptoMate EVO)";
+pub const CARD_DRV_NAME       : &CStr = c"'acos5_external', supporting ACOS5 Smart Card V2.00 [CryptoMate64], V3.00 [CryptoMate (T2) aka Nano], EVO V4.X0 [CryptoMate EVO]";
 pub const CARD_DRV_SHORT_NAME : &CStr = c"acos5_external";
 
 //pub const CRATE               : &[u8;   6] = b"acos5\0"; // search acos5 mention in debug log file; each function should at least log CALLED, except small helpers or code that is clearly covered by only one possible surrounding function's called
@@ -724,12 +725,12 @@ pub struct CardCtlSymCrypt {
 impl Default for CardCtlSymCrypt {
     fn default() -> Self {
         Self {
-            infile: std::ptr::null(),
-            inbuf: std::ptr::null(),
+            infile: null(),
+            inbuf: null(),
             indata: [0; RSA_MAX_LEN_MODULUS+16],
             indata_len: 0,
-            outfile: std::ptr::null(),
-            outbuf: std::ptr::null_mut(),
+            outfile: null(),
+            outbuf: null_mut(),
             outdata: [0; RSA_MAX_LEN_MODULUS+32],
             outdata_len: 0,
             iv: [0; 16],
@@ -1008,10 +1009,10 @@ pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Resul
 
 cfg_if::cfg_if! {
     if #[cfg(iup_user_consent)] {
-        use libc::{free};
+        use libc::free;
         //use opensc_sys::opensc::{sc_card/*, SC_CTX_FLAG_DISABLE_POPUPS*/};
         use opensc_sys::errors::{SC_ERROR_KEYPAD_MSG_TOO_LONG, SC_ERROR_NOT_ALLOWED};
-        use opensc_sys::scconf::{scconf_find_blocks, scconf_get_bool/*, scconf_get_str*/};
+        use opensc_sys::scconf::{scconf_find_blocks, scconf_get_bool};/*, scconf_get_str*/
 
 
         #[repr(C)]
@@ -1025,7 +1026,7 @@ cfg_if::cfg_if! {
         impl Default for ui_context {
             fn default() -> Self {
                 Self {
-        //            user_consent_app: std::ptr::null(),
+        //            user_consent_app: null(),
                     user_consent_enabled: 0
                 }
             }
@@ -1036,15 +1037,15 @@ cfg_if::cfg_if! {
         {
             let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
             let ui_ctx = dp.ui_ctx;
-            Box::leak(dp);
-            // card.drv_data = Box::into_raw(dp) as p_void;
+            let _unused = Box::leak(dp);
             ui_ctx
         }
 
 
         /* IUP Interface */
+        #[derive(Debug)]
         pub enum Ihandle {}
-        extern {
+        extern "C" {
             pub fn IupOpen(argc: *const i32, argv: *const *const *const c_char) -> i32;
             // pub fn IupClose();
             pub fn IupMessageDlg() -> *mut Ihandle; // https://tecgraf.puc-rio.br/iup/en/dlg/iupmessagedlg.html
@@ -1085,7 +1086,7 @@ cfg_if::cfg_if! {
                     unsafe { scconf_get_bool(blk_ptr, c"user_consent_enabled".as_ptr(), 1) };
             }
             /* possibly read disable_popups; this then may disable as well */
-            if ui_ctx.user_consent_enabled == 1 { unsafe { IupOpen(std::ptr::null(), std::ptr::null()) }; }
+            if ui_ctx.user_consent_enabled == 1 { unsafe { let _unused = IupOpen(null(), null()); } }
             SC_SUCCESS
         }
 
@@ -1111,7 +1112,7 @@ cfg_if::cfg_if! {
                 IupSetAttribute(dlg_ptr, c"TITLE".as_ptr(), c"RSA private key usage".as_ptr());
                 IupSetAttribute(dlg_ptr, c"BUTTONS".as_ptr(), c"YESNO".as_ptr());
                 IupSetAttribute(dlg_ptr, c"VALUE".as_ptr(), c"Got a request to use an RSA private key (e.g. for a sign operation).\nDo You accept ?\n(Use 'Yes' only if this makes sense at this point)".as_ptr());
-                IupPopup(dlg_ptr, 0xFFFF, 0xFFFF);
+                let _unused = IupPopup(dlg_ptr, 0xFFFF, 0xFFFF);
                 let b_response_ptr = IupGetAttribute(dlg_ptr, c"BUTTONRESPONSE".as_ptr()); // BUTTONRESPONSE: Number of the pressed button. Can be "1", "2" or "3". Default: "1".
                 assert!(!b_response_ptr.is_null());
                 let result_ok = *b_response_ptr == 49;

@@ -14,7 +14,7 @@ fn main() {
     #[cfg(    target_os = "windows")]
     {
         println!("cargo:rustc-link-search=C:/Program Files/OpenSSL-Win64/bin");
-        println!("cargo:rustc-link-lib=dylib=libcrypto-3-x64"); // libeay32.lib -> libcrypto.lib; Since version 1.1.0 OpenSSL have changed their library names from: libeay32.dll -> libcrypto.dll etc.
+        println!("cargo:rustc-link-lib=dylib=crypto-3-x64"); // libeay32.lib -> libcrypto.lib; Since version 1.1.0 OpenSSL have changed their library names from: libeay32.dll -> libcrypto.dll etc.
         //let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
         //println!("cargo:rustc-link-search={}/windows-x86_64", manifest_dir);
         //println!("cargo:rustc-link-lib=dylib=msys-tasn1-6");  // see also https://gnutls.gitlab.io/libtasn1/libtasn1.html, dll : mingw-w64-libtasn1 from https://packages.msys2.org/base
@@ -30,6 +30,6 @@ fn main() {
     }
 //     println!("cargo:rustc-cfg=ifd_serial_constrained_for_sm"); // if this gets activated, then only for the ifd_serial set in opensc.conf will SM commands be executed (if any at all)
 //     println!("cargo:rustc-cfg=dev_relax_signature_constraints_for_raw"); // this is an insecure setting, meant to be used only temporarily for pkcs11-tool -t with  SC_ALGORITHM_RSA_RAW added to rsa_algo_flags in acos5_init
-//     println!("cargo:rustc-cfg=rsa_key_gen_verbose"); // enable to print to console some info while generating RSA key pair (see function acos5_pkcs15/src/lib.rs: acos5_pkcs15_create_key)
+//     println!("cargo:rustc-cfg=key_gen_verbose"); // enable to print to console some info while generating RSA key pair (see function acos5_pkcs15/src/lib.rs: acos5_pkcs15_create_key)
 //     println!("cargo:rustc-cfg=finish_verbose"); // enable to print to console some info short before finishing driver process (see function acos5_finish)
 }

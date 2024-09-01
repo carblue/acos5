@@ -470,6 +470,10 @@ pub struct sc_security_env {
     pub algorithm_flags : u32,  /* e.g. SC_ALGORITHM_RSA_RAW  or SC_ALGORITHM_AES_CBC_PAD */
     #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
     pub algorithm_flags : c_ulong,  /* e.g. SC_ALGORITHM_RSA_RAW  or SC_ALGORITHM_AES_CBC_PAD */
+
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1)))]
+    pub key_size_bits : u_size,
+
     #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub algorithm_ref   : u32,  /* if used, set flag SC_SEC_ENV_ALG_REF_PRESENT */
     #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]

@@ -758,7 +758,7 @@ mod tests {
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
                 { assert_eq!(sr,   208); }
 
-                assert_eq!(sse, 2728);
+                assert_eq!(sse, 2728+8);
                 assert_eq!(sef,  176);
                 assert_eq!(srd,   32);
                 assert_eq!(pcp,   88);
@@ -810,7 +810,7 @@ mod tests {
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
                 { assert_eq!(sr,   208); }
 
-                assert_eq!(sse, 2728);
+                assert_eq!(sse, 2736);
                 assert_eq!(sef,  176);
                 assert_eq!(srd,   32);
                 assert_eq!(pcp,   88);

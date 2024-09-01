@@ -23,18 +23,18 @@
 #![allow(clippy::too_many_lines)]
 
 use std::os::raw::{c_char, c_ulong, c_void};
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::fs;//::{read/*, write*/};
 use std::ptr::null_mut;
 use std::slice::from_raw_parts;
-
+use function_name::named;
 use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_apdu,
                          sc_read_record, sc_format_path, sc_select_file, sc_check_sw, //SC_ALGORITHM_RSA_PAD_PKCS1,
                          SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
                          SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA, SC_SEC_ENV_KEY_REF_PRESENT,
                          SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_get_iso7816_driver, SC_SEC_ENV_ALG_REF_PRESENT,
                          sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_check_apdu, sc_list_files,
-                         sc_set_security_env, sc_get_challenge, sc_get_mf_path, SC_ALGORITHM_EC,//sc_verify,
+                         sc_set_security_env, sc_get_challenge, sc_get_mf_path, SC_ALGORITHM_EC,
                          SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_ALGORITHM_AES,
                          SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT, SC_PIN_STATE_UNKNOWN};
 //                         ,SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM
@@ -96,7 +96,7 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, current_path_df, is_impossible_file_match};
 use crate::missing_exports::me_get_max_recv_size;
-use crate::cmd_card_info::get_is_pin_authenticated;
+use crate::cmd_card_info::is_pin_authenticated;
 use crate::sm::{SM_SMALL_CHALLENGE_LEN_u8, sm_common_read, sm_common_update};
 use crate::crypto::{RAND_bytes, des_ecb3_unpadded_8, Encrypt};
 
@@ -151,10 +151,12 @@ key_host_reference must be enabled for External Authentication and it's Error Co
 /// # Panics
 /// # Errors
 ///
+#[named]
 pub fn authenticate_external(card: &mut sc_card, key_host_reference: u8, key_host: &[u8]) -> Result<bool, i32> {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"authenticate_external";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
     assert_eq!(24, key_host.len());
     if key_host_reference==0 || (key_host_reference&0x7F)>31 {
@@ -187,10 +189,12 @@ pub fn authenticate_external(card: &mut sc_card, key_host_reference: u8, key_hos
 /// # Panics
 /// # Errors
 ///
+#[named]
 pub fn authenticate_internal(card: &mut sc_card, key_card_reference: u8, key_card: &[u8]) -> Result<bool, i32> {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"authenticate_internal";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
     assert_eq!(24, key_card.len());
     let mut rv = unsafe {
@@ -221,10 +225,12 @@ pub fn authenticate_internal(card: &mut sc_card, key_card_reference: u8, key_car
 ///
 /// # Panics
 ///
+#[named]
 pub fn logout_pin(card: &mut sc_card, reference: u8) -> i32 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"logout_pin";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
     if reference == 0  ||  reference & 0x7F > 31 {
         return log3ifr_ret!(ctx,f,line!(), SC_ERROR_INVALID_ARGUMENTS);
@@ -246,10 +252,12 @@ pub fn logout_pin(card: &mut sc_card, reference: u8) -> i32 {
 ///
 #[allow(dead_code)]
 #[cold]
+#[named]
 fn logout_key(card: &mut sc_card, reference: u8) -> i32 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"logout_key";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
     if reference == 0  ||  reference & 0x7F > 31 {
         return log3ifr_ret!(ctx,f,line!(), SC_ERROR_INVALID_ARGUMENTS);
@@ -279,67 +287,13 @@ The code differs from the C version in 1 line only, where setting apdu.p2 = 0x0C
 //allow cognitive_complexity: This is almost equal to iso7816_select_file. Thus for easy comparison, don't split this
 #[allow(dead_code)] // currently unused
 #[cold]
+#[named]
 fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_out: &mut Option<&mut *mut sc_file>) -> i32
 {
-/*
-P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] card.c:850:sc_select_file: called; type=2, path=3f00
-P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] acos5:512:tracking_select_file:     called. curr_type: 2, curr_value: 3F00, force_process_fci: 0
-P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] acos5:514:tracking_select_file:               to_type: 0,   to_value: 3F00
-P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] acos5:293:iso7816_select_file_replica: called with file_out: 0x7ffd383b7578
-P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] apdu.c:550:sc_transmit_apdu: called
-P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] card.c:471:sc_lock: called
-P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] reader-pcsc.c:689:pcsc_lock: called
-P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] card.c:513:sc_lock: returning with: 0 (Success)
-P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] apdu.c:515:sc_transmit: called
-P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] apdu.c:363:sc_single_transmit: called
-P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] apdu.c:367:sc_single_transmit: CLA:0, INS:A4, P1:0, P2:0, data(2) 0x7ffd383b6270
-P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] reader-pcsc.c:324:pcsc_transmit: reader 'ACS CryptoMate64 00 00'
-P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] reader-pcsc.c:325:pcsc_transmit:
-Outgoing APDU (7 bytes):
-00 A4 00 00 02 3F 00 .....?.
-
-P:15559; T:0x128568216807424 22:10:19.341 [opensc-tool] reader-pcsc.c:244:pcsc_internal_transmit: called
-P:15559; T:0x128568216807424 22:10:19.344 [opensc-tool] reader-pcsc.c:334:pcsc_transmit:
-Incoming APDU (2 bytes):
-61 1A a.
-S
-........................................................................
-card.caps: 0, card_type: 16003,    0
-
-max_recv_size: FF
-apdu: sc_apdu { cse: 4, cla: 0, ins: 164, p1: 0, p2: 0, lc: 2, le: 255, data: 0x7ffde30f65a0, datalen: 2, resp: 0x7ffde30f649b, resplen: 261, control: 0, allocation_flags: 0, sw1: 0, sw2: 0, mac: [0, 0, 0, 0, 0, 0, 0, 0], mac_len: 0, flags: 0, next: 0x0 }
-
-------------------------------------
-card.caps: 1, card_type: 16005,    1
-
-max_recv_size: FF
-apdu: sc_apdu { cse: 4, cla: 0, ins: 164, p1: 0, p2: 0, lc: 2, le: 255, data: 0x7ffe80841a60, datalen: 2, resp: 0x7ffe8084195b, resplen: 261, control: 0, allocation_flags: 0, sw1: 0, sw2: 0, mac: [0, 0, 0, 0, 0, 0, 0, 0], mac_len: 0, flags: 0, next: 0x0 }
-
-P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] card.c:850:sc_select_file: called; type=2, path=3f00
-P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] acos5:538:tracking_select_file:     called. curr_type: 2, curr_value: 3F00, force_process_fci: 0
-P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] acos5:540:tracking_select_file:               to_type: 0,   to_value: 3F00
-P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] acos5:319:iso7816_select_file_replica: called with file_out: 0x7ffe79b724a8
-P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] apdu.c:550:sc_transmit_apdu: called
-P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] card.c:471:sc_lock: called
-P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] reader-pcsc.c:689:pcsc_lock: called
-P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] card.c:513:sc_lock: returning with: 0 (Success)
-P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] apdu.c:515:sc_transmit: called
-P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] apdu.c:363:sc_single_transmit: called
-P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] apdu.c:367:sc_single_transmit: CLA:0, INS:A4, P1:0, P2:0, data(2) 0x7ffe79b711a0
-P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] reader-pcsc.c:324:pcsc_transmit: reader 'ACS CryptoMate EVO 00 00'
-P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] reader-pcsc.c:325:pcsc_transmit:
-Outgoing APDU (8 bytes):
-00 A4 00 00 02 3F 00 FF .....?..
-
-P:16458; T:0x128876586100736 22:20:09.187 [opensc-tool] reader-pcsc.c:244:pcsc_internal_transmit: called
-P:16458; T:0x128876586100736 22:20:09.189 [opensc-tool] reader-pcsc.c:334:pcsc_transmit:
-Incoming APDU (2 bytes):
-67 00 g.
-
-*/
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"iso7816_select_file_replica";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     let mut apdu = sc_apdu::default();
     let mut buf    = [0_u8; SC_MAX_APDU_BUFFER_SIZE];
     let mut pathvalue = [0_u8; SC_MAX_PATH_SIZE];
@@ -547,6 +501,7 @@ same @param and @return as iso7816_select_file
 ///
 /// # Panics
 ///
+#[named]
 pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Option<&mut *mut sc_file>, force_process_fci: bool) -> i32
 {
     debug_assert!((path_ref.type_ == SC_PATH_TYPE_FILE_ID && path_ref.len==2) ||
@@ -556,7 +511,8 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Op
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"tracking_select_file";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     let fmt_1   = c"    called. curr_type: %d, curr_value: %s, force_process_fci: %d";
     let fmt_2   = c"              to_type: %d,   to_value: %s";
     let fmt_3   = c"returning:  curr_type: %d, curr_value: %s, rv=%d";
@@ -729,11 +685,13 @@ fn get_known_sec_env_entry_v3_fips(is_local: bool, rec_nr: u32, buf: &mut [u8])
 ///
 /// # Panics
 ///
+#[named]
 pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, depth: i32*/) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"enum_dir";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     let mut fmt   = c"called for path: %s";
     log3if!(ctx,f,line!(), fmt, unsafe {sc_dump_hex(path_ref.value.as_ptr(), path_ref.len)});
 
@@ -921,11 +879,13 @@ pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, dept
 ///
 /// # Panics
 ///
+#[named]
 fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*, depth: i32*/) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"enum_dir_gui";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     let mut fmt   = c"called for path: %s";
     log3if!(ctx,f,line!(), fmt, unsafe {sc_dump_hex(path_ref.value.as_ptr(), path_ref.len)});
 
@@ -944,7 +904,7 @@ fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*,
         let mut rv = unsafe { sc_select_file(card, path_ref, null_mut()) };
         assert_eq!(rv, SC_SUCCESS);
         if path_ref.len == 16 {
-            fmt  = c"### enum_dir: couldn't visit all files due to OpenSC path.len limit.\
+            fmt  = c"### enum_dir_gui: couldn't visit all files due to OpenSC path.len limit.\
  Such deep file system structures are not recommended, nor supported by cos5 with file access control! ###";
             log3if!(ctx,f,line!(), fmt);
         }
@@ -1194,12 +1154,14 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl: &[*mu
 ///
 /// # Panics
 ///
+#[named]
 pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left: &mut i32) -> i32
 {
 /* when is AODF read for the pin details info info ? */
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"pin_get_policy";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     data.pin1.min_length = 4; /* min length of PIN */
@@ -1229,7 +1191,7 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
     data.pin1.tries_left = i32::try_from(apdu.sw2 & 0x0F_u32).unwrap(); //  63 Cnh     n is remaining tries
     *tries_left = data.pin1.tries_left;
     if card.type_ == SC_CARD_TYPE_ACOS5_64_V3 {
-        match get_is_pin_authenticated(card, data.pin_reference.try_into().unwrap()) {
+        match is_pin_authenticated(card, data.pin_reference.try_into().unwrap()) {
             Ok(val) => data.pin1.logged_in = if val {SC_PIN_STATE_LOGGED_IN} else {SC_PIN_STATE_LOGGED_OUT},
             Err(_e) => data.pin1.logged_in = SC_PIN_STATE_UNKNOWN,
         }
@@ -1241,7 +1203,7 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
 }
 
 #[must_use]
-pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 6]
+pub fn acos5_supported_atrs() -> [sc_atr_table; 6]
 {
     [
         sc_atr_table {
@@ -1300,7 +1262,7 @@ pub /*const*/ fn acos5_supported_atrs() -> [sc_atr_table; 6]
 
 /*  ECC: Curves P-224/P-256/P-384/P-521 */
 #[must_use]
-pub /*const*/ fn acos5_supported_ec_curves() -> [Acos5EcCurve; 4]
+pub fn acos5_supported_ec_curves() -> [Acos5EcCurve; 4]
 {
     [
         Acos5EcCurve {
@@ -1590,11 +1552,13 @@ pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtlGenerateAsymCryp
 ///
 /// # Panics
 ///
+#[named]
 pub fn generate_asym(card: &mut sc_card, data: &mut CardCtlGenerateAsymCrypt) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"generate_asym";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let mut rv;
@@ -2046,11 +2010,13 @@ but the other input methods `infile` and `indata` (for acos5_gui) still need to 
 /// # Panics
 ///
 #[allow(non_snake_case)]
+#[named]
 pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"sym_en_decrypt";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3if!(ctx,f,line!(), if crypt_sym.encrypt {c"called for encryption"}
                            else {c"called for decryption"});
 
@@ -2319,11 +2285,13 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt) -> i3
 /// # Panics
 /// # Errors
 ///
-pub fn get_files_hashmap_info(card: &mut sc_card, key: u16) -> Result<[u8; 32], i32>
+#[named]
+pub fn files_hashmap_info(card: &mut sc_card, key: u16) -> Result<[u8; 32], i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"get_files_hashmap_info";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0_u8; 32];
@@ -2375,10 +2343,12 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
 ///
 /// # Panics
 ///
+#[named]
 pub fn update_hashmap(card: &mut sc_card) {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"update_hashmap";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     // let mut path = sc_path::default();

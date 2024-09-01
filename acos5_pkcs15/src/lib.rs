@@ -107,7 +107,7 @@ Message in debug_file: successfully loaded pkcs15init driver 'acos5-external'
 #![warn(meta_variable_misuse)]
 #![warn(missing_abi)]
 
-#![warn(missing_copy_implementations)]
+////#![warn(missing_copy_implementations)]
 #![warn(missing_debug_implementations)]
 ////#![warn(missing_docs)]
 #![warn(missing_unsafe_on_extern)]
@@ -766,7 +766,7 @@ log3if!(ctx,f,line!(), c"file_priv.path: %s",
 //            b"### The maximum of 48 RSA key pairs is exceeded. First delete one for a free file id slot ###", rv);
 //        return rv;
 //    }
-    #[cfg(rsa_key_gen_verbose)]
+    #[cfg(key_gen_verbose)]
     { println!("This file id will be chosen for the private RSA key:  {ax:X}"); }
     /* The final values for path and fid_priv */
     // file_priv.path.value[file_priv.path.len-1] = u8::try_from(fid_priv_possible_min & 0x00FF).unwrap();
@@ -801,7 +801,7 @@ log3if!(ctx,f,line!(), c"file_priv.path: %s",
     // file_pub.path.value[file_pub.path.len-1] += 0x30;
     file_pub.path.value[file_pub.path.len-2..file_pub.path.len].copy_from_slice(&ay.to_be_bytes());
     file_pub.id = i32::from(file_id_from_path_value(&file_pub.path.value[..file_pub.path.len]));
-    #[cfg(rsa_key_gen_verbose)]
+    #[cfg(key_gen_verbose)]
     { println!("This file id will be chosen for the public  RSA key:  {:X}", file_pub.id); }
     if app_name == c"acos5_gui " {
         let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };

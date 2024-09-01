@@ -1,10 +1,10 @@
 
-#![allow(non_camel_case_types, non_upper_case_globals, non_snake_case, clippy::upper_case_acronyms)]
+#![allow(nonstandard_style, clippy::upper_case_acronyms)]
 
 use std::os::raw::{/*c_char, c_ulong,*/ c_long, c_int};
 
 //from openssl  des.h and rand.h
-#[allow(non_upper_case_globals)]
+
 pub const DES_KEY_SZ_u8 : u8    = 8; // sizeof(DES_cblock)
 pub const DES_KEY_SZ    : usize = 8; // sizeof(DES_cblock)
 #[allow(dead_code)]

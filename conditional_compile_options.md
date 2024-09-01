@@ -41,6 +41,7 @@ v0_22_0
 v0_23_0
 v0_24_0
 v0_25_0
+v0_25_1
 v0_26_0
 
 impl_default  
@@ -50,7 +51,7 @@ impl_newAT_newCCT_newCT
 
 The last 4 are additions that are specific for "my purpose, the acos5 driver".  
 
-Only exactly one mandatory of the version related "compiler switches" is active and all of the remaining, nothing should be changed here for acos5.  
+Only exactly one mandatory of the version related "compiler switches" v0_2... is active and all of the remaining, nothing should be changed here for acos5.
 
 An option is active when it's not in a comment. Comments are lines that start with // or lines enclosed by a starting /*
 and a closing */
@@ -89,7 +90,7 @@ and activate line:
 //println!("cargo:rustc-cfg=ifd_serial_constrained_for_sm");
 Obviously this makes sense only, if You have no more than 1 ACOS5 token with SM enabled.
 
-//println!("cargo:rustc-cfg=rsa_key_gen_verbose"); // enable to print to console some info while generating RSA key pair (see function acos5_pkcs15/src/lib.rs: acos5_pkcs15_create_key)  
+//println!("cargo:rustc-cfg=key_gen_verbose"); // enable to print to console some info while generating RSA/ECC key pair (see function acos5_pkcs15/src/lib.rs: acos5_pkcs15_create_key)
 //println!("cargo:rustc-cfg=finish_verbose"); // enable to print to console some info short before finishing driver process (see function acos5_finish)
 
 The last option

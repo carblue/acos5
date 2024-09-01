@@ -9,7 +9,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(v0_20_0)', 'cfg(v0_21_0)',
   'cfg(dont_test__this_signature_changed)',
   'cfg(iup_user_consent)',
   'cfg(log)',
-  'cfg(rsa_key_gen_verbose)'
+  'cfg(key_gen_verbose)'
 ] }
 
 [dependencies]

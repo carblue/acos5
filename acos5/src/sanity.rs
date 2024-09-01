@@ -36,7 +36,7 @@ use opensc_sys::errors::{/*SC_SUCCESS,*/ SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT
 
 
 use crate::wrappers::{wr_do_log, wr_do_log_ttt};
-use crate::cmd_card_info::{get_card_life_cycle_byte_eeprom, get_op_mode_byte_eeprom, get_zeroize_card_disable_byte_eeprom};
+use crate::cmd_card_info::{card_life_cycle_byte_eeprom, op_mode_byte_eeprom, zeroize_card_disable_byte_eeprom};
 use crate::no_cdecl::update_hashmap;
 use crate::constants_types::{DataPrivate, is_DFMF, FDB_SE_FILE, READ, file_id_se, is_child_of /*file_id, p_void*/};
 use crate::se::se_get_references;
@@ -115,15 +115,15 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
         if printable { println!("[X] Does MF exist?  No") }
 
         /* Try to read EEPROM addresses: If successful, card is uninitialized */
-        let card_life_cycle_byte = match get_card_life_cycle_byte_eeprom(card) {
+        let card_life_cycle_byte = match card_life_cycle_byte_eeprom(card) {
             Ok(val) => val,
             Err(error) => { return Err(error) },
         };
-        let operation_mode_byte = match get_op_mode_byte_eeprom(card) {
+        let operation_mode_byte = match op_mode_byte_eeprom(card) {
             Ok(val) => val,
             Err(error) => { return Err(error) },
         };
-        let zeroize_card_disable_byte =  match get_zeroize_card_disable_byte_eeprom(card) {
+        let zeroize_card_disable_byte =  match zeroize_card_disable_byte_eeprom(card) {
             Ok(val) => val,
             Err(error) => { return Err(error) },
         };

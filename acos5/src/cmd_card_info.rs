@@ -19,9 +19,10 @@
  */
 
 /* functions, (most of) callable via sc_card_ctl(acos5_card_ctl), mostly used by acos5_gui */
-
-use opensc_sys::opensc::{sc_card, sc_transmit_apdu, sc_check_sw/*, SC_PROTO_T1*/};
-use opensc_sys::types::{sc_serial_number, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT/*, SC_MAX_SERIALNR, SC_APDU_CASE_2_EXT*/};
+use std::ffi::CString;
+use function_name::named;
+use opensc_sys::opensc::{sc_card, sc_transmit_apdu, sc_check_sw};/*, SC_PROTO_T1*/
+use opensc_sys::types::{sc_serial_number, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT};/*, SC_MAX_SERIALNR, SC_APDU_CASE_2_EXT*/
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_CARD_CMD_FAILED, SC_ERROR_INVALID_ARGUMENTS};
 
 use crate::constants_types::{build_apdu, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3};
@@ -54,11 +55,13 @@ use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_rv_ret, wr_do_log_sds, 
 /// `assert_eq!(SC_SUCCESS`, rv);
 /// `println!("serial_number`: {:X?}", `serial_number`);
 ///
-pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
+#[named]
+pub fn serial_no(card: &mut sc_card) -> Result<sc_serial_number, i32>
 {
     if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"get_serialnr";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
     if card.serialnr.len > 0 {
         log3ifr!(ctx,f,line!(), SC_SUCCESS);
@@ -91,7 +94,7 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
 ///
 /// # Panics
 /// ATTENTION: There shouldn't be more than 255 files in a DF, but if there are more, then the function panics,
-/// because the following command `get_file_info` works based on byte-size indexing only !\
+/// because the following command `file_info` works based on byte-size indexing only !\
 /// This function is also callable via `libopensc.so/dll:sc_card_ctl` via `SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF`:
 ///
 /// # Errors
@@ -111,11 +114,13 @@ pub fn get_serialnr(card: &mut sc_card) -> Result<sc_serial_number, i32>
 /// assert_eq!(SC_SUCCESS, rv);
 /// println!("count_files_curr_df: {}", count_files_curr_df);
 /// ```
-pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
+#[named]
+pub fn count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
 {
     if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"get_count_files_curr_df";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 1, 0], SC_APDU_CASE_1, &mut[]);
@@ -148,11 +153,13 @@ pub fn get_count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
 /// @return  file information (8 bytes) or an `OpenSC` error
 ///
 /// # Errors
-pub fn get_file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> Result<[u8; 8], i32>
+#[named]
+pub fn file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> Result<[u8; 8], i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"get_file_info";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let reference: u8 = if card.type_ <= SC_CARD_TYPE_ACOS5_64_V3 {reference} else {reference+1};
@@ -177,11 +184,13 @@ pub fn get_file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> R
 /// @return  free EEPROM space or an `OpenSC` error
 ///
 /// # Errors
-pub fn get_free_space(card: &mut sc_card) -> Result<u32, i32>
+#[named]
+pub fn free_space(card: &mut sc_card) -> Result<u32, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"get_free_space";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0; 4];
@@ -204,11 +213,13 @@ pub fn get_free_space(card: &mut sc_card) -> Result<u32, i32>
 // true, then it's acos5
 ///
 /// # Errors
-pub fn get_is_ident_self_okay(card: &mut sc_card, candidate_card_type: i32) -> Result<bool, i32> // get_ident_self
+#[named]
+pub fn is_ident_self_okay(card: &mut sc_card, candidate_card_type: i32) -> Result<bool, i32> // get_ident_self
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"get_is_ident_self_okay";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let card_type: i32 = if candidate_card_type !=0 {candidate_card_type} else {card.type_};
@@ -230,18 +241,20 @@ pub fn get_is_ident_self_okay(card: &mut sc_card, candidate_card_type: i32) -> R
 
 ///
 /// # Errors
-pub fn get_cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
+#[named]
+pub fn cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
 //    let active_protocol = unsafe { &mut *card.reader }.active_protocol;
-    let f = c"get_cos_version";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0; 8];
     let mut apdu = /*if active_protocol!=SC_PROTO_T1 {*/ build_apdu(ctx, &[0x80, 0x14, 6, 0, 8], SC_APDU_CASE_2_SHORT, &mut rbuf) /*}
                    else                            { build_apdu(ctx, &[0x80, 0x14, 6, 0, 0,0,8], SC_APDU_CASE_2_EXT, &mut rbuf) }*/;
-//println!("me_apdu_get_length for 'get_cos_version': {}\n", me_apdu_get_length(&apdu, active_protocol));
+//println!("me_apdu_get_length for 'cos_version': {}\n", me_apdu_get_length(&apdu, active_protocol));
     let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv == SC_SUCCESS && apdu.resplen == rbuf.len() {
@@ -256,11 +269,13 @@ pub fn get_cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
 //  ONLY V3.00 *DOES* support this command
 ///
 /// # Errors
-pub fn get_manufacture_date(card: &mut sc_card) -> Result<u32, i32>
+#[named]
+pub fn manufacture_date(card: &mut sc_card) -> Result<u32, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"get_manufacture_date";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0; 4];
@@ -280,11 +295,13 @@ pub fn get_manufacture_date(card: &mut sc_card) -> Result<u32, i32>
 //  V2.00 *DOES NOT* supports this command
 ///
 /// # Errors
-pub fn get_rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
+#[named]
+pub fn rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"get_rom_sha1";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0; 20];
@@ -304,11 +321,13 @@ pub fn get_rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
 //  V4 EVO calls this Configuration Mode Byte now
 ///
 /// # Errors
-pub fn get_op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
+#[named]
+pub fn op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"get_op_mode_byte";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 9, 0], SC_APDU_CASE_1, &mut[]);
@@ -344,11 +363,13 @@ pub fn get_op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
 /* This is NOT a card command, but reading from EEPROM; allowed only in stage manufacturer */
 ///
 /// # Errors
-pub fn get_op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
+#[named]
+pub fn op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"get_op_mode_byte_eeprom";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0xFF; 1];
@@ -367,11 +388,13 @@ pub fn get_op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 //  V2.00 *DOES NOT* supports this command
 ///
 /// # Errors
-pub fn get_is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_FIPS_compliant==true get_fips_compliance
+#[named]
+pub fn is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_FIPS_compliant==true get_fips_compliance
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"get_is_fips_compliant";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 10, 0], SC_APDU_CASE_1, &mut[]);
@@ -393,11 +416,13 @@ pub fn get_is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_FIPS
 //  ONLY V3.00 *DOES* support this command
 ///
 /// # Errors
-pub fn get_is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i32>
+#[named]
+pub fn is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"get_pin_auth_state";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 11, reference], SC_APDU_CASE_1, &mut[]);
@@ -420,11 +445,13 @@ pub fn get_is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<boo
 //  ONLY V3.00 *DOES* support this command
 ///
 /// # Errors
-pub fn get_is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i32>
+#[named]
+pub fn is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"get_key_auth_state";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 12, reference], SC_APDU_CASE_1, &mut[]);
@@ -447,11 +474,13 @@ pub fn get_is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<boo
 /* This is NOT a card command, but reading from EEPROM; allowed only in stage manufacturer */
 ///
 /// # Errors
-pub fn get_zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
+#[named]
+pub fn zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"get_zeroize_card_disable_byte_eeprom";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0xFF; 1];
@@ -468,11 +497,13 @@ pub fn get_zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i3
 /* This is NOT a card command, but reading from EEPROM; allowed only in stage manufacturer */
 ///
 /// # Errors
-pub fn get_card_life_cycle_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
+#[named]
+pub fn card_life_cycle_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"get_card_life_cycle_byte_eeprom";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let mut rbuf = [0xFF; 1];
