@@ -305,8 +305,8 @@ mod   test_v2_v3;
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = unsafe { sc_get_version() };
-    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1/*, v0_26_0*/))  { version_ptr }
-    // v0_26_0: experimental only:  Latest OpenSC gitHub master commit covered:
+    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0))  { version_ptr }
+    // v0_26_0: experimental only:  Latest OpenSC gitHub master commit covered: 21ba386
     else  { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -2054,14 +2054,14 @@ extern "C" fn acos5_process_fci(card_ptr: *mut sc_card, file_ptr: *mut sc_file,
 //            println!("fci.fid: {:X}, fci.sae: {:X?}", fci.fid, fci.sae);
             dp_files_value.4 = match se_parse_sae(&mut dp_files_value.3, &fci.sae) {
                 Ok(val) => Some(val),
-                Err(e) => { card.drv_data = Box::into_raw(dp).cast::<c_void>(); return e},
+                Err(e) => { card.drv_data = Box::into_raw(dp).cast::<c_void>(); return log3ifr_ret!(ctx,f,line!(), e) },
             }
         }
     }
 
 //println!("on exit;  dp_files_value: {:X?}", dp_files_value);
     card.drv_data = Box::into_raw(dp).cast::<c_void>();
-    SC_SUCCESS
+    log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
 } // acos5_process_fci
 
 

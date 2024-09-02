@@ -155,10 +155,10 @@ use libc::free; // strlen
 //use pkcs11::types::{CKM_DES_ECB, CKM_DES3_ECB, CKM_AES_ECB};
 
 use std::os::raw::{c_char, c_void};
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::ptr::{null_mut, addr_of_mut, from_mut};
 use std::slice::from_raw_parts;
-
+use function_name::named;
 use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_select_file, sc_card_ctl, SC_ALGORITHM_DES,
                          SC_ALGORITHM_3DES, SC_ALGORITHM_AES, sc_card_find_rsa_alg, sc_file_new, sc_transmit_apdu,
                          sc_file_dup, sc_delete_file, sc_check_sw, sc_update_record, SC_RECORD_BY_REC_NR, sc_get_version};
@@ -246,9 +246,9 @@ const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = unsafe { sc_get_version() };
-    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1/*, v0_26_0*/))  { version_ptr }
-    // v0_26_0: experimental only:  Latest OpenSC gitHub master commit covered:
-    else                   { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
+    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0))  { version_ptr }
+    // v0_26_0: experimental only:  Latest OpenSC gitHub master commit covered: 21ba386
+    else  { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
 }
 
 ///
@@ -322,6 +322,7 @@ Get's called only from  src/pkcs15init/pkcs15-lib.c:sc_pkcs15init_erase_card
 How to invoke this:
 pkcs15-init --erase-card --so-pin <arg>          (MF's DELETE_SELF SCB probably is SOPIN)
 */
+#[named]
 extern "C" fn acos5_pkcs15_erase_card(profile_ptr: *mut sc_profile, p15card_ptr: *mut sc_pkcs15_card) -> i32
 {
     if profile_ptr.is_null() || p15card_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null() || (*(*p15card_ptr).card).ctx.is_null() } {
@@ -329,7 +330,8 @@ extern "C" fn acos5_pkcs15_erase_card(profile_ptr: *mut sc_profile, p15card_ptr:
     }
     let card     = unsafe { &mut *(*p15card_ptr).card };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_pkcs15_erase_card";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str(); // c"acos5_match_card";
     log3ifc!(ctx,f,line!());
     let mut rv;
     {

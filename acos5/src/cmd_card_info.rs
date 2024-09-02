@@ -124,11 +124,11 @@ pub fn count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
     log3ifc!(ctx,f,line!());
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 1, 0], SC_APDU_CASE_1, &mut[]);
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
-    rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
-    if rv != SC_SUCCESS {
+    let rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
+    //rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+    if apdu.sw1 != 0x90 {
         return Err(log3ifr_ret!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Number of files under \
-          the currently selected DF' failed. Returning with", rv /*SC_ERROR_CARD_CMD_FAILED*/));
+          the currently selected DF' failed. Returning with", SC_ERROR_CARD_CMD_FAILED));
     }
     /*
         driver's working currently depends on populating the HashMap files with all card content during card_init, but
