@@ -240,15 +240,15 @@ pub fn _sc_asn1_encode(ctx: *mut sc_context, asn1: *const sc_asn1_entry,
 
 /// Evaluates a TLV byte sequence, THE basic building block function
 ///
-/// @param  buf      INOUT  Must point to a T of TLV; buf[0] get's evaluated for cla_out and tag_out,
-///                         the next byte(s) for taglen. On success, buf is positioned at V[0] of TLV\
+/// @param  buf      INOUT  Must point to a T of TLV; buf\[0\] get's evaluated for cla_out and tag_out,
+///                         the next byte(s) for taglen. On success, buf is positioned at V\[0\] of TLV\
 /// @param  buflen   IN     Number of bytes available in buf from position buf onwards\
 /// @param  cla_out  OUT    Receiving address for: Class\
 /// @param  tag_out  OUT    Receiving address for: Tag\
 /// @param  taglen   OUT    Receiving address for: Number of bytes available in V\
 /// @return          SC_SUCCESS or error code\
 /// On error, buf may have been set to NULL, and (except on SC_ERROR_ASN1_END_OF_CONTENTS) no OUT param get's set\
-/// OUT tag_out and taglen are guaranteed to have values set on SC_SUCCESS (cla_out only, if also (buf[0] != 0xff && buf[0] != 0))\
+/// OUT tag_out and taglen are guaranteed to have values set on SC_SUCCESS (cla_out only, if also (buf\[0\] != 0xff && buf\[0\] != 0))\
 /// @test available
 ///
 /// # Example
@@ -351,11 +351,11 @@ pub fn sc_asn1_read_tag(buf: *mut *const u8, buflen: usize, cla_out: *mut u32,
 /// Evaluates TLV byte sequences in order to find first occurence of tag
 ///
 /// @param  ctx     INOUT  unused parameter\
-/// @param  buf     IN     Must point to a T of TLV s; Beginning at buf[0] the first occurence of tag is searched\
+/// @param  buf     IN     Must point to a T of TLV s; Beginning at buf\[0\] the first occurence of tag is searched\
 /// @param  buflen  IN     Number of bytes available in buf from position buf onwards\
 /// @param  tag     IN     Tag\
 /// @param  taglen  OUT    Receiving address for: Number of bytes available in V for tag found\
-/// @return         on success: a pointer to V[0] of TLV for tag found, on error: returns NULL and taglen is 0\
+/// @return         on success: a pointer to V\[0\] of TLV for tag found, on error: returns NULL and taglen is 0\
 /// @test available
 pub fn sc_asn1_find_tag(ctx: *mut sc_context, buf: *const u8,
                         buflen: usize, tag: u32, taglen: *mut usize) -> *const u8;
@@ -368,7 +368,7 @@ pub fn sc_asn1_find_tag(ctx: *mut sc_context, buf: *const u8,
 /// @param  tag     IN     Tag to be skipped\
 /// @param  taglen  OUT    Receiving address for: Number of bytes available in V of skipped tag; recommended to be initialized
 ///                        by the caller with 0, as the function omits initialization on error, or to be used only after error check\
-/// @return         on success: a pointer to V[0] of TLV of skipped tag, on non-match: returns NULL\
+/// @return         on success: a pointer to V\[0\] of TLV of skipped tag, on non-match: returns NULL\
 pub fn sc_asn1_verify_tag (ctx: *mut sc_context, buf: *const u8,
                            buflen: usize, tag: u32, taglen: *mut usize) -> *const u8;
 
@@ -380,7 +380,7 @@ pub fn sc_asn1_verify_tag (ctx: *mut sc_context, buf: *const u8,
 /// @param  tag     IN     Tag to be skipped\
 /// @param  taglen  OUT    Receiving address for: Number of bytes available in V of skipped tag; recommended to be initialized
 ///                        by the caller with 0, as the function omits initialization on error, or to be used only after error check\
-/// @return         on success: a pointer to V[0] of TLV of skipped tag, on non-match: returns NULL\
+/// @return         on success: a pointer to V\[0\] of TLV of skipped tag, on non-match: returns NULL\
 /// @test available
 pub fn sc_asn1_skip_tag(ctx: *mut sc_context, buf : *mut *const u8,
                         buflen: *mut usize, tag: u32, taglen: *mut usize) -> *const u8;

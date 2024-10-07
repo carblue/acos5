@@ -439,7 +439,7 @@ pub fn sc_sm_single_transmit(arg1: *mut sc_card, arg2: *mut sc_apdu) -> i32;
  * Calls \a card->sm_ctx.ops.close() if available and \c card->sm_ctx.sm_mode
  * is \c SM_MODE_TRANSMIT
  *
- * @param[in] card
+ * @param\[in\] card
  *
  * @return \c SC_SUCCESS or error code if an error occurred
  */

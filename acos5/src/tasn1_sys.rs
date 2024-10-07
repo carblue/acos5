@@ -21,6 +21,8 @@
  *
  */
 
+//! Both driver components (libacos5.so/dll and libacos5_pkcs15.so/dll) share this same file
+
 #![allow(dead_code, non_upper_case_globals/*, non_camel_case_types, non_snake_case*/)]
 
 /**

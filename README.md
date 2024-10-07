@@ -1,3 +1,7 @@
+Help wanted from users of an EVO card or CryptoMate EVO:
+As I stated several times, my hardware, a CryptoMate EVO USB c
+
+
 # acos5  
 [![Build Status](https://travis-ci.org/carblue/acos5.svg?branch=master)](https://travis-ci.org/carblue/acos5)
 
@@ -97,8 +101,6 @@ Thus a sanity-check without any errors found should prevent the driver from beco
    
    and then build the driver acos5:  
    `user@host:~/path/to/acos5_root_downloaded$  cargo build --release`. The 2 shared object binaries will be built into directory target/release  
-   `optionally user@host:~/path/to/acos5_root_downloaded$  strip --strip-unneeded target/release/libacos5.so`  
-   `optionally user@host:~/path/to/acos5_root_downloaded$  strip --strip-unneeded target/release/libacos5_pkcs15.so`    
    Towards OpenSC, the driver's name is `acos5_external`, in order to make it distinguishable from a quite useless acos5 internal driver, that existed in OpenSC throughout until version 0.19.0
 
 2. Copy acos5_pkcs15/acos5_external.profile to the directory where all the other .profile files installed by OpenSC are located, for Linux probably in /usr/share/opensc/ or /usr/local/share/opensc/, for Windows something like C:/Program Files/OpenSC Project/OpenSC/profiles.  
@@ -116,8 +118,15 @@ Thus a sanity-check without any errors found should prevent the driver from beco
    OpenSC was built with different settings/switches than the binding requires/assumes.  
    Other errors occur: Likely the opensc.conf file is incorrect.  
    Otherwise file an issue.
+5. Documentation
+   I have resumed my efforts to let the 'rustdoc' tool produce good documentation. Also out of my own interest, especially with regard to the 'opensc-sys' binding:
+   That is poorly documented by OpenSC.
+   I hope, the doc helps understanding what goes on in driver's source code.
+   Build it, if You like:
+   `user@host:~/path/to/acos5_root_downloaded$  cargo doc --open`.
+   The doc will be built into directory target/doc/acos5, file index.html
 
-When You change/update Your OpenSC installation: Only step 1 (rebuilding the driver, adapted to the new version) needs to be redone, and as I don't know whether Rust's rerun feature is reliable, I first delete folder target and file Cargo.lock, then (re-)build the driver.
+When You change/update Your OpenSC installation: Only step 1 (and 5: rebuilding the driver, adapted to the new version und it's documentation) needs to be redone, and as I don't know whether Rust's rerun feature is reliable, I first delete folder target and file Cargo.lock, then (re-)build the driver.
 
 The required opensc.conf entries:  
 The location of opensc.conf on Linux: /etc/opensc/opensc.conf.  

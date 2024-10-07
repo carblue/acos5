@@ -205,7 +205,7 @@ else {
 pub const SC_ALGORITHM_RSA_PAD_NONE : u32 = 0x0000_0001; // SC_ALGORITHM_RSA_RAW
 
 /** Use SC_ALGORITHM_RSA_PAD_PKCS1, if card/driver expects as input to card.ops.compute_signature: EMSA-PKCS1-v1_5 DigestInfo\
-   https://tools.ietf.org/html/rfc8017#page-62\
+   <https://tools.ietf.org/html/rfc8017#page-62>
    Not OpenSC, but the card/driver will pad according to EMSA-PKCS1-v1_5; EMSA = Encoding Method for Signature with Appendix
    before signing */
 pub const SC_ALGORITHM_RSA_PAD_ANSI    : c_ulong = 0x0000_0004;
@@ -2099,9 +2099,9 @@ pub fn sc_file_new() -> *mut sc_file;
 pub fn sc_file_free(file: *mut sc_file);
 pub fn sc_file_dup(dest: *mut *mut sc_file, src: *const sc_file);
 
-/// Adds to a file's acl[operation] entry the IN method and key_ref. See specia treatment for SC_AC_NEVER existing already
+/// Adds to a file's acl\[operation\] entry the IN method and key_ref. See specia treatment for SC_AC_NEVER existing already
 ///
-/// @param  file       INOUTIF file.acl[operation] will receive symbolic addresses or malloc'ed *mut sc_acl_entry
+/// @param  file       INOUTIF file.acl\[operation\] will receive symbolic addresses or malloc'ed *mut sc_acl_entry
 ///                            with method and key_ref set (crts and next not set)\
 /// @param  operation  IN  one of types::SC_AC_OP_  e.g. SC_AC_OP_READ\
 /// @param  method     IN  one of types::SC_AC_*  e.g. SC_AC_NEVER\
@@ -2243,9 +2243,9 @@ pub fn sc_hex_to_bin(in_: *const c_char, out: *mut u8, outlen: *mut usize) -> i3
 ///   1 (\0 termination byte) + 2*in_len + optional_separation_bytes
 /// optional_separation_bytes = 0  if in_len<=1 or separator<' ',  otherwise
 /// optional_separation_bytes = in_len-1, i.e. there will be no trailing separator character
-/// Example: input [0x3f], in_len=1, requiring an out_len>=3, will write this to out: [0x33,0x66,0x00] which reads as "3f"
-/// Example: input [0x3f, 0x01], in_len=2, separator=':', requiring an out_len>=6, will write this to out:
-///   [0x33, 0x66, 0x3A, 0x30, 0x31, 0x00] which reads as "3f:01"
+/// Example: input \[0x3f\], in_len=1, requiring an out_len>=3, will write this to out: \[0x33,0x66,0x00\] which reads as "3f"
+/// Example: input \[0x3f, 0x01\], in_len=2, separator=':', requiring an out_len>=6, will write this to out:
+///   \[0x33, 0x66, 0x3A, 0x30, 0x31, 0x00\] which reads as "3f:01"
 /// @binding: No memory problem only if the requirements above are met!
 
 /// containing characters (hexadecimal 'digit' only), i.e. each 1 u8 from input form 2 c_char  of output.
@@ -2266,10 +2266,10 @@ pub fn sc_hex_to_bin(in_: *const c_char, out: *mut u8, outlen: *mut usize) -> i3
  * @param separator The character to be used to separate the u8 string
  *                   representations. `0` will suppress separation.
  *
- * Example: input [0x3f], in_len=1, requiring an out_len>=3, will write to out:
- * [0x33, 0x66, 0x00] which reads as "3f"
- * Example: input [0x3f, 0x01], in_len=2, separator=':', req. an out_len>=6,
- * writes to out: [0x33, 0x66, 0x3A, 0x30, 0x31, 0x00] which reads as "3f:01"
+ * Example: input \[0x3f\], in_len=1, requiring an out_len>=3, will write to out:
+ * \[0x33, 0x66, 0x00\] which reads as "3f"
+ * Example: input \[0x3f, 0x01\], in_len=2, separator=':', req. an out_len>=6,
+ * writes to out: \[0x33, 0x66, 0x3A, 0x30, 0x31, 0x00\] which reads as "3f:01"
  */
 pub fn sc_bin_to_hex(in_: *const u8, in_len: usize, out: *mut c_char, out_len: usize, separator: i32) -> i32;
     fn sc_right_trim(buf: *mut u8, len: usize) -> usize; // not declared pub because not exported from libopensc.so
@@ -2385,12 +2385,12 @@ pub fn sc_crc32(value: *const u8, len: usize) -> u32; // changed since opensc so
 
 /**
  * Find a given tag in a compact TLV structure
- * @param[in]  buf  input buffer holding the compact TLV structure
- * @param[in]  len  length of the input buffer @buf in bytes
- * @param[in]  tag  compact tag to search for - high nibble: plain tag, low nibble: length.
+ * @param\[in\]  buf  input buffer holding the compact TLV structure
+ * @param\[in\]  len  length of the input buffer @buf in bytes
+ * @param\[in\]  tag  compact tag to search for - high nibble: plain tag, low nibble: length.
  *                  If length is 0, only the plain tag is used for searching,
  *                  in any other case, the length must also match.
- * @param[out] outlen pointer where the size of the buffer returned is to be stored
+ * @param\[out\] outlen pointer where the size of the buffer returned is to be stored
  * @return pointer to the tag value found within @buf, or NULL if not found/on error
  */
 fn sc_compacttlv_find_tag(buf: *const u8, len: usize, tag: u8, outlen: *mut usize) -> *const u8;  // added since opensc source release v0.19.0
@@ -2451,12 +2451,12 @@ pub fn sc_get_iso7816_driver() -> *mut sc_card_driver;
 /**
  * @brief Read a complete EF by short file identifier.
  *
- * @param[in]     card
- * @param[in]     sfid   Short file identifier
- * @param[in,out] ef     Where to safe the file. the buffer will be allocated
+ * @param\[in\]     card
+ * @param\[in\]     sfid   Short file identifier
+ * @param\[in,out\] ef     Where to safe the file. the buffer will be allocated
  *                       using \c realloc() and should be set to NULL, if
  *                       empty.
- * @param[in,out] ef_len Length of \a *ef
+ * @param\[in,out\] ef_len Length of \a *ef
  *
  * @note The appropriate directory must be selected before calling this function.
  * */
@@ -2466,10 +2466,10 @@ pub fn iso7816_read_binary_sfid(card: *mut sc_card, sfid: u8,
 /**
  * @brief Write a complete EF by short file identifier.
  *
- * @param[in] card
- * @param[in] sfid   Short file identifier
- * @param[in] ef     Data to write
- * @param[in] ef_len Length of \a ef
+ * @param\[in\] card
+ * @param\[in\] sfid   Short file identifier
+ * @param\[in\] ef     Data to write
+ * @param\[in\] ef_len Length of \a ef
  *
  * @note The appropriate directory must be selected before calling this function.
  * */
@@ -2479,10 +2479,10 @@ pub fn iso7816_write_binary_sfid (card: *mut sc_card, sfid: u8,
 /**
 * @brief Update a EF by short file identifier.
 *
-* @param[in] card   card
-* @param[in] sfid   Short file identifier
-* @param[in] ef     Data to write
-* @param[in] ef_len Length of \a ef
+* @param\[in\] card   card
+* @param\[in\] sfid   Short file identifier
+* @param\[in\] ef     Data to write
+* @param\[in\] ef_len Length of \a ef
 *
 * @note The appropriate directory must be selected before calling this function.
 * */
@@ -2492,8 +2492,8 @@ pub fn iso7816_update_binary_sfid(card: *mut sc_card, sfid: u8,
 /**
  * @brief Set verification status of a specific PIN to “not verified”
  *
- * @param[in] card
- * @param[in] pin_reference  PIN reference written to P2
+ * @param\[in\] card
+ * @param\[in\] pin_reference  PIN reference written to P2
  *
  * @note The appropriate directory must be selected before calling this function.
  * */
@@ -2502,11 +2502,11 @@ fn iso7816_logout(card: *mut sc_card, pin_reference: u8) -> i32;
 /*
  * @brief Format PIN APDU for modification by card driver
  *
- * @param[in] card           card
- * @param[in] apdu           apdu structure to update with PIN APDU
- * @param[in] data           pin command data to set into the APDU
- * @param[in] buf            buffer for APDU data field
- * @param[in] buf_len        maximum buffer length
+ * @param\[in\] card           card
+ * @param\[in\] apdu           apdu structure to update with PIN APDU
+ * @param\[in\] data           pin command data to set into the APDU
+ * @param\[in\] buf            buffer for APDU data field
+ * @param\[in\] buf_len        maximum buffer length
  */
 #[cfg(not(v0_20_0))]
 fn iso7816_build_pin_apdu(card: *mut sc_card, apdu: *mut sc_apdu,
@@ -2517,7 +2517,7 @@ fn iso7816_build_pin_apdu(card: *mut sc_card, apdu: *mut sc_apdu,
  * Use this instead your C libraries free() to free memory allocated by OpenSC.
  * For more details see <https://github.com/OpenSC/OpenSC/issues/2054>
  *
- * @param[in] p the buffer
+ * @param\[in\] p the buffer
  */
 #[cfg(not(v0_20_0))]
 pub fn sc_free(p: *mut c_void);

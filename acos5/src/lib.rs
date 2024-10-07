@@ -1,7 +1,20 @@
 //! Rust language:
-//! [`OpenSC wiki`]\
-//! [`Rust website`]
 //!
+//! This documentation is intended to attract contributors to this software project wherever possible, but in any case to facilitate access to understanding as much as possible. Because I would have missed my main goal of making this software available as open source if no one reads the source code and thus potentially helps maintain its security
+//! Diese Dokumentation soll nach Möglichkeit Beitragende zu diesem Software Projekt anziehen, in jedem Fall aber den Zugang zum Verständnis so weit wie möglich erleichtern. Denn ich hätte mein Hauptziel warum ich diese Software als open source zugänglich mache verfehlt, wenn keiner den Quelltext liest und so potentiell seine Sicherheit mit aufrecht zu erhalten hilft
+//!
+//! Admittedly, the source code is quite complicated:
+//! Of course that depends on the material, a number of PKCS# standards, and then the not exactly simple ASN.1 and cryptography in general.
+//! Furthermore, the OpenSC source code written in C is not easily accessible. In addition, I have ambitions to support several things in a source code project:
+//! Different hardware versions (with different functionality), different operating systems (platforms and then also support for a variety of OpenSC releases (currently from 0.20.0 to 0.26.0-rc1)
+//!
+//! Zugegebenermaßen ist der Quelltext recht kompliziert:
+//! Das hängt natürlich mit der Materie zusammen, eine Reihe von PKCS# Standards, und dann noch das nicht gerade simple ASN.1 und generell die Kryptographie.
+//! Darüberhinaus ist der in C geschriebene OpenSC Quelltext nicht leicht zugänglich. Weiter hinzu kommen meine Ambitionen, in einem Quelltext-Projekt mehrers zu unterstützen:
+//! Verschiedene Hardware-Versionen (mit unterschiedlichem Funktionsumfang), verschiedene Betriebssysteme (platforms und dann auch noch Unterstützung for eine Vielzahl von OpenSC-Releases (aktuell von 0.20.0 bis 0.26.0-rc1)
+//!
+//! \[`OpenSC wiki`\]\
+//! \[`Rust website`\]
 
 /*
  * lib.rs: Driver 'acos5' - main library file
@@ -57,54 +70,57 @@ it has a child DF that has been selected.
 
 //#![feature(const_fn)]
 
+#![warn(absolute_paths_not_starting_with_crate)] //    fully qualified paths that start with a module name instead of `crate`, `self`, or an extern crate name
+//#![warn(closure_returning_async_block)] //     closure that returns `async {}` could be rewritten as an async closure
+#![warn(deprecated_in_future)] //     detects use of items that will be deprecated in a future version
+#![warn(deprecated_safe)] //     detects unsafe functions being used as safe functions
+#![expect(edition_2024_expr_fragment_specifier)] //     The `expr` fragment specifier will accept more expressions in the 2024 edition. To keep the existing behavior, use the `expr_2021` fragment specifier.
+#![warn(elided_lifetimes_in_paths)] //     hidden lifetime parameters in types are deprecated
+#![warn(explicit_outlives_requirements)] //     outlives requirements can be inferred
+#![warn(ffi_unwind_calls)] //     call to foreign functions or function pointers with FFI_unwind ABI
+//#![warn(fuzzy_provenance_casts)] //     a fuzzy integer to pointer cast is used
 
-#![warn(absolute_paths_not_starting_with_crate)]
-#![warn(deprecated_safe)]
-#![warn(elided_lifetimes_in_paths)]
-#![warn(explicit_outlives_requirements)]
-#![warn(ffi_unwind_calls)]
-//#![warn(fuzzy_provenance_casts)]
-//#![warn(impl_trait_overcaptures)]
-#![warn(keyword_idents_2018)]
-#![warn(keyword_idents_2024)]
-#![warn(let_underscore_drop)]
-//#![warn(lossy_provenance_casts)]
-#![warn(macro_use_extern_crate)]
-#![warn(meta_variable_misuse)]
-#![warn(missing_abi)]
-
-////#![warn(missing_copy_implementations)]
-#![warn(missing_debug_implementations)]
-#![warn(missing_docs)]
-#![warn(missing_unsafe_on_extern)]
-//#![warn(multiple_supertrait_upcastable)]
-//#![warn(must_not_suspend)]
-#![warn(non_ascii_idents)]
-//#![warn(non_exhaustive_omitted_patterns)]
-#![warn(non_local_definitions)]
-#![warn(redundant_lifetimes)]
-#![warn(rust_2021_incompatible_closure_captures)]
-#![warn(rust_2021_incompatible_or_patterns)]
-#![warn(rust_2021_prefixes_incompatible_syntax)]
-#![warn(rust_2021_prelude_collisions)]
-//#![warn(rust_2024_incompatible_pat)]
-#![warn(single_use_lifetimes)]
-#![warn(trivial_casts)]
-////#![warn(trivial_numeric_casts)]
-#![warn(unit_bindings)]
-#![warn(unnameable_types)]
-////#![warn(unreachable_pub)]
-//#![warn(unsafe_code)]
-#![warn(unsafe_op_in_unsafe_fn)]
-#![warn(unstable_features)]
-#![warn(unused_crate_dependencies)]
-#![warn(unused_extern_crates)]
-#![warn(unused_import_braces)]
-#![warn(unused_lifetimes)]
-#![warn(unused_macro_rules)]
-#![warn(unused_qualifications)]
-#![warn(unused_results)]
-#![warn(variant_size_differences)]
+//#![warn(impl_trait_overcaptures)] //     `impl Trait` will capture more lifetimes than possibly intended in edition 2024
+#![warn(keyword_idents_2018)] //     detects edition keywords being used as an identifier
+#![warn(keyword_idents_2024)] //     detects edition keywords being used as an identifier
+#![warn(let_underscore_drop)] //     non-binding let on a type that implements `Drop`
+//#![warn(lossy_provenance_casts)] //     a lossy pointer to integer cast is used
+#![warn(macro_use_extern_crate)] //     the `#[macro_use]` attribute is now deprecated in favor of using macros via the module system
+#![warn(meta_variable_misuse)] //     possible meta-variable misuse at macro definition
+#![warn(missing_abi)] //     No declared ABI for extern declaration
+#![warn(missing_copy_implementations)] //     detects potentially-forgotten implementations of `Copy`
+#![warn(missing_debug_implementations)] //     detects missing implementations of Debug
+#![warn(missing_docs)] //     detects missing documentation for public members
+#![warn(missing_unsafe_on_extern)] //     detects missing unsafe keyword on extern declarations
+//#![warn(multiple_supertrait_upcastable)] //     detect when an object-safe trait has multiple supertraits
+//#![warn(must_not_suspend)] //     use of a `#[must_not_suspend]` value across a yield point
+#![warn(non_ascii_idents)] //     detects non-ASCII identifiers
+//#![warn(non_exhaustive_omitted_patterns)] //     detect when patterns of types marked `non_exhaustive` are missed
+#![warn(non_local_definitions)] //     checks for non-local definitions
+#![warn(redundant_lifetimes)] //     detects lifetime parameters that are redundant because they are equal to some other named lifetime
+#![warn(rust_2021_incompatible_closure_captures)] //     detects closures affected by Rust 2021 changes
+#![warn(rust_2021_incompatible_or_patterns)] //     detects usage of old versions of or-patterns
+#![warn(rust_2021_prefixes_incompatible_syntax)] //     identifiers that will be parsed as a prefix in Rust 2021
+#![warn(rust_2021_prelude_collisions)] //     detects the usage of trait methods which are ambiguous with traits added to the prelude in future editions
+//#![warn(rust_2024_incompatible_pat)] //     detects patterns whose meaning will change in Rust 2024
+#![warn(single_use_lifetimes)] //     detects lifetime parameters that are only used once
+#![warn(trivial_casts)] //     detects trivial casts which could be removed
+#![expect(trivial_numeric_casts)] //     detects trivial casts of numeric types which could be removed
+#![warn(unit_bindings)] //     binding is useless because it has the unit `()` type
+#![warn(unnameable_types)] //     effective visibility of a type is larger than the area in which it can be named
+#![expect(unreachable_pub)] //     `pub` items not reachable from crate root
+#![warn(unsafe_attr_outside_unsafe)] //     detects unsafe attributes outside of unsafe
+#![expect(unsafe_code)] //     usage of `unsafe` code and other potentially unsound constructs
+#![warn(unsafe_op_in_unsafe_fn)] //     unsafe operations in unsafe functions without an explicit unsafe block are deprecated
+#![warn(unstable_features)] //     enabling unstable features
+#![warn(unused_crate_dependencies)] //     crate dependencies that are never used
+#![warn(unused_extern_crates)] //     extern crates that are never used
+#![warn(unused_import_braces)] //     unnecessary braces around an imported item
+#![warn(unused_lifetimes)] //     detects lifetime parameters that are never used
+#![warn(unused_macro_rules)] //     detects macro rules that were not used
+#![warn(unused_qualifications)] //     detects unnecessarily qualified names
+#![warn(unused_results)] //     unused result of an expression in a statement
+#![warn(variant_size_differences)] //     detects enums with widely varying variant sizes
 
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
@@ -154,13 +170,14 @@ use opensc_sys::types::SC_MAX_AID_SIZE;
 use opensc_sys::errors::{SC_SUCCESS/*, SC_ERROR_INTERNAL*/, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
                          SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY, SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING,
                          SC_ERROR_INCORRECT_PARAMETERS, SC_ERROR_NOT_SUPPORTED, SC_ERROR_BUFFER_TOO_SMALL, SC_ERROR_NOT_ALLOWED,
-                         SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_CARD_CMD_FAILED, SC_ERROR_FILE_ALREADY_EXISTS};
+                         SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_CARD_CMD_FAILED, SC_ERROR_FILE_ALREADY_EXISTS,
+                         SC_ERROR_INVALID_CARD};
 
-// #[cfg(sanity)]
-use opensc_sys::errors::SC_ERROR_INVALID_CARD;
 use opensc_sys::internal::{_sc_card_add_rsa_alg, _sc_card_add_ec_alg, sc_pkcs1_encode, _sc_match_atr};
 use opensc_sys::log::sc_dump_hex;
 use opensc_sys::cardctl::{SC_CARDCTL_GET_SERIALNR, SC_CARDCTL_LIFECYCLE_SET};
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
+use opensc_sys::cardctl::SC_CARDCTL_GET_MODEL;
 use opensc_sys::asn1::sc_asn1_put_tag;/*, sc_asn1_skip_tag, sc_asn1_read_tag, sc_asn1_print_tags, sc_asn1_find_tag*/
 use opensc_sys::iso7816::{ISO7816_TAG_FCP_TYPE, ISO7816_TAG_FCP_LCS,  ISO7816_TAG_FCP, ISO7816_TAG_FCP_SIZE,
                           ISO7816_TAG_FCP_FID, ISO7816_TAG_FCP_DF_NAME};
@@ -175,16 +192,22 @@ use opensc_sys::sm::{SM_TYPE_CWA14890, SM_CMD_PIN, SM_CMD_PIN_VERIFY, SM_CMD_PIN
 #[macro_use]
 mod macros;
 
-//#[cfg(card_initialization)]
-//mod card_initialization;
-// use card_initialization::{};
+/*
+#[cfg(card_initialization)]
+mod card_initialization;
+use card_initialization::{};
+*/
 
-mod cmd_card_info;
+/// The reference manual contains a chapter "ACOS5-64/ACOS5-EVO Card Management Commands", and within
+/// it subchapter "Get Card Info". This module implements all of those.
+/// There is a subset of commands available from all hardware versions, the remainder only available
+/// from some specific hardware
+pub mod cmd_card_info;
 use cmd_card_info::{cos_version, count_files_curr_df, file_info, free_space, is_fips_compliant,
                     is_ident_self_okay, is_key_authenticated, is_pin_authenticated, manufacture_date,
                     op_mode_byte, rom_sha1, serial_no};
 
-mod constants_types;
+mod constants_types; // shared file among modules acos5, acos5_pkcs15
 use constants_types::{BLOCKCIPHER_PAD_TYPE_ANSIX9_23, BLOCKCIPHER_PAD_TYPE_ONEANDZEROES,
                       BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64, BLOCKCIPHER_PAD_TYPE_PKCS7,
                       BLOCKCIPHER_PAD_TYPE_ZEROES, CARD_DRV_NAME, CARD_DRV_SHORT_NAME,
@@ -222,6 +245,12 @@ use constants_types::{ui_context, set_ui_ctx, get_ui_ctx, acos5_ask_user_consent
 
 mod crypto;
 
+/// There are some functions implemented in OpenSC and available from a static libopensc.a library
+/// (typically not made available by distribution packages),
+/// but not available from a dynamically linked libopensc.so/.dll library.
+/// The solution should be, to convince OpenSC maintainers to export those `missing export functions'
+/// as well.
+/// In the meantime, I duplicated the code of valuable non-callable functions via this module.
 mod missing_exports;
 use missing_exports::{me_card_add_symmetric_alg, me_card_find_alg, me_get_max_recv_size,
                       me_pkcs1_strip_01_padding, me_pkcs1_strip_02_padding};//, me_get_encoding_flags
@@ -242,9 +271,7 @@ use no_cdecl::{select_file_by_path, enum_dir,
 mod path;
 use path::{file_id_from_cache_current_path, current_path_df};
 
-// #[cfg(sanity)]
 mod sanity;
-// #[cfg(sanity)]
 use sanity::sanity_check;
 
 mod se;
@@ -259,7 +286,7 @@ if #[cfg(not(target_os = "windows"))] {
     use tasn1_pkcs15_array::tasn1_pkcs15_definitions;
 
     mod tasn1_pkcs15_util;
-    use tasn1_pkcs15_util::{analyze_PKCS15_DIRRecord_2F00, analyze_PKCS15_PKCS15Objects_5031 /* , analyze_PKCS15_TokenInfo_5032*/};
+    use tasn1_pkcs15_util::{analyze_PKCS15_DIRRecord_2F00, analyze_PKCS15_PKCS15Objects_5031}; /* , analyze_PKCS15_TokenInfo_5032*/
 
     mod tasn1_sys;
     use tasn1_sys::{ASN1_SUCCESS, asn1_node, asn1_array2tree, asn1_delete_structure};
@@ -298,9 +325,11 @@ mod   test_v2_v3;
 /// differences in API and behavior (this function mentions the last `OpenSC` commit covered).
 /// master will be handled as an imaginary new version release:
 /// E.g. while currently the latest release is 0.25.1, build `OpenSC` from source such that it reports imaginary
-/// version 0.26.0 (change configure.ac; define([`PACKAGE_VERSION_MINOR`], [26]) )
+/// version 0.26.0 (change configure.ac; define(\[`PACKAGE_VERSION_MINOR`\], \[26\]) )
 /// In this example, `cfg!(v0_26_0`) will then match that
 ///
+/// call site: function load_dynamic_driver, close to:
+/// libopensc/ctx.c:515:    *(void **)tmodv = sc_dlsym(handle, "sc_driver_version");
 /// @return   The `OpenSC` release/imaginary version, that this driver implementation supports
 #[no_mangle]
 pub extern "C" fn sc_driver_version() -> *const c_char {
@@ -420,6 +449,7 @@ static struct sc_card_operations iso_ops = {
             thus trying to go with iso7816_check_sw, reroute that pin_cmd cmd=SC_PIN_CMD_GET_INFO to not employ check_sw
            TODO  iso7816_check_sw has an internal table to map return status to text: this doesn't match the ACOS5 mapping in some cases, THUS maybe switching on/off check_sw==iso7816_check_sw may be required
         */
+        check_sw:              Some(acos5_check_sw),          // iso7816_check_sw
         card_ctl:              Some(acos5_card_ctl),          // NULL
         process_fci:           Some(acos5_process_fci),       // iso7816_process_fci is insufficient for cos5: It will be used, but more has to be done for cos5
         construct_fci:         Some(acos5_construct_fci),     // iso7816_construct_fci
@@ -439,9 +469,9 @@ static struct sc_card_operations iso_ops = {
         /* wrap:                                                 NULL */
         unwrap:                None, //Some(acos5_unwrap),            // NULL
         #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
-        encrypt_sym:           None,//Some(acos5_encrypt_sym),       // NULL
+        encrypt_sym:           Some(acos5_encrypt_sym),       // NULL
         #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
-        decrypt_sym:           None, //Some(acos5_decrypt_sym),       // NULL
+        decrypt_sym:           Some(acos5_decrypt_sym),       // NULL
         ..*iso_ops // untested so far whether remaining functionality from libopensc/iso7816.c is sufficient for cos5
 /* from iso_ops:
     NULL,            /* verify,                deprecated */
@@ -450,7 +480,7 @@ static struct sc_card_operations iso_ops = {
     NULL,            /* change_reference_data, deprecated */
     NULL,            /* reset_retry_counter,   deprecated */
 
->>  iso7816_check_sw,
+//>>  iso7816_check_sw,
 
 >>  iso7816_get_data,
     NULL,            /* put_data */
@@ -503,12 +533,11 @@ TODO how to set opensc.conf, such that a minimum of trials to match atr is done
 #[named]
 extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
 {
-    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || unsafe { (*card_ptr).reader.is_null() } {
+    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
         return 0;
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let reader = unsafe { &mut *card.reader };
     let f_cstr = CString::new(function_name!()).expect("CString::new failed");
     let f = f_cstr.as_c_str(); // c"acos5_match_card";
     log3if!(ctx,f,line!(), c"called. Try to match card with ATR %s",
@@ -528,11 +557,6 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
     if idx_acos5_atrs+1 >= acos5_atrs.len() {
         return log3ifr_ret!(ctx,f,line!(), c"Card doesn't match: Differing ATR. Returning with 0 (no match)", 0);
     }
-
-    if type_out == SC_CARD_TYPE_ACOS5_EVO_V4 && reader.active_protocol == SC_PROTO_T1 {
-        card.caps |= SC_CARD_CAP_APDU_EXT;
-    }
-//println!("card.caps: {:X}\n", card.caps);
 
     /* check for 'Identity Self' */
     match is_ident_self_okay(card, type_out) {
@@ -642,11 +666,12 @@ what can we rely on, when this gets called:
 #[named]
 extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
 {
-    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
+    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || unsafe { (*card_ptr).reader.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card       = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
+    let reader = unsafe { &mut *card.reader };
     let f_cstr = CString::new(function_name!()).expect("CString::new failed");
     let f = f_cstr.as_c_str();
     log3if!(ctx,f,line!(), c"called with card.type: %d, card.atr.value: %s", card.type_,
@@ -689,9 +714,13 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
        Thus SC_CARD_CAP_APDU_EXT only for ACOS5-EVO TODO
        For many commands there is no benefit using extended, thus check whether its possible to switch often
        Maybe better solved with APDUShortExtendedSwitcher
-       // if card.type_ == SC_CARD_TYPE_ACOS5_EVO_V4 { card.caps |= SC_CARD_CAP_APDU_EXT; }
     */
-// RSA
+    if card.type_ == SC_CARD_TYPE_ACOS5_EVO_V4 && reader.active_protocol == SC_PROTO_T1 {
+        card.caps |= SC_CARD_CAP_APDU_EXT;
+    }
+    //println!("card.caps: {:X}\n", card.caps);
+
+    // RSA
     /* it's possible to add SC_ALGORITHM_RSA_RAW, but then pkcs11-tool -t needs insecure
        --cfg dev_relax_signature_constraints_for_raw */
     let rsa_algo_flags = SC_ALGORITHM_ONBOARD_KEY_GEN | SC_ALGORITHM_RSA_PAD_PKCS1 /* | SC_ALGORITHM_RSA_RAW*/;
@@ -900,7 +929,6 @@ DataPrivate:                                                size_of: 1792, align
     card.cache.current_path = path_mf;
     rv = enum_dir(card, &path_mf, true/*, 0*/); /* FIXME Doing to much here degrades performance, possibly for no value */
     if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); } // enum_dir returns SC_SUCCESS also for does_mf_exist==false
-    // #[cfg(sanity)]
     {
         let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         let does_mf_exist = dp.does_mf_exist;
@@ -1153,6 +1181,21 @@ println!("sc_update_binary: rv: {}", rv);
     log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
 }
 
+#[named]
+extern "C" fn acos5_check_sw(card_ptr: *mut sc_card, sw1: u32, sw2: u32) -> i32
+//pub check_sw : Option< unsafe extern "C" fn (card: *mut sc_card, sw1: u32, sw2: u32) -> i32 >,
+{
+    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+    let card = unsafe { &mut *card_ptr };
+    let ctx = unsafe { &mut *card.ctx };
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
+    log3ifc!(ctx,f,line!());
+    log3ifr_ret!(ctx,f,line!(), if sw1 == 0x61 {SC_SUCCESS} else
+        { unsafe { (*(*sc_get_iso7816_driver()).ops).check_sw.unwrap()(card_ptr, sw1, sw2) } } )
+}
 
 /**
   Erases bytes (i.e. sets bytes to value 0x00) in a transparent file, within a chosen range of file's size
@@ -1290,6 +1333,14 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
                 };
                 log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
             },
+//#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)))] {
+        SC_CARDCTL_GET_MODEL =>
+            {
+                let rm_model = unsafe { &mut *data_ptr.cast::<*const c_char>() };
+                *rm_model = c"PKCS#15".as_ptr();
+                log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
+            },
+//}
         SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE =>
             {
                 let rm_algo_ref_sym_store = unsafe { &mut *data_ptr.cast::<CardCtlAlgoRefSymStore>() };
@@ -1476,7 +1527,6 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
 
                 log3ifr_ret!(ctx,f,line!(), if sym_en_decrypt(card, crypt_sym_data) > 0 {SC_SUCCESS} else {SC_ERROR_KEYPAD_MSG_TOO_LONG})
             },
-        // #[cfg(sanity)]
         SC_CARDCTL_ACOS5_SANITY_CHECK =>
             {
                 match sanity_check(card, unsafe {
@@ -1559,7 +1609,7 @@ SW1 SW2   Definition
 #[named]
 extern "C" fn acos5_get_response(card_ptr: *mut sc_card, count_ptr: *mut usize, buf_ptr: *mut u8) -> i32
 {
-    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || count_ptr.is_null() || buf_ptr.is_null() {
+    if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || unsafe { (*card_ptr).reader.is_null() } || count_ptr.is_null() || buf_ptr.is_null() {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *card_ptr };
@@ -1571,11 +1621,20 @@ extern "C" fn acos5_get_response(card_ptr: *mut sc_card, count_ptr: *mut usize, 
     let fmt_1 = c"returning with: *count: %zu, rv: %d";
     log3if!(ctx,f,line!(), c"called with: *count: %zu", cnt_in);
 
-    card.max_recv_size = SC_READER_SHORT_APDU_MAX_RECV_SIZE;
+    card.max_recv_size = 0; //SC_READER_SHORT_APDU_MAX_RECV_SIZE;
     /* request at most max_recv_size bytes */
-    let rlen = min(cnt_in, me_get_max_recv_size(card));
+    let max_recv_size = me_get_max_recv_size(card);
+    card.max_recv_size = max_recv_size;
     unsafe { *count_ptr = 0 }; // prepare to be an OUT variable now
-//println!("### acos5_get_response rlen: {}", rlen);
+    let reader = unsafe { &mut *card.reader };
+    if card.type_ == SC_CARD_TYPE_ACOS5_EVO_V4 && reader.active_protocol == SC_PROTO_T1 &&
+        (card.caps & SC_CARD_CAP_APDU_EXT) != 0  {
+ //        is_cap_apdu_ext_enabled: (card.caps & SC_CARD_CAP_APDU_EXT) != 0,
+        log3if!(ctx,f,line!(), c"eligible for a future optimized `acos5_get_response` for EVO. max_recv_size=%zu", max_recv_size);
+    }
+    let rlen = min(cnt_in, max_recv_size);
+    //println!("### acos5_get_response rlen: {}", rlen);
+
     // will replace le later; the last byte is a placeholder only for sc_bytes2apdu
     let mut apdu = build_apdu(ctx, &[0, 0xC0, 0x00, 0x00, 0xFF], SC_APDU_CASE_2_SHORT, &mut[]);
     apdu.le      = rlen;
@@ -3591,8 +3650,10 @@ extern "C" fn acos5_update_record(card_ptr: *mut sc_card, rec_nr: u32, _idx: u32
 
 /* the return value will later be assigned to *pulDataLen in pkcs15_skey_encrypt */
 // plaintext_len is allowed to be not a multiple of block_size 16 for SC_ALGORITHM_AES_CBC_PAD only
-#[allow(dead_code)] // currently unused
-#[cold]
+//#[allow(dead_code)] // currently unused
+//#[cold]
+
+#[named]
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
 extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, plaintext_len: usize,
                                 out: *mut u8, outlen: *mut usize) -> i32
@@ -3604,7 +3665,9 @@ extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, pl
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    log3ifc!(ctx,c"acos5_encrypt_sym",line!());
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
+    log3ifc!(ctx,f,line!());
 //println!("acos5_encrypt_sym input: algorithm: {:02X}, algorithm_flags: {:02X}, key_ref[0]: {:02X}, plaintext_len: {}, plaintext: {:02X?}",
 //algorithm, algorithm_flags, unsafe{ (*_key_ref)[0] }, plaintext_len, unsafe { from_raw_parts(plaintext, plaintext_len) });
     // temporarily route via sym_en_decrypt
@@ -3625,8 +3688,10 @@ extern "C" fn acos5_encrypt_sym(card_ptr: *mut sc_card, plaintext: *const u8, pl
 
 
 /* the return value will later be assigned to *pulDataLen in pkcs15_skey_decrypt */
-#[allow(dead_code)] // currently unused
-#[cold]
+//#[allow(dead_code)] // currently unused
+//#[cold]
+
+#[named]
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
 extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, encrypted_data: *const u8, encrypted_data_len: usize,
                                 out: *mut u8, outlen: *mut usize) -> i32
@@ -3638,7 +3703,9 @@ extern "C" fn acos5_decrypt_sym(card_ptr: *mut sc_card, encrypted_data: *const u
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    log3ifc!(ctx,c"acos5_decrypt_sym",line!());
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
+    log3ifc!(ctx,f,line!());
 println!("called for decryption: encrypted_data_len  {encrypted_data_len:?}");
     if out.is_null() {
 println!("called for decryption: out , outlen   {out:p} , {outlen:p}");

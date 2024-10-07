@@ -281,6 +281,7 @@ thus issue a correct APDU right away
 The code differs from the C version in 1 line only, where setting apdu.p2 = 0x0C;
 */
 
+/**/
 ///
 /// # Panics
 ///
@@ -483,6 +484,7 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
 
     log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
 } // iso7816_select_file_replica
+/**/
 
 /*
 The task of tracking_select_file next to SELECT:

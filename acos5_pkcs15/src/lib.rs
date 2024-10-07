@@ -239,7 +239,7 @@ const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 /// differences in API and behavior (this function mentions the last OpenSC commit covered).
 /// master will be handled as an imaginary new version release:
 /// E.g. while currently the latest release is 0.22.0, build OpenSC from source such that it reports imaginary
-/// version 0.23.0 (change configure.ac; define([PACKAGE_VERSION_MINOR], [23]) )
+/// version 0.23.0 (change configure.ac; define(\[PACKAGE_VERSION_MINOR\], \[23\]) )
 /// In this example, cfg!(v0_23_0) will then match that
 ///
 /// @return   The OpenSC release/imaginary version, that this driver implementation supports
@@ -366,6 +366,7 @@ extern "C" fn acos5_pkcs15_erase_card(profile_ptr: *mut sc_profile, p15card_ptr:
  */
 #[allow(dead_code)]  // no usage currently
 #[cold]
+#[named]
 extern "C" fn acos5_pkcs15_create_dir(profile_ptr: *mut sc_profile, p15card_ptr: *mut sc_pkcs15_card,
                                       df_ptr: *mut sc_file) -> i32
 {
@@ -376,8 +377,8 @@ extern "C" fn acos5_pkcs15_create_dir(profile_ptr: *mut sc_profile, p15card_ptr:
     let card = unsafe { &mut *(*p15card_ptr).card };
     let ctx = unsafe { &mut *card.ctx };
     let df = unsafe { & *df_ptr };
-
-    let f  = c"acos5_pkcs15_create_dir";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3if!(ctx,f,line!(), c"called  with df.id %X", df.id);
 
     let create_dfs = [(SC_PKCS15_PRKDF, c"PKCS15-PrKDF"), (SC_PKCS15_PUKDF, c"PKCS15-PuKDF"),
@@ -421,6 +422,7 @@ extern "C" fn acos5_pkcs15_create_dir(profile_ptr: *mut sc_profile, p15card_ptr:
  */
 #[allow(dead_code)]  // no usage currently
 #[cold]
+#[named]
 extern "C" fn acos5_pkcs15_select_pin_reference(profile_ptr: *mut sc_profile, p15card_ptr: *mut sc_pkcs15_card,
                                                 pin_ainfo_ptr: *mut sc_pkcs15_auth_info) -> i32
 {
@@ -430,7 +432,9 @@ extern "C" fn acos5_pkcs15_select_pin_reference(profile_ptr: *mut sc_profile, p1
 //    let profile = unsafe { &mut *profile_ptr };
     let card = unsafe { &mut *(*p15card_ptr).card };
     let ctx = unsafe { &mut *card.ctx };
-    log3ifc!(ctx, c"acos5_pkcs15_select_pin_reference", line!());
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
+    log3ifc!(ctx, f, line!());
     SC_SUCCESS
 }
 
@@ -445,6 +449,7 @@ extern "C" fn acos5_pkcs15_select_pin_reference(profile_ptr: *mut sc_profile, p1
  */
 #[allow(dead_code)]  // no usage currently
 #[cold]
+#[named]
 extern "C" fn acos5_pkcs15_create_pin(profile_ptr: *mut sc_profile, p15card_ptr: *mut sc_pkcs15_card,
                                       file_ptr: *mut sc_file,
                                       _object_ptr: *mut sc_pkcs15_object, _arg5: *const u8, _arg6: usize,
@@ -456,7 +461,9 @@ extern "C" fn acos5_pkcs15_create_pin(profile_ptr: *mut sc_profile, p15card_ptr:
 //    let profile = unsafe { &mut *profile_ptr };
     let card = unsafe { &mut *(*p15card_ptr).card };
     let ctx = unsafe { &mut *card.ctx };
-    log3ifc!(ctx, c"acos5_pkcs15_create_pin", line!());
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
+    log3ifc!(ctx, f, line!());
     SC_SUCCESS
 }
 
@@ -471,6 +478,7 @@ extern "C" fn acos5_pkcs15_create_pin(profile_ptr: *mut sc_profile, p15card_ptr:
  */
 ///
 /// # Panics
+#[named]
 extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
                                       p15card_ptr: *mut sc_pkcs15_card,
                                       object_ptr: *mut sc_pkcs15_object) -> i32
@@ -486,7 +494,8 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
     let p15card = unsafe { &mut *p15card_ptr };
     let card = unsafe { &mut *p15card.card };
     let ctx = unsafe { &mut *card.ctx };
-    let f  = c"acos5_pkcs15_create_key";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3if!(ctx,f,line!(), c"called with object_ptr: %p", object_ptr);
 
     if profile_ptr.is_null() || object_ptr.is_null() || unsafe { (*object_ptr).data.is_null() } {
@@ -963,6 +972,7 @@ not called by C_GenerateKeyPair
 */
 ///
 /// # Panics
+#[named]
 extern "C" fn acos5_pkcs15_store_key(profile_ptr: *mut sc_profile, p15card_ptr: *mut sc_pkcs15_card,
                                      object_ptr: *mut sc_pkcs15_object, key_ptr: *mut sc_pkcs15_prkey) -> i32
 {
@@ -974,7 +984,8 @@ extern "C" fn acos5_pkcs15_store_key(profile_ptr: *mut sc_profile, p15card_ptr: 
     let p15card = unsafe { &mut *p15card_ptr };
     let card = unsafe { &mut *p15card.card };
     let ctx = unsafe { &mut *card.ctx };
-    let f  = c"acos5_pkcs15_store_key";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     let object = unsafe { &mut *object_ptr };
     /* key: if called from sc_pkcs15init_store_secret_key, then only key.algorithm and  key.u.secret were set  */
     let key = unsafe { &mut *key_ptr };
@@ -1072,6 +1083,7 @@ extern "C" fn acos5_pkcs15_store_key(profile_ptr: *mut sc_profile, p15card_ptr: 
  */
 ///
 /// # Panics
+#[named]
 extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
                                         p15card_ptr: *mut sc_pkcs15_card,
                                         p15object_ptr: *mut sc_pkcs15_object,
@@ -1089,7 +1101,8 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     let key_info_priv = unsafe { &mut *object_priv.data.cast::<sc_pkcs15_prkey_info>() };
     let p15pubkey = unsafe { &mut *p15pubkey_ptr };
     let mut rv;// = SC_ERROR_UNKNOWN;
-    let f  = c"acos5_pkcs15_generate_key";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     if   SC_PKCS15_TYPE_PRKEY_RSA != object_priv.type_ &&
@@ -1184,13 +1197,16 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
  */
 #[allow(dead_code)]  // no usage currently
 #[cold]
+#[named]
 extern "C" fn acos5_pkcs15_finalize_card(card_ptr: *mut sc_card) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let card = unsafe { &mut *card_ptr };
-    log3ifc!(unsafe { &mut *card.ctx }, c"acos5_pkcs15_finalize_card", line!());
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
+    log3ifc!(unsafe { &mut *card.ctx }, f, line!());
     SC_SUCCESS
 }
 
@@ -1206,6 +1222,7 @@ extern "C" fn acos5_pkcs15_finalize_card(card_ptr: *mut sc_card) -> i32
  */
 #[allow(dead_code)]  // no usage currently
 #[cold]
+#[named]
 extern "C" fn acos5_pkcs15_delete_object(profile_ptr: *mut sc_profile, p15card_ptr: *mut sc_pkcs15_card,
     object_ptr: *mut sc_pkcs15_object, path_ptr: *const sc_path) -> i32
 {
@@ -1215,7 +1232,9 @@ extern "C" fn acos5_pkcs15_delete_object(profile_ptr: *mut sc_profile, p15card_p
     }
     // let profile = unsafe { &mut *profile_ptr };
     let card = unsafe { &mut *(*p15card_ptr).card };
-    log3ifc!(unsafe { &mut *card.ctx }, c"acos5_pkcs15_delete_object", line!());
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
+    log3ifc!(unsafe { &mut *card.ctx }, f, line!());
     SC_SUCCESS
 }
 
@@ -1237,6 +1256,7 @@ extern "C" fn  acos5_pkcs15_emu_update_any_df(_profile: *mut sc_profile, p15card
 
 /* required for sc_pkcs15init_generate_key in order to do some corrections ref. public ḱey */
 /* required for unwrap */
+#[named]
 extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile: *mut sc_profile,
     object_ptr: *mut sc_pkcs15_object, _der_data: *mut sc_pkcs15_der, path: *mut sc_path) -> i32
 {
@@ -1246,7 +1266,8 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
     }
     let card = unsafe { &mut *(*p15card).card };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_pkcs15_emu_store_data";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     let object = unsafe { &mut *object_ptr };
     log3if!(ctx,f,line!(), c"called for object.type %X", object.type_); // SC_PKCS15_TYPE_PRKEY_RSA / SC_PKCS15_TYPE_PUBKEY_RSA
     if !path.is_null() && unsafe{ (*path).len > 0 } {
@@ -1334,6 +1355,7 @@ extern "C" fn acos5_pkcs15_emu_store_data(p15card: *mut sc_pkcs15_card, profile:
     SC_SUCCESS
 } // acos5_pkcs15_emu_store_data
 
+#[named]
 extern "C" fn acos5_pkcs15_sanity_check(_profile: *mut sc_profile, p15card: *mut sc_pkcs15_card) -> i32
 {
     if p15card.is_null() || unsafe { (*p15card).card.is_null() } {
@@ -1345,7 +1367,8 @@ extern "C" fn acos5_pkcs15_sanity_check(_profile: *mut sc_profile, p15card: *mut
         return SC_ERROR_KEYPAD_MSG_TOO_LONG;
     }
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_pkcs15_sanity_check";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
     unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SANITY_CHECK, null_mut()) }
 }

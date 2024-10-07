@@ -18,6 +18,8 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
 
+//! Both driver components (libacos5.so/dll and libacos5_pkcs15.so/dll) share this same file
+
 //#![allow(dead_code)] // don't warn about unused items
 
 use std::os::raw::{c_char, c_uchar, c_ulong, c_void};
@@ -865,7 +867,7 @@ pub fn is_DFMF(fdb: u8) -> bool
 ///
 /// Additionally, it
 /// 1. Asserts `SC_SUCCESS` of call to `sc_bytes2apdu`
-/// 2. Asserts, that the provided argument `cse` actually got assigned to apdu.cse
+/// 2. Asserts, that the provided argument `cse` actually got assigned to `apdu.cse`
 /// 3. If rbuf is not empty, then it assigns the provided argument `rbuf` to apdu.resp and apdu.resplen
 ///
 /// # Examples

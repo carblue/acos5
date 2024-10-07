@@ -82,7 +82,7 @@
 //!    Once the test passes, the opensc-sys binding is ready to be used.
 //!
 //! Not selecting any OpenSC release versions 0.17.0 - 0.25.0, is treated as unsupported, except:
-//! That's experimental only: Take OpenSC master branch, change configure.ac to read  define([PACKAGE_VERSION_MINOR], [26]) ,
+//! That's experimental only: Take OpenSC master branch, change configure.ac to read  define(\[PACKAGE_VERSION_MINOR\], \[26\]) ,
 //! the next/imaginary version (currently 0.26.0) and build from source.
 //! At irregular intervals only I check master's implications for the binding. E.g. there was a commit (effective since
 //! OpenSC release versions 0.18.0), that changed parsing of

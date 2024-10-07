@@ -18,6 +18,8 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
 
+//! Both driver components (libacos5.so/dll and libacos5_pkcs15.so/dll) share this same file
+
 #![allow(non_snake_case)]
 
 use std::os::raw::{c_char, c_void/*, c_int*/};

@@ -1,3 +1,6 @@
+
+//! Both driver components (libacos5.so/dll and libacos5_pkcs15.so/dll) share this same file
+
 /*
 macro_rules! cstru {
     ($x:expr) => (unsafe { std::ffi::CStr::from_bytes_with_nul_unchecked($x) })

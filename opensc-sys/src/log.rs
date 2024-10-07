@@ -119,11 +119,11 @@ pub fn sc_do_log_openssl(ctx: *mut sc_context, level: c_int, file: *const c_char
 /**
  * @brief Log binary data to a sc context
  *
- * @param[in] ctx   Context for logging
- * @param[in] level
- * @param[in] label Label to prepend to the buffer
- * @param[in] data  Binary data
- * @param[in] len   Length of \a data
+ * @param\[in\] ctx   Context for logging
+ * @param\[in\] level
+ * @param\[in\] label Label to prepend to the buffer
+ * @param\[in\] data  Binary data
+ * @param\[in\] len   Length of \a data
  */
 #define sc_debug_hex(ctx, level, label, data, len) \
     _sc_debug_hex(ctx, level, __FILE__, __LINE__, __FUNCTION__, label, data, len)
@@ -134,14 +134,14 @@ pub fn sc_do_log_openssl(ctx: *mut sc_context, level: c_int, file: *const c_char
 extern "C" {
 /// @brief Log binary data
 ///
-/// @param[in] ctx    Context for logging
-/// @param[in] level  Debug level
-/// @param[in] file   File name to be prepended
-/// @param[in] line   Line to be prepended
-/// @param[in] func   Function to be prepended
-/// @param[in] label  label to prepend to the buffer
-/// @param[in] data   binary data
-/// @param[in] len    length of \a data
+/// @param\[in\] ctx    Context for logging
+/// @param\[in\] level  Debug level
+/// @param\[in\] file   File name to be prepended
+/// @param\[in\] line   Line to be prepended
+/// @param\[in\] func   Function to be prepended
+/// @param\[in\] label  label to prepend to the buffer
+/// @param\[in\] data   binary data
+/// @param\[in\] len    length of \a data
 pub fn _sc_debug_hex(ctx: *mut sc_context, level: i32, file: *const c_char, line: i32,
                      func: *const c_char, label: *const c_char, data: *const u8, len: usize);
 

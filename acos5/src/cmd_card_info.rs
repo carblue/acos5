@@ -29,19 +29,21 @@ use crate::constants_types::{build_apdu, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_rv_ret, wr_do_log_sds, wr_do_log_sds_ret};
 //use crate::missing_exports::me_apdu_get_length;
 
-//QS
-/// Get card's (hardware identifying) serial number. Copies result to card.serialnr
+//QSD
+/// QSD Get card's (hardware identifying) serial number. Copies result to card.serialnr
+/// Available for all supported ACOS5 hardware
 ///
 /// @apiNote  Exempt from this function, card.serialnr MUST be treated as immutable. It's not clear to me if for
-/// `SC_CARD_TYPE_ACOS5_64_V3` the last 2 bytes are meaningful if not in FIPS mode
-/// (at least they are the same for each call, thus this uncertainty doesn't matter).\
+/// `SC_CARD_TYPE_ACOS5_64_V3` the last 2 (of 8) bytes are meaningful if not in FIPS mode
+/// (at least they are the same (zero zero) for each call, thus this uncertainty doesn't matter).
+///
 /// This function is also callable via `libopensc.so/dll:sc_card_ctl` via `SC_CARDCTL_GET_SERIALNR`:
 ///
 /// @return  `Result::Ok(serial` number); 6 bytes for `SC_CARD_TYPE_ACOS5_64_V2`, otherwise 8 bytes, or an `OpenSC` error
 ///
 /// # Errors
 ///
-/// Will return `Result::Err` if `sc_transmit_apdu` or `sc_check_sw` fails, or apdu.resplen is wrong (for the card type),
+/// Will return `Result::Err` if `sc_transmit_apdu` or `sc_check_sw` fails, or `apdu.resplen` is wrong (for the card type),
 /// though this never happened so far. Thus its save to unwrap/expect the Ok variant.
 ///
 /// # Examples

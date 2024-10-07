@@ -16,7 +16,7 @@
 use cryptoki::context::{Pkcs11, CInitializeArgs};
 use cryptoki::session::{UserType, Session};
 use cryptoki::types::AuthPin;
-use cryptoki::object::{Attribute, ObjectHandle, AttributeType, KeyType};
+use cryptoki::object::{Attribute, ObjectHandle, AttributeType/*, KeyType*/};
 use cryptoki::error::Error;
 use cryptoki::mechanism::Mechanism;
 
@@ -55,8 +55,7 @@ fn show_key_info(session: &Session, key: ObjectHandle) -> Result<(), Error> {
 }
 
 fn create_key_pair(session: &Session) -> Result<(ObjectHandle, ObjectHandle), Error> {
-    // ** /
-/* * /
+/* */
     let mech = Mechanism::RsaPkcsKeyPairGen;
     let pub_key_template = [
         Attribute::Id(vec![2_u8]),
@@ -76,7 +75,7 @@ fn create_key_pair(session: &Session) -> Result<(ObjectHandle, ObjectHandle), Er
         &pub_key_template,
         &priv_key_template
     )
-*/
+
 /*
 4110: prkdf
 A0 2B 30 0F 0C 06 43 41 72 6F 6F 74 03 02 06 C0 04 01 01 30 0A 04 01 01 03 01 00 03 02 03 B8 A1 0C 30 0A 30 08 04 06 3F 00 41 00 12 01
@@ -87,7 +86,7 @@ A0 2B 30 0F 0C 06 43 41 72 6F 6F 74 03 02 06 C0 04 01 01 30 0A 04 01 01 03 01 00
 A0 28 30 0C 0C 06 43 41 72 6F 6F 74 03 02 06 40 30 0A 04 01 01 03 01 00 03 02 03 48 A1 0C 30 0A 30 08 04 06 3F 00 41 00 11 01
 
 */
-/* */
+/*
     // get mechanism
     let mechanism = Mechanism::EccKeyPairGen;
 /*
@@ -128,7 +127,7 @@ secp521r1
         Attribute::Sign(true),
     ];
     session.generate_key_pair(&mechanism, &pub_key_template, &priv_key_template)
-
+*/
 }
 
 fn main() -> Result<(), Error> {
