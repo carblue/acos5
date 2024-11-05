@@ -52,7 +52,7 @@ pub enum ui_str {
     MD_PINPAD_DLG_VERIFICATION,
 }
 
-extern "C" {
+unsafe extern "C" {
 pub fn ui_get_str(ctx: *mut sc_context, atr: *mut sc_atr,
     p15card: *mut sc_pkcs15_card, id: ui_str) -> *const c_char;
 }

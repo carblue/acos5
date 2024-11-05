@@ -1479,7 +1479,7 @@ impl std::fmt::Display for sc_context {
 }
 
 
-extern "C" {
+unsafe extern "C" {
 
 /* APDU handling functions */
 
@@ -1600,7 +1600,7 @@ impl Default for sc_context_param {
     }
 }
 
-extern "C" {
+unsafe extern "C" {
 
 /**
  * Repairs an already existing sc_context object. This may occur if
@@ -1910,7 +1910,7 @@ pub const SC_RECORD_BY_REC_NR  : c_ulong = 0x0_0100;
 /** use currently selected record */
 pub const SC_RECORD_CURRENT    : c_ulong = 0;
 
-extern "C" {
+unsafe extern "C" {
 
 /**
  * Reads a record from the current (i.e. selected) file.
@@ -2091,12 +2091,12 @@ pub fn sc_card_ctl(card: *mut sc_card, command: c_ulong, data: *mut c_void) -> i
 
 /// the file is valid, if 1 is returned, otherwise its *NOT* valid and 0 get'd returned
 /// @binding: No memory problem
-pub fn sc_file_valid(file: *const sc_file) -> i32;
+pub safe fn sc_file_valid(file: *const sc_file) -> i32;
 /// @binding: returns C heap allocated memory
-pub fn sc_file_new() -> *mut sc_file;
+pub safe fn sc_file_new() -> *mut sc_file;
 /// @binding: deallocates C heap allocated memory; WARNING: Don't use file after calling sc_file_free,
 ///           dangling pointer not assigned to null !
-pub fn sc_file_free(file: *mut sc_file);
+pub safe fn sc_file_free(file: *mut sc_file);
 pub fn sc_file_dup(dest: *mut *mut sc_file, src: *const sc_file);
 
 /// Adds to a file's acl\[operation\] entry the IN method and key_ref. See specia treatment for SC_AC_NEVER existing already
@@ -2144,9 +2144,9 @@ pub fn sc_wrap(card: *mut sc_card, data: *const u8,
 pub fn sc_path_set(path: *mut sc_path, type_: i32, id: *const u8,
     id_len: usize, index: i32, count: i32) -> i32;
 
-/// @param path_in: e.g. "i3F00" or ""I3f00"" or "3F004100" C strings (null terminated)
+/// @param path_in: e.g. "i3F00" or ""I3f00"" or "3F004100" C strings (null term.). Must not be null
 ///
-/// @binding: No memory problem only if path_out points to sc_path or null!
+/// @binding: No memory problem only if path_out points to allocated sc_path or null!
 pub fn sc_format_path(path_in: *const c_char, path_out: *mut sc_path);
 
 /**
@@ -2422,13 +2422,13 @@ pub struct sc_card_error {
     pub errorstr: *const c_char,
 }
 
-extern "C" {
+unsafe extern "C" {
 /// Release version of installed OpenSC software/binary libopensc.so/dll, opensc-pkcs11.so etc.
 ///
 /// @return  returns what is defined in source code's config.h: #define PACKAGE_VERSION "0.??.0",
 /// @binding: No memory problem!  returns pointer to .rodata of libopensc.so
 /// @test available
-pub fn sc_get_version() -> *const c_char;
+pub safe fn sc_get_version() -> *const c_char;
 
 /*
 #define SC_IMPLEMENT_DRIVER_VERSION(a) \
@@ -2453,7 +2453,7 @@ pub fn sc_get_iso7816_driver() -> *mut sc_card_driver;
  *
  * @param\[in\]     card
  * @param\[in\]     sfid   Short file identifier
- * @param\[in,out\] ef     Where to safe the file. the buffer will be allocated
+ * @param\[in,out\] ef     Where to save the file. the buffer will be allocated
  *                       using \c realloc() and should be set to NULL, if
  *                       empty.
  * @param\[in,out\] ef_len Length of \a *ef

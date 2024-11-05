@@ -352,7 +352,7 @@ pub const ASN1_MAX_ERROR_DESCRIPTION_SIZE: u32 = 128;
 /*  Functions definitions          */
 /***********************************/
 
-extern "C" {
+unsafe extern "C" {
     pub fn asn1_parser2tree(
         file: *const c_char,
         definitions: *mut asn1_node,
@@ -514,7 +514,7 @@ pub const ASN1_MAX_TAG_SIZE: u32 = 4;
 pub const ASN1_MAX_LENGTH_SIZE: u32 = 9;
 pub const ASN1_MAX_TL_SIZE: u32 = ASN1_MAX_TAG_SIZE+ASN1_MAX_LENGTH_SIZE;
 
-extern "C" {
+unsafe extern "C" {
     pub fn asn1_get_length_der(
         der: *const c_uchar,
         der_len: c_int,

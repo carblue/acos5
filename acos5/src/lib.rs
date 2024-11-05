@@ -69,18 +69,31 @@ it has a child DF that has been selected.
 */
 
 //#![feature(const_fn)]
+#![warn(rustdoc::broken_intra_doc_links)]
+#![warn(rustdoc::private_intra_doc_links)]
+#![warn(rustdoc::missing_crate_level_docs)]
+//#![warn(rustdoc::missing_doc_code_examples)]
+
+#![expect(rustdoc::private_doc_tests)]
+#![warn(rustdoc::invalid_codeblock_attributes)]
+#![warn(rustdoc::invalid_html_tags)]
+#![warn(rustdoc::invalid_rust_codeblocks)]
+#![warn(rustdoc::bare_urls)]
+#![warn(rustdoc::unescaped_backticks)]
+#![warn(rustdoc::redundant_explicit_links)]
 
 #![warn(absolute_paths_not_starting_with_crate)] //    fully qualified paths that start with a module name instead of `crate`, `self`, or an extern crate name
+#![warn(ambiguous_negative_literals)] //    ambiguous negative literals operations
 //#![warn(closure_returning_async_block)] //     closure that returns `async {}` could be rewritten as an async closure
 #![warn(deprecated_in_future)] //     detects use of items that will be deprecated in a future version
-#![warn(deprecated_safe)] //     detects unsafe functions being used as safe functions
+#![warn(deprecated_safe_2024)] //     detects unsafe functions being used as safe functions
 #![expect(edition_2024_expr_fragment_specifier)] //     The `expr` fragment specifier will accept more expressions in the 2024 edition. To keep the existing behavior, use the `expr_2021` fragment specifier.
 #![warn(elided_lifetimes_in_paths)] //     hidden lifetime parameters in types are deprecated
 #![warn(explicit_outlives_requirements)] //     outlives requirements can be inferred
 #![warn(ffi_unwind_calls)] //     call to foreign functions or function pointers with FFI_unwind ABI
 //#![warn(fuzzy_provenance_casts)] //     a fuzzy integer to pointer cast is used
 
-//#![warn(impl_trait_overcaptures)] //     `impl Trait` will capture more lifetimes than possibly intended in edition 2024
+#![warn(impl_trait_overcaptures)] //     `impl Trait` will capture more lifetimes than possibly intended in edition 2024
 #![warn(keyword_idents_2018)] //     detects edition keywords being used as an identifier
 #![warn(keyword_idents_2024)] //     detects edition keywords being used as an identifier
 #![warn(let_underscore_drop)] //     non-binding let on a type that implements `Drop`
@@ -97,13 +110,16 @@ it has a child DF that has been selected.
 #![warn(non_ascii_idents)] //     detects non-ASCII identifiers
 //#![warn(non_exhaustive_omitted_patterns)] //     detect when patterns of types marked `non_exhaustive` are missed
 #![warn(non_local_definitions)] //     checks for non-local definitions
+#![warn(redundant_imports)] //    imports that are redundant due to being imported already
 #![warn(redundant_lifetimes)] //     detects lifetime parameters that are redundant because they are equal to some other named lifetime
 #![warn(rust_2021_incompatible_closure_captures)] //     detects closures affected by Rust 2021 changes
 #![warn(rust_2021_incompatible_or_patterns)] //     detects usage of old versions of or-patterns
 #![warn(rust_2021_prefixes_incompatible_syntax)] //     identifiers that will be parsed as a prefix in Rust 2021
 #![warn(rust_2021_prelude_collisions)] //     detects the usage of trait methods which are ambiguous with traits added to the prelude in future editions
 //#![warn(rust_2024_incompatible_pat)] //     detects patterns whose meaning will change in Rust 2024
+#![warn(rust_2024_prelude_collisions)] //    detects the usage of trait methods which are ambiguous with traits added to the prelude in future editions
 #![warn(single_use_lifetimes)] //     detects lifetime parameters that are only used once
+#![warn(tail_expr_drop_order)] //    Detect and warn on significant change in drop order in tail expression location
 #![warn(trivial_casts)] //     detects trivial casts which could be removed
 #![expect(trivial_numeric_casts)] //     detects trivial casts of numeric types which could be removed
 #![warn(unit_bindings)] //     binding is useless because it has the unit `()` type
@@ -125,9 +141,9 @@ it has a child DF that has been selected.
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 
-#![allow(clippy::doc_lazy_continuation)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::too_many_lines)]
+#![warn(clippy::doc_lazy_continuation)]
+#![warn(clippy::similar_names)]
+#![warn(clippy::too_many_lines)]
 
 use std::cmp::{min, max};
 use std::os::raw::{c_char, c_ulong, c_void};
@@ -248,7 +264,7 @@ mod crypto;
 /// There are some functions implemented in OpenSC and available from a static libopensc.a library
 /// (typically not made available by distribution packages),
 /// but not available from a dynamically linked libopensc.so/.dll library.
-/// The solution should be, to convince OpenSC maintainers to export those `missing export functions'
+/// The solution should be, to convince OpenSC maintainers to export those 'missing export functions'
 /// as well.
 /// In the meantime, I duplicated the code of valuable non-callable functions via this module.
 mod missing_exports;
@@ -331,9 +347,9 @@ mod   test_v2_v3;
 /// call site: function load_dynamic_driver, close to:
 /// libopensc/ctx.c:515:    *(void **)tmodv = sc_dlsym(handle, "sc_driver_version");
 /// @return   The `OpenSC` release/imaginary version, that this driver implementation supports
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sc_driver_version() -> *const c_char {
-    let version_ptr = unsafe { sc_get_version() };
+    let version_ptr = sc_get_version();
     if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0))  { version_ptr }
     // v0_26_0: experimental only:  Latest OpenSC gitHub master commit covered: 21ba386
     else  { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
@@ -347,7 +363,7 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 /// # Safety
 ///
 /// This function should not be called before the horsemen are ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> *mut c_void {
     if !name.is_null() && unsafe { CStr::from_ptr(name) } == CARD_DRV_SHORT_NAME {
         acos5_get_card_driver as *mut c_void
@@ -2629,7 +2645,7 @@ println!();
 /// @param  `taglen`   OUT    Receiving address for: Number of bytes available in V\
 /// @return          `SC_SUCCESS`  or error code\
 /// On error, buf may have been set to NULL, and (except on `SC_ERROR_ASN1_END_OF_CONTENTS`) no OUT param gets set\
-/// OUT `tag_out` and `taglen` are guaranteed to have values set on `SC_SUCCESS`  (`cla_out` only, if also (buf[0] != 0xff && buf[0] != 0))\
+/// OUT `tag_out` and `taglen` are guaranteed to have values set on `SC_SUCCESS`  (`cla_out` only, if also (buf\[0\] != 0xff && buf\[0\] != 0))\
 extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
                                     algorithm: u32,
                                     key_path_ptr: *mut sc_path,

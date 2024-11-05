@@ -92,71 +92,91 @@ unloaded by: src/pkcs15init/pkcs15-lib.c:sc_pkcs15init_unbind
 Message in debug_file: successfully loaded pkcs15init driver 'acos5-external'
 */
 
-#![warn(absolute_paths_not_starting_with_crate)]
-#![warn(deprecated_safe)]
-#![warn(elided_lifetimes_in_paths)]
-#![warn(explicit_outlives_requirements)]
-#![warn(ffi_unwind_calls)]
-//#![warn(fuzzy_provenance_casts)]
-//#![warn(impl_trait_overcaptures)]
-#![warn(keyword_idents_2018)]
-#![warn(keyword_idents_2024)]
-#![warn(let_underscore_drop)]
-//#![warn(lossy_provenance_casts)]
-#![warn(macro_use_extern_crate)]
-#![warn(meta_variable_misuse)]
-#![warn(missing_abi)]
+#![warn(rustdoc::broken_intra_doc_links)]
+#![warn(rustdoc::private_intra_doc_links)]
+#![warn(rustdoc::missing_crate_level_docs)]
+//#![warn(rustdoc::missing_doc_code_examples)]
 
-////#![warn(missing_copy_implementations)]
-#![warn(missing_debug_implementations)]
-////#![warn(missing_docs)]
-#![warn(missing_unsafe_on_extern)]
-//#![warn(multiple_supertrait_upcastable)]
-//#![warn(must_not_suspend)]
-#![warn(non_ascii_idents)]
-//#![warn(non_exhaustive_omitted_patterns)]
-#![warn(non_local_definitions)]
-#![warn(redundant_lifetimes)]
-#![warn(rust_2021_incompatible_closure_captures)]
-#![warn(rust_2021_incompatible_or_patterns)]
-#![warn(rust_2021_prefixes_incompatible_syntax)]
-#![warn(rust_2021_prelude_collisions)]
-//#![warn(rust_2024_incompatible_pat)]
-#![warn(single_use_lifetimes)]
-#![warn(trivial_casts)]
-////#![warn(trivial_numeric_casts)]
-#![warn(unit_bindings)]
-////#![warn(unnameable_types)]
-////#![warn(unreachable_pub)]
-//#![warn(unsafe_code)]
-#![warn(unsafe_op_in_unsafe_fn)]
-#![warn(unstable_features)]
-#![warn(unused_crate_dependencies)]
-#![warn(unused_extern_crates)]
-#![warn(unused_import_braces)]
-#![warn(unused_lifetimes)]
-////#![warn(unused_macro_rules)]
-#![warn(unused_qualifications)]
-#![warn(unused_results)]
-#![warn(variant_size_differences)]
+#![expect(rustdoc::private_doc_tests)]
+#![warn(rustdoc::invalid_codeblock_attributes)]
+#![warn(rustdoc::invalid_html_tags)]
+#![warn(rustdoc::invalid_rust_codeblocks)]
+#![warn(rustdoc::bare_urls)]
+#![warn(rustdoc::unescaped_backticks)]
+#![warn(rustdoc::redundant_explicit_links)]
 
+#![warn(absolute_paths_not_starting_with_crate)] //    fully qualified paths that start with a module name instead of `crate`, `self`, or an extern crate name
+#![warn(ambiguous_negative_literals)] //    ambiguous negative literals operations
+//#![warn(closure_returning_async_block)] //     closure that returns `async {}` could be rewritten as an async closure
+#![warn(deprecated_in_future)] //     detects use of items that will be deprecated in a future version
+#![warn(deprecated_safe_2024)] //     detects unsafe functions being used as safe functions
+#![expect(edition_2024_expr_fragment_specifier)] //     The `expr` fragment specifier will accept more expressions in the 2024 edition. To keep the existing behavior, use the `expr_2021` fragment specifier.
+#![warn(elided_lifetimes_in_paths)] //     hidden lifetime parameters in types are deprecated
+#![warn(explicit_outlives_requirements)] //     outlives requirements can be inferred
+#![warn(ffi_unwind_calls)] //     call to foreign functions or function pointers with FFI_unwind ABI
+//#![warn(fuzzy_provenance_casts)] //     a fuzzy integer to pointer cast is used
+
+#![warn(impl_trait_overcaptures)] //     `impl Trait` will capture more lifetimes than possibly intended in edition 2024
+#![warn(keyword_idents_2018)] //     detects edition keywords being used as an identifier
+#![warn(keyword_idents_2024)] //     detects edition keywords being used as an identifier
+#![warn(let_underscore_drop)] //     non-binding let on a type that implements `Drop`
+//#![warn(lossy_provenance_casts)] //     a lossy pointer to integer cast is used
+#![warn(macro_use_extern_crate)] //     the `#[macro_use]` attribute is now deprecated in favor of using macros via the module system
+#![warn(meta_variable_misuse)] //     possible meta-variable misuse at macro definition
+#![warn(missing_abi)] //     No declared ABI for extern declaration
+#![warn(missing_copy_implementations)] //     detects potentially-forgotten implementations of `Copy`
+#![warn(missing_debug_implementations)] //     detects missing implementations of Debug
+//// #![warn(missing_docs)] //     detects missing documentation for public members
+#![warn(missing_unsafe_on_extern)] //     detects missing unsafe keyword on extern declarations
+//#![warn(multiple_supertrait_upcastable)] //     detect when an object-safe trait has multiple supertraits
+//#![warn(must_not_suspend)] //     use of a `#[must_not_suspend]` value across a yield point
+#![warn(non_ascii_idents)] //     detects non-ASCII identifiers
+//#![warn(non_exhaustive_omitted_patterns)] //     detect when patterns of types marked `non_exhaustive` are missed
+#![warn(non_local_definitions)] //     checks for non-local definitions
+#![warn(redundant_imports)] //    imports that are redundant due to being imported already
+#![warn(redundant_lifetimes)] //     detects lifetime parameters that are redundant because they are equal to some other named lifetime
+#![warn(rust_2021_incompatible_closure_captures)] //     detects closures affected by Rust 2021 changes
+#![warn(rust_2021_incompatible_or_patterns)] //     detects usage of old versions of or-patterns
+#![warn(rust_2021_prefixes_incompatible_syntax)] //     identifiers that will be parsed as a prefix in Rust 2021
+#![warn(rust_2021_prelude_collisions)] //     detects the usage of trait methods which are ambiguous with traits added to the prelude in future editions
+//#![warn(rust_2024_incompatible_pat)] //     detects patterns whose meaning will change in Rust 2024
+#![warn(rust_2024_prelude_collisions)] //    detects the usage of trait methods which are ambiguous with traits added to the prelude in future editions
+#![warn(single_use_lifetimes)] //     detects lifetime parameters that are only used once
+#![warn(tail_expr_drop_order)] //    Detect and warn on significant change in drop order in tail expression location
+#![warn(trivial_casts)] //     detects trivial casts which could be removed
+#![expect(trivial_numeric_casts)] //     detects trivial casts of numeric types which could be removed
+#![warn(unit_bindings)] //     binding is useless because it has the unit `()` type
+#![expect(unnameable_types)] //     effective visibility of a type is larger than the area in which it can be named
+#![expect(unreachable_pub)] //     `pub` items not reachable from crate root
+#![warn(unsafe_attr_outside_unsafe)] //     detects unsafe attributes outside of unsafe
+#![expect(unsafe_code)] //     usage of `unsafe` code and other potentially unsound constructs
+#![warn(unsafe_op_in_unsafe_fn)] //     unsafe operations in unsafe functions without an explicit unsafe block are deprecated
+#![warn(unstable_features)] //     enabling unstable features
+#![warn(unused_crate_dependencies)] //     crate dependencies that are never used
+#![warn(unused_extern_crates)] //     extern crates that are never used
+#![warn(unused_import_braces)] //     unnecessary braces around an imported item
+#![warn(unused_lifetimes)] //     detects lifetime parameters that are never used
+#![expect(unused_macro_rules)] //     detects macro rules that were not used
+#![warn(unused_qualifications)] //     detects unnecessarily qualified names
+#![warn(unused_results)] //     unused result of an expression in a statement
+#![warn(variant_size_differences)] //     detects enums with widely varying variant sizes
 
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 
-#![allow(unused_macros)]  // unused macro definition: `log3ift`
-#![allow(clippy::doc_lazy_continuation)]
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::similar_names)]
-#![allow(clippy::too_many_arguments)]
-#![allow(clippy::too_many_lines)]
+#![expect(unused_macros)]  // unused macro definition: `log3ift`
+#![warn(clippy::doc_lazy_continuation)]
+#![warn(clippy::doc_markdown)]
+#![warn(clippy::similar_names)]
+#![warn(clippy::too_many_arguments)]
+#![warn(clippy::too_many_lines)]
 
 use libc::free; // strlen
 //use pkcs11::types::{CKM_DES_ECB, CKM_DES3_ECB, CKM_AES_ECB};
 
 use std::os::raw::{c_char, c_void};
 use std::ffi::{CStr, CString};
-use std::ptr::{null_mut, addr_of_mut, from_mut};
+use std::ptr::{null_mut, from_mut};
 use std::slice::from_raw_parts;
 use function_name::named;
 use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_select_file, sc_card_ctl, SC_ALGORITHM_DES,
@@ -243,9 +263,9 @@ const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 /// In this example, cfg!(v0_23_0) will then match that
 ///
 /// @return   The OpenSC release/imaginary version, that this driver implementation supports
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn sc_driver_version() -> *const c_char {
-    let version_ptr = unsafe { sc_get_version() };
+    let version_ptr = sc_get_version();
     if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0))  { version_ptr }
     // v0_26_0: experimental only:  Latest OpenSC gitHub master commit covered: 21ba386
     else  { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
@@ -255,7 +275,7 @@ pub extern "C" fn sc_driver_version() -> *const c_char {
 /// # Safety
 ///
 /// This function should not be called before the horsemen are ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn sc_module_init(name: *const c_char) -> *mut c_void {
     if !name.is_null() && unsafe { CStr::from_ptr(name) } == CARD_DRV_SHORT_NAME {
         acos5_get_pkcs15init_ops as *mut c_void
@@ -328,14 +348,14 @@ extern "C" fn acos5_pkcs15_erase_card(profile_ptr: *mut sc_profile, p15card_ptr:
     if profile_ptr.is_null() || p15card_ptr.is_null() || unsafe { (*p15card_ptr).card.is_null() || (*(*p15card_ptr).card).ctx.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
-    let card     = unsafe { &mut *(*p15card_ptr).card };
+    let card = unsafe { &mut *(*p15card_ptr).card };
     let ctx = unsafe { &mut *card.ctx };
     let f_cstr = CString::new(function_name!()).expect("CString::new failed");
-    let f = f_cstr.as_c_str(); // c"acos5_match_card";
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
     let mut rv;
     {
-        let mut file = unsafe { sc_file_new() };
+        let mut file = sc_file_new();
         let guard_file = GuardFile::new(&mut file);
         unsafe { (*file).path = sc_path { value: [0x3F,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], len: 2, ..sc_path::default() } };
         /* Authenticate arbitrary op that's protected by SOPIN */
@@ -1148,7 +1168,7 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
     }
 */
     //gen_keypair; the data get prepared in acos5_pkcs15_create_key
-    rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, addr_of_mut!(agc).cast::<c_void>()) };
+    rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, (&raw mut agc).cast::<c_void>()) };
     if rv != SC_SUCCESS {
         log3ifr!(ctx,f,line!(), c"command 'Generate Key Pair' failed", rv);
         return rv;
@@ -1162,7 +1182,7 @@ extern "C" fn acos5_pkcs15_generate_key(profile_ptr: *mut sc_profile,
         key_info_pub.field_length = key_info_priv.field_length;   /* EC in bits */
     }
     let object_pub = sc_pkcs15_object { type_:  if agc.key_curve_code == 0 {SC_PKCS15_TYPE_PUBKEY_RSA} else {SC_PKCS15_TYPE_PUBKEY_EC},
-        data: addr_of_mut!(key_info_pub).cast::<c_void>(),  ..sc_pkcs15_object::default() };
+        data: (&raw mut key_info_pub).cast::<c_void>(),  ..sc_pkcs15_object::default() };
     let mut p15pubkey2_ptr = null_mut();
     rv = unsafe { sc_pkcs15_read_pubkey(p15card_ptr, &object_pub, &mut p15pubkey2_ptr) };
     if rv != SC_SUCCESS {

@@ -24,7 +24,6 @@ use std::os::raw::c_void;
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
 use std::os::raw::c_ulong;
 use std::collections::HashSet;
-use std::ptr::addr_of_mut;
 #[cfg(not(target_os = "windows"))]
 use std::ptr::null_mut;
 use std::cmp::Ordering;
@@ -313,7 +312,7 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
     let unused_len = DirectoryRange::new(&rbuf_priv).unused_len();
 //println!("SC_PKCS15_PRKDF: unused_len: {} of available {},\nfile_priv: {:X?}", unused_len, rv, unsafe {*file_priv});
     let mut card_free_space : u32 = 0;
-    rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FREE_SPACE, addr_of_mut!(card_free_space).cast::<c_void>()) };
+    rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FREE_SPACE, (&raw mut card_free_space).cast::<c_void>()) };
     assert_eq!(SC_SUCCESS, rv);
     let key_pair_size_req = key_info.modulus_length/16 * 7 + 26; // min. is 250 bytes for RSA/512
     if  key_pair_size_req > card_free_space.try_into().unwrap() { return Err(SC_ERROR_NOT_ENOUGH_MEMORY); }
@@ -386,7 +385,7 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
     if rv != size_pub.try_into().unwrap()  { return Err(-1); }
     let unused_len = DirectoryRange::new(&rbuf_pub).unused_len();
 //println!("SC_PKCS15_PUKDF: unused_len: {} of available {},\nfile_pub: {:X?}", unused_len, rv, unsafe {*file_pub});
-    rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FREE_SPACE, addr_of_mut!(card_free_space).cast::<c_void>()) };
+    rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FREE_SPACE, (&raw mut card_free_space).cast::<c_void>()) };
     assert_eq!(SC_SUCCESS, rv);
     if  key_pair_size_req > card_free_space.try_into().unwrap() { return Err(SC_ERROR_NOT_ENOUGH_MEMORY); }
     if unused_len < 80  &&  key_pair_size_req + INC <= card_free_space.try_into().unwrap() {
@@ -489,7 +488,7 @@ fn prefix_sym_key(card: &mut sc_card,
     }
 
     let mut card_ctl_algo_ref_sym_store = CardCtlAlgoRefSymStore { card_type: card.type_, algorithm, key_len_bytes, value: 0 };
-    let rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE, addr_of_mut!(card_ctl_algo_ref_sym_store).cast::<c_void>()) };
+    let rv = unsafe { sc_card_ctl(card, SC_CARDCTL_ACOS5_ALGO_REF_SYM_STORE, (&raw mut card_ctl_algo_ref_sym_store).cast::<c_void>()) };
     assert_eq!(SC_SUCCESS, rv);
     res.push(card_ctl_algo_ref_sym_store.value);
 /*

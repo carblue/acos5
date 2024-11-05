@@ -211,7 +211,7 @@ pub const SC_ERROR_UNKNOWN                       : i32 =  -1900;
 /// "PKCS#15 compatible smart card not found"
 pub const SC_ERROR_PKCS15_APP_NOT_FOUND          : i32 =  -1901;
 
-extern "C" {
+unsafe extern "C" {
     /// Returns the text (C string) associated with the error number `sc_errno` defined in this module.
     ///
     /// @param sc_errno  IN:<br>

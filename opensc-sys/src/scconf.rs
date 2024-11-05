@@ -93,7 +93,7 @@ pub struct scconf_context {
 }
 
 
-extern "C" {
+unsafe extern "C" {
     /* Allocate scconf_context
      * The filename can be NULL
      * field filename get's strdup'ed if non-NULL

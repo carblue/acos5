@@ -1,15 +1,32 @@
 Help wanted from users of an EVO card or CryptoMate EVO:
-As I stated several times, my hardware, a CryptoMate EVO USB c
+As I stated several times, my hardware, a CryptoMate EVO cryptographic USB Token seems to be buggy, or the underlying software: Recurrent it stops to work, seems to need a reset?
+Reports from EVO users might help to isolate the problem.
 
 
 # acos5  
 [![Build Status](https://travis-ci.org/carblue/acos5.svg?branch=master)](https://travis-ci.org/carblue/acos5)
 
 Driver for Advanced Card Systems (ACS)  ACOS5 Smart Card<br>
-  V2.00 (CryptoMate64),<br>
-  V3.00 (CryptoMate Nano),<br>
-  V4.X0 EVO (CryptoMate EVO)<br>
-as external modules, operating within the OpenSC software framework (versions supported: 0.20.0 - 0.25.1).
+  V2.00 ([CryptoMate64](https://www.acs.com.hk/en/products/18/cryptomate64-usb-cryptographic-tokens/ " https://www.acs.com.hk/en/products/18/cryptomate64-usb-cryptographic-tokens/"))<br>
+  V3.00 ([CryptoMate Nano (T2)](https://www.acs.com.hk/en/products/414/cryptomate-nano-cryptographic-usb-tokens/ "https://www.acs.com.hk/en/products/414/cryptomate-nano-cryptographic-usb-tokens/")),<br>
+  V4.X0 EVO ([CryptoMate EVO](https://www.acs.com.hk/en/products/494/cryptomate-evo-cryptographic-usb-tokens/ "https://www.acs.com.hk/en/products/494/cryptomate-evo-cryptographic-usb-tokens/"))<br>
+as external modules, operating within the [OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki") software framework (versions supported: 0.20.0 - 0.26.0).
+
+
+Motivation:
+For OS/platform-independent, serious use of a cryptographic hardware/token from software like Firefox, Thunderbird, ssh etc., a [PKCS#11](https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11 "https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11") implementing library is required.
+There is none known to me for ACOS5 that is open-source, nothing in this regard downloadable from ACS for free, instead, one has to pay a lot more for a proprietary ACS PKCS#11 library (bundled with some other software) than for a single hardware token. They even have a proprietary ACS PKCS#11 library for Linux, but don't advertise that, and probably it also needs to be paid.
+
+The only open-source software downloadable from ACS is [acsccid](https://github.com/acshk/acsccid "https://github.com/acshk/acsccid"), a PC/SC driver for Linux/Mac OS X. PC/SC or WinSCard (Windows) is just the basic layer on which a PKCS#11 implementing library can build upon. I never installed acsccid for production use of my CryptoMate64 and CryptoMate Nano, hence the debian/ubuntu-supplied [ccid](https://ccid.apdu.fr/ "https://ccid.apdu.fr/") seems to be sufficient (if it's new enough to list those cards as supported ones: [shouldwork](https://ccid.apdu.fr/ccid/shouldwork.html "https://ccid.apdu.fr/ccid/shouldwork.html")).
+So be careful what You get from ACS when it's called driver. Perhaps You get something that is behind the "File Upon Request" barrier.
+
+[OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki") supplies i.a. a PKCS#11 implementing open-source library (onepin-opensc-pkcs11.so/opensc-pkcs11.so) if it get's augmented by a hardware specific driver, which is missing currently for ACOS5 smart cards in OpenSC v0.25.1, and the one available in previous versions was rudimentary/incomplete; hence excluded for good reasons.
+
+With this repo's components 'acos5' and 'acos5_pkcs15' as plug-ins, OpenSC now supports some ACOS5 hardware as well. (Fortunately OpenSC allows such plug-ins as - in OpenSC lingo - external modules/shared libraries/DLL).
+External modules need some configuration once in opensc.conf, such that they get 'registered' and used by OpenSC software, explained below.
+
+For some reason (that I don't recall now) I didn't decide for [openCryptoki](https://www.ibm.com/docs/en/linux-on-systems?topic=stack-opencryptoki-overview "https://www.ibm.com/docs/en/linux-on-systems?topic=stack-opencryptoki-overview") (which also consists of an implementation of the PKCS #11 API), but it looks like it would have been an eligible alternative for me to implement ACOS5 hardware specific stuff for an open-source PKCS#11 library [github/opencryptoki](https://github.com/opencryptoki/opencryptoki "https://github.com/opencryptoki/opencryptoki").
+
 
 Support for the EVO chip is given partially, work in progress to be completed. By default, this hardware is operated in protocol T=1 (different from the other supported hardware, T=0). OpenSC wants to handle the APDU case 'SC_APDU_CASE_4_SHORT' differently for T=0/T=1 protocols, but that's not how the ACOS5 EVO behaves. Thus, currently, for the EVO card only, patching OpenSC source code is required (use file diff_apdu_c.txt) like that:<br>
 
@@ -20,27 +37,13 @@ The respective reference manual for Your hardware is available on request from: 
 Platforms supported: Those that the Rust compiler targets: [rustc platform-support](https://doc.rust-lang.org/nightly/rustc/platform-support.html "https://doc.rust-lang.org/nightly/rustc/platform-support.html").
 Platforms tested: Those that I use:  
 Linux/Kubuntu 24.04 LTS (extensively tested, everything implemented works as expected),
-Windows 11 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: SM and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Seems to be a privileges/access right issue. Note that, for the time being, after all this annoying, time consuming hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow i.a. for sanity-check).
+Windows 11 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: Secure Messaging (SM) and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Seems to be a privileges/access right issue. Note that, for the time being, after all this annoying, time consuming hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow i.a. for sanity-check).
 
 In the future, I'll test only Linux and the latest OpenSC version supported, which is 0.25.1 currently. It's advised to install that OpenSC version.
 Also, testing will be limited to 1 hardware version, which is CryptoMate64 currently.
 
 Release tags get added irregularly, mainly i.o. to refer to something from `acos5_gui` (as a minimum driver release requirement). In any case, master's HEAD has the best driver code for You.
 
-
-Motivation:  
-For OS/platform-independent, serious use of a cryptographic hardware/token from software like Firefox, Thunderbird, ssh etc., a [PKCS#11](https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11 "https://www.oasis-open.org/committees/tc_home.php?wg_abbrev=pkcs11") implementing library is required.
-There is none known to me for ACOS5 that is open-source, nothing in this regard downloadable from ACS for free, instead, one has to pay a lot more for a proprietary ACS PKCS#11 library (bundled with some other software) than for a single hardware token. They even have a proprietary ACS PKCS#11 library for Linux, but don't advertise that, and probably it also needs to be paid.
-
-The only open-source software downloadable from ACS is [acsccid](https://github.com/acshk/acsccid "https://github.com/acshk/acsccid"), a PC/SC driver for Linux/Mac OS X. PC/SC or WinSCard (Windows) is just the basic layer on which a PKCS#11 implementing library can build upon. I never installed acsccid for production use of my CryptoMate64 and CryptoMate Nano, hence the debian/ubuntu-supplied [ccid](https://ccid.apdu.fr/ "https://ccid.apdu.fr/") seems to be sufficient (if it's new enough to list those cards as supported ones: [shouldwork](https://ccid.apdu.fr/ccid/shouldwork.html "https://ccid.apdu.fr/ccid/shouldwork.html")).
-So be careful what You get from ACS when it's called driver. Perhaps You get something that is behind the "File Upon Request" barrier.
-
-[OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki") supplies i.a. a PKCS#11 implementing open-source library (onepin-opensc-pkcs11.so/opensc-pkcs11.so) if it get's augmented by a hardware specific driver, which is missing currently for ACOS5 smart cards in OpenSC v0.25.1, and the one available in previous versions was rudimentary/incomplete; hence excluded for good reasons.
-
-With this repo's components 'acos5' and 'acos5_pkcs15' as plug-ins, OpenSC now supports some ACOS5 hardware as well. (Fortunately OpenSC allows such plug-ins as - in OpenSC lingo - external modules/shared libraries/DLL).  
-External modules need some configuration once in opensc.conf, such that they get 'registered' and used by OpenSC software, explained below.
-
-For some reason (that I don't recall now) I didn't decide for [openCryptoki](https://www.ibm.com/docs/en/linux-on-systems?topic=stack-opencryptoki-overview "https://www.ibm.com/docs/en/linux-on-systems?topic=stack-opencryptoki-overview") (which also consists of an implementation of the PKCS #11 API), but it looks like it would have been an eligible alternative for me to implement ACOS5 hardware specific stuff for an open-source PKCS#11 library [github/opencryptoki](https://github.com/opencryptoki/opencryptoki "https://github.com/opencryptoki/opencryptoki").
 
 Prerequisite installations  
 Mandatory:  
@@ -70,7 +73,8 @@ This repo builds 2 dll/shared object libraries:
 - libacos5_pkcs15.so/dylib/dll, which is theoretically optional, but very likely required if the token isn't used read-only; e.g. storing/generating keys on-card requires this.  
 In the following I won't make any distinction anymore and call both 'the driver' for ACOS5.
 
-This repo also builds a library from the included opensc-sys binding for internal use. It's the basic building block for the driver components in order to be able to call into the libopensc.so library, the backbone/workhorse of OpenSC.  
+This repo also builds a library from the included opensc-sys binding for internal use. It's the basic building block for the driver components in order to be able to call into the libopensc.so/.dll library, the backbone/workhorse of OpenSC.  
+There is also a complete binding included towards libtasn1 and a binding to a small subset of OpenSSL functions used.  
 The minimal OpenSC version supported is 0.20.0 now. Former support of 0.17.0 - 0.19.0 was dropped.
 
 All these builds will be tied to the OpenSC version installed on Your pc, so that installation must be done first. Then, for all 3 builds there are files build.rs which get processed prior to the remaining build and control how that will be done (conditional compilation, see [conditional_compile_options](https://github.com/carblue/acos5/tree/master/conditional_compile_options.md "https://github.com/carblue/acos5/tree/master/conditional_compile_options.md")). The first one will detect the OpenSC version installed, adapt the opensc_sys binding to that version and pass the version info to the other builds.
@@ -122,8 +126,8 @@ Thus a sanity-check without any errors found should prevent the driver from beco
    I have resumed my efforts to let the 'rustdoc' tool produce good documentation. Also out of my own interest, especially with regard to the 'opensc-sys' binding:
    That is poorly documented by OpenSC.
    I hope, the doc helps understanding what goes on in driver's source code.
-   Build it, if You like:
-   `user@host:~/path/to/acos5_root_downloaded$  cargo doc --open`.
+   Build it, if You like:<br>
+   `user@host:~/path/to/acos5_root_downloaded$  cargo doc --open --document-private-items`  
    The doc will be built into directory target/doc/acos5, file index.html
 
 When You change/update Your OpenSC installation: Only step 1 (and 5: rebuilding the driver, adapted to the new version und it's documentation) needs to be redone, and as I don't know whether Rust's rerun feature is reliable, I first delete folder target and file Cargo.lock, then (re-)build the driver.
@@ -301,3 +305,18 @@ Recommended info:
 
 < not yet:[changelog.md](https://github.com/carblue/acos5/tree/master/changelog.md "https://github.com/carblue/acos5/tree/master/changelog.md"): Recent commits (notable ones that deserve some verbosity) >
 
+
+In it's card header block there is a byte at EEPROM address 0xC191 called "Compatibility Byte" or "Operation Mode Byte" or "Configuration Mode Byte". It may be changed only as long as the card is virgin.
+This driver is usable/defined only for specific "Compatibility Byte" settings, not for any arbitrary setting:
+
+ACOS5 Smart Card V2.00 (CryptoMate64): Only the default byte setting 0x00 is supported, which is the ordinary ACOS5-64 mode. Any other byte setting would trigger the ACOS5-32 backward compatibility mode, which is *NOT* supported. There is no software function to query the byte setting, thus it's the users responsibility to make sure, that value zero is set!
+
+
+ACOS5 Smart Card V3.00 (CryptoMate Nano): Only the non-default byte setting 0x02 (64K Mode) is safely supported. The "Emulated 32K Mode" (byte setting 0x01) is *NOT* supported. Wheether this software works for the "NSH-1 Mode": I don't know, the reference manual tells absolutely nothing about that mode (and what is different/characteristic). Again for the "FIPS 140-2 Level 3–Compliant Mode": The refernce manual is unable to instruct exactly, how to fulfill all the requirements for FIPS mode: The card supports a command "Verify FIPS Compliance". It returns 0x9000, if the card file system and settings are FIPS140-2 Level 3 compliant. I never succeeded to receive a success return !! Thus I couldn't test for a statement of support for this mode: You are at Your own risk in this mode.
+
+ACOS5 Smart Card V4.X0 EVO (CryptoMate EVO): Only the default byte setting 0x01 is supported, because the only othe mode, "FIPS 140-2 Level 3" wasn't yet tested.
+
+Currently, the above statement "This driver is usable/defined only for specific "Compatibility Byte" settings"
+doesn't get enforced for
+ACOS5 Smart Card V3.00 or V4.X0 EVO, but theoretically possible, as those hardeware versions support a function to query the byte setting.
+Future code will have a compiler switch (conditional compilation) in order to enforce the statement (except for ACOS5 Smart Card V2.00 / CryptoMate64)

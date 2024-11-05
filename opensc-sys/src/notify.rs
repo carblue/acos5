@@ -26,7 +26,7 @@ use crate::opensc::sc_context;
 use crate::strings::ui_str;
 use crate::pkcs15::sc_pkcs15_card;
 
-extern "C" {
+unsafe extern "C" {
 pub fn sc_notify_init();
 pub fn sc_notify_close();
 pub fn sc_notify(title: *const c_char, text: *const c_char);

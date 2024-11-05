@@ -33,23 +33,20 @@ use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_
                          SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
                          SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA, SC_SEC_ENV_KEY_REF_PRESENT,
                          SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_get_iso7816_driver, SC_SEC_ENV_ALG_REF_PRESENT,
-                         sc_format_apdu, sc_file_new, sc_file_get_acl_entry, sc_check_apdu, sc_list_files,
+                         sc_file_get_acl_entry, sc_check_apdu, sc_list_files, //sc_format_apdu, sc_file_new,
                          sc_set_security_env, sc_get_challenge, sc_get_mf_path, SC_ALGORITHM_EC,
                          SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_ALGORITHM_AES,
                          SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT, SC_PIN_STATE_UNKNOWN};
-//                         ,SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM
-//use opensc_sys::opensc::{SC_SEC_ENV_KEY_REF_SYMMETRIC};
-use opensc_sys::opensc::{SC_ALGORITHM_AES_CBC_PAD, SC_SEC_OPERATION_UNWRAP,
-                         SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB, sc_sec_env_param, SC_SEC_ENV_PARAM_IV
+use opensc_sys::opensc::{sc_sec_env_param, SC_SEC_ENV_PARAM_IV, SC_SEC_OPERATION_UNWRAP,
+                         SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB
 };
 
-use opensc_sys::types::{sc_object_id,sc_apdu, /*sc_aid, sc_path, SC_MAX_AID_SIZE, SC_MAX_PATH_SIZE, sc_file_t,
-    SC_MAX_ATR_SIZE, SC_FILE_TYPE_DF,  */  sc_path, sc_file, SC_PATH_TYPE_FILE_ID,// SC_PATH_TYPE_PATH,
-                        SC_MAX_APDU_BUFFER_SIZE, SC_MAX_PATH_SIZE, SC_APDU_FLAGS_CHAINING,
-                        SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT,
-                        SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH, SC_PATH_TYPE_FROM_CURRENT, SC_PATH_TYPE_PARENT,
+use opensc_sys::types::{sc_object_id, sc_path, sc_file, sc_acl_entry, SC_PATH_TYPE_FILE_ID,
+                        SC_MAX_PATH_SIZE, SC_APDU_FLAGS_CHAINING,
+                        SC_APDU_CASE_1, SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT,
+                        SC_PATH_TYPE_DF_NAME,
                         SC_AC_NONE, SC_AC_CHV, SC_AC_TERM, SC_AC_PRO, SC_AC_AUT, SC_AC_SYMBOLIC, SC_AC_SEN, SC_AC_SCB, SC_AC_IDA, SC_AC_SESSION/*, SC_AC_CONTEXT_SPECIFIC*/, SC_AC_UNKNOWN, SC_AC_NEVER,
-                        sc_acl_entry, SC_MAX_AC_OPS
+                        SC_MAX_AC_OPS
                         ,SC_AC_OP_READ
                         ,SC_AC_OP_UPDATE
                         ,SC_AC_OP_CRYPTO
@@ -66,12 +63,12 @@ use opensc_sys::errors::{/*SC_ERROR_NO_READERS_FOUND, SC_ERROR_UNKNOWN, SC_ERROR
                          SC_SUCCESS, SC_ERROR_INVALID_ARGUMENTS, //SC_ERROR_KEYPAD_TIMEOUT,
                          SC_ERROR_KEYPAD_MSG_TOO_LONG,/*, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL*/
 SC_ERROR_WRONG_LENGTH, SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT_FOUND, SC_ERROR_INCORRECT_PARAMETERS, SC_ERROR_CARD_CMD_FAILED,
-SC_ERROR_OUT_OF_MEMORY, SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_NO_CARD_SUPPORT,
-SC_ERROR_SM_RAND_FAILED, SC_ERROR_KEYPAD_TIMEOUT, SC_ERROR_INVALID_DATA
+SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_SECURITY_STATUS_NOT_SATISFIED, SC_ERROR_NO_CARD_SUPPORT, //SC_ERROR_OUT_OF_MEMORY,
+                         SC_ERROR_SM_RAND_FAILED, SC_ERROR_KEYPAD_TIMEOUT, SC_ERROR_INVALID_DATA
 };
 use opensc_sys::internal::sc_atr_table;
-use opensc_sys::asn1::sc_asn1_read_tag;
-use opensc_sys::iso7816::{ISO7816_TAG_FCI, ISO7816_TAG_FCP};
+//use opensc_sys::asn1::sc_asn1_read_tag;
+//use opensc_sys::iso7816::{ISO7816_TAG_FCI, ISO7816_TAG_FCP};
 use opensc_sys::sm::{SM_SMALL_CHALLENGE_LEN, SM_CMD_FILE_READ, SM_CMD_FILE_UPDATE};
 
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_t, wr_do_log_tu,/* wr_do_log_tt, wr_do_log_ttt,*/
@@ -95,12 +92,12 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
 };
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, current_path_df, is_impossible_file_match};
-use crate::missing_exports::me_get_max_recv_size;
+//use crate::missing_exports::me_get_max_recv_size;
 use crate::cmd_card_info::is_pin_authenticated;
 use crate::sm::{SM_SMALL_CHALLENGE_LEN_u8, sm_common_read, sm_common_update};
 use crate::crypto::{RAND_bytes, des_ecb3_unpadded_8, Encrypt};
 
-use super::acos5_process_fci;/*, acos5_list_files, acos5_select_file, acos5_set_security_env*/
+//use super::acos5_process_fci;/*, acos5_list_files, acos5_select_file, acos5_set_security_env*/
 
 #[allow(dead_code)] // currently unused
 #[cold]
@@ -281,7 +278,7 @@ thus issue a correct APDU right away
 The code differs from the C version in 1 line only, where setting apdu.p2 = 0x0C;
 */
 
-/**/
+/*
 ///
 /// # Panics
 ///
@@ -436,7 +433,7 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
         if apdu.resplen == 0 {
             /* For some cards 'SELECT' MF or DF_NAME do not return FCI. */
             if select_mf>0 || pathtype == SC_PATH_TYPE_DF_NAME {
-                let file = match unsafe { sc_file_new() }  {
+                let file = match sc_file_new()  {
                     ptr if ptr.is_null() =>
                         return log3ifr_ret!(ctx,f,line!(), SC_ERROR_OUT_OF_MEMORY),
                     ptr => unsafe { &mut *ptr },
@@ -455,7 +452,7 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
     match unsafe { *apdu.resp } {
         ISO7816_TAG_FCI |
         ISO7816_TAG_FCP => {
-            let file : &mut sc_file = match unsafe { sc_file_new() }  {
+            let file = match sc_file_new()  {
                 ptr if ptr.is_null() =>
                     return log3ifr_ret!(ctx,f,line!(), SC_ERROR_OUT_OF_MEMORY),
                 ptr => unsafe { &mut *ptr },
@@ -484,7 +481,7 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
 
     log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
 } // iso7816_select_file_replica
-/**/
+*/
 
 /*
 The task of tracking_select_file next to SELECT:
@@ -2334,8 +2331,8 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
 
 // when update_hashmap returns all entries have: 1. path, 2. File Info: [u8; 8], 3. scb8: Option<[u8; 8]>.is_some, 4. for DF s, SACinfo: Option<Vec<SACinfo>>.is_some
 /// The function ensures, that
-///   all dp.files[?].2 are Some, and
-///   all dp.files[?].1[6] are set for internal EF +? (this currently doesn't include detecting file content matches the OpenSC-implemented PKCS#15
+///   all dp.files\[?\].2 are Some, and
+///   all dp.files\[?\].1\[6\] are set for internal EF +? (this currently doesn't include detecting file content matches the OpenSC-implemented PKCS#15
 ///   conformance; `OpenSC` is not 2016:ISO/IEC 7816-15 compliant)
 ///
 /// Possibly this function will be followed by another one that does the PKCS#15 introspection into files to detect the type, thus moving the

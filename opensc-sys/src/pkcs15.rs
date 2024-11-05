@@ -989,7 +989,7 @@ pub const SC_X509_CRL_SIGN            : u32 =  0x0040; // dito
 pub const SC_X509_ENCIPHER_ONLY       : u32 =  0x0080; // dito
 pub const SC_X509_DECIPHER_ONLY       : u32 =  0x0100; // dito
 
-extern "C" {
+unsafe extern "C" {
     /* sc_pkcs15_bind:  Binds a card object to a PKCS #15 card object
  * and initializes a new PKCS #15 card object.  Will return
  * SC_ERROR_PKCS15_APP_NOT_FOUND, if the card hasn't got a
@@ -1440,7 +1440,7 @@ pub struct sc_pkcs15_search_key {
 pub type sc_pkcs15_search_key_t = sc_pkcs15_search_key;
 */
 
-extern "C" {
+unsafe extern "C" {
 pub fn sc_pkcs15_search_objects(arg1: *mut sc_pkcs15_card, arg2: *mut sc_pkcs15_search_key,
                                 arg3: *mut *mut sc_pkcs15_object, arg4: usize) -> i32;
 pub fn sc_pkcs15_bind_synthetic(p15card: *mut sc_pkcs15_card, aid: *mut sc_aid) -> i32;

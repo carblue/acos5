@@ -131,7 +131,7 @@ pub struct sc_asn1_pkcs15_algorithm_info {
 */
 
 
-extern "C" {
+unsafe extern "C" {
 
 /* Utility functions */
 

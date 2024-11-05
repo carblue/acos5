@@ -422,7 +422,7 @@ pub struct sm_context {
 pub type sm_context_t = sm_context;
 */
 
-extern "C" {
+unsafe extern "C" {
 pub fn sc_sm_parse_answer(arg1: *mut sc_card, arg2: *mut u8, arg3: usize, arg4: *mut sm_card_response) -> i32;
 
 /*

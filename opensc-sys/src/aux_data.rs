@@ -71,7 +71,7 @@ pub struct sc_auxiliary_data {
     pub data : sc_auxiliary_data__bindgen_ty_1,
 }
 
-extern "C" {
+unsafe extern "C" {
 pub fn sc_aux_data_set_md_flags(arg1: *mut sc_context, arg2: *mut sc_auxiliary_data, arg3: u8) -> i32;
 pub fn sc_aux_data_allocate(arg1: *mut sc_context, arg2: *mut *mut sc_auxiliary_data,
                             arg3: *mut sc_auxiliary_data) -> i32;

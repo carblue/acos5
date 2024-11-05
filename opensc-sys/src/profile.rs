@@ -172,7 +172,7 @@ pub struct sc_profile {
     pub md_style : u32,
 }
 
-extern "C" {
+unsafe extern "C" {
     fn sc_profile_new() -> *mut sc_profile;
     fn sc_profile_load(arg1: *mut sc_profile, arg2: *const c_char) -> i32;
     fn sc_profile_finish(arg1: *mut sc_profile, arg2: *const sc_app_info) -> i32;

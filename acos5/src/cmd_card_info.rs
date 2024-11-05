@@ -29,34 +29,35 @@ use crate::constants_types::{build_apdu, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_rv_ret, wr_do_log_sds, wr_do_log_sds_ret};
 //use crate::missing_exports::me_apdu_get_length;
 
-//QSD
-/// QSD Get card's (hardware identifying) serial number. Copies result to card.serialnr
+/// QSD Get card's (hardware identifying) serial number. Copies result to card.serialnr.
 /// Available for all supported ACOS5 hardware
 ///
-/// @apiNote  Exempt from this function, card.serialnr MUST be treated as immutable. It's not clear to me if for
-/// `SC_CARD_TYPE_ACOS5_64_V3` the last 2 (of 8) bytes are meaningful if not in FIPS mode
-/// (at least they are the same (zero zero) for each call, thus this uncertainty doesn't matter).
+/// @apiNote  Exempt from this function, card.serialnr MUST be treated as immutable.
 ///
 /// This function is also callable via `libopensc.so/dll:sc_card_ctl` via `SC_CARDCTL_GET_SERIALNR`:
 ///
-/// @return  `Result::Ok(serial` number); 6 bytes for `SC_CARD_TYPE_ACOS5_64_V2`, otherwise 8 bytes, or an `OpenSC` error
+/// @return  `Result::Ok(serial` number); 6 bytes for `SC_CARD_TYPE_ACOS5_64_V2`, 6 bytes for
+/// `SC_CARD_TYPE_ACOS5_64_V3` if not in FIPS mode, otherwise 8 bytes, or an `OpenSC` error
+///
+/// # Panics
 ///
 /// # Errors
+/// If th macro function_name fails
 ///
 /// Will return `Result::Err` if `sc_transmit_apdu` or `sc_check_sw` fails, or `apdu.resplen` is wrong (for the card type),
 /// though this never happened so far. Thus its save to unwrap/expect the Ok variant.
 ///
 /// # Examples
 ///
-/// `no_run`
+/// ```no_run
 /// // may be run only with a card connected (and thus variable `card` populated accordingly)
-/// use `opensc_sys::{types::sc_serial_number`, `opensc::sc_card_ctl`, `cardctl::SC_CARDCTL_GET_SERIALNR`, `errors::SC_SUCCESS`};
-/// use `std::os::raw::c_void`;
-/// let mut `serial_number` = `sc_serial_number::default()`;
-/// let rv = unsafe { `sc_card_ctl(card`, `SC_CARDCTL_GET_SERIALNR`, &mut `serial_number` as *mut _ as *mut `c_void`) };
-/// `assert_eq!(SC_SUCCESS`, rv);
-/// `println!("serial_number`: {:X?}", `serial_number`);
-///
+/// # use opensc_sys::{types::sc_serial_number, opensc::sc_card_ctl, cardctl::SC_CARDCTL_GET_SERIALNR, errors::SC_SUCCESS};
+/// # use std::os::raw::c_void;
+/// let mut serial_number = sc_serial_number::default();
+/// let rv = unsafe { sc_card_ctl(card, SC_CARDCTL_GET_SERIALNR, &mut serial_number as *mut _ as *mut c_void) };
+/// assert_eq!(SC_SUCCESS, rv);
+/// println!("serial_number: {:X?}", serial_number);
+/// ```
 #[named]
 pub fn serial_no(card: &mut sc_card) -> Result<sc_serial_number, i32>
 {
@@ -70,11 +71,12 @@ pub fn serial_no(card: &mut sc_card) -> Result<sc_serial_number, i32>
         return Ok(card.serialnr);
     }
 
-    let len_serial_num: usize = if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 {6} else {8};
+    let len_serial_num: usize = if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 ||
+        (card.type_ == SC_CARD_TYPE_ACOS5_64_V3 && op_mode_byte(card).is_ok_and(|x| x != 0)) {6} else {8};
     //debug_assert!(SC_MAX_SERIALNR >= len_serial_num);
     let mut serial = sc_serial_number::default();
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 0, 0, u8::try_from(len_serial_num).
-                       unwrap()], SC_APDU_CASE_2_SHORT, &mut serial.value);
+        expect("len_serial_num is neither 6 nor b8  ")], SC_APDU_CASE_2_SHORT, &mut serial.value);
     let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen != len_serial_num {
@@ -89,8 +91,7 @@ pub fn serial_no(card: &mut sc_card) -> Result<sc_serial_number, i32>
 }
 
 
-//QS
-/// Get count of files/dirs within currently selected DF.
+/// QSD Get count of files/dirs within currently selected DF.
 ///
 /// @return  `Result::Ok(count_files_curr_df`), or an `OpenSC` error
 ///

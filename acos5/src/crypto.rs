@@ -1,9 +1,29 @@
+/*
+ * crypto.rs: Driver 'acos5' - cos5 cryptographic bindings and functions
+ *
+ * Copyright (C) 2019-  OpenSSL
+ * Copyright (C) 2019-  Carsten Blüggel <bluecars@posteo.eu>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
+ */
+
+//from openssl  des.h and rand.h
 
 #![allow(nonstandard_style, clippy::upper_case_acronyms)]
 
-use std::os::raw::{/*c_char, c_ulong,*/ c_long, c_int};
-
-//from openssl  des.h and rand.h
+use std::os::raw::{c_long, c_int};
 
 pub const DES_KEY_SZ_u8 : u8    = 8; // sizeof(DES_cblock)
 pub const DES_KEY_SZ    : usize = 8; // sizeof(DES_cblock)
@@ -14,16 +34,17 @@ pub const Encrypt: i32 = 1;
 pub const Decrypt: i32 = 0;
 
 pub type DES_cblock       = [u8; DES_KEY_SZ];
-//pub type const_DES_cblock = [u8; DES_KEY_SZ];
-//pub type DES_LONG = c_ulong;
+/*
+pub type const_DES_cblock = [u8; DES_KEY_SZ];
+pub type DES_LONG = c_ulong;
 
-// pub const OPENSSL_VERSION:     i32 =  0;
-// pub const OPENSSL_CFLAGS:      i32 =  1;
-// pub const OPENSSL_BUILT_ON:    i32 =  2;
-// pub const OPENSSL_PLATFORM:    i32 =  3;
-// pub const OPENSSL_DIR:         i32 =  4;
-// pub const OPENSSL_ENGINES_DIR: i32 =  5;
-
+pub const OPENSSL_VERSION:     i32 =  0;
+pub const OPENSSL_CFLAGS:      i32 =  1;
+pub const OPENSSL_BUILT_ON:    i32 =  2;
+pub const OPENSSL_PLATFORM:    i32 =  3;
+pub const OPENSSL_DIR:         i32 =  4;
+pub const OPENSSL_ENGINES_DIR: i32 =  5;
+*/
 #[repr(C)]
 #[derive(Default, Debug)]
 struct DES_key_schedule {
@@ -45,14 +66,26 @@ impl Default for AES_KEY {
     }
 }
 
-extern "C" {
+unsafe extern "C" {
 //    pub fn OpenSSL_version_num() -> c_ulong;
 //    pub fn OpenSSL_version(type_: i32) -> *const c_char;
+    /// from openssl/rand.h: RAND_bytes() generates num random bytes using a cryptographically secure
+    /// pseudo random generator (CSPRNG) and stores them in buf. buf MUST NOT be NULL.
+    /// <https://docs.openssl.org/master/man3/RAND_bytes/>
     pub fn RAND_bytes(buf: *mut u8, num: i32) -> i32; // RAND_bytes() returns 1 on success, 0 otherwise
 
+    /// from openssl/des.h: DES_set_odd_parity() sets the parity of the passed key to odd.
+    /// <https://docs.openssl.org/master/man3/DES_random_key/>
     pub fn DES_set_odd_parity(key: *mut DES_cblock);
+    /// from openssl/des.h: DES_set_key_checked() will check that the key passed is of odd parity
+    /// and is not a weak or semi-weak key.
+    /// <https://docs.openssl.org/master/man3/DES_random_key/>
     fn DES_set_key_checked  (block_key: *const u8, ks: *mut DES_key_schedule) -> i32;
 //  fn DES_set_key_unchecked(block_key: *const u8, ks: *mut DES_key_schedule);
+/// from openssl/des.h: DES_ecb3_encrypt() encrypts/decrypts the input block by using three-key
+/// Triple-DES encryption in ECB mode. This involves encrypting the input with ks1, decrypting with
+/// the key schedule ks2, and then encrypting with ks3.
+/// <https://docs.openssl.org/master/man3/DES_random_key/>
     fn DES_ecb3_encrypt(input: *const u8, output: *mut u8,
                         ks1: *const DES_key_schedule,
                         ks2: *const DES_key_schedule,
@@ -60,6 +93,9 @@ extern "C" {
                         enc: i32);
     /* DES_ede3_cbc_encrypt encrypts (or decrypts, if enc is DES_DECRYPT) len bytes from in to out with 3DES in CBC mode.
        3DES uses three keys, thus the function takes three different DES_key_schedules.*/
+    /// from openssl/des.h: DES_ede3_cbc_encrypt() implements outer triple CBC DES encryption with
+    /// three keys. This means that each DES operation inside the CBC mode is C=E(ks3,D(ks2,E(ks1,M))).
+    /// <https://docs.openssl.org/master/man3/DES_random_key/>
     fn DES_ede3_cbc_encrypt(input: *const u8, output: *mut u8,
                             length: c_long,
                             ks1: *const DES_key_schedule,
@@ -68,13 +104,17 @@ extern "C" {
                             ivec: *mut DES_cblock,
                             enc: i32);
     // return 0 for success, -1 if userKey or key is NULL, or -2 if the number of bits is unsupported.
+
+    /// <https://mta.openssl.org/pipermail/openssl-users/2021-August/014103.html>
     #[allow(dead_code)]
     fn AES_set_encrypt_key(userKey: *const u8, bits: i32, key: *mut AES_KEY) -> i32;
     #[allow(dead_code)]
     fn AES_set_decrypt_key(userKey: *const u8, bits: i32, key: *mut AES_KEY) -> i32;
 
+    /// <https://docs.openssl.org/3.1/man7/migration_guide>
     #[allow(dead_code)]
     fn AES_ecb_encrypt(in_: *const u8, out: *mut u8, key: *const AES_KEY, enc: i32);
+    /// <https://docs.openssl.org/3.1/man7/migration_guide>
     #[allow(dead_code)]
     fn AES_cbc_encrypt(in_: *const u8, out: *mut u8, length: usize, key: *const AES_KEY, ivec: *mut u8, enc: i32);
 }
@@ -150,6 +190,7 @@ pub fn des_ecb3_pad_pkcs5(data: &[u8], key: &str, mode: i32) -> Vec<u8> {
 */
 
 /* this gets used currently only for Encrypt and data.len() known to be multiple of DES_KEY_SZ */
+/// Document this !
 #[must_use]
 pub fn des_ecb3_unpadded_8(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> { // -> [u8; DES_KEY_SZ] {
     assert!(num_integer::Integer::is_multiple_of(&data.len(), &DES_KEY_SZ));
@@ -179,6 +220,8 @@ pi is relevant here only for Decrypt:
 if pi==01, then it's known, that  a 0x80 byte was added (padding was applied and must be stripped in mode == Decrypt)
 if pi==00, then it's known, that no 0x80 byte was added
 */
+/// Document this !
+#[must_use]
 pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode: i32, pi: u8) -> Vec<u8> {
     assert_eq!(3*DES_KEY_SZ, key.len());
     assert!(mode==Encrypt || num_integer::Integer::is_multiple_of(&data.len(), &DES_KEY_SZ));
@@ -215,6 +258,8 @@ pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode:
     output
 }
 
+/// Document this !
+#[must_use]
 pub fn des_ede3_cbc_pad_80_mac(data: &[u8], key: &[u8], ivec: &mut DES_cblock) -> Vec<u8> {
     let mut result = des_ede3_cbc_pad_80(data, key, ivec, Encrypt, 0);
     assert!(result.len() >= DES_KEY_SZ);
@@ -224,6 +269,7 @@ pub fn des_ede3_cbc_pad_80_mac(data: &[u8], key: &[u8], ivec: &mut DES_cblock) -
 
 // AES
 /* this will be used by EVO only for Encrypt and data known to be a multiple of AES_BLOCK_SIZE */
+/// Document this !
 #[allow(dead_code)]
 #[must_use]
 fn aes_ecb_unpadded_16(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> {
@@ -259,7 +305,9 @@ pi is relevant here only for Decrypt:
 if pi==01, then it's known, that  a 0x80 byte was added (padding was applied and must be stripped in mode == Decrypt)
 if pi==00, then it's known, that no 0x80 byte was added
 */
+/// Document this !
 #[allow(dead_code)]
+#[must_use]
 fn aes_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut [u8; AES_BLOCK_SIZE], mode: i32, pi: u8) -> Vec<u8> {
     assert!(mode==Encrypt || num_integer::Integer::is_multiple_of(&data.len(), &AES_BLOCK_SIZE));
     assert!([16, 24, 32].contains(&key.len()));

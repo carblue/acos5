@@ -352,7 +352,7 @@ pub const P15_ATTR_TYPE_ID    : u32 =  1;
 pub const P15_ATTR_TYPE_VALUE : u32 =  2; // since v0_20_0
 
 
-extern "C" {
+unsafe extern "C" {
 fn sc_pkcs15init_new_object(arg1: i32, arg2: *const c_char, arg3: *mut sc_pkcs15_id, arg4: *mut c_void)
     -> *mut sc_pkcs15_object;
 

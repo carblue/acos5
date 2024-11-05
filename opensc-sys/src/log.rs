@@ -60,7 +60,7 @@ pub const SC_COLOR_BG_MAGENTA      : i32 = 0x1000;
 pub const SC_COLOR_BG_CYAN         : i32 = 0x2000;
 pub const SC_COLOR_BOLD            : i32 = 0x8080;
 
-extern "C" {
+unsafe extern "C" {
 /*
 /* You can't do #ifndef __FUNCTION__ */
 #if !defined(__GNUC__) && !defined(__IBMC__) && !(defined(_MSC_VER) && (_MSC_VER >= 1300))
@@ -131,7 +131,7 @@ pub fn sc_do_log_openssl(ctx: *mut sc_context, level: c_int, file: *const c_char
     sc_debug_hex(ctx, SC_LOG_DEBUG_NORMAL, label, data, len)
 */
 
-extern "C" {
+unsafe extern "C" {
 /// @brief Log binary data
 ///
 /// @param\[in\] ctx    Context for logging

@@ -26,16 +26,14 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
 
-use libc::{strcmp, calloc, memcpy/*, memcmp,*/};
+use libc::{strcmp, calloc, memcpy};
 
 use std::os::raw::{c_char, c_void};
-use std::ptr::copy_nonoverlapping;
-//use std::ffi::{CStr};
 
-use opensc_sys::opensc::{sc_file_dup, sc_file_new, sc_file_valid};
+use opensc_sys::opensc::sc_file_dup; // sc_file_valid, sc_file_new
 use opensc_sys::profile::{sc_profile, file_info};
-use opensc_sys::types::{sc_path, sc_file, sc_acl_entry, SC_MAX_AID_SIZE, SC_MAX_AC_OPS
-                        /*, SC_AC_OP_CREATE_EF, SC_PATH_TYPE_FILE_ID, SC_AC_OP_DELETE*/};
+use opensc_sys::types::{sc_path, sc_file}; //, sc_acl_entry, SC_MAX_AID_SIZE, SC_MAX_AC_OPS
+                        /*, SC_AC_OP_CREATE_EF, SC_PATH_TYPE_FILE_ID, SC_AC_OP_DELETE*/
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_FILE_NOT_FOUND, SC_ERROR_OUT_OF_MEMORY, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_PKCS15INIT};
 use opensc_sys::pkcs15::{sc_pkcs15_bignum, sc_pkcs15_card, sc_pkcs15_df};
 //use opensc_sys::log::{sc_dump_hex};
@@ -123,6 +121,7 @@ pub fn me_profile_get_file(profile: &mut sc_profile, name: *const c_char, ret: *
     SC_SUCCESS
 }
 
+/*
 /* How this differs from sc_file_dup:
    field acl       doesn't get duplicated, but set to all: SC_AC_NONE, as internal/virtual  pointer encoding,
                    see sc_file_add_acl_entry
@@ -135,8 +134,8 @@ pub fn me_profile_get_file(profile: &mut sc_profile, name: *const c_char, ret: *
 #[cold]
 pub fn my_file_dup(dest: &mut *mut sc_file, src: &sc_file) {
     *dest = null_mut();
-    if unsafe { sc_file_valid(src) != 1 }  { return; }
-    let newf : *mut sc_file = unsafe { sc_file_new() }; // initializes all its bits to zero, then file.magic = SC_FILE_MAGIC;
+    if sc_file_valid(src) != 1  { return; }
+    let newf = sc_file_new(); // initializes all its bits to zero, then file.magic = SC_FILE_MAGIC;
     if  newf.is_null() { return; }
     *dest = newf;
     let newf = unsafe { &mut *newf };
@@ -195,6 +194,7 @@ acos5_pkcs15/src/lib.rs:91: sc_file_dup, sc_delete_file, sc_check_sw, sc_update_
 acos5_pkcs15/src/lib.rs:685:    unsafe { sc_file_dup(*guard_file_pub, file_priv) };
 */
 }
+*/
 
 pub fn me_pkcs15_dup_bignum(dst: &mut sc_pkcs15_bignum, src: &sc_pkcs15_bignum) -> i32
 {
