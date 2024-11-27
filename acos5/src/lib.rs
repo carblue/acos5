@@ -163,10 +163,10 @@ use opensc_sys::opensc::{sc_card, sc_card_driver, sc_card_operations, sc_securit
                          SC_ALGORITHM_RSA_RAW, SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER,
                          SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_DERIVE, SC_PIN_CMD_GET_INFO,
                          SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK, SC_ALGORITHM_RSA_PAD_PKCS1,
-                         SC_ALGORITHM_RSA_PAD_ISO9796, SC_SEC_ENV_ALG_REF_PRESENT, // SC_SEC_ENV_KEY_REF_PRESENT,
-                         SC_SEC_ENV_ALG_PRESENT, SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR,
-                         SC_CARD_CAP_ISO7816_PIN_INFO, SC_ALGORITHM_AES, SC_ALGORITHM_EXT_EC_NAMEDCURVE,
-                         SC_CARD_CAP_APDU_EXT, SC_ALGORITHM_EC, SC_PROTO_T1, SC_ALGORITHM_EXT_EC_COMPRESS};
+                         SC_ALGORITHM_RSA_PAD_ISO9796, SC_SEC_ENV_ALG_REF_PRESENT, SC_SEC_ENV_ALG_PRESENT,
+                         SC_ALGORITHM_3DES, SC_ALGORITHM_DES, SC_RECORD_BY_REC_NR, SC_CARD_CAP_ISO7816_PIN_INFO,
+                         SC_ALGORITHM_AES, SC_ALGORITHM_EXT_EC_NAMEDCURVE, SC_CARD_CAP_APDU_EXT, SC_ALGORITHM_EC,
+                         SC_PROTO_T1, SC_ALGORITHM_EXT_EC_COMPRESS};
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
 use opensc_sys::opensc::{SC_SEC_OPERATION_ENCRYPT_SYM, SC_SEC_OPERATION_DECRYPT_SYM};
 //use opensc_sys::opensc::{SC_ALGORITHM_RSA_PAD_PSS};
@@ -268,7 +268,7 @@ mod crypto;
 /// as well.
 /// In the meantime, I duplicated the code of valuable non-callable functions via this module.
 mod missing_exports;
-use missing_exports::{me_card_add_symmetric_alg, me_card_find_alg, me_get_max_recv_size,
+use missing_exports::{me_card_add_symmetric_alg, me_card_find_alg, //me_get_max_recv_size, me_get_max_send_size,
                       me_pkcs1_strip_01_padding, me_pkcs1_strip_02_padding};//, me_get_encoding_flags
 
 mod no_cdecl;
@@ -350,8 +350,8 @@ mod   test_v2_v3;
 #[unsafe(no_mangle)]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = sc_get_version();
-    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0))  { version_ptr }
-    // v0_26_0: experimental only:  Latest OpenSC gitHub master commit covered: 21ba386
+    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0/*, v0_27_0*/))  { version_ptr }
+    // v0_27_0: experimental only:  Latest OpenSC gitHub master commit covered: 21ba386
     else  { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -603,6 +603,33 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
         failed. Returning with 0 (no match)", 0);
     }
 
+    if SC_CARD_TYPE_ACOS5_64_V2 != type_out && cfg!(enforce_restricted_op_mode_byte) {
+        let op_mode_byte = op_mode_byte(card, type_out).unwrap_or(255); /*
+        if cfg!(enforce_restricted_op_mode_byte_no_fips) {
+            match type_out {
+                SC_CARD_TYPE_ACOS5_64_V3  => if op_mode_byte != 2 { return log3ifr_ret!(ctx,f,line!(),
+                    c"EEPROM address 0xC191 is set with unsupported Operation Mode Byte. \
+                    Returning with 0 (no match)", 0)},
+                SC_CARD_TYPE_ACOS5_EVO_V4 => if op_mode_byte != 1 { return log3ifr_ret!(ctx,f,line!(),
+                    c"EEPROM address 0xC191 is set with unsupported Operation Mode Byte. \
+                    Returning with 0 (no match)", 0)},
+                _ => unreachable!(),
+            }
+        }
+        else { */
+            match type_out {
+                SC_CARD_TYPE_ACOS5_64_V3  => if ![0, 2, 16].contains(&op_mode_byte) { return log3ifr_ret!(ctx,f,line!(),
+                    c"EEPROM address 0xC191 is set with unsupported Operation Mode Byte. \
+                    Returning with 0 (no match)", 0)},
+                SC_CARD_TYPE_ACOS5_EVO_V4 => if ![0, 1].contains(&op_mode_byte) { return log3ifr_ret!(ctx,f,line!(),
+                    c"EEPROM address 0xC191 is set with unsupported Operation Mode Byte. \
+                    Returning with 0 (no match)", 0)},
+                _ => unreachable!(),
+            }
+//        }
+    }
+
+
     /*  //optional checks
     match type_out {
         /* rbuf_card_os_version[5] is the major version */
@@ -715,12 +742,6 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     }
 
     card.cla  = 0x00;  // int      default APDU class (interindustry)
-    /* max_send_size  IS  treated as a constant (won't change) */
-    card.max_send_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE; // 0x0FF; // 0x0FFFF for usb-reader, 0x0FF for chip/card;  Max Lc supported by the card
-    /* max_recv_size  IS NOT  treated as a constant (it will be set temporarily to SC_READER_SHORT_APDU_MAX_RECV_SIZE
-    where commands do support interpreting le byte 0 as 256 (le is 1 byte only!), like e.g. acos5_compute_signature) */
-    /* some commands return 0x6100, meaning, there are 256==SC_READER_SHORT_APDU_MAX_RECV_SIZE  bytes (or more) to fetch */
-    card.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE;
 
     /* possibly more SC_CARD_CAP_* apply, TODO clarify */
     card.caps    = SC_CARD_CAP_RNG | SC_CARD_CAP_USE_FCI_AC | SC_CARD_CAP_ISO7816_PIN_INFO;
@@ -735,6 +756,16 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
         card.caps |= SC_CARD_CAP_APDU_EXT;
     }
     //println!("card.caps: {:X}\n", card.caps);
+    /* max_send_size  IS  treated as a constant (won't change) after assignment here ! */
+    card.max_send_size = if (card.caps & SC_CARD_CAP_APDU_EXT) == 0 {SC_READER_SHORT_APDU_MAX_SEND_SIZE} else { min(SC_READER_SHORT_APDU_MAX_SEND_SIZE, 0xFFFF) };
+////println!("card.max_send_size: {}", card.max_send_size);
+    //SC_READER_SHORT_APDU_MAX_SEND_SIZE; // 0x0FF; // 0x0FFFF for usb-reader, 0x0FF for chip/card;  Max Lc supported by the card
+
+    /* max_recv_size  IS NOT  treated as a constant (it will be set temporarily to SC_READER_SHORT_APDU_MAX_RECV_SIZE
+    where commands do support interpreting le byte 0 as 256 (le is 1 byte only!), like e.g. acos5_compute_signature) */
+    /* some commands return 0x6100, meaning, there are 0x100==256==SC_READER_SHORT_APDU_MAX_RECV_SIZE  bytes (or more) to fetch */
+    card.max_recv_size = if (card.caps & SC_CARD_CAP_APDU_EXT) == 0 {SC_READER_SHORT_APDU_MAX_SEND_SIZE} else { min(SC_READER_SHORT_APDU_MAX_SEND_SIZE, 0x1_0000) };
+////println!("card.max_recv_size: {}", card.max_recv_size);
 
     // RSA
     /* it's possible to add SC_ALGORITHM_RSA_RAW, but then pkcs11-tool -t needs insecure
@@ -747,7 +778,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
 
     let is_fips_mode = match card.type_ {
         SC_CARD_TYPE_ACOS5_64_V3 |
-        SC_CARD_TYPE_ACOS5_EVO_V4 => op_mode_byte(card).unwrap()==0,
+        SC_CARD_TYPE_ACOS5_EVO_V4 => op_mode_byte(card, 0).unwrap()==0,
         _ => false,
     };
     let mut rv;
@@ -861,6 +892,7 @@ cfg_if::cfg_if! {
 
 /*
 println!("address of dp:                    {:p}",  dp);
+#[cfg(not(target_os = "windows"))]
 println!("address of dp.pkcs15_definitions: {:p}", &dp.pkcs15_definitions);
 println!("address of dp.files:              {:p}", &dp.files);
 println!("address of dp.sec_env:            {:p}", &dp.sec_env);
@@ -873,6 +905,7 @@ println!("address of dp.sec_env:            {:p}", &dp.sec_env);
     card.drv_data = Box::into_raw(dp).cast::<c_void>();
 
 /*
+#[cfg(not(target_os = "windows"))]
 println!("offset_of pkcs15_definitions:               {}, Δnext:    {}, size_of:    {}, align_of: {}", offset_of!(DataPrivate, pkcs15_definitions),   offset_of!(DataPrivate, files)-offset_of!(DataPrivate, pkcs15_definitions), std::mem::size_of::<asn1_node>(), std::mem::align_of::<asn1_node>());
 
 println!("offset_of files:                            {}, Δnext:   {}, size_of:   {}, align_of: {}", offset_of!(DataPrivate, files),   offset_of!(DataPrivate, sec_env)-offset_of!(DataPrivate, files), std::mem::size_of::<HashMap<KeyTypeFiles,ValueTypeFiles>>(), std::mem::align_of::<HashMap<KeyTypeFiles,ValueTypeFiles>>());
@@ -1435,9 +1468,9 @@ extern "C" fn acos5_card_ctl(card_ptr: *mut sc_card, command: c_ulong, data_ptr:
             },
         SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE =>
             {
-                if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT); }
+//                if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT); }
                 let rm_op_mode_byte = unsafe { &mut *data_ptr.cast::<u8>() };
-                *rm_op_mode_byte = match op_mode_byte(card) {
+                *rm_op_mode_byte = match op_mode_byte(card, 0) {
                     Ok(val) => val,
                     Err(e) => return log3ifr_ret!(ctx,f,line!(), e),
                 };
@@ -1637,18 +1670,15 @@ extern "C" fn acos5_get_response(card_ptr: *mut sc_card, count_ptr: *mut usize, 
     let fmt_1 = c"returning with: *count: %zu, rv: %d";
     log3if!(ctx,f,line!(), c"called with: *count: %zu", cnt_in);
 
-    card.max_recv_size = 0; //SC_READER_SHORT_APDU_MAX_RECV_SIZE;
     /* request at most max_recv_size bytes */
-    let max_recv_size = me_get_max_recv_size(card);
-    card.max_recv_size = max_recv_size;
+    card.max_recv_size = if (card.caps & SC_CARD_CAP_APDU_EXT) == 0 {SC_READER_SHORT_APDU_MAX_RECV_SIZE} else { min(SC_READER_SHORT_APDU_MAX_RECV_SIZE, 0x1_0000) };
+
     unsafe { *count_ptr = 0 }; // prepare to be an OUT variable now
-    let reader = unsafe { &mut *card.reader };
-    if card.type_ == SC_CARD_TYPE_ACOS5_EVO_V4 && reader.active_protocol == SC_PROTO_T1 &&
-        (card.caps & SC_CARD_CAP_APDU_EXT) != 0  {
+    if (card.caps & SC_CARD_CAP_APDU_EXT) != 0  {
  //        is_cap_apdu_ext_enabled: (card.caps & SC_CARD_CAP_APDU_EXT) != 0,
-        log3if!(ctx,f,line!(), c"eligible for a future optimized `acos5_get_response` for EVO. max_recv_size=%zu", max_recv_size);
+        log3if!(ctx,f,line!(), c"eligible for a future optimized `acos5_get_response` for EVO. max_recv_size=%zu", card.max_recv_size);
     }
-    let rlen = min(cnt_in, max_recv_size);
+    let rlen = min(cnt_in, card.max_recv_size);
     //println!("### acos5_get_response rlen: {}", rlen);
 
     // will replace le later; the last byte is a placeholder only for sc_bytes2apdu
@@ -1685,7 +1715,10 @@ println!("### acos5_get_response returned apdu.sw1: {:X}, apdu.sw2: {:X}   Unkno
 
     unsafe { *count_ptr = apdu.resplen };
 
-    if      apdu.sw1==0x90 && apdu.sw2==0x00 {
+    if      apdu.sw1==0x61 {
+        rv = if get_is_running_cmd_long_response(card) {set_is_running_cmd_long_response(card, false); 256} else {0 /* no more data to read */};
+    }
+    else if apdu.sw1==0x90 && apdu.sw2==0x00 {
         /* for some cos5 commands, it's NOT necessarily true, that status word 0x9000 signals "no more data to read" */
         rv = if get_is_running_cmd_long_response(card) {set_is_running_cmd_long_response(card, false); 256} else {0 /* no more data to read */};
         /* switching off here should also work for e.g. a 3072 bit key:
@@ -1713,7 +1746,7 @@ println!("### acos5_get_response returned apdu.sw1: {:X}, apdu.sw2: {:X}   Unkno
 
     card.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE;
     log3ifr_ret!(ctx,f,line!(), rv)
-}
+} // acos5_get_response
 
 /*
  * Get data from card's PRNG; as card's command supplies a fixed number of 8 bytes, some administration is required for count!= multiple of 8
@@ -3119,8 +3152,8 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
     let mut rv;
     log3if!(ctx,f,line!(), c"called with: in_len: %zu, out_len: %zu", crgram_len, outlen);
     assert!(outlen >= crgram_len);
-    assert_eq!(crgram_len, get_sec_env_mod_len(card));
-//println!("acos5_decipher          called with: in_len: {}, out_len: {}, {}, crgram: {:?}", crgram_len, outlen, get_is_running_compute_signature(card), unsafe {from_raw_parts(crgram_ref_ptr, crgram_len)});
+////assert_eq!(crgram_len, get_sec_env_mod_len(card));
+//println!("acos5_decipher          called with: in_len: {}, out_len: {}, {}, crgram: {:X?}", crgram_len, outlen, get_is_running_compute_signature(card), unsafe {from_raw_parts(crgram_ref_ptr, crgram_len)});
 
     #[cfg(iup_user_consent)]
     {
@@ -3167,6 +3200,7 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
         assert!(rv<0);
         return rv;
     }
+    //println!("acos5_decipher: apdu.resplen {}", apdu.resplen);
     vec.truncate(min(crgram_len, apdu.resplen));
 
     if get_is_running_compute_signature(card) {
@@ -3397,7 +3431,8 @@ Trick: cache last security env setting, retrieve file id (priv) and deduce key l
                 return rv;
             }
             */
-            let mut vec_len = min(outlen, get_sec_env_mod_len(card));
+            let sec_env_mod_len = get_sec_env_mod_len(card);
+            let mut vec_len = if sec_env_mod_len>0 {min(outlen, sec_env_mod_len)} else {outlen};
             let mut vec = vec![0_u8; vec_len];
             /*
               in the following,   | SC_ALGORITHM_RSA_HASH_NONE   is required for ssh for version:

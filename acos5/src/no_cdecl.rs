@@ -35,8 +35,8 @@ use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_
                          SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_get_iso7816_driver, SC_SEC_ENV_ALG_REF_PRESENT,
                          sc_file_get_acl_entry, sc_check_apdu, sc_list_files, //sc_format_apdu, sc_file_new,
                          sc_set_security_env, sc_get_challenge, sc_get_mf_path, SC_ALGORITHM_EC,
-                         SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_ALGORITHM_AES,
-                         SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT, SC_PIN_STATE_UNKNOWN};
+                         SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_ALGORITHM_AES
+                         /*,SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT, SC_PIN_STATE_UNKNOWN*/};
 use opensc_sys::opensc::{sc_sec_env_param, SC_SEC_ENV_PARAM_IV, SC_SEC_OPERATION_UNWRAP,
                          SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB
 };
@@ -93,7 +93,7 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, current_path_df, is_impossible_file_match};
 //use crate::missing_exports::me_get_max_recv_size;
-use crate::cmd_card_info::is_pin_authenticated;
+//use crate::cmd_card_info::is_pin_authenticated;
 use crate::sm::{SM_SMALL_CHALLENGE_LEN_u8, sm_common_read, sm_common_update};
 use crate::crypto::{RAND_bytes, des_ecb3_unpadded_8, Encrypt};
 
@@ -1189,6 +1189,7 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
     }
     data.pin1.tries_left = i32::try_from(apdu.sw2 & 0x0F_u32).unwrap(); //  63 Cnh     n is remaining tries
     *tries_left = data.pin1.tries_left;
+/*
     if card.type_ == SC_CARD_TYPE_ACOS5_64_V3 {
         match is_pin_authenticated(card, data.pin_reference.try_into().unwrap()) {
             Ok(val) => data.pin1.logged_in = if val {SC_PIN_STATE_LOGGED_IN} else {SC_PIN_STATE_LOGGED_OUT},
@@ -1198,6 +1199,7 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
     else {
 //        data.pin1.logged_in = SC_PIN_STATE_LOGGED_IN; // without this, session will be closed for pkcs11-tool -t -l, since v0.20.0
     }
+*/
     log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
 }
 
@@ -1376,6 +1378,7 @@ fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
         let path_idx = env_ref.file_ref.len - 2;
         let file_id = u16::from_be_bytes([env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1]]);
         let file_size = file_id_se(dp.files[&file_id].1);
+/*  TODO  Its not safe/correct to calculate the modulus length from file size !!! */
         if [SC_SEC_OPERATION_SIGN,
             SC_SEC_OPERATION_DECIPHER /*, SC_SEC_OPERATION_DECIPHER_RSAPRIVATE*/].contains(&env_ref.operation) { //priv
             assert!(file_size>=5);

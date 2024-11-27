@@ -23,7 +23,8 @@ use std::ffi::CString;
 use function_name::named;
 use opensc_sys::opensc::{sc_card, sc_transmit_apdu, sc_check_sw};/*, SC_PROTO_T1*/
 use opensc_sys::types::{sc_serial_number, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT};/*, SC_MAX_SERIALNR, SC_APDU_CASE_2_EXT*/
-use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_CARD_CMD_FAILED, SC_ERROR_INVALID_ARGUMENTS};
+use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_CARD_CMD_FAILED, SC_ERROR_INVALID_ARGUMENTS,
+                         SC_ERROR_NO_CARD_SUPPORT};
 
 use crate::constants_types::{build_apdu, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3};
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_rv_ret, wr_do_log_sds, wr_do_log_sds_ret};
@@ -72,7 +73,7 @@ pub fn serial_no(card: &mut sc_card) -> Result<sc_serial_number, i32>
     }
 
     let len_serial_num: usize = if card.type_ == SC_CARD_TYPE_ACOS5_64_V2 ||
-        (card.type_ == SC_CARD_TYPE_ACOS5_64_V3 && op_mode_byte(card).is_ok_and(|x| x != 0)) {6} else {8};
+        (card.type_ == SC_CARD_TYPE_ACOS5_64_V3 && op_mode_byte(card, 0).is_ok_and(|x| x != 0)) {6} else {8};
     //debug_assert!(SC_MAX_SERIALNR >= len_serial_num);
     let mut serial = sc_serial_number::default();
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 0, 0, u8::try_from(len_serial_num).
@@ -321,11 +322,13 @@ pub fn rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
 }
 
 //  V2.00 *DOES NOT* supports this command
+//  V2     calls this Compatibility Byte
+//  V3     calls this Operation Mode Byte
 //  V4 EVO calls this Configuration Mode Byte now
 ///
 /// # Errors
 #[named]
-pub fn op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
+pub fn op_mode_byte(card: &mut sc_card, candidate_card_type: i32) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -333,13 +336,16 @@ pub fn op_mode_byte(card: &mut sc_card) -> Result<u8, i32>
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
+    let card_type: i32 = if candidate_card_type !=0 {candidate_card_type} else {card.type_};
+    if card_type == SC_CARD_TYPE_ACOS5_64_V2 { return Err(log3ifr_ret!(ctx,f,line!(), c"Error: \
+    ACOS5 'Get Operation Mode Byte' not supported by this hardware. Returning with", SC_ERROR_NO_CARD_SUPPORT)); }
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 9, 0], SC_APDU_CASE_1, &mut[]);
     let rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv));  }
 //    rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     /* the reference manuals says: the response status word is 0x95NN, but actually for V2.00 and V3.00 it's 0x90NN */
     /* the reference manuals says: the response status word is 0x95NN, and it actually is for V4 */
-    if (card.type_ == SC_CARD_TYPE_ACOS5_64_V3 && [0,1, 2,16].contains(&apdu.sw2)) ||
-       (card.type_ != SC_CARD_TYPE_ACOS5_64_V3 && [0,1].contains(&apdu.sw2))  {
+    if (card_type == SC_CARD_TYPE_ACOS5_64_V3 && [0,1, 2,16].contains(&apdu.sw2)) ||
+       (card_type != SC_CARD_TYPE_ACOS5_64_V3 && [0,1].contains(&apdu.sw2))  {
         /*
             for SC_CARD_TYPE_ACOS5_64_V2: apdu.sw2:
              0: 64K Mode (Non-FIPS)                (factory default) RECOMMENDED FOR THIS DRIVER !!!
@@ -436,7 +442,7 @@ pub fn is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i
         Ok(true)
     }
     else if apdu.sw1 == 0x6F && apdu.sw2 == 0 {
-        log3ifr!(ctx,f,line!(), rv);
+        log3if!(ctx,f,line!(), c"returning with: 'PIN not authenticated'");
         Ok(false)
     }
     else {

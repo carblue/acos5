@@ -40,8 +40,8 @@ use std::os::raw::c_ulong;
 
 use std::slice;
 use function_name::named;
-use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, SC_CARD_CAP_APDU_EXT,
-                         SC_READER_SHORT_APDU_MAX_RECV_SIZE, //SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_PROTO_T0,
+use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, //SC_CARD_CAP_APDU_EXT,
+                         //SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_PROTO_T0,
                          SC_ALGORITHM_EC, sc_compare_oid
 /*                      ,SC_ALGORITHM_RSA_PAD_NONE, SC_ALGORITHM_RSA_PAD_PKCS1,
                          SC_ALGORITHM_RSA_HASH_NONE,
@@ -101,6 +101,7 @@ pub fn me_apdu_get_length(apdu: &sc_apdu, proto: u32) -> usize
 }
 */
 
+/*
 /// An equivalent copy of: src/libopensc/card.c:  `size_t` `sc_get_max_recv_size(const` `sc_card_t` *card)
 /* for acos5_get_response and iso7816_select_file_replica only */
 #[must_use]
@@ -109,7 +110,7 @@ pub fn me_get_max_recv_size(card: &sc_card) -> usize
     if card.reader.is_null() {
         return 0;
     }
-    let card_reader = unsafe { &*card.reader };
+    let card_reader = unsafe { & *card.reader };
     let mut max_recv_size = card.max_recv_size;
 
     /* initialize max_recv_size to a meaningful value */
@@ -124,12 +125,13 @@ pub fn me_get_max_recv_size(card: &sc_card) -> usize
     }
     max_recv_size
 }
-
+*/
 /*
 /* no usage currently */
+#[must_use]
 pub fn me_get_max_send_size(card: &sc_card) -> usize
-{ // an equivalent copy of sc_get_max_send_size
-    if /*card == NULL ||*/ card.reader.is_null() {
+{ // an equivalent copy of card.c: sc_get_max_send_size
+    if card.reader.is_null() {
         return 0;
     }
     let card_reader = unsafe { & *card.reader };

@@ -21,6 +21,7 @@ fn main() {
     }
 
     /* other conditional compilation settings */
+    println!("cargo:rustc-cfg=enforce_restricted_op_mode_byte");
     println!("cargo:rustc-cfg=log"); // enables driver log output to file debug_file, set in opensc.conf (e.g. debug_file = "/tmp/opensc-debug.log";). Otherwise the driver will be almost quiet referring that
 //     println("cargo:rustc-cfg=card_initialization"); // enables card initialization code
     { // in the following lines of this block ({...}), remove either all leading // if You want that feature compiled in, or none to keep that inactive

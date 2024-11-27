@@ -3,7 +3,7 @@
 //! [`OpenSC wiki`]\
 //! [`Rust website`]
 //!
-//! This binding supports OpenSC release versions 0.20.0 - 0.25.1
+//! This binding supports OpenSC release versions 0.20.0 - 0.26.0
 //!
 //! The state is Work In Progress WIP, though usable.\
 //! The focus is on the generic header subset, i.o. to support new driver etc. external module development.\
@@ -759,11 +759,64 @@ mod tests {
                 assert_eq!(ssep,  24);
                 assert_eq!(ai,   136);
             }
-            else  if cfg!(v0_26_0) { // experimental only: it's git-master, Latest commit ?, defined as version 0.26.0
-                // experimental use only, this check may not be consistent with current master
-                // testing v0_26_0 verified with Windows 10:    ?
-                 // testing v0_26_0 verified with Kubuntu 22.04.4: ?,  for latest commit  ?
+            else  if cfg!(v0_26_0) {
+                // testing v0_26_0 verified with Windows 11:    ?
+                // testing v0_26_0 verified with Kubuntu 24.04: ?
                 println!("For OpenSC 0.26.0 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
+                    size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
+                    size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \
+                    size_of::<sc_pkcs15_card>: {}, size_of::<sc_file>: {}, size_of::<scconf_context>: {}, size_of::<sc_pkcs15init_prkeyargs>: {}, \
+                    size_of::<sc_pkcs15init_skeyargs>: {}, size_of::<sc_pkcs15_prkey_info>: {}, size_of::<sc_pkcs15_pubkey_info>: {}, \
+                    size_of::<sc_pkcs15_skey_info>: {}, size_of::<sc_supported_algo_info>: {}, size_of::<sc_profile>: {},\
+                    size_of::<sc_sec_env_param>: {}, size_of::<sc_algorithm_info>: {}",
+                         sl, sc, sr, sse, sef, srd, pcp, pcd, sco, scc, spo, sca, sf, sccc, ip, is,  prki, puki, ski, sai, sp, ssep, ai);
+                #[cfg(any(target_pointer_width = "32", windows))]
+                { assert_eq!(sc,  1384); }
+                #[cfg(all(target_pointer_width = "64", not(windows)))]
+                { assert_eq!(sc,  1392); }
+                #[cfg(any(target_pointer_width = "32", windows))]
+                { assert_eq!(sr,   200); }
+                #[cfg(all(target_pointer_width = "64", not(windows)))]
+                { assert_eq!(sr,   208); }
+
+                assert_eq!(sse, 2728+8);
+                assert_eq!(sef,  176);
+                assert_eq!(srd,   32);
+                assert_eq!(pcp,   88);
+                assert_eq!(pcd,  208);
+                assert_eq!(sco,  312);
+                #[cfg(any(target_pointer_width = "32", windows))]
+                { assert_eq!(scc,  628); }
+                #[cfg(all(target_pointer_width = "64", not(windows)))]
+                { assert_eq!(scc, 656); }
+
+                assert_eq!(spo, 2776);
+                assert_eq!(sca,  160);
+                assert_eq!(sf,   464);
+                assert_eq!(sccc,  32);
+                #[cfg(any(target_pointer_width = "32", windows))]
+                { assert_eq!(ip,   792); }
+                #[cfg(all(target_pointer_width = "64", not(windows)))]
+                { assert_eq!(ip,   800); }
+
+                #[cfg(any(target_pointer_width = "32", windows))]
+                { assert_eq!(is,   584); }
+                #[cfg(all(target_pointer_width = "64", not(windows)))]
+                { assert_eq!(is,   592); }
+
+                assert_eq!(prki, 472);
+                assert_eq!(puki, 496);
+                assert_eq!(ski,  440);
+                assert_eq!(sai,  144);
+                assert_eq!(sp,   376);
+                assert_eq!(ssep,  24);
+                assert_eq!(ai,   136);
+            }
+            else  if cfg!(v0_27_0) { // experimental only: it's git-master, Latest commit ?, defined as version 0.27.0
+                // experimental use only, this check may not be consistent with current master
+                // testing v0_27_0 verified with Windows 11:    ?
+                // testing v0_27_0 verified with Kubuntu 24.04: ?,  for latest commit  ?
+                println!("For OpenSC 0.27.0 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
                     size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
                     size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \
                     size_of::<sc_pkcs15_card>: {}, size_of::<sc_file>: {}, size_of::<scconf_context>: {}, size_of::<sc_pkcs15init_prkeyargs>: {}, \
@@ -815,7 +868,7 @@ mod tests {
             }
             else {
                 // experimental use only, this check may not be consistent with current master
-                println!("For OpenSC beyond 0.26.0 (https://github.com/OpenSC/OpenSC  branch: master) i.e. not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_26_0)) and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
+                println!("For OpenSC beyond 0.27.0 (https://github.com/OpenSC/OpenSC  branch: master) i.e. not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_26_0)) and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
                     size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
                     size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \
                     size_of::<sc_pkcs15_card>: {}, size_of::<sc_file>: {}, size_of::<scconf_context>: {}, size_of::<sc_pkcs15init_prkeyargs>: {}, \

@@ -51,6 +51,9 @@ pub const SC_MAX_SE_NUM                 : usize =     8;
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
 pub const SC_MAX_PKCS15_EMULATORS       : usize =    48;
 
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1)))]
+pub const SC_MAX_KEYREF_SIZE            : usize =     8;
+
 /* When changing this value, pay attention to the initialization of the ASN1
  * static variables that use this macro, like, for example,
  * 'c_asn1_supported_algorithms' in src/libopensc/pkcs15.c,

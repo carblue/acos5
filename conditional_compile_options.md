@@ -101,3 +101,6 @@ rsa_algo_flags |= SC_ALGORITHM_RSA_RAW;
 I don't know the current state, but at the time of testing that, the input from pkcs11-tool to sign with SC_ALGORITHM_RSA_RAW didn't 
 comply with PKCS#1, and only using this option did avoid errors with pkcs11-tool.
 So this needs to be checked once again, also in conjunction with meanwhile available PSS padding. Don't use that currently !
+
+//println!("cargo:rustc-cfg=enforce_restricted_op_mode_byte");
+//println!("cargo:rustc-cfg=enforce_restricted_op_mode_byte_no_fips");

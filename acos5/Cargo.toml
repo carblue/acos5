@@ -12,7 +12,8 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(v0_20_0)', 'cfg(v0_21_0)',
   'cfg(finish_verbose)',
   'cfg(ifd_serial_constrained_for_sm)',
   'cfg(iup_user_consent)',
-  'cfg(log)'
+  'cfg(log)',
+  'cfg(enforce_restricted_op_mode_byte)'
 ] }
 
 [dependencies]
