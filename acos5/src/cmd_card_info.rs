@@ -484,7 +484,7 @@ pub fn is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i
 ///
 /// # Errors
 #[named]
-pub fn zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
+pub fn get_zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };

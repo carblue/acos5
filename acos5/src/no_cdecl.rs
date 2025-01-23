@@ -88,7 +88,7 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
                              GuardFile, SC_CARD_TYPE_ACOS5_EVO_V4, NAME_V4, ATR_V4_1, ATR_V4_2, ATR_V4_3, //, ATR_V4
                              file_id_from_path_value, file_id_se,
                              CRT_TAG_HT, CRT_TAG_CCT, CRT_TAG_DST, CRT_TAG_CT,
-                             SC_SEC_OPERATION_GENERATE_ECCPRIVATE, SC_SEC_OPERATION_GENERATE_ECCPUBLIC //, APDUShortExtendedSwitcher
+                             SC_SEC_OPERATION_GENERATE_ECCPRIVATE, SC_SEC_OPERATION_GENERATE_ECCPUBLIC
 };
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, current_path_df, is_impossible_file_match};
@@ -1624,8 +1624,8 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtlGenerateAsymCrypt) ->
 #[allow(non_snake_case)]
 #[must_use]
 pub fn is_any_known_digestAlgorithm(digest_info: &[u8]) -> bool
-{
-    let known_len = [34_usize, 35, 47, 51, 67, 83];
+{ //                                        sha224  sha384 sha512
+    let known_len = [34_usize, 35, 47, 51, 67,    83];
     if !known_len.contains(&digest_info.len()) {
         return false;
     }
@@ -2402,7 +2402,6 @@ pub fn common_read(card: &mut sc_card,
     assert!(x.2.is_some());
     let scb_read = x.2.unwrap()[0];
     let _unused = Box::leak(dp);
-    // let _anon = APDUShortExtendedSwitcher::new(card);
 
     if scb_read == 0xFF {
         log3ifr_ret!(ctx,f,line!(),
@@ -2426,6 +2425,7 @@ pub fn common_read(card: &mut sc_card,
     }
     else if bin && [FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&fdb) {
         card.cla = 0x80;
+////println!("common_read for acos5_read_binary: buf.len(): {}, idx: {}", buf.len(), idx);
         let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).get_data.unwrap()
             (card, u32::from(idx), buf.as_mut_ptr(), buf.len()) };
         card.cla = 0;

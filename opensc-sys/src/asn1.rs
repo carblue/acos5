@@ -68,7 +68,6 @@
 //!    1 more general decoding function with similar interface and that calls _sc_asn1_encode **:
 //!    - sc_asn1_encode,        calls with depth=0,  **
 
-
 use std::os::raw::{c_char, c_void};
 #[cfg(impl_default)]
 use std::ptr::{null, null_mut};
@@ -650,9 +649,10 @@ pub const SC_ASN1_TAG_ESCAPE_MARKER     : u32 = 31;
 mod tests {
     use libc::free;
     use std::ffi::CStr;
+    #[cfg(not(impl_default))]
     use std::ptr::{null, null_mut};
     use crate::errors::SC_SUCCESS;
-    use crate::pkcs15::{sc_pkcs15_id, sc_pkcs15_pubkey_rsa/*, SC_PKCS15_MAX_ID_SIZE*/};
+    use crate::pkcs15::{sc_pkcs15_id, sc_pkcs15_pubkey_rsa};
     use crate::opensc::SC_ALGORITHM_SHA1;
     use super::*;
 
@@ -666,14 +666,16 @@ mod tests {
     fn test_sc_format_asn1_entry() {
         let mut entry = sc_asn1_entry { flags: 0x50, ..sc_asn1_entry::default() };
         let mut state = State { state: 20 };
-        let state_ptr= &mut state as *mut _ as p_void;
+        let state_ptr : *mut State = &mut state;
+        let state_ptr = state_ptr.cast::<c_void>();
         let mut arg = 127i8;
-        let arg_ptr  = &mut arg   as *mut _ as p_void;
+        let arg_ptr : *mut i8 = &mut arg;
+        let arg_ptr = arg_ptr.cast::<c_void>();
 
         unsafe { sc_format_asn1_entry(&mut entry, state_ptr, arg_ptr, 1); }
         assert_eq!(entry.flags, 0x51);
-        let data_parm = unsafe { &*(entry.parm as *mut State) };
-        let data_arg      = unsafe {  *(entry.arg  as *mut i8) };
+        let data_parm = unsafe { &*(entry.parm.cast::<State>()) };
+        let data_arg      = unsafe {  *(entry.arg.cast::<i8>()) };
         assert_eq!(data_parm.state, 20);
         assert_eq!(data_arg,        127);
 
@@ -685,9 +687,11 @@ mod tests {
     #[test]
     fn test_sc_copy_asn1_entry() {
         let mut state = State { state: 20 };
-        let state_ptr = &mut state as *mut _ as p_void;
+        let state_ptr : *mut State = &mut state;
+        let state_ptr = state_ptr.cast::<c_void>();
         let mut arg = 127i8;
-        let arg_ptr = &mut arg   as *mut _ as p_void;
+        let arg_ptr : *mut i8 = &mut arg;
+        let arg_ptr = arg_ptr.cast::<c_void>();
 
         let name1 = c"name1";
         let name2 = c"name2";
@@ -779,10 +783,16 @@ mod tests {
                                       null_mut::<c_void>(), 0) };
 
         let mut key = sc_pkcs15_pubkey_rsa::default();
-        let key_modulus_parm_ptr  = &mut key.modulus.data  as *mut _ as p_void;
-        let key_modulus_arg_ptr   = &mut key.modulus.len   as *mut _ as p_void;
-        let key_exponent_parm_ptr = &mut key.exponent.data as *mut _ as p_void;
-        let key_exponent_arg_ptr  = &mut key.exponent.len  as *mut _ as p_void;
+        //let key_modulus_parm_ptr = &mut key.modulus.data   as *mut _ as p_void;
+        let key_modulus_parm_ptr : *mut *mut u8 = &mut key.modulus.data;
+        let key_modulus_parm_ptr = key_modulus_parm_ptr.cast::<c_void>();
+        let key_modulus_arg_ptr : *mut usize = &mut key.modulus.len;
+        let key_modulus_arg_ptr = key_modulus_arg_ptr.cast::<c_void>();
+        //let key_exponent_parm_ptr = &mut key.exponent.data as *mut _ as p_void;
+        let key_exponent_parm_ptr : *mut *mut u8 = &mut key.exponent.data;
+        let key_exponent_parm_ptr = key_exponent_parm_ptr.cast::<c_void>();
+        let key_exponent_arg_ptr : *mut usize = &mut key.exponent.len;
+        let key_exponent_arg_ptr = key_exponent_arg_ptr.cast::<c_void>();
 
         unsafe { sc_format_asn1_entry(asn1_rsa_pub_coeff.as_mut_ptr(),
                                       key_modulus_parm_ptr, key_modulus_arg_ptr, 0); }

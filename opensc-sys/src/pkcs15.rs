@@ -756,6 +756,11 @@ pub struct sc_pkcs15_object {
     pub prev : *mut sc_pkcs15_object, /* used only internally */
 
     pub content : sc_pkcs15_der,
+    /* Method for deallocating the object's content.value.
+     * If no specific function for deallocation is given, then free() is used
+     * to release content.value */
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0)))]
+    pub content_free : Option< unsafe extern "C" fn (content_value: *mut c_void, content_len: usize) >,
 
     pub session_object : i32,       /* used internally. if nonzero, object is a session object. */
 }
@@ -782,6 +787,8 @@ impl Default for sc_pkcs15_object {
             next: null_mut(),
             prev: null_mut(),
             content: sc_pkcs15_der::default(),
+            #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0)))]
+            content_free: None,
             session_object: 0,
         }
     }

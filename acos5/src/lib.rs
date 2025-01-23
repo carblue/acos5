@@ -180,7 +180,7 @@ use opensc_sys::types::{SC_AC_CHV, sc_aid, sc_path, sc_file, sc_serial_number, S
                         SC_PATH_TYPE_FILE_ID, SC_PATH_TYPE_DF_NAME, SC_PATH_TYPE_PATH, SC_FILE_TYPE_DF,
                         SC_FILE_TYPE_INTERNAL_EF, SC_FILE_EF_TRANSPARENT, SC_APDU_FLAGS_CHAINING,
                         SC_APDU_FLAGS_NO_GET_RESP, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT,
-                        SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT, sc_object_id, sc_lv_data};
+                        SC_APDU_CASE_3_SHORT, SC_APDU_CASE_4_SHORT, sc_object_id, sc_lv_data, SC_APDU_CASE_2_EXT/*, SC_APDU_CASE_4*/};
 #[cfg(target_os = "windows")]
 use opensc_sys::types::SC_MAX_AID_SIZE;
 use opensc_sys::errors::{SC_SUCCESS/*, SC_ERROR_INTERNAL*/, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
@@ -311,7 +311,7 @@ if #[cfg(not(target_os = "windows"))] {
 
 mod wrappers;
 use wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_rv_ret, wr_do_log_sds, wr_do_log_sds_ret,
-               wr_do_log_t, wr_do_log_tt, wr_do_log_tu, wr_do_log_tuv};
+               wr_do_log_t, wr_do_log_tt, wr_do_log_tu};
 
 /*
 #[cfg(test)]
@@ -332,7 +332,7 @@ mod   test_v2_v3;
 ///
 /// Its essential, that this doesn't merely echo, what a call to `sc_get_version` reports:
 /// It is my/developers statement, that the support as reported by `sc_driver_version` got checked !
-/// Thus, if e.g. a new `OpenSC` version 0.26.0 got released and if I didn't reflect that in `sc_driver_version`,
+/// Thus, if e.g. a new `OpenSC` version 0.27.0 got released and if I didn't reflect that in `sc_driver_version`,
 /// (updating opensc-sys binding and code of acos5 and `acos5_pkcs15`),
 /// then the driver won't accidentally malfunction for a not yet supported `OpenSC` environment/version !
 ///
@@ -340,9 +340,9 @@ mod   test_v2_v3;
 /// Its accuracy depends on how closely the opensc-sys binding and driver code has covered the possible
 /// differences in API and behavior (this function mentions the last `OpenSC` commit covered).
 /// master will be handled as an imaginary new version release:
-/// E.g. while currently the latest release is 0.25.1, build `OpenSC` from source such that it reports imaginary
-/// version 0.26.0 (change configure.ac; define(\[`PACKAGE_VERSION_MINOR`\], \[26\]) )
-/// In this example, `cfg!(v0_26_0`) will then match that
+/// E.g. while currently the latest release is 0.26.1, build `OpenSC` from source such that it reports imaginary
+/// version 0.27.0 (change configure.ac; define(\[`PACKAGE_VERSION_MINOR`\], \[27\]) )
+/// In this example, `cfg!(v0_27_0`) will then match that
 ///
 /// call site: function load_dynamic_driver, close to:
 /// libopensc/ctx.c:515:    *(void **)tmodv = sc_dlsym(handle, "sc_driver_version");
@@ -350,8 +350,8 @@ mod   test_v2_v3;
 #[unsafe(no_mangle)]
 pub extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = sc_get_version();
-    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0/*, v0_27_0*/))  { version_ptr }
-    // v0_27_0: experimental only:  Latest OpenSC gitHub master commit covered: 21ba386
+    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1/*, v0_27_0*/))  { version_ptr }
+    // v0_27_0: experimental only:  Latest OpenSC gitHub master commit covered:
     else  { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -750,7 +750,6 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     /* The reader of USB CryptoMate64/CryptoMate Nano supports extended APDU, but the ACOS5-64 cards don't:
        Thus SC_CARD_CAP_APDU_EXT only for ACOS5-EVO TODO
        For many commands there is no benefit using extended, thus check whether its possible to switch often
-       Maybe better solved with APDUShortExtendedSwitcher
     */
     if card.type_ == SC_CARD_TYPE_ACOS5_EVO_V4 && reader.active_protocol == SC_PROTO_T1 {
         card.caps |= SC_CARD_CAP_APDU_EXT;
@@ -764,7 +763,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
     /* max_recv_size  IS NOT  treated as a constant (it will be set temporarily to SC_READER_SHORT_APDU_MAX_RECV_SIZE
     where commands do support interpreting le byte 0 as 256 (le is 1 byte only!), like e.g. acos5_compute_signature) */
     /* some commands return 0x6100, meaning, there are 0x100==256==SC_READER_SHORT_APDU_MAX_RECV_SIZE  bytes (or more) to fetch */
-    card.max_recv_size = if (card.caps & SC_CARD_CAP_APDU_EXT) == 0 {SC_READER_SHORT_APDU_MAX_SEND_SIZE} else { min(SC_READER_SHORT_APDU_MAX_SEND_SIZE, 0x1_0000) };
+    card.max_recv_size = if (card.caps & SC_CARD_CAP_APDU_EXT) == 0 {SC_READER_SHORT_APDU_MAX_SEND_SIZE} else { min(0xffff, 0x1_0000) };
 ////println!("card.max_recv_size: {}", card.max_recv_size);
 
     // RSA
@@ -1679,7 +1678,7 @@ extern "C" fn acos5_get_response(card_ptr: *mut sc_card, count_ptr: *mut usize, 
         log3if!(ctx,f,line!(), c"eligible for a future optimized `acos5_get_response` for EVO. max_recv_size=%zu", card.max_recv_size);
     }
     let rlen = min(cnt_in, card.max_recv_size);
-    //println!("### acos5_get_response rlen: {}", rlen);
+////println!("### acos5_get_response rlen: {}. cnt_in: {}, card.max_recv_size: {}", rlen, cnt_in, card.max_recv_size);
 
     // will replace le later; the last byte is a placeholder only for sc_bytes2apdu
     let mut apdu = build_apdu(ctx, &[0, 0xC0, 0x00, 0x00, 0xFF], SC_APDU_CASE_2_SHORT, &mut[]);
@@ -1702,14 +1701,14 @@ println!("### acos5_get_response returned 0x6A88:   No data available.");
 println!("### acos5_get_response returned apdu.sw1: {:X}, apdu.sw2: {:X}   Unknown error code", apdu.sw1, apdu.sw2);
         }
         log3if!(ctx,f,line!(), fmt_1, unsafe { *count_ptr }, rv);
-        card.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE;
+        if (card.caps & SC_CARD_CAP_APDU_EXT) == 0 { card.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE; }
         return log3ifr_ret!(ctx,f,line!(), rv);
     }
     if !(apdu.sw1==0x6A && apdu.sw2==0x88) && apdu.resplen == 0 {
 //    LOG_FUNC_RETURN(card->ctx, sc_check_sw(card, apdu.sw1, apdu.sw2));
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
         log3if!(ctx,f,line!(), fmt_1, unsafe { *count_ptr }, rv);
-        card.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE;
+        if (card.caps & SC_CARD_CAP_APDU_EXT) == 0 { card.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE; }
         return log3ifr_ret!(ctx,f,line!(), rv);
     }
 
@@ -1744,7 +1743,7 @@ println!("### acos5_get_response returned apdu.sw1: {:X}, apdu.sw2: {:X}   Unkno
     }
     log3if!(ctx,f,line!(), fmt_1, unsafe { *count_ptr }, rv);
 
-    card.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE;
+    if (card.caps & SC_CARD_CAP_APDU_EXT) == 0 { card.max_recv_size = SC_READER_SHORT_APDU_MAX_SEND_SIZE; }
     log3ifr_ret!(ctx,f,line!(), rv)
 } // acos5_get_response
 
@@ -2682,7 +2681,7 @@ println!();
 extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
                                     algorithm: u32,
                                     key_path_ptr: *mut sc_path,
-                                    key_reference: u32, /* unused */
+                                    _key_reference: u32, /* unused */
                                     modulus_length: u32, /* bits, max. 4096 */
                                     out: *mut *mut u8,
                                     out_len: *mut usize) -> i32
@@ -2705,11 +2704,10 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
     }
 
     assert!((512..=4096).contains(&modulus_length));
-    assert!(num_integer::Integer::is_multiple_of(&modulus_length, &8));
+    assert!(num_integer::Integer::is_multiple_of(&modulus_length, &256));
     let mlbyte = usize::try_from(modulus_length).unwrap()/8; /* key modulus_length in byte (expected to be a multiple of 32)*/
     let le_total = mlbyte + 21;
-    log3if!(ctx,f,line!(), c"read public key(ref:%i; modulus_length:%i; modulus_bytes:%zu)", key_reference,
-        modulus_length, mlbyte);
+    log3if!(ctx,f,line!(), c"read public key(modulus_length: %i; modulus_bytes: %zu)", modulus_length, mlbyte);
 
     let mut rv = unsafe { sc_select_file(card, key_path_ptr, null_mut()) };
     if rv != SC_SUCCESS {
@@ -2724,7 +2722,18 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
         }
         else {
             let mut flags : c_ulong = 0;
-            sc_read_binary(card, 0, rbuf.as_mut_ptr(), le_total, &mut flags)
+            if (card.caps & SC_CARD_CAP_APDU_EXT) == 0 { sc_read_binary(card, 0, rbuf.as_mut_ptr(), le_total, &mut flags)
+            }
+            else {
+                let mut apdu = build_apdu(ctx, &[0x80, 0xCA, 0, 0, 0,
+                    u8::try_from((RSAPUB_MAX_LEN>>8) & 0xFF).unwrap(),
+                    u8::try_from((RSAPUB_MAX_LEN   ) & 0xFF).unwrap()],
+                    SC_APDU_CASE_2_EXT, &mut rbuf);
+                let mut r = sc_transmit_apdu(card, &mut apdu);  if r != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), r); }
+                r = sc_check_sw(card, apdu.sw1, apdu.sw2);
+                if r != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), r); }
+                i32::try_from(apdu.resplen).unwrap()
+            }
         }
     }};
   //};
@@ -3282,27 +3291,31 @@ extern "C" fn acos5_compute_signature(card_ptr: *mut sc_card, data_ref_ptr: *con
     }
     assert!(data_len <= outlen);
     assert!(data_len <= 512); // cos5 supports max RSA 4096-bit keys
-//println!("acos5_compute_signature called with: in_len: {}, out_len: {}", data_len, outlen);
+////println!("acos5_compute_signature called with: in_len: {}, out_len: {}", data_len, outlen);
     let card       = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
     let f = c"acos5_compute_signature";
     log3ift!(ctx,f,line!(), c"called with: in_len: %zu, out_len: %zu", data_len, outlen);
     set_is_running_compute_signature(card, false); // this is an info valuable only when delegating to acos5_decipher
 
-    let mut rv; // = SC_SUCCESS;
+    let mut rv; //= SC_SUCCESS;
     //   sha1     sha256  +md2/5 +sha1  +sha224  +sha256  +sha384  +sha512
     if ![20_usize, 32,     34,    35,    47,      51,      67,      83, get_sec_env_mod_len(card)].contains(&data_len) {
         rv = SC_ERROR_NOT_SUPPORTED;
         log3ifr!(ctx,f,line!(), c"returning with: Inadmissible data_len !", rv);
         return rv;
     }
-    let digest_algorithm_sha1      =
+    let digest_algorithm_sha1 =
     [0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a, 0x05, 0x00, 0x04, 0x14];
-    let digest_algorithm_sha256    =
+    let digest_algorithm_sha256 =
     [0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20];
     // #[allow(non_snake_case)]
-    // let digestAlgorithm_sha512    =
-    // [0x30_u8, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40];
+    let digest_algorithm_sha512 =
+    [0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40];
+    let digest_algorithm_sha384 =
+    [0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30];
+    let digest_algorithm_sha224 =
+    [0x30, 0x2d, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x04, 0x05, 0x00, 0x04, 0x1c];
 
     let mut vec_in : Vec<u8> = Vec::with_capacity(512);
     /*
@@ -3375,12 +3388,22 @@ Trick: cache last security env setting, retrieve file id (priv) and deduce key l
 
     // id_rsassa_pkcs1_v1_5_with_sha512_256 and id_rsassa_pkcs1_v1_5_with_sha3_256 also have a digest_info.len() == 51
 
-    if  ( digest_info.len() == 35 /*SHA-1*/ || digest_info.len() == 51 /*SHA-256*/ /*|| digest_info.len() == 83 / *SHA-512* / */ )  && // this first condition is superfluous but get's a faster decision in many cases
+    if  (digest_info.len() == 35 /*SHA-1*/ || digest_info.len() == 51 /*SHA-256*/ || (card.type_>= SC_CARD_TYPE_ACOS5_EVO_V4 &&
+        (digest_info.len() == 83 /*SHA-512*/  || digest_info.len() == 67 /*SHA-384*/ || digest_info.len() == 47 /*SHA-224*/ ) ) )
+        && // this first condition is superfluous but get's a faster decision in many cases
         ((digest_info.len() == 35 && digest_info[..15]==digest_algorithm_sha1)   ||
-         (digest_info.len() == 51 && digest_info[..19]==digest_algorithm_sha256) /* ||
-         (digest_info.len() == 83 && digest_info[..19]==digestAlgorithm_sha512) */ )
+         (digest_info.len() == 51 && digest_info[..19]==digest_algorithm_sha256) ||
+         (digest_info.len() == 83 && digest_info[..19]==digest_algorithm_sha512) ||
+         (digest_info.len() == 67 && digest_info[..19]==digest_algorithm_sha384) ||
+         (digest_info.len() == 47 && digest_info[..19]==digest_algorithm_sha224)  )
     {
-//println!("acos5_compute_signature: digest_info.len(): {}, digest_info[..15]==digest_algorithm_sha1[..]: {}, digest_info[..19]==digest_algorithm_sha256[..]: {}", digest_info.len(), digest_info[..15]==digest_algorithm_sha1[..], digest_info[..19]==digest_algorithm_sha256[..]);
+/*
+println!("acos5_compute_signature: digest_info.len(): {}, \
+digest_info[..15]==digest_algorithm_sha1[..]: {}, \
+digest_info[..19]==digest_algorithm_sha256[..]: {}, \
+digest_info[..19]==digest_algorithm_sha512[..]: {}",
+digest_info.len(), digest_info[..15]==digest_algorithm_sha1[..], digest_info[..19]==digest_algorithm_sha256[..], digest_info[..19]==digest_algorithm_sha512[..]);
+*/
         #[cfg(iup_user_consent)]
         {
             if get_ui_ctx(card).user_consent_enabled == 1 {
@@ -3393,11 +3416,25 @@ Trick: cache last security env setting, retrieve file id (priv) and deduce key l
             }
         }
 
-        // SHA-1 and SHA-256 hashes, what the card can handle natively
+        // SHA-1 and SHA-256 hashes, what the card can handle natively; EVO can handle more digest algos natively
         let hash = &digest_info[if digest_info.len()==35 {15} else {19} ..];
         set_is_running_cmd_long_response(card, true); // switch to false is done by acos5_get_response
+        /* */
+println!("hash.len(): {}", hash.len());
         let func_ptr = unsafe { (*(*sc_get_iso7816_driver()).ops).compute_signature.unwrap() };
         rv = unsafe { func_ptr(card, hash.as_ptr(), hash.len(), out_ptr, outlen) };
+/*
+        let rbuf = unsafe { from_raw_parts_mut(out_ptr, outlen) };
+        let mut apdu = build_apdu(ctx, &[0, 0x2A, 0x9E, 0x9A, 0,0, u8::try_from(digest_info.len()).unwrap()], SC_APDU_CASE_4, rbuf);
+        apdu.cse = SC_APDU_CASE_4;
+        apdu.data =    hash.as_ptr();
+        apdu.datalen = hash.len();
+        apdu.lc = hash.len();
+        apdu.le      = outlen;
+println!("acos5_compute_signature :  apdu : {:?}", apdu);
+        let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
+        rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
+*/
         if rv <= 0 {
             log3if!(ctx,f,line!(), c"iso7816_compute_signature failed or apdu.resplen==0. rv: %d", rv);
 //            return rv;
@@ -3613,6 +3650,12 @@ extern "C" fn acos5_read_binary(card_ptr: *mut sc_card, idx: u32,
                                 flags: *mut c_ulong,
                                ) -> i32
 {
+/*
+if count > 255 {
+    let fl = unsafe {if flags.is_null() {0} else {*flags}};
+    println!("acos5_read_binary  count: {}, fl: 0x{:X}, idx; {}", count, fl, idx);
+}
+*/
     if card_ptr.is_null() || buf_ptr.is_null() || count==0 /* || flags.is_null() */ {
         return SC_ERROR_INVALID_ARGUMENTS;
     }
