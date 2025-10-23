@@ -3,7 +3,7 @@ use std::env;
 
 fn main() {
     if let Ok(cfg_opensc_version) = env::var("DEP_OPENSC_OPENSCVERSION") {
-        println!("cargo:rustc-cfg={}", cfg_opensc_version);
+        println!("cargo:rustc-cfg={cfg_opensc_version}");
     }
 
     #[cfg(not(target_os = "windows"))]

@@ -289,13 +289,13 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
     let _unused = Box::leak(dp);
 
     let mut file_parent = null_mut();
-    let guard_file_parent = GuardFile::new(&mut file_parent);
-    let mut rv = unsafe { sc_select_file(card, &df_path_parent, *guard_file_parent) };
+    let guard_file_parent = GuardFile::new(&raw mut file_parent);
+    let mut rv = unsafe { sc_select_file(card, &raw const df_path_parent, *guard_file_parent) };
     if rv != SC_SUCCESS { return Err(-1); }
 
     let mut file_priv = null_mut();
-    let guard_file_priv = GuardFile::new(&mut file_priv);
-    rv = unsafe { sc_select_file(card, &df_path_priv, *guard_file_priv) };
+    let guard_file_priv = GuardFile::new(&raw mut file_priv);
+    rv = unsafe { sc_select_file(card, &raw const df_path_priv, *guard_file_priv) };
     if rv != SC_SUCCESS { return Err(-1); }
     let mut rbuf_priv = vec![0_u8; size_priv];
 
@@ -305,7 +305,7 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
         }
         else {
             let mut flags : c_ulong = 0;
-            sc_read_binary(card, 0, rbuf_priv.as_mut_ptr(), rbuf_priv.len(), &mut flags)
+            sc_read_binary(card, 0, rbuf_priv.as_mut_ptr(), rbuf_priv.len(), &raw mut flags)
         }
     }};
     if rv != size_priv.try_into().unwrap()  { return Err(-1); }
@@ -348,7 +348,7 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
             return Err(rv);
         }
 
-        rv = unsafe { sc_delete_file(card, &df_path_priv) };
+        rv = unsafe { sc_delete_file(card, &raw const df_path_priv) };
         if rv < 0 {
             log3ifr!(ctx,f,line!(), c"File deletion failed", rv);
             return Err(rv);
@@ -364,13 +364,13 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
             return Err(rv);
         }
         let mut apdu = build_apdu(ctx, &[0, 0x44, 0, 0], SC_APDU_CASE_1, &mut[]);
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { /*return Err(rv);*/ }
+        rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { /*return Err(rv);*/ }
     }
 
 
     let mut file_pub = null_mut();
-    let guard_file_pub = GuardFile::new(&mut file_pub);
-    rv = unsafe { sc_select_file(card, &df_path_pub, *guard_file_pub) };
+    let guard_file_pub = GuardFile::new(&raw mut file_pub);
+    rv = unsafe { sc_select_file(card, &raw const df_path_pub, *guard_file_pub) };
     if rv != SC_SUCCESS { return Err(-1); }
     let mut rbuf_pub = vec![0_u8; size_pub];
     rv = unsafe { cfg_if::cfg_if! {
@@ -379,7 +379,7 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
         }
         else {
             let mut flags : c_ulong = 0;
-            sc_read_binary(card, 0, rbuf_pub.as_mut_ptr(), rbuf_pub.len(), &mut flags)
+            sc_read_binary(card, 0, rbuf_pub.as_mut_ptr(), rbuf_pub.len(), &raw mut flags)
         }
     }};
     if rv != size_pub.try_into().unwrap()  { return Err(-1); }
@@ -420,7 +420,7 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
             return Err(rv);
         }
 
-        rv = unsafe { sc_delete_file(card, &df_path_pub) };
+        rv = unsafe { sc_delete_file(card, &raw const df_path_pub) };
         if rv < 0 {
             log3ifr!(ctx,f,line!(), c"File deletion failed", rv);
             return Err(rv);
@@ -436,7 +436,7 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
             return Err(rv);
         }
         let mut apdu = build_apdu(ctx, &[0, 0x44, 0, 0], SC_APDU_CASE_1, &mut[]);
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { /*return Err(rv);*/ }
+        rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { /*return Err(rv);*/ }
     }
     Ok(())
 } // check_enlarge_prkdf_pukdf

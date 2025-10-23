@@ -214,14 +214,14 @@ pub const SC_ERROR_PKCS15_APP_NOT_FOUND          : i32 =  -1901;
 unsafe extern "C" {
     /// Returns the text (C string) associated with the error number `sc_errno` defined in this module.
     ///
-    /// @param sc_errno  IN:<br>
-    /// if 0 (==SC_SUCCESS), it's no error but success, returns "Success".<br>
-    /// if sc_errno or it's negated value (i.e. -abs(sc_errno)) matches any of the predefined  pub const SC_ERROR_...,
-    /// then the text contained in the error text database (@see function errors.c::sc_strerror) is returned,<br>
+    /// @param `sc_errno`  IN:<br>
+    /// if 0 (==`SC_SUCCESS`), it's no error but success, returns "Success".<br>
+    /// if `sc_errno` or it's negated value (i.e. -`abs(sc_errno)`) matches any of the predefined  pub const `SC_ERROR`_...,
+    /// then the text contained in the error text database (@see function `errors.c::sc_strerror`) is returned,<br>
     /// otherwise "Unknown error" will be returned.<br>
     /// @return  associated text
     ///
-    /// Thus it's recommended to use as param only predefined 'SC_SUCCESS' or any of 'SC_ERROR_...'
+    /// Thus it's recommended to use as param only predefined '`SC_SUCCESS`' or any of '`SC_ERROR`_...'
     ///
     /// Rust: No memory problem!  returns pointer to .rodata of libopensc.so
     /// @test available

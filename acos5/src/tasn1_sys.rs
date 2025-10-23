@@ -21,16 +21,16 @@
  *
  */
 
-//! Both driver components (libacos5.so/dll and libacos5_pkcs15.so/dll) share this same file
+//! Both driver components (libacos5.so/dll and `libacos5_pkcs15.so/dll`) share this same file
 
 #![allow(dead_code, non_upper_case_globals/*, non_camel_case_types, non_snake_case*/)]
 
-/**
+/*
  * `libtasn1:Short_Description`:
  *
  * GNU ASN.1 library
  */
-/**
+/*
  * `libtasn1:Long_Description`:
  *
  * The Libtasn1 library provides Abstract Syntax Notation One (ASN.1, as

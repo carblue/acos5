@@ -24,7 +24,7 @@
 
 use std::os::raw::c_ulong;
 #[cfg(impl_default)]
-use std::ptr::{null, null_mut};
+use std::ptr::null_mut;
 
 /* various maximum values */
 pub const SC_MAX_CARD_DRIVERS           : usize =    48;
@@ -70,19 +70,10 @@ cfg_if::cfg_if! {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct sc_lv_data {
     pub value : *mut u8,
     pub len   : usize,
-}
-
-impl Default for sc_lv_data {
-    fn default() -> Self {
-        Self {
-            value: null_mut(),
-            len:    0,
-        }
-    }
 }
 
 #[repr(C)]
@@ -285,7 +276,7 @@ pub const SC_AC_OP_ERASE                 : u32 =  SC_AC_OP_DELETE;
 pub const SC_AC_KEY_REF_NONE             : c_ulong =  0xFFFF_FFFF;
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct sc_acl_entry {
     pub method  : u32, /* See SC_AC_* */
     pub key_ref : u32, /* SC_AC_KEY_REF_NONE or an integer */
@@ -294,19 +285,6 @@ pub struct sc_acl_entry {
     pub crts    : [sc_crt; SC_MAX_CRTS_IN_SE],
 
     pub next    : *mut sc_acl_entry,
-}
-
-#[cfg(impl_default)]
-impl Default for sc_acl_entry {
-    fn default() -> Self {
-        Self {
-            method: 0, // 0 == SC_AC_OP_SELECT
-            key_ref: 0,
-            #[cfg(v0_20_0)]
-            crts: [sc_crt::default(); SC_MAX_CRTS_IN_SE],
-            next: null_mut()
-        }
-    }
 }
 
 /*
@@ -468,7 +446,7 @@ pub const SC_APDU_ALLOCATE_FLAG_DATA : c_ulong =  0x02;
 pub const SC_APDU_ALLOCATE_FLAG_RESP : c_ulong =  0x04;
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct sc_apdu {
     pub cse : i32,   /* APDU case */
     pub cla : u8, /* CLA bytes */
@@ -499,33 +477,6 @@ pub struct sc_apdu {
 #[allow(non_camel_case_types)]
 pub type sc_apdu_t = sc_apdu ;
 */
-
-#[cfg(impl_default)]
-impl Default for sc_apdu {
-    fn default() -> Self {
-        Self {
-            cse              :  0,
-            cla              :  0,
-            ins              :  0,
-            p1               :  0,
-            p2               :  0,
-            lc               :  0,
-            le               :  0,
-            data             :  null(),
-            datalen          :  0,
-            resp             :  null_mut(),
-            resplen          :  0,
-            control          :  0,
-            allocation_flags :  0,
-            sw1              :  0,
-            sw2              :  0,
-            mac              :  [0; 8],
-            mac_len          :  0,
-            flags            :  0,
-            next             :  null_mut(),
-        }
-    }
-}
 
 /* Card manager Production Life Cycle data (CPLC)
  * (from the Open Platform specification) */
@@ -579,7 +530,7 @@ pub type sc_serial_number_t = sc_serial_number;
 */
 
 /**
- * @struct sc_remote_apdu data
+ * @struct `sc_remote_apdu` data
  * Structure to supply the linked APDU data used in
  * communication with the external (SM) modules.
  */
@@ -612,38 +563,26 @@ impl Default for sc_remote_apdu {
 }
 
 /**
- * @struct sc_remote_data
- * Frame for the list of the @c sc_remote_apdu data with
+ * @struct `sc_remote_data`
+ * Frame for the list of the @c `sc_remote_apdu` data with
  * the handlers to allocate and free.
  */
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct sc_remote_data {
     pub data : *mut sc_remote_apdu,
     pub length : i32,
 
     /**
-     * Handler to allocate a new @c sc_remote_apdu data and add it to the list.
-     * @param rdata Self pointer to the @c sc_remote_data
+     * Handler to allocate a new @c `sc_remote_apdu` data and add it to the list.
+     * @param rdata Self pointer to the @c `sc_remote_data`
      * @param out Pointer to newly allocated member
      */
     pub alloc : Option< unsafe extern "C" fn (rdata: *mut sc_remote_data,
                                               out: *mut *mut sc_remote_apdu) -> i32 >,
     /**
-     * Handler to free the list of @c sc_remote_apdu data
-     * @param rdata Self pointer to the @c sc_remote_data
+     * Handler to free the list of @c `sc_remote_apdu` data
+     * @param rdata Self pointer to the @c `sc_remote_data`
      */
     pub free  : Option< unsafe extern "C" fn (rdata: *mut sc_remote_data) >,
-}
-
-#[cfg(impl_default)]
-impl Default for sc_remote_data {
-    fn default() -> Self {
-        Self {
-            data: null_mut(),
-            length: 0,
-            alloc: None,
-            free: None
-        }
-    }
 }

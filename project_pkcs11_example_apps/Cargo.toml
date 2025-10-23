@@ -2,7 +2,7 @@
 name = "project_pkcs11_example_apps"
 version = "0.0.30"
 authors = ["Carsten Blüggel <bluecars@posteo.eu>"]
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

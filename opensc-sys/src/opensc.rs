@@ -20,9 +20,9 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-/**
+/*
  * @file src/libopensc/opensc.h
- * OpenSC library core header file
+ * `OpenSC` library core header file
  */
 
 /*
@@ -397,6 +397,8 @@ pub const SC_EVENT_READER_EVENTS   : u32 = SC_EVENT_READER_ATTACHED | SC_EVENT_R
 
 pub const MAX_FILE_SIZE : usize = 65535; // since v0_20_0
 
+pub const ED448_KEY_SIZE_BYTES : usize = 57; // since v0_27_0
+
 #[repr(C)]
 #[derive(/*Default, not possible for v0_20_0 */ Debug, Copy, Clone)]
 pub struct sc_supported_algo_info {
@@ -429,7 +431,7 @@ impl Default for sc_supported_algo_info {
     }
 }
 
-/// except in struct sc_security_env, unused currently
+/// except in struct `sc_security_env`, unused currently
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_sec_env_param {
@@ -555,14 +557,20 @@ pub struct sc_pbes2_params {
 }
 
 /*
+ * PKCS11 2.3 Elliptic Curve lists mechanisms that use CKA_EC_PARAMS
+ * which implies the type of key and size needed in the OID
  * The ecParameters can be presented as
  * - name of curve;
  * - OID of named curve;
  * - implicit parameters.
+ * - printable string for non standard OIDS - added in pkcs11 3.0
  *
  * type - type(choice) of 'EC domain parameters' as it present in CKA_EC_PARAMS (PKCS#11).
-          Recommended value '1' -- namedCurve.
+ *	Recommended value '1' -- namedCurve.
  * field_length - EC key size in bits.
+ * key_type - 0 implies SC_ALGORITHM_EC, SC_ALGORITHM_EDDSA or SC_ALGORITHM_XEDDSA
+ *	Not actually part of CKA_EC_PARAMS - used in OpenSC to differentiate key types that use ec_params
+ *	will be set by sc_pkcs15_fix_ec_parameters
  */
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -573,6 +581,8 @@ pub struct sc_ec_parameters {
 
     pub type_ : i32,
     pub field_length : usize,
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1)))]
+    pub key_type : u32,
 }
 
 #[repr(C)]
@@ -683,6 +693,7 @@ pub struct sc_ef_atr {
     pub status : u32,
 }
 
+#[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_card_cache {
@@ -791,7 +802,7 @@ pub const SC_PIN_ENCODING_ASCII      : u32 = 0;
 pub const SC_PIN_ENCODING_BCD        : u32 = 1;
 pub const SC_PIN_ENCODING_GLP        : u32 = 2; /* Global Platform - Card Specification v2.0.1 */
 
-/** Values for sc_pin_cmd_pin.logged_in */
+/** Values for `sc_pin_cmd_pin.logged_in` */
 pub const SC_PIN_STATE_UNKNOWN       : i32 = -1;    // since opensc source release v0.17.0
 pub const SC_PIN_STATE_LOGGED_OUT    : i32 = 0;     // since opensc source release v0.17.0
 pub const SC_PIN_STATE_LOGGED_IN     : i32 = 1;     // since opensc source release v0.17.0
@@ -1037,6 +1048,7 @@ pub struct sc_card {
     pub drv_data : *mut c_void,
     pub max_pin_len : i32,
 
+    #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))]
     pub cache : sc_card_cache,
 
     pub serialnr : sc_serial_number,
@@ -1060,9 +1072,9 @@ pub type sc_card_t = sc_card;
 pub struct sc_card_operations {
     /** @brief Match a card with the given card driver.
      *
-     * Called in sc_connect_card().  Must return 1, if the current
+     * Called in `sc_connect_card()`.  Must return 1, if the current
      * card can be handled with this driver, or 0 otherwise.  ATR
-     * field of the sc_card struct is filled in before calling
+     * field of the `sc_card` struct is filled in before calling
      * this function. It is recommended not to modify `card` during this call.
      * */
     pub match_card : Option< unsafe extern "C" fn (card : *mut sc_card) -> i32 >,
@@ -1070,14 +1082,14 @@ pub struct sc_card_operations {
     /** @brief Initialize a card.
      *
      * Called when ATR of the inserted card matches an entry in ATR
-     * table.  May return SC_ERROR_INVALID_CARD to indicate that
-     * the card cannot be handled with this driver. drv_data may be used to
+     * table.  May return `SC_ERROR_INVALID_CARD` to indicate that
+     * the card cannot be handled with this driver. `drv_data` may be used to
      * store card driver's (allocated) private data. */
     pub init : Option< unsafe extern "C" fn (card: *mut sc_card) -> i32 >,
 
     /** @brief Deinitialize a card.
      *
-     * Called when the `card` object is being freed.  finish() has to
+     * Called when the `card` object is being freed.  `finish()` has to
      * deallocate all possible private data. */
     pub finish : Option< unsafe extern "C" fn (card: *mut sc_card) -> i32 >,
 
@@ -1109,14 +1121,14 @@ pub struct sc_card_operations {
      *
      * Implementation of this call back is optional and may be NULL.
      *
-     * @param  card   struct sc_card object on which to issue the command
+     * @param  card   struct `sc_card` object on which to issue the command
      * @param  idx    index within the file for the data to be written
      * @param  buf    buffer with the data
      * @param  count  number of bytes to write
      * @param  flags  flags for the WRITE BINARY command (currently not used)
      * @return number of bytes written or an error code
      *
-     * @see sc_write_binary()
+     * @see `sc_write_binary()`
      */
     pub write_binary  : Option< unsafe extern "C" fn (card: *mut sc_card, idx: u32,
                                                       buf: *const u8, count: usize, flags: c_ulong) -> i32 >,
@@ -1124,14 +1136,14 @@ pub struct sc_card_operations {
      *
      * Implementation of this call back is optional and may be NULL.
      *
-     * @param  card   struct sc_card object on which to issue the command
+     * @param  card   struct `sc_card` object on which to issue the command
      * @param  idx    index within the file for the data to be updated
      * @param  buf    buffer with the new data
      * @param  count  number of bytes to update
      * @param  flags  flags for the UPDATE BINARY command (currently not used)
      * @return number of bytes written or an error code
      *
-     * @see sc_update_binary()
+     * @see `sc_update_binary()`
      */
     pub update_binary : Option< unsafe extern "C" fn (card: *mut sc_card, idx: u32,
                                                       buf: *const u8, count: usize, flags: c_ulong) -> i32 >,
@@ -1141,13 +1153,13 @@ pub struct sc_card_operations {
      *
      * Implementation of this call back is optional and may be NULL.
      *
-     * @param  card   struct sc_card object on which to issue the command
+     * @param  card   struct `sc_card` object on which to issue the command
      * @param  idx    index within the file for the data to be erased
      * @param  count  number of bytes to erase
      * @param  flags  flags for the ERASE BINARY command (currently not used)
      * @return number of bytes erased or an error code
      *
-     * @see sc_erase_binary()
+     * @see `sc_erase_binary()`
      */
     pub erase_binary  : Option< unsafe extern "C" fn (card: *mut sc_card, idx: u32,
                                                       count: usize, flags: c_ulong) -> i32 >,
@@ -1176,10 +1188,10 @@ pub struct sc_card_operations {
     pub select_file : Option< unsafe extern "C" fn (card: *mut sc_card, path: *const sc_path,
                                                     file_out: *mut *mut sc_file) -> i32 >,
     /**
-     * The iso7816_get_response function is limited to return by @param count / @return: max. sc_get_max_recv_size() bytes
-     * @param  count  INOUT  IN the requested amount of bytes, OUT: apdu.resplen<=sc_get_max_recv_size(card)
+     * The `iso7816_get_response` function is limited to return by @param count / @return: max. `sc_get_max_recv_size()` bytes
+     * @param  count  INOUT  IN the requested amount of bytes, OUT: apdu.resplen<=`sc_get_max_recv_size(card)`
      * @return  error code or : 0 for statusword 0x9000 (no more data to read) or for apdu.sw1 == 0x61:
-                                r = apdu.sw2 == 0 ? 256 : apdu.sw2;    (more data to read)
+     *    r = apdu.sw2 == 0 ? 256 : apdu.sw2;    (more data to read)
      */
     pub get_response : Option< unsafe extern "C" fn (card: *mut sc_card, count: *mut usize,
                                                      buf: *mut u8) -> i32 >,
@@ -1188,7 +1200,7 @@ pub struct sc_card_operations {
      *
      * Implementation of this call back is optional and may be NULL.
      *
-     * @param  card   struct sc_card object on which to issue the command
+     * @param  card   struct `sc_card` object on which to issue the command
      * @param  buf    buffer to be filled with random data
      * @param  count  number of random bytes to initialize
      * @return number of random bytes successfully initialized (i.e. `count` or less bytes) or an error code
@@ -1292,7 +1304,7 @@ pub struct sc_card_operations {
     pub encrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, plaintext: *const u8, plaintext_len: usize, out: *mut u8, outlen: *mut usize) -> i32 >,
 
     #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
-    pub decrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, EncryptedData: *const u8, EncryptedDataLen: usize, out: *mut u8, outlen: *mut usize) -> i32 >,
+    pub decrypt_sym : Option< unsafe extern "C" fn (card: *mut sc_card, encrypted_data: *const u8, encrypted_data_len: usize, out: *mut u8, outlen: *mut usize) -> i32 >,
 }
 
 #[repr(C)]
@@ -1326,7 +1338,7 @@ impl Default for sc_card_driver {
 }
 
 /**
- * @struct sc_thread_context
+ * @struct `sc_thread_context`
  * Structure for the locking function to use when using libopensc
  * in a multi-threaded application.
  */
@@ -1358,7 +1370,7 @@ pub type sc_thread_context_t = sc_thread_context;
  * process that has been forked. For example, a child process may want to leave
  * the duplicated card handles for the parent process. With this flag the child
  * process indicates that shall the reader shall ignore those resources when
- * calling sc_disconnect_card.
+ * calling `sc_disconnect_card`.
  */
 pub const SC_CTX_FLAG_TERMINATE             : c_ulong = 0x0000_0001;  // since opensc source release v0.16.0
 /** removed in 0.18.0 and later */
@@ -1484,9 +1496,9 @@ unsafe extern "C" {
 /* APDU handling functions */
 
 /** Sends a APDU to the card
- *  @param  card  struct sc_card object to which the APDU should be send
- *  @param  apdu  sc_apdu object of the APDU to be send
- *  @return SC_SUCCESS on success and an error code otherwise
+ *  @param  card  struct `sc_card` object to which the APDU should be send
+ *  @param  apdu  `sc_apdu` object of the APDU to be send
+ *  @return `SC_SUCCESS` on success and an error code otherwise
  */
 pub fn sc_transmit_apdu(card: *mut sc_card, apdu: *mut sc_apdu) -> i32;
 
@@ -1494,9 +1506,9 @@ pub fn sc_format_apdu(card: *mut sc_card, apdu: *mut sc_apdu, cse: i32, ins: i32
 
 /** Format an APDU based on the data to be sent and received.
  *
- * Calls \a sc_transmit_apdu() by determining the APDU case based on \a datalen
+ * Calls \a `sc_transmit_apdu()` by determining the APDU case based on \a datalen
  * and \a resplen. As result, no chaining or GET RESPONSE will be performed in
- * sc_format_apdu().
+ * `sc_format_apdu()`.
  */
 pub fn sc_format_apdu_ex(apdu: *mut sc_apdu,
     cla: u8, ins: u8, p1: u8, p2: u8,
@@ -1505,14 +1517,14 @@ pub fn sc_format_apdu_ex(apdu: *mut sc_apdu,
 
 pub fn sc_check_apdu(card: *mut sc_card, apdu: *const sc_apdu) -> i32;
 
-/** Transforms an APDU from binary to its @c sc_apdu representation
- *  @param  ctx     sc_context object (used for logging)
- *  @param  buf     APDU to be encoded as an @c sc_apdu object
+/** Transforms an APDU from binary to its @c `sc_apdu` representation
+ *  @param  ctx     `sc_context` object (used for logging)
+ *  @param  buf     APDU to be encoded as an @c `sc_apdu` object
  *  @param  len     length of @a buf
- *  @param  apdu    @c sc_apdu object to initialize
- *  @return SC_SUCCESS on success and an error code otherwise
+ *  @param  apdu    @c `sc_apdu` object to initialize
+ *  @return `SC_SUCCESS` on success and an error code otherwise
  *  @note On successful initialization apdu->data will point to @a buf with an
- *  appropriate offset. Only free() @a buf, when apdu->data is not needed any
+ *  appropriate offset. Only `free()` @a buf, when apdu->data is not needed any
  *  longer.
  *  @note On successful initialization @a apdu->resp and apdu->resplen will be
  *  0. You should modify both if you are expecting data in the response APDU.
@@ -1520,12 +1532,12 @@ pub fn sc_check_apdu(card: *mut sc_card, apdu: *const sc_apdu) -> i32;
 pub fn sc_bytes2apdu(ctx: *mut sc_context, buf: *const u8, len: usize, apdu: *mut sc_apdu) -> i32;
 
 /** Encodes a APDU as an octet string
- *  @param  ctx     sc_context object (used for logging)
+ *  @param  ctx     `sc_context` object (used for logging)
  *  @param  apdu    APDU to be encoded as an octet string
  *  @param  proto   protocol version to be used
  *  @param  out     output buffer of size outlen.
  *  @param  outlen  size of the output buffer
- *  @return SC_SUCCESS on success and an error code otherwise
+ *  @return `SC_SUCCESS` on success and an error code otherwise
  */
 fn sc_apdu2bytes(ctx: *mut sc_context, apdu: *const sc_apdu,
     proto: u32, out: *mut u8, outlen: usize) -> i32; // since opensc source release v0.18.0; not declared pub because not exported from libopensc.so
@@ -1545,10 +1557,10 @@ pub fn sc_check_sw (card: *mut sc_card, sw1: u32, sw2: u32) -> i32;
 
 #[deprecated(since="0.0.0", note="please use `sc_context_create` instead")]
 /**
- * Establishes an OpenSC context. Note: this function is deprecated,
- * please use sc_context_create() instead.
+ * Establishes an `OpenSC` context. Note: this function is deprecated,
+ * please use `sc_context_create()` instead.
  * @param ctx A pointer to a pointer that will receive the allocated context
- * @param app_name A string that identifies the application, used primarily
+ * @param `app_name` A string that identifies the application, used primarily
  * in finding application-specific configuration data. Can be NULL.
  */
 pub fn sc_establish_context(ctx: *mut *mut sc_context, app_name: *const c_char) -> i32;
@@ -1556,9 +1568,9 @@ pub fn sc_establish_context(ctx: *mut *mut sc_context, app_name: *const c_char) 
 }
 
 /**
- * @struct sc_context initialization parameters
+ * @struct `sc_context` initialization parameters
  * Structure to supply additional parameters, for example
- * mutex information, to the sc_context creation.
+ * mutex information, to the `sc_context` creation.
  */
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -1603,34 +1615,34 @@ impl Default for sc_context_param {
 unsafe extern "C" {
 
 /**
- * Repairs an already existing sc_context object. This may occur if
+ * Repairs an already existing `sc_context` object. This may occur if
  * multithreaded issues mean that another context in the same heap is deleted.
- * @param  ctx   pointer to a sc_context pointer containing the (partial)
+ * @param  ctx   pointer to a `sc_context` pointer containing the (partial)
  *               context.
- * @return SC_SUCCESS or an error value if an error occurred.
+ * @return `SC_SUCCESS` or an error value if an error occurred.
  */
 fn sc_context_repair(ctx: *mut *mut sc_context) -> i32; // not declared pub because not exported from libopensc.so
 
 /**
- * Creates a new sc_context object.
- * @param  ctx   pointer to a sc_context pointer for the newly
- *               created sc_context object.
- * @param  parm  parameters for the sc_context creation (see
- *               sc_context_param for a description of the supported
+ * Creates a new `sc_context` object.
+ * @param  ctx   pointer to a `sc_context` pointer for the newly
+ *               created `sc_context` object.
+ * @param  parm  parameters for the `sc_context` creation (see
+ *               `sc_context_param` for a description of the supported
  *               options)..
- * @return SC_SUCCESS on success and an error code otherwise.
+ * @return `SC_SUCCESS` on success and an error code otherwise.
  */
 pub fn sc_context_create(ctx: *mut *mut sc_context, parm: *const sc_context_param) -> i32;
 /**
- * Releases an established OpenSC context
+ * Releases an established `OpenSC` context
  * @param ctx A pointer to the context structure to be released
  */
 pub fn sc_release_context(ctx: *mut sc_context) -> i32;
 
 /**
  * Detect new readers available on system.
- * @param  ctx  OpenSC context
- * @return SC_SUCCESS on success and an error code otherwise.
+ * @param  ctx  `OpenSC` context
+ * @return `SC_SUCCESS` on success and an error code otherwise.
  */
 pub fn sc_ctx_detect_readers(ctx: *mut sc_context) -> i32;
 
@@ -1639,28 +1651,28 @@ pub fn sc_ctx_detect_readers(ctx: *mut sc_context) -> i32;
  * @param env name of environment variable
  * @param reg name of register value
  * @param key path of register key
- * @return SC_SUCCESS on success and an error code otherwise.
+ * @return `SC_SUCCESS` on success and an error code otherwise.
  */
 pub fn sc_ctx_win32_get_config_value(env: *const c_char, reg: *const c_char, key: *const c_char,
     out: *mut c_void, out_size: *mut usize) -> i32;       // since opensc source release v0.19.0
 
 /**
- * Returns a pointer to the specified sc_reader object
- * @param  ctx  OpenSC context
+ * Returns a pointer to the specified `sc_reader` object
+ * @param  ctx  `OpenSC` context
  * @param  i    number of the reader structure to return (starting with 0)
- * @return the requested sc_reader object or NULL if the index is
+ * @return the requested `sc_reader` object or NULL if the index is
  *         not available
  */
 pub fn sc_ctx_get_reader(ctx: *mut sc_context, i: u32) -> *mut sc_reader;
 
 /**
  * Pass in pointers to handles to be used for the pcsc reader.
- * This is used by cardmod to pass in handles provided by BaseCSP
+ * This is used by cardmod to pass in handles provided by `BaseCSP`
  *
- * @param  ctx   pointer to a sc_context
- * @param  pcsc_context_handle pointer to the  new context_handle to use
- * @param  pcsc_card_handle pointer to the new card_handle to use
- * @return SC_SUCCESS or 1 on success and an error code otherwise. A return of 1 indicates to call reinit_card_for, as the reader has changed.
+ * @param  ctx   pointer to a `sc_context`
+ * @param  `pcsc_context_handle` pointer to the  new `context_handle` to use
+ * @param  `pcsc_card_handle` pointer to the new `card_handle` to use
+ * @return `SC_SUCCESS` or 1 on success and an error code otherwise. A return of 1 indicates to call `reinit_card_for`, as the reader has changed.
  */
 pub fn sc_ctx_use_reader(ctx: *mut sc_context, pcsc_context_handle: *mut c_void, pcsc_card_handle: *mut c_void) -> i32;
 
@@ -1674,26 +1686,26 @@ pub fn sc_ctx_use_reader(ctx: *mut sc_context, pcsc_context_handle: *mut c_void,
 fn pcsc_check_reader_handles(ctx: *mut sc_context, reader: *mut sc_reader, pcsc_context_handle: *mut c_void, pcsc_card_handle: *mut c_void) -> i32;
 
 /**
- * Returns a pointer to the specified sc_reader object
- * @param  ctx  OpenSC context
+ * Returns a pointer to the specified `sc_reader` object
+ * @param  ctx  `OpenSC` context
  * @param  name name of the reader to look for
- * @return the requested sc_reader object or NULL if the reader is
+ * @return the requested `sc_reader` object or NULL if the reader is
  *         not available
  */
 pub fn sc_ctx_get_reader_by_name(ctx: *mut sc_context, name: *const c_char) -> *mut sc_reader;
 
 /**
- * Returns a pointer to the specified sc_reader object
- * @param  ctx  OpenSC context
+ * Returns a pointer to the specified `sc_reader` object
+ * @param  ctx  `OpenSC` context
  * @param  id id of the reader (starting from 0)
- * @return the requested sc_reader object or NULL if the reader is
+ * @return the requested `sc_reader` object or NULL if the reader is
  *         not available
  */
 pub fn sc_ctx_get_reader_by_id(ctx: *mut sc_context, id: u32) -> *mut sc_reader;
 
 /**
- * Returns the number a available sc_reader objects
- * @param  ctx  OpenSC context
+ * Returns the number a available `sc_reader` objects
+ * @param  ctx  `OpenSC` context
  * @return the number of available reader objects
  */
 pub fn sc_ctx_get_reader_count(ctx: *mut sc_context) -> u32;
@@ -1701,17 +1713,17 @@ pub fn sc_ctx_get_reader_count(ctx: *mut sc_context) -> u32;
 pub fn _sc_delete_reader(ctx: *mut sc_context, reader: *mut sc_reader) -> i32;
 
 /**
- * Redirects OpenSC debug log to the specified file
- * @param  ctx existing OpenSC context
+ * Redirects `OpenSC` debug log to the specified file
+ * @param  ctx existing `OpenSC` context
  * @param  filename path to the file or "stderr" or "stdout"
- * @return SC_SUCCESS on success and an error code otherwise
+ * @return `SC_SUCCESS` on success and an error code otherwise
  */
 pub fn sc_ctx_log_to_file(ctx: *mut sc_context, filename: *const c_char) -> i32;
 
 /**
  * Forces the use of a specified card driver
- * @param ctx OpenSC context
- * @param short_name The short name of the driver to use (e.g. 'cardos')
+ * @param ctx `OpenSC` context
+ * @param `short_name` The short name of the driver to use (e.g. 'cardos')
  */
 pub fn sc_set_card_driver(ctx: *mut sc_context, short_name: *const c_char) -> i32;
 
@@ -1727,7 +1739,7 @@ pub fn sc_connect_card(reader: *mut sc_reader, card: *mut *mut sc_card) -> i32;
  * made by the application must be released before calling this function.
  * NOTE: The card is not reset nor powered down after the operation.
  * @param  card  The card to disconnect
- * @return SC_SUCCESS on success and an error code otherwise
+ * @return `SC_SUCCESS` on success and an error code otherwise
  */
 pub fn sc_disconnect_card(card: *mut sc_card) -> i32;
 
@@ -1735,11 +1747,11 @@ pub fn sc_disconnect_card(card: *mut sc_card) -> i32;
  * Checks if a card is present in a reader
  * @param reader Reader structure
  * @retval If an error occurred, the return value is a (negative)
- * OpenSC error code. If no card is present, 0 is returned.
+ * `OpenSC` error code. If no card is present, 0 is returned.
  * Otherwise, a positive value is returned, which is a
- * combination of flags. The flag SC_READER_CARD_PRESENT is
+ * combination of flags. The flag `SC_READER_CARD_PRESENT` is
  * always set. In addition, if the card was exchanged,
- * the SC_READER_CARD_CHANGED flag is set.
+ * the `SC_READER_CARD_CHANGED` flag is set.
  */
 pub fn sc_detect_card_presence(reader: *mut sc_reader) -> i32;
 
@@ -1754,14 +1766,14 @@ pub fn sc_detect_card_presence(reader: *mut sc_reader) -> i32;
  * not detect reader events (use a limited timeout instead if needed).
  *
  * @param ctx (IN) pointer to a Context structure
- * @param event_mask (IN) The types of events to wait for; this should
- *   be ORed from one of the following:
- *   - SC_EVENT_CARD_REMOVED
- *   - SC_EVENT_CARD_INSERTED
- *   - SC_EVENT_READER_ATTACHED
- *   - SC_EVENT_READER_DETACHED
- * @param event_reader (OUT) the reader on which the event was detected
- * @param event (OUT) the events that occurred. This is also ORed
+ * @param `event_mask` (IN) The types of events to wait for; this should
+ *   be `ORed` from one of the following:
+ *   - `SC_EVENT_CARD_REMOVED`
+ *   - `SC_EVENT_CARD_INSERTED`
+ *   - `SC_EVENT_READER_ATTACHED`
+ *   - `SC_EVENT_READER_DETACHED`
+ * @param `event_reader` (OUT) the reader on which the event was detected
+ * @param event (OUT) the events that occurred. This is also `ORed`
  *   from the constants listed above.
  * @param timeout Amount of millisecs to wait; -1 means forever
  * @retval < 0 if an error occurred
@@ -1776,8 +1788,8 @@ pub fn sc_wait_for_event (ctx: *mut sc_context, event_mask: u32,
  * Resets the card.
  * NOTE: only PC/SC backend implements this function at this moment.
  * @param card The card to reset.
- * @param do_cold_reset 0 for a warm reset, 1 for a cold reset (unpower)
- * @retval SC_SUCCESS on success
+ * @param `do_cold_reset` 0 for a warm reset, 1 for a cold reset (unpower)
+ * @retval `SC_SUCCESS` on success
  */
 pub fn sc_reset(card: *mut sc_card, do_cold_reset: i32) -> i32;
 
@@ -1785,21 +1797,21 @@ pub fn sc_reset(card: *mut sc_card, do_cold_reset: i32) -> i32;
  * Cancel all pending PC/SC calls
  * NOTE: only PC/SC backend implements this function.
  * @param ctx pointer to application context
- * @retval SC_SUCCESS on success
+ * @retval `SC_SUCCESS` on success
  */
 pub fn sc_cancel(ctx: *mut sc_context) -> i32;
 
 /**
  * Tries acquire the reader lock.
  * @param  card  The card to lock
- * @retval SC_SUCCESS on success
+ * @retval `SC_SUCCESS` on success
  */
 pub fn sc_lock(card: *mut sc_card) -> i32;
 
 /**
  * Unlocks a previously acquired reader lock.
  * @param  card  The card to unlock
- * @retval SC_SUCCESS on success
+ * @retval `SC_SUCCESS` on success
  */
 pub fn sc_unlock(card: *mut sc_card) -> i32;
 
@@ -1834,15 +1846,15 @@ fn sc_get_max_send_size(card: *const sc_card) -> usize; // not declared pub beca
 
 /**
  * Does the equivalent of ISO 7816-4 command SELECT FILE.
- * @param  card  struct sc_card object on which to issue the command
+ * @param  card  struct `sc_card` object on which to issue the command
  * @param  path  The path, file id or name of the desired file
  * @param  file  If not NULL, will receive a pointer to a new structure
- * @return SC_SUCCESS on success and an error code otherwise
+ * @return `SC_SUCCESS` on success and an error code otherwise
  */
 pub fn sc_select_file(card: *mut sc_card, path: *const sc_path, file: *mut *mut sc_file) -> i32;
 /**
  * List file ids within a DF
- * @param  card    struct sc_card object on which to issue the command
+ * @param  card    struct `sc_card` object on which to issue the command
  * @param  buf     buffer for the read file ids (the filed ids are
  *                 stored in the buffer as a sequence of 2 byte values)
  * @param  buflen  length of the supplied buffer
@@ -1869,7 +1881,7 @@ pub fn sc_read_binary(card: *mut sc_card, idx: u32, buf: *mut u8,
                       count: usize, flags: *mut c_ulong) -> i32;
 /**
  * Write data to a binary EF
- * @param  card   struct sc_card object on which to issue the command
+ * @param  card   struct `sc_card` object on which to issue the command
  * @param  idx    index within the file for the data to be written
  * @param  buf    buffer with the data
  * @param  count  number of bytes to write
@@ -1880,7 +1892,7 @@ pub fn sc_write_binary(card: *mut sc_card, idx: u32, buf: *const u8,
     count: usize, flags: c_ulong) -> i32;
 /**
  * Updates the content of a binary EF
- * @param  card   struct sc_card object on which to issue the command
+ * @param  card   struct `sc_card` object on which to issue the command
  * @param  idx    index within the file for the data to be updated
  * @param  buf    buffer with the new data
  * @param  count  number of bytes to update
@@ -1892,7 +1904,7 @@ pub fn sc_update_binary(card: *mut sc_card, idx: u32, buf: *const u8,
 
 /**
  * Sets (part of) the content fo an EF to its logical erased state
- * @param  card   struct sc_card object on which to issue the command
+ * @param  card   struct `sc_card` object on which to issue the command
  * @param  idx    index within the file for the data to be erased
  * @param  count  number of bytes to erase
  * @param  flags  flags for the ERASE BINARY command (currently not used)
@@ -1931,8 +1943,8 @@ pub fn sc_read_record(card: *mut sc_card, rec_nr: u32, idx: u32, buf: *mut u8,
 
 /**
  * Writes data to a record from the current (i.e. selected) file.
- * @param  card    struct sc_card object on which to issue the command
- * @param  rec_nr  SC_READ_RECORD_CURRENT or a record number starting from 1
+ * @param  card    struct `sc_card` object on which to issue the command
+ * @param  `rec_nr`  `SC_READ_RECORD_CURRENT` or a record number starting from 1
  * @param  buf     buffer with to the data to be written
  * @param  count   number of bytes to write
  * @param  flags   flags (may contain a short file id of a file to select)
@@ -1942,7 +1954,7 @@ pub fn sc_write_record(card: *mut sc_card, rec_nr: u32, buf: *const u8,
     count: usize, flags: c_ulong) -> i32;
 /**
  * Appends a record to the current (i.e. selected) file.
- * @param  card    struct sc_card object on which to issue the command
+ * @param  card    struct `sc_card` object on which to issue the command
  * @param  buf     buffer with to the data for the new record
  * @param  count   length of the data
  * @param  flags   flags (may contain a short file id of a file to select)
@@ -1969,17 +1981,17 @@ pub fn sc_update_record(card: *mut sc_card, rec_nr: u32, idx: u32, buf: *const u
 pub fn sc_delete_record(card: *mut sc_card, rec_nr: u32) -> i32;
 /* get/put data functions */
 
-/// Caller of sc_card.sc_card_operations.get_data
+/// Caller of `sc_card.sc_card_operations.get_data`
 /// seems to refer to Data Object file, not to confuse with cos5 "Get Key"
-/// OpenSC (exempt from card specific code) currently uses that from opensc-explorer only
+/// `OpenSC` (exempt from card specific code) currently uses that from opensc-explorer only
 pub fn sc_get_data(card: *mut sc_card, arg2: u32, arg3: *mut u8, arg4: usize) -> i32;
 pub fn sc_put_data(card: *mut sc_card, arg2: u32, arg3: *const u8, arg4: usize) -> i32;
 /**
  * Gets challenge from the card (normally random data).
- * @param  card    struct sc_card object on which to issue the command
+ * @param  card    struct `sc_card` object on which to issue the command
  * @param  rndout  buffer for the returned random challenge. Note that the buffer may be only partially initialized on error.
  * @param  len     length of the challenge
- * @return SC_SUCCESS on success and an error code otherwise
+ * @return `SC_SUCCESS` on success and an error code otherwise
  */
 pub fn sc_get_challenge(card: *mut sc_card, rndout: *mut u8, len: usize) -> i32;
 
@@ -1990,68 +2002,68 @@ pub fn sc_get_challenge(card: *mut sc_card, rndout: *mut u8, len: usize) -> i32;
 pub fn sc_restore_security_env(card: *mut sc_card, se_num: i32) -> i32;
 
 
-/// Caller of sc_card.sc_card_operations.set_security_env
+/// Caller of `sc_card.sc_card_operations.set_security_env`
 ///
-/// params passed : Nothing else but all req. by set_security_env{env, se_num  as per @param}\
+/// params passed : Nothing else but all req. by `set_security_env{env`, `se_num`  as per @param}\
 /// @apiNote  checked OKAY for @param consistency, same  @param names\
 /// @param  card    INOUT\
 /// @param  env     IN\
-/// @param  se_num  IN\
+/// @param  `se_num`  IN\
 pub fn sc_set_security_env(card: *mut sc_card,
     env: *const sc_security_env, se_num: i32) -> i32;
 
-/// Caller of sc_card.sc_card_operations.decipher
+/// Caller of `sc_card.sc_card_operations.decipher`
 ///
-/// params passed : Nothing else but all req. by decipher{data, data_len, out, outlen  as per @param}\
+/// params passed : Nothing else but all req. by decipher{data, `data_len`, out, outlen  as per @param}\
 /// @apiNote  checked OKAY for @param consistency, same  @param names\
-/// @param  card        INOUT struct sc_card object\
+/// @param  card        INOUT struct `sc_card` object\
 /// @param  crgram      IN    data to be decrypted\
-/// @param  crgram_len  IN    data's length\
+/// @param  `crgram_len`  IN    data's length\
 /// @param  out         OUTIF plain text after decryption\
 /// @param  outlen      IN    \
-/// @return SC_SUCCESS on success, SC_ERROR
+/// @return `SC_SUCCESS` on success, `SC_ERROR`
 pub fn sc_decipher(card: *mut sc_card, crgram: *const u8, crgram_len: usize,
     out: *mut u8, outlen: usize) -> i32;
 //(card: *mut sc_card, crgram: *const u8, crgram_len: usize,
 //out: *mut u8, outlen: usize) -> i32 >,
 
 
-/// Caller of sc_card.sc_card_operations.compute_signature
+/// Caller of `sc_card.sc_card_operations.compute_signature`
 ///
-/// params passed : Nothing else but all req. by compute_signature{data, data_len, out, outlen  as per @param}\
+/// params passed : Nothing else but all req. by `compute_signature{data`, `data_len`, out, outlen  as per @param}\
 /// @apiNote  checked OKAY for @param consistency, same  @param names\
-/// @param  card      INOUT struct sc_card object\
+/// @param  card      INOUT struct `sc_card` object\
 /// @param  data      IN    data to be signed (may be a hash only, or a digestInfo, or complete:
-///                         padding+digestInfo (data_len==keyModLen as length in bytes)\
-/// @param  data_len  IN    data's length\
+///                         padding+digestInfo (`data_len==keyModLen` as length in bytes)\
+/// @param  `data_len`  IN    data's length\
 /// @param  out       OUTIF signature\
 /// @param  outlen    IN    Number of bytes available in out for signature, MUST at least be keyModLen reserved for
 ///                         signature (RSA,)\
-/// @return SC_SUCCESS on success, SC_ERROR
+/// @return `SC_SUCCESS` on success, `SC_ERROR`
 pub fn sc_compute_signature(card: *mut sc_card, data: *const u8, data_len: usize,
                             out: *mut u8, outlen: usize) -> i32;
 
-/// A wrapper function for sc_pin_cmd, specifically/only for pin verification
+/// A wrapper function for `sc_pin_cmd`, specifically/only for pin verification
 ///
-/// type of *data : sc_pin_cmd_data\
-/// params passed : sc_pin_cmd_data.{cmd: SC_PIN_CMD_VERIFY, pin_type, pin_reference, pin1.data, pin1.len as per @param}\
-/// @apiNote  Not passed: sc_pin_cmd_data.{flags, pin2, apdu}, nothing passed about pin1 except see above\
-/// @param  card    INOUT struct sc_card object\
-/// @param  type_   IN    usually SC_AC_CHV\
-/// @param  ref_    IN    a pin_reference known by the card os (e.g. for acos5: pin id 0x01 local => ref_ == 0x81)\
+/// type of *data : `sc_pin_cmd_data`\
+/// params passed : `sc_pin_cmd_data.{cmd`: `SC_PIN_CMD_VERIFY`, `pin_type`, `pin_reference`, pin1.data, pin1.len as per @param}\
+/// @apiNote  Not passed: `sc_pin_cmd_data.{flags`, pin2, apdu}, nothing passed about pin1 except see above\
+/// @param  card    INOUT struct `sc_card` object\
+/// @param  type_   IN    usually `SC_AC_CHV`\
+/// @param  ref_    IN    a `pin_reference` known by the card os (e.g. for acos5: pin id 0x01 local => ref_ == 0x81)\
 /// @param  buf     IN    pin data\
 /// @param  buflen  IN    pin data's length\
-/// @param  tries_left  OUTIF\
-/// @return SC_SUCCESS on success, SC_ERROR
+/// @param  `tries_left`  OUTIF\
+/// @return `SC_SUCCESS` on success, `SC_ERROR`
 pub fn sc_verify(card: *mut sc_card, type_: u32, ref_: i32, pin: *const u8, pinlen: usize,
                  tries_left: *mut i32) -> i32;
 
 /**
  * Resets the security status of the card (i.e. withdraw all granted
  * access rights). Note: not all card operating systems support a logout
- * command and in this case SC_ERROR_NOT_SUPPORTED is returned.
- * @param  card  struct sc_card object
- * @return SC_SUCCESS on success, SC_ERROR_NOT_SUPPORTED if the card
+ * command and in this case `SC_ERROR_NOT_SUPPORTED` is returned.
+ * @param  card  struct `sc_card` object
+ * @return `SC_SUCCESS` on success, `SC_ERROR_NOT_SUPPORTED` if the card
  *         doesn't support a logout command and an error code otherwise
  */
 pub fn sc_logout(card: *mut sc_card) -> i32;
@@ -2080,13 +2092,13 @@ pub fn sc_delete_file(card: *mut sc_card, path: *const sc_path) -> i32;
 
 /* Card controls */
 
-/// Caller of sc_card.sc_card_operations.card_ctl
-/// params passed : Nothing else but all req. by card_ctl{command, data  as per @param}\
+/// Caller of `sc_card.sc_card_operations.card_ctl`
+/// params passed : Nothing else but all req. by `card_ctl{command`, data  as per @param}\
 /// @apiNote  checked OKAY for @param consistency, same  @param names\
-/// @param  card     INOUT struct sc_card object\
-/// @param  command  IN     the command requested, SC_CARDCTL_* (cardctl.rs)\
+/// @param  card     INOUT struct `sc_card` object\
+/// @param  command  IN     the command requested, `SC_CARDCTL`_* (cardctl.rs)\
 /// @param  data     INOUT? the type depends on @param  command, typically some specialized struct\
-/// @return SC_SUCCESS on success, SC_ERROR
+/// @return `SC_SUCCESS` on success, `SC_ERROR`
 pub fn sc_card_ctl(card: *mut sc_card, command: c_ulong, data: *mut c_void) -> i32;
 
 /// the file is valid, if 1 is returned, otherwise its *NOT* valid and 0 get'd returned
@@ -2094,19 +2106,19 @@ pub fn sc_card_ctl(card: *mut sc_card, command: c_ulong, data: *mut c_void) -> i
 pub safe fn sc_file_valid(file: *const sc_file) -> i32;
 /// @binding: returns C heap allocated memory
 pub safe fn sc_file_new() -> *mut sc_file;
-/// @binding: deallocates C heap allocated memory; WARNING: Don't use file after calling sc_file_free,
+/// @binding: deallocates C heap allocated memory; WARNING: Don't use file after calling `sc_file_free`,
 ///           dangling pointer not assigned to null !
 pub safe fn sc_file_free(file: *mut sc_file);
 pub fn sc_file_dup(dest: *mut *mut sc_file, src: *const sc_file);
 
-/// Adds to a file's acl\[operation\] entry the IN method and key_ref. See specia treatment for SC_AC_NEVER existing already
+/// Adds to a file's acl\[operation\] entry the IN method and `key_ref`. See specia treatment for `SC_AC_NEVER` existing already
 ///
-/// @param  file       INOUTIF file.acl\[operation\] will receive symbolic addresses or malloc'ed *mut sc_acl_entry
-///                            with method and key_ref set (crts and next not set)\
-/// @param  operation  IN  one of types::SC_AC_OP_  e.g. SC_AC_OP_READ\
-/// @param  method     IN  one of types::SC_AC_*  e.g. SC_AC_NEVER\
-/// @param  key_ref    IN  key or pin reference as used within card, or SC_AC_KEY_REF_NONE\
-/// @return SC_SUCCESS or error code
+/// @param  file       INOUTIF file.acl\[operation\] will receive symbolic addresses or malloc'ed *mut `sc_acl_entry`
+///                            with method and `key_ref` set (crts and next not set)\
+/// @param  operation  IN  one of `types::SC_AC_OP`_  e.g. `SC_AC_OP_READ`\
+/// @param  method     IN  one of `types::SC_AC`_*  e.g. `SC_AC_NEVER`\
+/// @param  `key_ref`    IN  key or pin reference as used within card, or `SC_AC_KEY_REF_NONE`\
+/// @return `SC_SUCCESS` or error code
 /// @apiNote  The function (for some methods) will add symbolic addresses (i.e. that can't be dereferenced)
 pub fn sc_file_add_acl_entry(file: *mut sc_file, operation: u32, method: u32, key_ref: c_ulong) -> i32;
 pub fn sc_file_get_acl_entry(file: *const sc_file, operation: u32) -> *const sc_acl_entry;
@@ -2132,71 +2144,71 @@ pub fn sc_wrap(card: *mut sc_card, data: *const u8,
 /********************************************************************/
 
 /**
- * Sets the content of a sc_path object.
- * @param  path    sc_path object to set
+ * Sets the content of a `sc_path` object.
+ * @param  path    `sc_path` object to set
  * @param  type    type of path
  * @param  id      value of the path
- * @param  id_len  length of the path value
+ * @param  `id_len`  length of the path value
  * @param  index   index within the file
  * @param  count   number of bytes
- * @return SC_SUCCESS on success and an error code otherwise
+ * @return `SC_SUCCESS` on success and an error code otherwise
  */
 pub fn sc_path_set(path: *mut sc_path, type_: i32, id: *const u8,
     id_len: usize, index: i32, count: i32) -> i32;
 
-/// @param path_in: e.g. "i3F00" or ""I3f00"" or "3F004100" C strings (null term.). Must not be null
+/// @param `path_in`: e.g. "i3F00" or ""I3f00"" or "3F004100" C strings (null term.). Must not be null
 ///
-/// @binding: No memory problem only if path_out points to allocated sc_path or null!
+/// @binding: No memory problem only if `path_out` points to allocated `sc_path` or null!
 pub fn sc_format_path(path_in: *const c_char, path_out: *mut sc_path);
 
 /**
- * Return string representation of the given sc_path object
+ * Return string representation of the given `sc_path` object
  * Warning: as static memory is used for the return value
  *          this function is not thread-safe !!!
- * @param  path  sc_path object of the path to be printed
+ * @param  path  `sc_path` object of the path to be printed
  * @return pointer to a const buffer with the string representation
  *         of the path
  */
 pub fn sc_print_path(path: *const sc_path) -> *const c_char;
 
 /**
- * Prints the sc_path object to a character buffer
+ * Prints the `sc_path` object to a character buffer
  * @param  buf     pointer to the buffer
  * @param  buflen  size of the buffer
- * @param  path    sc_path object to be printed
- * @return SC_SUCCESS on success and an error code otherwise
+ * @param  path    `sc_path` object to be printed
+ * @return `SC_SUCCESS` on success and an error code otherwise
  */
 pub fn sc_path_print(buf: *mut c_char, buflen: usize, path : *const sc_path) -> i32;
 
 /**
- * Compares two sc_path objects
- * @param  patha  sc_path object of the first path
- * @param  pathb  sc_path object of the second path
+ * Compares two `sc_path` objects
+ * @param  patha  `sc_path` object of the first path
+ * @param  pathb  `sc_path` object of the second path
  * @return 1 if both paths are equal and 0 otherwise
  */
 pub fn sc_compare_path(patha: *const sc_path, pathb: *const sc_path) -> i32;
 
 /**
- * Concatenate two sc_path values and store the result in
+ * Concatenate two `sc_path` values and store the result in
  * d (note: d can be the same as p1 or p2).
- * @param  d   destination sc_path object
- * @param  p1  first sc_path object
- * @param  p2  second sc_path object
- * @return SC_SUCCESS on success and an error code otherwise
+ * @param  d   destination `sc_path` object
+ * @param  p1  first `sc_path` object
+ * @param  p2  second `sc_path` object
+ * @return `SC_SUCCESS` on success and an error code otherwise
  */
 pub fn sc_concatenate_path(d: *mut sc_path, p1: *const sc_path, p2: *const sc_path) -> i32;
 /**
- * Appends a sc_path object to another sc_path object (note:
- * this function is a wrapper for sc_concatenate_path)
- * @param  dest  destination sc_path object
- * @param  src   sc_path object to append
- * @return SC_SUCCESS on success and an error code otherwise
+ * Appends a `sc_path` object to another `sc_path` object (note:
+ * this function is a wrapper for `sc_concatenate_path`)
+ * @param  dest  destination `sc_path` object
+ * @param  src   `sc_path` object to append
+ * @return `SC_SUCCESS` on success and an error code otherwise
  */
 pub fn sc_append_path(dest: *mut sc_path, src: *const sc_path) -> i32;
 /**
  * Checks whether one path is a prefix of another path
- * @param  prefix  sc_path object with the prefix
- * @param  path    sc_path object with the path which should start
+ * @param  prefix  `sc_path` object with the prefix
+ * @param  path    `sc_path` object with the path which should start
  *                 with the given prefix
  * @return 1 if the parameter prefix is a prefix of path and 0 otherwise
  */
@@ -2205,12 +2217,12 @@ pub fn sc_append_path_id (dest: *mut sc_path, id: *const u8, idlen: usize) -> i3
 pub fn sc_append_file_id(dest: *mut sc_path, fid: u32) -> i32;
 
 /**
- * Returns a const sc_path object for the MF
- * @return sc_path object of the MF
+ * Returns a const `sc_path` object for the MF
+ * @return `sc_path` object of the MF
  */
 /// ATTENTION: Mind, that some member values settings seem suspicious:
 /// count: 0, but should be -1
-/// type_: SC_PATH_TYPE_PATH, but maybe should be SC_PATH_TYPE_FILE_ID
+/// type_: `SC_PATH_TYPE_PATH`, but maybe should be `SC_PATH_TYPE_FILE_ID`
 /// aid: all 0
 /// @binding: No memory problem!  returns pointer to .rodata of libopensc.so
 pub fn sc_get_mf_path() -> *const sc_path;
@@ -2221,54 +2233,52 @@ pub fn sc_get_mf_path() -> *const sc_path;
 /********************************************************************/
 
 /// The function converts a C string containing characters (hexadecimal 'digit' only) to an u8 representation,
-/// i.e. each 2 c_char from input form  1 u8 of output
-/// @param in_: input to be interpreted, length must be a multiple of 2; c_char allowed are '0'-'9', 'a'-'f' and 'A'-'F'
+/// i.e. each 2 `c_char` from input form  1 u8 of output
+/// @param in_: input to be interpreted, length must be a multiple of 2; `c_char` allowed are '0'-'9', 'a'-'f' and 'A'-'F'
 /// @param out: output buffer offered
-/// @binding: No memory problem only if outlen is set correctly for out: outlen must be <= out.len()!
+/// @binding: No memory problem only if outlen is set correctly for out: outlen must be <= `out.len()`!
 /// The function reads within the limits of zero terminated in_ and writes to out
 /// Example: A call with in_: b"3F004100\0" and outlen>=4  will result in out: 0x [63, 0, 65, 0 ...], outlen: 4
 pub fn sc_hex_to_bin(in_: *const c_char, out: *mut u8, outlen: *mut usize) -> i32;
 
 /// The function converts an u8 array to a string representing the input as hexadecimal, human-readable/printable form.
-/// It's the inverse function of sc_hex_to_bin.
-/// @param in_: The u8 array input to be interpreted, may be NULL iff in_len==0
-/// @param in_len: Less or equal to the amount of bytes memory-safely available from in_, may be 0
+/// It's the inverse function of `sc_hex_to_bin`.
+/// @param in_: The u8 array input to be interpreted, may be NULL iff `in_len==0`
+/// @param `in_len`: Less or equal to the amount of bytes memory-safely available from in_, may be 0
 /// @param out: output buffer offered for the string represention, *MUST NOT* be NULL and *MUST* be sufficiently
-///             allocated, see out_len
-/// @param out_len: *MUST* be at least 1 and state how many bytes at least are memory-safely available within out to be
+///             allocated, see `out_len`
+/// @param `out_len`: *MUST* be at least 1 and state how many bytes at least are memory-safely available within out to be
 ///                 written, including the \0 termination byte that will be written unconditionally.
 /// @param separator: The character to be used to separate the u8 string representions. Any value<32 (32 corresponds
 ///                   to ' ' i.e. space) will suppress separation
-/// The algorithm will require for out_len (otherwise resulting in an error SC_ERROR_BUFFER_TOO_SMALL):
-///   1 (\0 termination byte) + 2*in_len + optional_separation_bytes
-/// optional_separation_bytes = 0  if in_len<=1 or separator<' ',  otherwise
-/// optional_separation_bytes = in_len-1, i.e. there will be no trailing separator character
-/// Example: input \[0x3f\], in_len=1, requiring an out_len>=3, will write this to out: \[0x33,0x66,0x00\] which reads as "3f"
-/// Example: input \[0x3f, 0x01\], in_len=2, separator=':', requiring an out_len>=6, will write this to out:
+/// The algorithm will require for `out_len` (otherwise resulting in an error `SC_ERROR_BUFFER_TOO_SMALL)`:
+///   1 (\0 termination byte) + 2*`in_len` + `optional_separation_bytes`
+/// `optional_separation_bytes` = 0  if `in_len`<=1 or separator<' ',  otherwise
+/// `optional_separation_bytes` = in_len-1, i.e. there will be no trailing separator character
+/// Example: input \[0x3f\], `in_len=1`, requiring an `out_len>=3`, will write this to out: \[0x33,0x66,0x00\] which reads as "3f"
+/// Example: input \[0x3f, 0x01\], `in_len=2`, separator=':', requiring an `out_len>=6`, will write this to out:
 ///   \[0x33, 0x66, 0x3A, 0x30, 0x31, 0x00\] which reads as "3f:01"
 /// @binding: No memory problem only if the requirements above are met!
-
-/// containing characters (hexadecimal 'digit' only), i.e. each 1 u8 from input form 2 c_char  of output.
+/// containing characters (hexadecimal 'digit' only), i.e. each 1 u8 from input form 2 `c_char`  of output.
 /// possibly separated by a delimiter character
 /// The function reads within the limits of zero terminated in_ and writes to out
-
 /**
  * Converts an u8 array to a string representing the input as hexadecimal,
- * human-readable/printable form. It's the inverse function of sc_hex_to_bin.
+ * human-readable/printable form. It's the inverse function of `sc_hex_to_bin`.
  *
- * @param in The u8 array input to be interpreted, may be NULL iff in_len==0
- * @param in_len Less or equal to the amount of bytes available from in
+ * @param in The u8 array input to be interpreted, may be NULL iff `in_len==0`
+ * @param `in_len` Less or equal to the amount of bytes available from in
  * @param out output buffer offered for the string representation, *MUST NOT*
- *             be NULL and *MUST* be sufficiently sized, see out_len
- * @param out_len *MUST* be at least 1 and state the maximum of bytes available
+ *             be NULL and *MUST* be sufficiently sized, see `out_len`
+ * @param `out_len` *MUST* be at least 1 and state the maximum of bytes available
  *                 within out to be written, including the \0 termination byte
  *                 that will be written unconditionally
  * @param separator The character to be used to separate the u8 string
  *                   representations. `0` will suppress separation.
  *
- * Example: input \[0x3f\], in_len=1, requiring an out_len>=3, will write to out:
+ * Example: input \[0x3f\], `in_len=1`, requiring an `out_len>=3`, will write to out:
  * \[0x33, 0x66, 0x00\] which reads as "3f"
- * Example: input \[0x3f, 0x01\], in_len=2, separator=':', req. an out_len>=6,
+ * Example: input \[0x3f, 0x01\], `in_len=2`, separator=':', req. an `out_len>=6`,
  * writes to out: \[0x33, 0x66, 0x3A, 0x30, 0x31, 0x00\] which reads as "3f:01"
  */
 pub fn sc_bin_to_hex(in_: *const u8, in_len: usize, out: *mut c_char, out_len: usize, separator: i32) -> i32;
@@ -2278,26 +2288,26 @@ pub fn sc_get_conf_block(ctx: *mut sc_context, name1: *const c_char, name2: *con
                          -> *mut scconf_block;
 /**
  * Initializes a given OID
- * @param  oid  sc_object_id object to be initialized
+ * @param  oid  `sc_object_id` object to be initialized
  */
 pub fn sc_init_oid(oid: *mut sc_object_id);
 /**
- * Converts a given OID in ascii form to a internal sc_object_id object
- * @param  oid  OUT sc_object_id object for the result
+ * Converts a given OID in ascii form to a internal `sc_object_id` object
+ * @param  oid  OUT `sc_object_id` object for the result
  * @param  in   ascii string with the oid ("1.2.3.4.5...")
- * @return SC_SUCCESS or an error value if an error occurred.
+ * @return `SC_SUCCESS` or an error value if an error occurred.
  */
 pub fn sc_format_oid(oid: *mut sc_object_id, in_: *const c_char) -> i32;
 /**
- * Compares two sc_object_id objects
- * @param  oid1  the first sc_object_id object
- * @param  oid2  the second sc_object_id object
+ * Compares two `sc_object_id` objects
+ * @param  oid1  the first `sc_object_id` object
+ * @param  oid2  the second `sc_object_id` object
  * @return 1 if the oids are equal and a zero value otherwise
  */
 pub fn sc_compare_oid(oid1: *const sc_object_id, oid2: *const sc_object_id) -> i32;
 /**
  * Validates a given OID
- * @param  oid  sc_object_id object to be validated
+ * @param  oid  `sc_object_id` object to be validated
  */
 pub fn sc_valid_oid(oid: *const sc_object_id) -> i32;
 
@@ -2308,7 +2318,7 @@ pub fn sc_base64_decode(in_: *const c_char, out: *mut u8, outlen: usize) -> i32;
 
 /**
  * Clears a memory buffer (note: when OpenSSL is used this is
- * currently a wrapper for OPENSSL_cleanse() ).
+ * currently a wrapper for `OPENSSL_cleanse()` ).
  * @param  ptr  pointer to the memory buffer
  * @param  len  length of the memory buffer
  */
@@ -2338,6 +2348,7 @@ fn sc_parse_ef_gdo(card: *mut sc_card,
 pub fn sc_update_dir(card: *mut sc_card, app: *mut sc_app_info) -> i32;
 
 fn sc_invalidate_cache(card: *mut sc_card);  // added since opensc source release v0.18.0
+#[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))]
 pub fn sc_print_cache(card: *mut sc_card);
 
 cfg_if::cfg_if! {
@@ -2396,12 +2407,17 @@ pub fn sc_crc32(value: *const u8, len: usize) -> u32; // changed since opensc so
 fn sc_compacttlv_find_tag(buf: *const u8, len: usize, tag: u8, outlen: *mut usize) -> *const u8;  // added since opensc source release v0.19.0
 
 /**
- * Used to initialize the @c sc_remote_data structure --
+ * Used to initialize the @c `sc_remote_data` structure --
  * reset the header of the 'remote APDUs' list, set the handlers
  * to manipulate the list.
  */
 pub fn sc_remote_data_init(rdata: *mut sc_remote_data);
 
+/**
+ * Clear `ec_params`
+ * @ecp
+ */
+pub fn sc_clear_ec_params(arg: *mut sc_ec_parameters);
 
 /**
  * Copy and allocate if needed EC parameters data
@@ -2423,9 +2439,9 @@ pub struct sc_card_error {
 }
 
 unsafe extern "C" {
-/// Release version of installed OpenSC software/binary libopensc.so/dll, opensc-pkcs11.so etc.
+/// Release version of installed `OpenSC` software/binary libopensc.so/dll, opensc-pkcs11.so etc.
 ///
-/// @return  returns what is defined in source code's config.h: #define PACKAGE_VERSION "0.??.0",
+/// @return  returns what is defined in source code's config.h: #define `PACKAGE_VERSION` "0.??.0",
 /// @binding: No memory problem!  returns pointer to .rodata of libopensc.so
 /// @test available
 pub safe fn sc_get_version() -> *const c_char;
@@ -2439,11 +2455,11 @@ pub safe fn sc_get_version() -> *const c_char;
  }
 */
 
-/// The ISO 7816 reference driver, i.e. name, short_name and ops (of course no atr_map, natrs, neither dll)
+/// The ISO 7816 reference driver, i.e. name, `short_name` and ops (of course no `atr_map`, natrs, neither dll)
 ///
-/// It's value are a lot of generic implementations for sc_card.sc_card_operations, some are NULL\
-/// @return   returns non-NULL pointer to statically allocated sc_card_driver{data and function pointers}\
-/// @apiNote  The mutability of returned sc_card_driver doesn't make sense to me, should be used as *const sc_card_driver\
+/// It's value are a lot of generic implementations for `sc_card.sc_card_operations`, some are NULL\
+/// @return   returns non-NULL pointer to statically allocated `sc_card_driver{data` and function pointers}\
+/// @apiNote  The mutability of returned `sc_card_driver` doesn't make sense to me, should be used as *const `sc_card_driver`\
 /// @binding: No memory problem!  returns pointers to either .rodata or .text of libopensc.so\
 /// @test available
 pub fn sc_get_iso7816_driver() -> *mut sc_card_driver;
@@ -2454,9 +2470,9 @@ pub fn sc_get_iso7816_driver() -> *mut sc_card_driver;
  * @param\[in\]     card
  * @param\[in\]     sfid   Short file identifier
  * @param\[in,out\] ef     Where to save the file. the buffer will be allocated
- *                       using \c realloc() and should be set to NULL, if
+ *                       using \c `realloc()` and should be set to NULL, if
  *                       empty.
- * @param\[in,out\] ef_len Length of \a *ef
+ * @param\[in,out\] `ef_len` Length of \a *ef
  *
  * @note The appropriate directory must be selected before calling this function.
  * */
@@ -2469,7 +2485,7 @@ pub fn iso7816_read_binary_sfid(card: *mut sc_card, sfid: u8,
  * @param\[in\] card
  * @param\[in\] sfid   Short file identifier
  * @param\[in\] ef     Data to write
- * @param\[in\] ef_len Length of \a ef
+ * @param\[in\] `ef_len` Length of \a ef
  *
  * @note The appropriate directory must be selected before calling this function.
  * */
@@ -2482,7 +2498,7 @@ pub fn iso7816_write_binary_sfid (card: *mut sc_card, sfid: u8,
 * @param\[in\] card   card
 * @param\[in\] sfid   Short file identifier
 * @param\[in\] ef     Data to write
-* @param\[in\] ef_len Length of \a ef
+* @param\[in\] `ef_len` Length of \a ef
 *
 * @note The appropriate directory must be selected before calling this function.
 * */
@@ -2493,7 +2509,7 @@ pub fn iso7816_update_binary_sfid(card: *mut sc_card, sfid: u8,
  * @brief Set verification status of a specific PIN to “not verified”
  *
  * @param\[in\] card
- * @param\[in\] pin_reference  PIN reference written to P2
+ * @param\[in\] `pin_reference`  PIN reference written to P2
  *
  * @note The appropriate directory must be selected before calling this function.
  * */
@@ -2512,9 +2528,29 @@ fn iso7816_logout(card: *mut sc_card, pin_reference: u8) -> i32;
 fn iso7816_build_pin_apdu(card: *mut sc_card, apdu: *mut sc_apdu,
                           data: *mut sc_pin_cmd_data, buf: *mut u8, buf_len: usize) -> i32;
 
+
+/*
+ * @brief Send a SELECT AID APDU to the smart card.
+ *
+ * This function constructs and transmits a SELECT command using the provided
+ * AID (Application Identifier) to select an application on the card.
+ *
+ * @param[in]     card      Pointer to the smart card context.
+ * @param[in]     req       Pointer to the AID to be selected.
+ * @param[in]     reqlen    Length of the AID.
+ * @param[out]    resp      Optional. Buffer to receive the response from the card.
+ *                          May be NULL if the response is not needed.
+ * @param[in,out] resplen   Optional. On input, the maximum length of the response buffer.
+ *                          On output, the actual length of the response. May be NULL
+ *                          if resp is NULL or response length is not needed.
+ */
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1)))]
+fn iso7816_select_aid(card: *mut sc_card, req: *const u8,
+    reqlen: usize, resp: *mut u8, resplen: *mut usize) -> i32;
+
 /**
- * Free a buffer returned by OpenSC.
- * Use this instead your C libraries free() to free memory allocated by OpenSC.
+ * Free a buffer returned by `OpenSC`.
+ * Use this instead your C libraries `free()` to free memory allocated by `OpenSC`.
  * For more details see <https://github.com/OpenSC/OpenSC/issues/2054>
  *
  * @param\[in\] p the buffer

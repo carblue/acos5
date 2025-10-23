@@ -10,7 +10,7 @@ fn parse_version_string(input: &str) -> String {
     let mut result = String::from("cargo:rustc-cfg=");
     let v: Vec<&str>;
     {
-        let pos = input.find('-').unwrap_or(input.as_bytes().len());
+        let pos = input.find('-').unwrap_or(input.len());
         let input = std::str::from_utf8(&input.as_bytes()[..pos]).unwrap();
         v = input.splitn(3, '.').collect();
     }
@@ -23,7 +23,7 @@ fn parse_version_string(input: &str) -> String {
             panic!("OpenSC version detection failed or the version is less than min. 0.20.0")
         }
     }
-    println!("{}", result);
+    println!("{result}");
     result
 }
 
@@ -40,15 +40,15 @@ fn main() {
                 let func_dyn: Symbol<unsafe fn() -> *const c_char> = lib_dyn.get(b"sc_get_version").unwrap();
                 let cargo_string = parse_version_string(CStr::from_ptr(func_dyn()).to_str().unwrap());
                 version = String::from(&cargo_string.as_str()[16..]); // e.g. "0.21.0"
-                println!("cargo:OPENSCVERSION={}", version);
+                println!("cargo:OPENSCVERSION={version}");
             },
         Err(e) => {
             match &e {
-                Error::DlOpen { desc: _ } => { println!("libloading DlOpen opensc: {}", e); },
-                Error::DlOpenUnknown => { println!("libloading DlOpenUnknown opensc: {}", e); },
-                Error::LoadLibraryExW { source: _ } => { println!("libloading LoadLibraryW opensc: {}", e); },
-                Error::LoadLibraryExWUnknown => { println!("libloading LoadLibraryWUnknown opensc: {}", e); },
-                _ => { println!("libloading opensc: {}", e); },
+                Error::DlOpen { desc: _ } => { println!("libloading DlOpen opensc: {e}"); },
+                Error::DlOpenUnknown => { println!("libloading DlOpenUnknown opensc: {e}"); },
+                Error::LoadLibraryExW { source: _ } => { println!("libloading LoadLibraryW opensc: {e}"); },
+                Error::LoadLibraryExWUnknown => { println!("libloading LoadLibraryWUnknown opensc: {e}"); },
+                _ => { println!("libloading opensc: {e}"); },
             }
             unreachable!(); // intentionally panic if OpenSC is not installed or detectable this way
         }

@@ -134,70 +134,70 @@ unsafe extern "C" {
 
 /* Utility functions */
 
-/// Sets some content of an sc_asn1_entry object (mostly used by functions, that parse PKCS#15 content)
+/// Sets some content of an `sc_asn1_entry` object (mostly used by functions, that parse PKCS#15 content)
 ///
 /// @param  entry        INOUT  object to set (partially, not all fields will be set)\
 /// @param  parm         INIF=  -> entry.parm; the lifetime of parm must outlive entry (if it's not NULL/&mut used)\
 /// @param  arg          INIF=  -> entry.arg;  the lifetime of arg  must outlive entry (if it's not NULL/&mut used)\
-/// @param  set_present  IN     if != 0, then -> entry.flags |= SC_ASN1_PRESENT;\
+/// @param  `set_present`  IN     if != 0, then -> entry.flags |= `SC_ASN1_PRESENT`;\
 /// RUST USER The lifetimes (in comments) must be respected for pointers as if they were references\
-/// RUST TODO check any C code usage of  *mut sc_asn1_entry, which may have received any kind of memory for fields parm
+/// RUST TODO check any C code usage of  *mut `sc_asn1_entry`, which may have received any kind of memory for fields parm
 ///   and arg, even NULL pointers; There now may be multiple aliases for the same mutable memory, thus make sure, that no double free occurs\
 /// @test available
 pub fn sc_format_asn1_entry/*<'a>*/(entry: /*'a*/ *mut sc_asn1_entry, parm: /*'a*/ p_void, arg: /*'a*/ p_void,
                                     set_present: i32);
 
-/// Copies all content of an array of sc_asn1_entry objects (shallow struct copy; mostly used by functions, that parse PKCS#15 content, with static lifetime @param src)
+/// Copies all content of an array of `sc_asn1_entry` objects (shallow struct copy; mostly used by functions, that parse PKCS#15 content, with static lifetime @param src)
 ///
-/// @param  src   IN   object to read from. src must be a pointer to an array of sc_asn1_entry and
+/// @param  src   IN   object to read from. src must be a pointer to an array of `sc_asn1_entry` and
 ///                    array's last element must have src.name==NULL, indicating the (to be excluded) terminating element.\
 /// @param  dest  OUT  Receiving address for: object to write to. dest must be a pointer to an existing array of
-///                    sc_asn1_entry and  must have at least the same number of array elements as src.\
+///                    `sc_asn1_entry` and  must have at least the same number of array elements as src.\
 /// WARNING: Violation of any of the @param requirements will corrupt memory and/or cause SIGSEGV\
 /// RUST USER The lifetimes (in comments) must be respected for pointers as if they were references\
-/// RUST TODO same as with sc_format_asn1_entry: check any C code usage of  *mut sc_asn1_entry, which may have received any kind of memory for fields parm
+/// RUST TODO same as with `sc_format_asn1_entry`: check any C code usage of  *mut `sc_asn1_entry`, which may have received any kind of memory for fields parm
 ///   and arg, even NULL pointers; There now are multiple aliases for the same mutable memory, thus make sure, that no double free occurs\
 /// @test available
 pub fn sc_copy_asn1_entry/*<'a>*/(src: /*'a*/ *const sc_asn1_entry, dest: /*'a*/ *mut sc_asn1_entry);
 
 /* DER tag and length parsing */
 
-///XXX Decodes DER content from an u8 array and writes to an array of sc_asn1_entry objects
+///XXX Decodes DER content from an u8 array and writes to an array of `sc_asn1_entry` objects
 ///
-/// @param  ctx   INOUT  for logging only (On Linux it may be regarded as IN! + modifying internals of debug_file: *mut FILE)\
-/// @param  asn1  INOUT  pointer to an existing array of sc_asn1_entry objects to set.
+/// @param  ctx   INOUT  for logging only (On Linux it may be regarded as IN! + modifying internals of `debug_file`: *mut FILE)\
+/// @param  asn1  INOUT  pointer to an existing array of `sc_asn1_entry` objects to set.
 ///                      Must be sufficiently sized to hold the data from in_/len to be decoded.\
 ///                      The type_, tag and flags fields must be set to guide decoding: There
 ///                      are const arrays predefined in several source code files that cover a
-///                      lot of pkcs#15 structures, to look-up as a guide, see file PKCS#15_subset_supported_by_OpenSC.txt.\
+///                      lot of pkcs#15 structures, to look-up as a guide, see file `PKCS#15_subset_supported_by_OpenSC.txt`.\
 ///                      Only parm and arg fields will be set by this function, pointing to existing memory.
-///                      On return, asn1 may be changed to point to another element of the sc_asn1_entry array !\
+///                      On return, asn1 may be changed to point to another element of the `sc_asn1_entry` array !\
 /// @param  in_   IN     u8 array to read DER encoded content from, must be positioned at T of TLV\
 /// @param  len   IN     sizeof(in_) readable from in_ onwards\
 /// @param  newp  OUTIF  Receiving address for: Position within in_ pointing right after the DER bytes decoded by the call\
 /// @param  left  OUTIF  Receiving address for: Remainder of len readable from in_ beginning from *newp\
-/// @return       SC_SUCCESS or error code\
+/// @return       `SC_SUCCESS` or error code\
 /// RUST TODO heap memory allocated for parm and arg: take care, how they are used lateron, who/where to free them lateron, lifetime !\
 /// @test available, included ih other test
-/// For SC_ASN1_SE_INFO/TokenInfo's "seInfo  SEQUENCE OF SecurityEnvironmentInfo OPTIONAL,"  heap memory is involved
+/// For `SC_ASN1_SE_INFO/TokenInfo`'s "seInfo  SEQUENCE OF `SecurityEnvironmentInfo` OPTIONAL,"  heap memory is involved
 pub fn sc_asn1_decode       (ctx: *mut sc_context, asn1: *mut sc_asn1_entry,
                              in_: *const u8, len: usize, newp: *mut *const u8, left: *mut usize) -> i32;
 
-///XXX Decodes choice DER content from an u8 array and writes to an array of sc_asn1_entry objects
+///XXX Decodes choice DER content from an u8 array and writes to an array of `sc_asn1_entry` objects
 ///
-/// @param  ctx   INOUT  for logging only (On Linux it may be regarded as IN! + modifying internals of debug_file: *mut FILE)\
-/// @param  asn1  INOUT  pointer to an existing array of sc_asn1_entry objects to set.
+/// @param  ctx   INOUT  for logging only (On Linux it may be regarded as IN! + modifying internals of `debug_file`: *mut FILE)\
+/// @param  asn1  INOUT  pointer to an existing array of `sc_asn1_entry` objects to set.
 ///                      Must be sufficiently sized to hold the data from in_/len to be decoded.\
 ///                      The type_, tag and flags fields must be set to guide decoding: There
 ///                      are const arrays predefined in several source code files that cover a
-///                      lot of pkcs#15 structures, to look-up as a guide, see file PKCS#15_subset_supported_by_OpenSC.txt.\
+///                      lot of pkcs#15 structures, to look-up as a guide, see file `PKCS#15_subset_supported_by_OpenSC.txt`.\
 ///                      Only parm and arg fields will be set by this function, pointing to existing memory.
-///                      On return, asn1 may be changed to point to another element of the sc_asn1_entry array !\
+///                      On return, asn1 may be changed to point to another element of the `sc_asn1_entry` array !\
 /// @param  in_   IN     u8 array to read DER encoded content from, must be positioned at T of TLV\
 /// @param  len   IN     sizeof(in_) readable from in_ onwards\
 /// @param  newp  OUTIF  Receiving address for: Position within in_ pointing right after the DER bytes decoded by the call\
 /// @param  left  OUTIF  Receiving address for: Remainder of len readable from in_ beginning from *newp\
-/// @return       SC_SUCCESS or error code\
+/// @return       `SC_SUCCESS` or error code\
 /// RUST TODO heap memory allocated for parm and arg: take care, how they are used lateron, who/where to free them lateron, lifetime !
 pub fn sc_asn1_decode_choice(ctx: *mut sc_context, asn1: *mut sc_asn1_entry,
                              in_: *const u8, len: usize, newp: *mut *const u8, left: *mut usize) -> i32;
@@ -207,24 +207,24 @@ pub fn sc_asn1_decode_choice(ctx: *mut sc_context, asn1: *mut sc_asn1_entry,
 pub fn sc_asn1_encode       (ctx: *mut sc_context, asn1: *const sc_asn1_entry,
                              buf: *mut *mut u8, bufsize: *mut usize) -> i32;
 
-///XXX Decodes DER content from an u8 array and writes to an array of sc_asn1_entry objects, same as sc_asn1_decode,
+///XXX Decodes DER content from an u8 array and writes to an array of `sc_asn1_entry` objects, same as `sc_asn1_decode`,
 /// but with 2 additional IN params choice, depth
 ///
-/// @param  ctx     INOUT  for logging only (On Linux it may be regarded as IN! + modifying internals of debug_file: *mut FILE)\
-/// @param  asn1    INOUT  pointer to an existing array of sc_asn1_entry objects to set.
+/// @param  ctx     INOUT  for logging only (On Linux it may be regarded as IN! + modifying internals of `debug_file`: *mut FILE)\
+/// @param  asn1    INOUT  pointer to an existing array of `sc_asn1_entry` objects to set.
 ///                        Must be sufficiently sized to hold the data from in_/len to be decoded.\
 ///                        The type_, tag and flags fields must be set to guide decoding: There
 ///                        are const arrays predefined in several source code files that cover a
-///                        lot of pkcs#15 structures, to look-up as a guide, see file PKCS#15_subset_supported_by_OpenSC.txt.\
+///                        lot of pkcs#15 structures, to look-up as a guide, see file `PKCS#15_subset_supported_by_OpenSC.txt`.\
 ///                        Only parm and arg fields will be set by this function, pointing to existing memory.
-///                        On return, asn1 may be changed to point to another element of the sc_asn1_entry array !\
+///                        On return, asn1 may be changed to point to another element of the `sc_asn1_entry` array !\
 /// @param  in_     IN     u8 array to read DER encoded content from, must be positioned at T of TLV\
 /// @param  len     IN     sizeof(in_) readable from in_ onwards\
 /// @param  newp    OUTIF  Receiving address for: Position within in_ pointing right after the DER bytes decoded by the call\
 /// @param  left    OUTIF  Receiving address for: Remainder of len readable from in_ beginning from *newp\
 /// @param  choice  IN     ?\
 /// @param  depth   IN     ?\
-/// @return         SC_SUCCESS or error code\
+/// @return         `SC_SUCCESS` or error code\
 /// RUST TODO heap memory allocated for parm and arg: take care, how they are used lateron, who/where to free them lateron, lifetime !\
 /// @test available
 pub fn _sc_asn1_decode(ctx: *mut sc_context, asn1: *mut sc_asn1_entry,
@@ -239,15 +239,15 @@ pub fn _sc_asn1_encode(ctx: *mut sc_context, asn1: *const sc_asn1_entry,
 
 /// Evaluates a TLV byte sequence, THE basic building block function
 ///
-/// @param  buf      INOUT  Must point to a T of TLV; buf\[0\] get's evaluated for cla_out and tag_out,
+/// @param  buf      INOUT  Must point to a T of TLV; buf\[0\] get's evaluated for `cla_out` and `tag_out`,
 ///                         the next byte(s) for taglen. On success, buf is positioned at V\[0\] of TLV\
 /// @param  buflen   IN     Number of bytes available in buf from position buf onwards\
-/// @param  cla_out  OUT    Receiving address for: Class\
-/// @param  tag_out  OUT    Receiving address for: Tag\
+/// @param  `cla_out`  OUT    Receiving address for: Class\
+/// @param  `tag_out`  OUT    Receiving address for: Tag\
 /// @param  taglen   OUT    Receiving address for: Number of bytes available in V\
-/// @return          SC_SUCCESS or error code\
-/// On error, buf may have been set to NULL, and (except on SC_ERROR_ASN1_END_OF_CONTENTS) no OUT param get's set\
-/// OUT tag_out and taglen are guaranteed to have values set on SC_SUCCESS (cla_out only, if also (buf\[0\] != 0xff && buf\[0\] != 0))\
+/// @return          `SC_SUCCESS` or error code\
+/// On error, buf may have been set to NULL, and (except on `SC_ERROR_ASN1_END_OF_CONTENTS`) no OUT param get's set\
+/// OUT `tag_out` and taglen are guaranteed to have values set on `SC_SUCCESS` (`cla_out` only, if also (buf\[0\] != 0xff && buf\[0\] != 0))\
 /// @test available
 ///
 /// # Example
@@ -359,9 +359,9 @@ pub fn sc_asn1_read_tag(buf: *mut *const u8, buflen: usize, cla_out: *mut u32,
 pub fn sc_asn1_find_tag(ctx: *mut sc_context, buf: *const u8,
                         buflen: usize, tag: u32, taglen: *mut usize) -> *const u8;
 
-/// A wrapper for sc_asn1_skip_tag
+/// A wrapper for `sc_asn1_skip_tag`
 ///
-/// @param  ctx     INOUT  for logging only (On Linux it may be regarded as IN! + modifying internals of debug_file: *mut FILE)\
+/// @param  ctx     INOUT  for logging only (On Linux it may be regarded as IN! + modifying internals of `debug_file`: *mut FILE)\
 /// @param  buf     IN     Must point to a T of TLV s\
 /// @param  buflen  IN     sizeof(buf)\
 /// @param  tag     IN     Tag to be skipped\
@@ -373,7 +373,7 @@ pub fn sc_asn1_verify_tag (ctx: *mut sc_context, buf: *const u8,
 
 /// Evaluates a TLV byte sequence and if tag matches, positions buf to the next TLV
 ///
-/// @param  ctx     INOUT  for logging only (On Linux it may be regarded as IN! + modifying internals of debug_file: *mut FILE)\
+/// @param  ctx     INOUT  for logging only (On Linux it may be regarded as IN! + modifying internals of `debug_file`: *mut FILE)\
 /// @param  buf     INOUT  IN: Must point to a T of TLV s; OUT: on success get's set to the beginning of next TLV\
 /// @param  buflen  INOUT  IN: sizeof(buf); OUT: remaining from position buf onwards (if no error occurs)\
 /// @param  tag     IN     Tag to be skipped\
@@ -455,16 +455,16 @@ pub fn sc_asn1_decode_integer(inbuf: *const u8, inlen: usize, out: *mut i32) -> 
 #[cfg(not(v0_20_0))]
 pub fn sc_asn1_decode_integer(inbuf: *const u8, inlen: usize, out: *mut i32, strict: i32) -> i32;
 
-/// Decodes DER object_id bytes to sc_object_id
+/// Decodes DER `object_id` bytes to `sc_object_id`
 ///
-/// @param inbuf   IN  object_id array, V of TLV\
-/// @param inlen   IN  Length of object_id array\
-/// @param id      OUT Receiving sc_object_id\
-/// @return        SC_SUCCESS or error code\
+/// @param inbuf   IN  `object_id` array, V of TLV\
+/// @param inlen   IN  Length of `object_id` array\
+/// @param id      OUT Receiving `sc_object_id`\
+/// @return        `SC_SUCCESS` or error code\
 /// @test available
 pub fn sc_asn1_decode_object_id(inbuf: *const u8, inlen: usize, id: *mut sc_object_id) -> i32;
 
-/// Produces malloc'ed DER bytes from sc_object_id data
+/// Produces malloc'ed DER bytes from `sc_object_id` data
 ///
 /// @param buf    INOUTIF\
 /// @param buflen OUTIF\
@@ -475,46 +475,46 @@ pub fn sc_asn1_encode_object_id(buf: *mut *mut u8, buflen: *mut usize, id: *cons
 
 /* algorithm encoding/decoding  (implemented in pkcs15-algo.c) */
 
-/// Decodes DER algorithm_id bytes to sc_algorithm_id
+/// Decodes DER `algorithm_id` bytes to `sc_algorithm_id`
 ///
-/// @param  ctx    INOUT for logging only (On Linux it may be regarded as IN! + modifying internals of debug_file: *mut FILE)\
-/// @param  inbuf  IN    algorithm_id array, V of TLV\
-/// @param  inlen  IN    Length of algorithm_id array\
-/// @param  id     OUT   Receiving sc_algorithm_id\
+/// @param  ctx    INOUT for logging only (On Linux it may be regarded as IN! + modifying internals of `debug_file`: *mut FILE)\
+/// @param  inbuf  IN    `algorithm_id` array, V of TLV\
+/// @param  inlen  IN    Length of `algorithm_id` array\
+/// @param  id     OUT   Receiving `sc_algorithm_id`\
 /// @param  depth  IN\
-/// @return        SC_SUCCESS or error code\
+/// @return        `SC_SUCCESS` or error code\
 /// @test available
 pub fn sc_asn1_decode_algorithm_id(ctx: *mut sc_context, inbuf: *const u8, inlen: usize,
                                    id: *mut sc_algorithm_id, depth: i32) -> i32;
 
-/// Produces malloc'ed DER bytes from sc_algorithm_id data
+/// Produces malloc'ed DER bytes from `sc_algorithm_id` data
 ///
-/// @param  ctx      INOUT for logging only (On Linux it may be regarded as IN! + modifying internals of debug_file: *mut FILE)\
+/// @param  ctx      INOUT for logging only (On Linux it may be regarded as IN! + modifying internals of `debug_file`: *mut FILE)\
 /// @param  buf      OUTIF\
-/// @param  buf_len  OUTIF\
+/// @param  `buf_len`  OUTIF\
 /// @param  id       IN\
 /// @param  depth    IN\
-/// @return          SC_SUCCESS or error code\
+/// @return          `SC_SUCCESS` or error code\
 /// @test available
 pub fn sc_asn1_encode_algorithm_id(ctx: *mut sc_context, buf: *mut *mut u8, buf_len: *mut usize,
                                    id: *const sc_algorithm_id, depth: i32) -> i32;
 
-/// Clear sc_algorithm_id
+/// Clear `sc_algorithm_id`
 ///
-/// @param  id  INOUT  sc_algorithm_id
+/// @param  id  INOUT  `sc_algorithm_id`
 pub fn sc_asn1_clear_algorithm_id(id: *mut sc_algorithm_id);
 
 /* ASN.1 object encoding functions */
 
 /// writes TLV to malloc'ed *out
 ///
-/// @param  ctx      INOUT for logging only (On Linux it may be regarded as IN! + modifying internals of debug_file: *mut FILE)\
+/// @param  ctx      INOUT for logging only (On Linux it may be regarded as IN! + modifying internals of `debug_file`: *mut FILE)\
 /// @param  tag      IN\
 /// @param  data     IN\
 /// @param  datalen  IN\
 /// @param  out      OUTIF\
 /// @param  outlen   OUTIF\
-/// @return          SC_SUCCESS or error code\
+/// @return          `SC_SUCCESS` or error code\
 /// @test available
 pub fn sc_asn1_write_element(ctx: *mut sc_context, tag: u32, data : *const u8, datalen: usize,
                              out: *mut *mut u8, outlen: *mut usize) -> i32;

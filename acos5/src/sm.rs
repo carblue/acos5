@@ -197,7 +197,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
     }
     else {
         hex_len = hex.len();
-        rv = unsafe { sc_hex_to_bin(value, hex.as_mut_ptr(), &mut hex_len) };
+        rv = unsafe { sc_hex_to_bin(value, hex.as_mut_ptr(), &raw mut hex_len) };
         if rv != SC_SUCCESS {
 ////sc_debug(ctx, SC_LOG_DEBUG_VERBOSE, "SM get %s: hex to bin failed for '%s'; error %i", name, value, rv);
             log3if!(ctx,f,line!(), c"SM get %s: hextobin failed for '%s'; error %i", name.as_ptr(),value,rv);
@@ -243,7 +243,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
     }
     else   {
         hex_len = hex.len();
-        rv = unsafe { sc_hex_to_bin(value, hex.as_mut_ptr(), &mut hex_len) };
+        rv = unsafe { sc_hex_to_bin(value, hex.as_mut_ptr(), &raw mut hex_len) };
         if rv != SC_SUCCESS {
 ////sc_debug(ctx, SC_LOG_DEBUG_VERBOSE, "SM get '%s': hex to bin failed for '%s'; error %i", name, value, rv);
             log3if!(ctx,f,line!(), c"SM get %s: hextobin failed for '%s'; error %i",name.as_ptr(), value, rv);
@@ -273,7 +273,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
         return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_IFD_DATA_MISSING);
     }
     hex_len = hex.len();
-    rv = unsafe { sc_hex_to_bin(value, hex.as_mut_ptr(), &mut hex_len) };
+    rv = unsafe { sc_hex_to_bin(value, hex.as_mut_ptr(), &raw mut hex_len) };
     if rv != SC_SUCCESS   {
 //sc_debug(ctx, SC_LOG_DEBUG_VERBOSE, "SM get 'ifd_serial': hex to bin failed for '%s'; error %i", value, rv);
         log3if!(ctx,f,line!(), c"SM get 'ifd_serial': hex to bin failed for '%s'; error %i", value, rv);
@@ -417,7 +417,7 @@ fn sm_manage_keyset(card: &mut sc_card) -> i32
             }
             //println!("AID: {:X?}", &aid.value[..aid.len]);
             card.sm_ctx.info.current_aid = aid;
-            let rv = unsafe { sc_select_file(card, &curr_path, null_mut()) };
+            let rv = unsafe { sc_select_file(card, &raw const curr_path, null_mut()) };
             if rv != SC_SUCCESS {
                 return log3ifr_ret!(ctx,f,line!(), rv);
             }
@@ -525,15 +525,15 @@ pub fn sm_common_read(card: &mut sc_card,
 //println!("sm_common_read          get_cs_mac:  {:X?}\n", get_cs_mac(card));
     assert!(buf.len()<256);
     let count = std::cmp::min(buf.len(), 255);
-    let len_read = std::cmp::min(if has_ct {239_u8} else {240_u8},u8::try_from(count).unwrap());
+    let len_read : u8 = std::cmp::min(if has_ct {239} else {240}, count.try_into().unwrap());
 ////println!("len_read : {}", len_read);
     let len_read2 : u8 = len_read.next_multiple_of(DES_KEY_SZ_u8);// padding added if required
 ////println!("len_read2: {}", len_read2);
-    debug_assert!(num_integer::Integer::is_multiple_of(&len_read2, &DES_KEY_SZ_u8));
+    debug_assert!(len_read2.is_multiple_of(DES_KEY_SZ_u8));
     assert!(len_read2 <= 240);
     let pos : usize = if has_ct {13} else {12};
     let len_resp = u8::try_from(pos).unwrap() +
-        if has_ct { len_read2 + if num_integer::Integer::is_multiple_of(&len_read, &DES_KEY_SZ_u8) {DES_KEY_SZ_u8} else {0} } else { len_read };
+        if has_ct { len_read2 + if len_read.is_multiple_of(DES_KEY_SZ_u8) {DES_KEY_SZ_u8} else {0} } else { len_read };
 ////println!("len_resp: {}", len_resp);
     /* cmd without SM: SC_APDU_CASE_2_SHORT; with SM: SC_APDU_CASE_4_SHORT */
 /*
@@ -569,7 +569,7 @@ pub fn sm_common_read(card: &mut sc_card,
     let mut apdu = build_apdu(ctx, &cmd, SC_APDU_CASE_4_SHORT, &mut rbuf);
     assert_eq!(apdu.le, rbuf.len());
 
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         return log3ifr_ret!(ctx,f,line!(), rv);
@@ -639,9 +639,9 @@ pub fn sm_common_update(card: &mut sc_card,
 ////println!("len_update : {}", len_update);
     let len_update2 = len_update.next_multiple_of(DES_KEY_SZ_u8); // padding added if required
 ////println!("len_update2: {}", len_update2);
-    debug_assert!(num_integer::Integer::is_multiple_of(&len_update2, &DES_KEY_SZ_u8));
+    debug_assert!(len_update2.is_multiple_of(DES_KEY_SZ_u8));
     assert!(len_update2 <= 240);
-    let pi = u8::from(has_ct && !num_integer::Integer::is_multiple_of(&len_update, &DES_KEY_SZ_u8));
+    let pi = u8::from(has_ct && ! len_update.is_multiple_of(DES_KEY_SZ_u8));
 ////println!("pi: {}", pi);
     /* cmd without SM: SC_APDU_CASE_3_SHORT; with SM: SC_APDU_CASE_4_SHORT */
     let hdr =
@@ -698,7 +698,7 @@ pub fn sm_common_update(card: &mut sc_card,
     let mut apdu = build_apdu(ctx, &cmd_vec, SC_APDU_CASE_4_SHORT, &mut rbuf);
     assert_eq!(apdu.le, rbuf.len());
 
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         return log3ifr_ret!(ctx,f,line!(), rv);
@@ -782,7 +782,7 @@ pub fn sm_erase_binary(card: &mut sc_card, idx: u16, count: u16, flags: c_ulong,
     let mut rbuf = [0; 10];
     let mut apdu = build_apdu(ctx, &cmd_vec, SC_APDU_CASE_4_SHORT, &mut rbuf);
     debug_assert_eq!(apdu.le, rbuf.len());
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         return log3ifr_ret!(ctx,f,line!(), rv);
@@ -834,7 +834,7 @@ pub fn sm_delete_file(card: &mut sc_card) -> i32
     let mut rbuf = [0; 10];
     let mut apdu = build_apdu(ctx, &cmd, SC_APDU_CASE_4_SHORT, &mut rbuf);
     debug_assert_eq!(apdu.le, rbuf.len());
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         return log3ifr_ret!(ctx,f,line!(), rv);
@@ -882,9 +882,9 @@ fn sm_create_file(card: &mut sc_card,
 ////println!("len_update : {}", len_update);
     let len_update2 = len_update.next_multiple_of(DES_KEY_SZ_u8); // padding added if required
 ////println!("len_update2: {}", len_update2);
-    debug_assert!(num_integer::Integer::is_multiple_of(&len_update2, &DES_KEY_SZ_u8));
+    debug_assert!(len_update2.is_multiple_of(DES_KEY_SZ_u8));
     assert!(len_update2 <= 240);
-    let pi = u8::from(has_ct && !num_integer::Integer::is_multiple_of(&len_update, &DES_KEY_SZ_u8));
+    let pi = u8::from(has_ct && ! len_update.is_multiple_of(DES_KEY_SZ_u8));
 ////println!("pi: {}", pi);
     /* cmd without SM: SC_APDU_CASE_3_SHORT; with SM: SC_APDU_CASE_4_SHORT */
     let hdr = [0x89_u8,4, 0x0C, 0xE0, 0, 0];
@@ -928,7 +928,7 @@ fn sm_create_file(card: &mut sc_card,
     let mut rbuf = [0; 10];
     let mut apdu = build_apdu(ctx, &cmd_vec, SC_APDU_CASE_4_SHORT, &mut rbuf);
     assert_eq!(apdu.le, rbuf.len());
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         return log3ifr_ret!(ctx,f,line!(), rv);
@@ -955,6 +955,7 @@ fn sm_create_file(card: &mut sc_card,
 } // sm_create_file
 
 
+#[allow(clippy::similar_names)]
 pub fn sm_pin_cmd(card: &mut sc_card,
                   pin_cmd_data: &mut sc_pin_cmd_data,
                   tries_left: &mut i32,
@@ -1000,9 +1001,9 @@ pub fn sm_pin_cmd(card: &mut sc_card,
 ////println!("len_pin : {}", len_pin);
     let len2_pin : u8 = len_pin.next_multiple_of(DES_KEY_SZ_u8); // padding added if required
 ////println!("len2_pin: {}", len2_pin);
-    debug_assert!(num_integer::Integer::is_multiple_of(&len2_pin, &DES_KEY_SZ_u8));
+    debug_assert!(len2_pin.is_multiple_of(DES_KEY_SZ_u8));
 //    assert!(len2_pin <= DES_KEY_SZ_u8);
-    let pi = u8::from(has_ct && !num_integer::Integer::is_multiple_of(&len_pin, &DES_KEY_SZ_u8));
+    let pi = u8::from(has_ct && ! len_pin.is_multiple_of(DES_KEY_SZ_u8));
 ////println!("pi: {}", pi);
     /* cmd without SM: SC_APDU_CASE_3_SHORT; with SM: SC_APDU_CASE_4_SHORT */
     let hdr = [0x89_u8,4, 0x0C, ins, 0, u8::try_from(pin_cmd_data.pin_reference).unwrap()];
@@ -1045,7 +1046,7 @@ pub fn sm_pin_cmd(card: &mut sc_card,
     let mut rbuf = [0; 10];
     let mut apdu = build_apdu(ctx, &cmd_vec, SC_APDU_CASE_4_SHORT, &mut rbuf);
     assert_eq!(apdu.le, rbuf.len());
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         return log3ifr_ret!(ctx,f,line!(), rv);
@@ -1109,7 +1110,7 @@ pub fn sm_pin_cmd_get_policy(card: &mut sc_card,
     let mut rbuf = [0; 10];
     let mut apdu = build_apdu(ctx, &cmd, SC_APDU_CASE_4_SHORT, &mut rbuf);
     assert_eq!(apdu.le, rbuf.len());
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
         return log3ifr_ret!(ctx,f,line!(), rv);

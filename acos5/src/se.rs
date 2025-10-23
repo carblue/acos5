@@ -241,7 +241,7 @@ SCB: 81; [80 01 01  A4 09 83 01 01 83 01 81 95 01 80  B4 08 84 00 95 01 30 80 01
                     assert_eq!(SC_SUCCESS, rv);
                     return;
                 }
-                contains_sm_key = key_ref.iter().any(|&x| x == 0x81);
+                contains_sm_key = key_ref.contains(&0x81);
             }
 
             /* SM implicitly has the (unsupported by OpenSC) OR operator for access conditions, thus drop any references except the first */
@@ -282,7 +282,7 @@ SCB: 81; [80 01 01  A4 09 83 01 81 83 01 01 95 01 88]                           
                     assert_eq!(SC_SUCCESS, rv);
                     return;
                 }
-                contains_sm_key = pin_key_ref.iter().any(|&x| x == 0x81);
+                contains_sm_key = pin_key_ref.contains(&0x81);
             }
 
             /* SM implicitly has the (unsupported by OpenSC) OR operator for access conditions, thus drop any references except the first */
@@ -301,10 +301,8 @@ SCB: 81; [80 01 01  A4 09 83 01 81 83 01 01 95 01 88]                           
             if (scb & 0x40) != 0 && res_se_sm.0 {
                 rv = unsafe { sc_file_add_acl_entry(file, op, SC_AC_PRO, SC_AC_KEY_REF_NONE) };
                 assert_eq!(SC_SUCCESS, rv);
-                return;
+                //return;
             }
-
-            return;
         }
 /* */
     }
@@ -384,7 +382,7 @@ pub fn se_get_references(card: &mut sc_card, file_id: u16, se_reference: u8, sea
  * @param   `file_id`          IN    the `file_id`, for which info is requested; relevant is the SE file info of `file_id`'s directory
  * @param   `se_reference`     IN    the SE file record's id (3.byte) matching SCB & 0x0F, though 0x0F is RFU for cos5 !
  * @return  a tuple: 1. elem: whether the CRT templates match the requirements for SM, forcing at least SM mode Authenticity (SM-sign)
-                     2. elem: whether there also is a CT template, forcing SM mode Confidentiality (SM-sign + SM-enc)
+ *                   2. elem: whether there also is a CT template, forcing SM mode Confidentiality (SM-sign + SM-enc)
  */
 pub fn se_get_is_scb_suitable_for_sm_has_ct(card: &mut sc_card, file_id: u16, se_reference: u8) -> (bool, bool)
 {
@@ -521,7 +519,7 @@ pub fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], se_info
     se_info_node.reference = reference;
 
     while buflen_remaining > 0 {
-        let mut rv = unsafe{sc_asn1_read_tag(&mut data_ptr, buflen_remaining, &mut cla_out, &mut tag_out, &mut taglen)};
+        let mut rv = unsafe{sc_asn1_read_tag(&raw mut data_ptr, buflen_remaining, &raw mut cla_out, &raw mut tag_out, &raw mut taglen)};
         if  rv != SC_SUCCESS || tag_out == SC_ASN1_TAG_EOC {
             return i32::try_from(data.len() - buflen_remaining).unwrap();
         }
@@ -536,7 +534,7 @@ pub fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], se_info
         let mut taglen_remaining = taglen;
         assert!(taglen_remaining <= buflen_remaining);
         while taglen_remaining > 0 {
-            rv = unsafe { sc_asn1_read_tag(&mut data_ptr, taglen_remaining, &mut cla_out, &mut tag_out, &mut taglen) };
+            rv = unsafe { sc_asn1_read_tag(&raw mut data_ptr, taglen_remaining, &raw mut cla_out, &raw mut tag_out, &raw mut taglen) };
             assert_eq!(rv, SC_SUCCESS);
             taglen_remaining -= 2 + taglen; // for taglen>0, the data_ptr must still be updated to point to the next TLV
             buflen_remaining -= 2 + taglen;
@@ -583,6 +581,7 @@ pub fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], se_info
 /// # Errors
 ///
 /// Will return `Err` if there are errors in the SAE encoding
+#[allow(clippy::similar_names)]
 pub fn se_parse_sae(vec_sac_info_opt: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp_sae: &[u8]) -> Result<Vec<SAEinfo>, i32>
 {
     use crate::no_cdecl::convert_amdo_to_cla_ins_p1_p2_array;
@@ -603,10 +602,7 @@ pub fn se_parse_sae(vec_sac_info_opt: &mut Option<Vec<SACinfo>>, value_bytes_tag
         assert_eq!((tlv.tag() & 0x0F).count_ones(), tlv.length().into());
         assert_eq!(4, tlv.tag() & 4); // ins must be included
         let mut sae_info = SAEinfo { tag_AMDO: tlv.tag(), ..SAEinfo::default() };
-        let cla_ins_p1_p2 = match convert_amdo_to_cla_ins_p1_p2_array(tlv.tag(), tlv.value()) {
-            Ok(cla_ins_p1_p2)  => cla_ins_p1_p2,
-            Err(e)      => return Err(e),
-        };
+        let cla_ins_p1_p2 = convert_amdo_to_cla_ins_p1_p2_array(tlv.tag(), tlv.value())?;
         sae_info.cla = cla_ins_p1_p2[0];
         sae_info.ins = cla_ins_p1_p2[1];
         sae_info.p1  = cla_ins_p1_p2[2];
@@ -628,7 +624,7 @@ pub fn se_parse_sae(vec_sac_info_opt: &mut Option<Vec<SACinfo>>, value_bytes_tag
                 sae_info.scb = tlv.value()[0];
             },
             0xA4 => {
-                assert!(tlv.length()>=6 && num_integer::Integer::is_multiple_of(&tlv.length(), &3));
+                assert!(tlv.length()>=6 && tlv.length().is_multiple_of(3));
                 let mut sac_info = SACinfo::default();
                 idx_virtual += 1;
                 sae_info.scb       = idx_virtual;

@@ -166,7 +166,7 @@ pub type element_hash_computer = Option< unsafe extern "C" fn (el: *const c_void
  *  -# possibly extract a compressed representation of the element
  *
  * @param el                reference to the element data
- * @param serialize_buffer  reference to fill with the length of the buffer
+ * @param `serialize_buffer`  reference to fill with the length of the buffer
  * @return                  reference to the buffer with the serialized data
  */
 #[allow(non_camel_case_types)]
@@ -185,7 +185,7 @@ pub type element_serializer = Option< unsafe extern "C" fn (el: *const c_void /*
  * integer passed by reference.
  *
  * @param data              reference to the buffer with the serialized representation of the element
- * @param data_len          reference to the location where to store the length of the data in the buffer returned
+ * @param `data_len`          reference to the location where to store the length of the data in the buffer returned
  * @return                  reference to a buffer with the original, unserialized representation of the element
  */
 #[allow(non_camel_case_types)]

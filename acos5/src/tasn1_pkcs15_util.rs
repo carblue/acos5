@@ -18,11 +18,11 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
 
-//! Both driver components (libacos5.so/dll and libacos5_pkcs15.so/dll) share this same file
+//! Both driver components (libacos5.so/dll and `libacos5_pkcs15.so/dll`) share this same file
 
 #![allow(non_snake_case)]
 
-use std::os::raw::{c_char, c_void/*, c_int*/};
+use std::os::raw::c_void;
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
 use std::os::raw::c_ulong;
 use std::ptr::null_mut;
@@ -132,7 +132,7 @@ impl Iterator for DirectoryRange<'_> {
             const   T_len : i32 = 1;
             let mut L_len = 0;
             let     V_len : i32 = unsafe { asn1_get_length_der(self.rem.as_ptr().add(1),
-                                    (self.rem.len()-1).try_into().unwrap(), &mut L_len).try_into().unwrap() };
+                                    (self.rem.len()-1).try_into().unwrap(), &raw mut L_len).try_into().unwrap() };
 //println!("self.rem.len(): {}, V_len: {}, L_len: {}", self.rem.len(), V_len, L_len);
             let tlv_len = T_len + L_len + V_len;
             if V_len<0 || !(1..=4).contains(&L_len) || self.rem.len() < tlv_len.try_into().unwrap() {
@@ -190,10 +190,10 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Re
     let mut aid_buf = [0_u8; SC_MAX_AID_SIZE];
     let mut aid_len = i32::try_from(SC_MAX_AID_SIZE).unwrap();
     let mut path_2f00 = sc_path::default();
-    unsafe { sc_format_path(c"3F002F00".as_ptr(), &mut path_2f00); } // type = SC_PATH_TYPE_PATH;
+    unsafe { sc_format_path(c"3F002F00".as_ptr(), &raw mut path_2f00); } // type = SC_PATH_TYPE_PATH;
     let mut file = null_mut();
-    let guard_file = GuardFile::new(&mut file);
-    let mut rv = unsafe { sc_select_file(card, &path_2f00, *guard_file) };
+    let guard_file = GuardFile::new(&raw mut file);
+    let mut rv = unsafe { sc_select_file(card, &raw const path_2f00, *guard_file) };
     if rv != SC_SUCCESS { return Err(-1); }
     let mut rbuf = vec![0_u8; size];
     rv = unsafe { cfg_if::cfg_if! {
@@ -202,21 +202,21 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Re
         }
         else {
             let mut flags : c_ulong = 0;
-            sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), &mut flags)
+            sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), &raw mut flags)
         }
     }};
     if rv <= 0  {  return Err(-1); }
     for range in DirectoryRange::new(&rbuf[..rv.try_into().unwrap()]) {
 //println!("for range in DirectoryRange: {:?}", range);
         let mut structure : asn1_node = null_mut();
-        let guard_structure = GuardAsn1Node::new(&mut structure);
+        let guard_structure = GuardAsn1Node::new(&raw mut structure);
         let mut asn1_result = unsafe { asn1_create_element(pkcs15_definitions, c"PKCS15.DIRRecord".as_ptr(), *guard_structure) };
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
             println!("### Error in structure creation: {:?}", unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
             return Err(-1);
         }
         let rbuf2 = &rbuf[range];
-        let mut error_description = [0x00 as c_char; 129];
+        let mut error_description = [0x00_i8; 129];
         /* decode DER data from file 0x3F002F00 into structure "PKCS15.DIRRecord" */
         asn1_result = unsafe { asn1_der_decoding(*guard_structure, rbuf2.as_ptr().cast::<c_void>(),
                                                  rbuf2.len().try_into().unwrap(), error_description.as_mut_ptr()) };
@@ -227,7 +227,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Re
         }
 //println!("ready to inspect");
         let mut name = c"aid"; // OCTET STRING  MANDATORY
-        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), aid_buf.as_mut_ptr().cast::<c_void>(), &mut aid_len) };
+        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), aid_buf.as_mut_ptr().cast::<c_void>(), &raw mut aid_len) };
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
             println!("asn1_result (asn1_read_value  aid): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
             continue;
@@ -241,7 +241,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Re
         name = c"path"; // OCTET STRING  MANDATORY
         let mut buf = [0_u8; SC_MAX_PATH_SIZE];
         let mut outlen = i32::try_from(buf.len()).unwrap();
-        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &mut outlen) };
+        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &raw mut outlen) };
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
             println!("asn1_result (asn1_read_value  path): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
             continue;
@@ -268,7 +268,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Re
         name = c"label"; // UTF8String  OPTIONAL
         let mut buf_str = [0_u8; 64];
         outlen = i32::try_from(buf_str.len()).unwrap();
-        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf_str.as_mut_ptr().cast::<c_void>(), &mut outlen) };
+        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf_str.as_mut_ptr().cast::<c_void>(), &raw mut outlen) };
         if ASN1_SUCCESS == asn1_result.try_into().unwrap() {
 //                     let x = &buf_str[..outlen.try_into().unwrap()];
 // println!("label of application directory: {}", String::from_utf8(x.to_vec()).unwrap_or_default());
@@ -280,7 +280,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Re
         let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         name = c"ddo.odfPath.path"; // OCTET STRING  OPTIONAL
         outlen = i32::try_from(buf.len()).unwrap();
-        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &mut outlen) };
+        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &raw mut outlen) };
         if ASN1_SUCCESS == asn1_result.try_into().unwrap() {
             buf_slice = &buf[..usize::try_from(outlen).unwrap()];
             let file_id_odf = file_id_from_path_value(buf_slice);
@@ -306,7 +306,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Re
 
         name = c"ddo.tokenInfoPath.path"; // OCTET STRING  OPTIONAL
         outlen = i32::try_from(buf.len()).unwrap();
-        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &mut outlen) };
+        asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &raw mut outlen) };
         if ASN1_SUCCESS == asn1_result.try_into().unwrap() {
             buf_slice = &buf[..usize::try_from(outlen).unwrap()];
             let file_id_cia = file_id_from_path_value(buf_slice);
@@ -410,9 +410,9 @@ pub fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
         let size: usize = file_id_se(val.1).into();
 
         let mut path_5031 = sc_path::default();
-        let mut rv = unsafe { sc_path_set(&mut path_5031, SC_PATH_TYPE_PATH, val.0.as_ptr(), val.1[1].into(), 0, -1) };
+        let mut rv = unsafe { sc_path_set(&raw mut path_5031, SC_PATH_TYPE_PATH, val.0.as_ptr(), val.1[1].into(), 0, -1) };
         assert_eq!(SC_SUCCESS, rv);
-        rv = unsafe { sc_select_file(card, &path_5031, null_mut()) };
+        rv = unsafe { sc_select_file(card, &raw const path_5031, null_mut()) };
         assert_eq!(SC_SUCCESS, rv);
         let mut rbuf = vec![0_u8; size];
         rv = unsafe { cfg_if::cfg_if! {
@@ -421,14 +421,14 @@ pub fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
             }
             else {
                 let mut flags : c_ulong = 0;
-                sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), &mut flags)
+                sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), &raw mut flags)
             }
         }};
         assert!(rv>0);
 
         for range in DirectoryRange::new(&rbuf[..rv.try_into().unwrap()]) {
             let mut structure = null_mut();
-            let guard_structure = GuardAsn1Node::new(&mut structure);
+            let guard_structure = GuardAsn1Node::new(&raw mut structure);
             let mut asn1_result = unsafe { asn1_create_element(pkcs15_definitions,
                 c"PKCS15.PKCS15Objects".as_ptr(), *guard_structure) };
             if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
@@ -438,7 +438,7 @@ pub fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
             }
             let rbuf2 = &rbuf[range];
 // println!("range: {:?}, rbuf2: {:X?}", range, rbuf2);
-            let mut error_description = [0x00 as c_char; 129];
+            let mut error_description = [0x00_i8; 129];
             asn1_result = unsafe { asn1_der_decoding(*guard_structure, rbuf2.as_ptr().cast::<c_void>(),
                 rbuf2.len().try_into().unwrap(), error_description.as_mut_ptr()) };
 
@@ -451,7 +451,7 @@ pub fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
                 let mut buf = [0_u8; SC_MAX_PATH_SIZE];
                 let mut outlen = i32::try_from(buf.len()).unwrap();
                 asn1_result = unsafe { asn1_read_value(structure, get_arr(type_).as_ptr(),
-                                                       buf.as_mut_ptr().cast::<c_void>(), &mut outlen) };
+                                                       buf.as_mut_ptr().cast::<c_void>(), &raw mut outlen) };
                 if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
                     //println!("asn1_result (asn1_read_value  path): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
                     continue;
@@ -605,9 +605,9 @@ PKCS15_FILE_TYPE_CDF_USEFUL, 0)  => c"x509Certificate.x509CertificateAttributes.
     let size : usize = file_id_se(dp_files_value.1).into();
     let path_slice = &dp_files_value.0[..dp_files_value.1[1].into()];
 
-    let mut rv = unsafe { sc_path_set(&mut path_prkdf, SC_PATH_TYPE_PATH, path_slice.as_ptr(), path_slice.len(), 0, -1) };
+    let mut rv = unsafe { sc_path_set(&raw mut path_prkdf, SC_PATH_TYPE_PATH, path_slice.as_ptr(), path_slice.len(), 0, -1) };
     assert_eq!(SC_SUCCESS, rv);
-    rv = unsafe { sc_select_file(card, &path_prkdf, null_mut()) };
+    rv = unsafe { sc_select_file(card, &raw const path_prkdf, null_mut()) };
     assert_eq!(SC_SUCCESS, rv);
     let mut rbuf = vec![0_u8; size];
     let rv = unsafe { cfg_if::cfg_if! {
@@ -616,14 +616,14 @@ PKCS15_FILE_TYPE_CDF_USEFUL, 0)  => c"x509Certificate.x509CertificateAttributes.
         }
         else {
             let mut flags : c_ulong = 0;
-            sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), &mut flags)
+            sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), &raw mut flags)
         }
     }};
     assert!(rv>0);
 
     for range in DirectoryRange::new(&rbuf[..rv.try_into().unwrap() ] ) {
         let mut structure = null_mut();
-        let guard_structure = GuardAsn1Node::new(&mut structure);
+        let guard_structure = GuardAsn1Node::new(&raw mut structure);
         let mut asn1_result = unsafe { asn1_create_element(pkcs15_definitions,
             get_arr0(elem.1).as_ptr(), *guard_structure) };
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
@@ -632,7 +632,7 @@ PKCS15_FILE_TYPE_CDF_USEFUL, 0)  => c"x509Certificate.x509CertificateAttributes.
         }
         let rbuf2 = &rbuf[range.clone()];
 // println!("range: {:?}, rbuf2: {:X?}", range, rbuf2);
-        let mut error_description = [0x00 as c_char; 129];
+        let mut error_description = [0x00_i8; 129];
         asn1_result = unsafe { asn1_der_decoding(*guard_structure, rbuf2.as_ptr().cast::<c_void>(),
                                rbuf2.len().try_into().unwrap(), error_description.as_mut_ptr()) };
 
@@ -645,7 +645,7 @@ PKCS15_FILE_TYPE_CDF_USEFUL, 0)  => c"x509Certificate.x509CertificateAttributes.
             let mut buf = [0_u8; SC_MAX_PATH_SIZE];
             let mut outlen = i32::try_from(buf.len()).unwrap();
             asn1_result = unsafe { asn1_read_value(structure, get_arr1(elem.1, idx_1).as_ptr(),
-                                                   buf.as_mut_ptr().cast::<c_void>(), &mut outlen) };
+                                                   buf.as_mut_ptr().cast::<c_void>(), &raw mut outlen) };
             if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
                 //println!("asn1_result (asn1_read_value  get_arr1()): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
                 continue;
@@ -733,7 +733,7 @@ pub fn analyze_PKCS15_TokenInfo_5032(card: &mut sc_card) {
                         else {
                             let rbuf2 = &rbuf[range];
 // println!("range: {:?}, rbuf2: {:X?}", range, rbuf2);
-                            let mut error_description = [0x00 as c_char; 129];
+                            let mut error_description = [0x00_i8; 129];
                             asn1_result = unsafe { asn1_der_decoding(*guard_structure, rbuf2.as_ptr() as *const c_void,
                                 rbuf2.len().try_into().unwrap(), error_description.as_mut_ptr()) };
 

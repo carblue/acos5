@@ -54,7 +54,7 @@ pub const SC_FILE_MAGIC : u32 =  0x1442_6950;
 
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct sc_atr_table {
     /* The atr fields are required to
      * be in aa:bb:cc hex format. */
@@ -70,7 +70,7 @@ pub struct sc_atr_table {
      * available to user configured card entries. */
     pub card_atr : *mut scconf_block,
 }
-
+/*
 #[cfg(impl_default)]
 impl Default for sc_atr_table {
     fn default() -> Self {
@@ -84,10 +84,10 @@ impl Default for sc_atr_table {
         }
     }
 }
-
+*/
 #[allow(non_snake_case)]
 #[must_use]
-pub fn BYTES4BITS(num: u32) -> u32 { (num + 7) / 8 }    /* number of bytes necessary to hold 'num' bits */
+pub fn BYTES4BITS(num: u32) -> u32 { num.div_ceil(8) }    /* number of bytes necessary to hold 'num' bits */
 
 unsafe extern "C" {
 
@@ -230,15 +230,15 @@ pub fn sc_pkcs1_encode(ctx: *mut sc_context, flags: c_ulong, in_: *const u8, inl
                        out: *mut u8, outlen: *mut usize, mod_bits: usize) -> i32;
 
 /// PKCS1 encodes the given data.
-/// @param  ctx       IN    sc_context object
+/// @param  ctx       IN    `sc_context` object
 /// @param  flags     IN    the algorithm to use
 /// @param  in        IN    input buffer
 /// @param  inlen     IN    length of the input
 /// @param  out       OUT   output buffer (in == out is allowed)
 /// @param  outlen    INOUT length of the output buffer; IN: available, OUT: used
-/// @param  mod_bits  IN    length of the modulus in bits
-/// @param pMechanism IN    Mechanism referring to SC_ALGORITHM_RSA_PAD_PSS, NULL otherwise
-/// @return           SC_SUCCESS or error code
+/// @param  `mod_bits`  IN    length of the modulus in bits
+/// @param pMechanism IN    Mechanism referring to `SC_ALGORITHM_RSA_PAD_PSS`, NULL otherwise
+/// @return           `SC_SUCCESS` or error code
 /// @test available, but not yet testing pMechanism
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))]
 pub fn sc_pkcs1_encode(ctx: *mut sc_context, flags: c_ulong, in_: *const u8, inlen: usize,
@@ -246,15 +246,15 @@ pub fn sc_pkcs1_encode(ctx: *mut sc_context, flags: c_ulong, in_: *const u8, inl
 
 /**
  * Get the necessary padding and sec. env. flags.
- * @apiNote only OpenSC calls this in libopensc/pkcs15-sec.c. It's vital to understand SC_ALGORITHM_RSA_RAW,
- *          SC_ALGORITHM_RSA_PAD_*, SC_ALGORITHM_RSA_HASH_NONE, SC_ALGORITHM_RSA_HASHES, SC_ALGORITHM_AES*
- *          code: ident in 0.17 and 0.18; 0.19 is the first to consider SC_ALGORITHM_RSA_PAD_PSS; massive changes in 0.20
- * @param  ctx     IN  sc_contex_t object
+ * @apiNote only `OpenSC` calls this in libopensc/pkcs15-sec.c. It's vital to understand `SC_ALGORITHM_RSA_RAW`,
+ *          `SC_ALGORITHM_RSA_PAD`_*, `SC_ALGORITHM_RSA_HASH_NONE`, `SC_ALGORITHM_RSA_HASHES`, `SC_ALGORITHM_AES`*
+ *          code: ident in 0.17 and 0.18; 0.19 is the first to consider `SC_ALGORITHM_RSA_PAD_PSS`; massive changes in 0.20
+ * @param  ctx     IN  `sc_contex_t` object
  * @param  iflags  IN  the desired algorithms flags
  * @param  caps    IN  the card / key capabilities
  * @param  pflags  OUT the padding flags to use
  * @param  sflags  OUT the security env. algorithm flag to use
- * @return SC_SUCCESS on success and an error code otherwise
+ * @return `SC_SUCCESS` on success and an error code otherwise
  */
 fn sc_get_encoding_flags(ctx: *mut sc_context, iflags: c_ulong, caps: c_ulong,
                          pflags: *mut c_ulong, sflags: *mut c_ulong) -> i32;

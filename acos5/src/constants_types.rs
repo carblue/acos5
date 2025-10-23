@@ -18,7 +18,7 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
 
-//! Both driver components (libacos5.so/dll and libacos5_pkcs15.so/dll) share this same file
+//! Both driver components (libacos5.so/dll and `libacos5_pkcs15.so/dll`) share this same file
 
 //#![allow(dead_code)] // don't warn about unused items
 
@@ -27,6 +27,7 @@ use std::ops::{Deref, DerefMut};
 use std::collections::HashMap;
 use std::ffi::CStr;
 use std::ptr::{null, null_mut};
+use std::ops::{Mul, Div};
 
 use opensc_sys::opensc::{sc_context, sc_card, sc_security_env, sc_file_free, sc_bytes2apdu,
                          SC_ALGORITHM_AES/*, SC_CARD_CAP_APDU_EXT*/};
@@ -897,7 +898,7 @@ pub fn is_DFMF(fdb: u8) -> bool
 #[must_use]
 pub fn build_apdu(ctx: &mut sc_context, cmd: &[u8], cse: i32, rbuf: &mut [u8]) -> sc_apdu {
     let mut apdu = sc_apdu::default();
-    let rv = unsafe { sc_bytes2apdu(ctx, cmd.as_ptr(), cmd.len(), &mut apdu) };
+    let rv = unsafe { sc_bytes2apdu(ctx, cmd.as_ptr(), cmd.len(), &raw mut apdu) };
     assert_eq!(SC_SUCCESS, rv);
     debug_assert_eq!(cse, apdu.cse);
     if !rbuf.is_empty() {
@@ -1004,6 +1005,25 @@ pub fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -> Resul
         }
     }
     Ok(scb8)
+}
+
+#[allow(dead_code)]
+#[must_use]
+pub(crate) fn prev_multiple_of<T:Copy+Mul<Output = T>+Div<Output = T>+std::fmt::Debug+PartialEq>(selff: T, other: T) -> T
+{
+//    assert_ne!(other, T);
+    (selff / other) * other
+}
+
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1)))]
+#[repr(C)]
+#[derive(Default, Debug, Copy, Clone)]
+pub struct sc_card_cache {
+    pub current_path : sc_path,
+    pub current_ef : *mut sc_file,
+    pub current_df : *mut sc_file,
+
+    pub valid : i32,
 }
 
 ////////////////

@@ -115,18 +115,9 @@ pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
         if printable { println!("[X] Does MF exist?  No") }
 
         /* Try to read EEPROM addresses: If successful, card is uninitialized */
-        let card_life_cycle_byte = match card_life_cycle_byte_eeprom(card) {
-            Ok(val) => val,
-            Err(error) => { return Err(error) },
-        };
-        let operation_mode_byte = match op_mode_byte_eeprom(card) {
-            Ok(val) => val,
-            Err(error) => { return Err(error) },
-        };
-        let zeroize_card_disable_byte =  match get_zeroize_card_disable_byte_eeprom(card) {
-            Ok(val) => val,
-            Err(error) => { return Err(error) },
-        };
+        let card_life_cycle_byte = card_life_cycle_byte_eeprom(card)?;
+        let operation_mode_byte = op_mode_byte_eeprom(card)?;
+        let zeroize_card_disable_byte =  get_zeroize_card_disable_byte_eeprom(card)?;
 
         if printable { println!("### There is no MF: The card is uninitialized/virgin/in factory state ### (Card Life Cycle Byte is 0x{card_life_cycle_byte:X}, Operation Mode Byte is 0x{operation_mode_byte:X}, Zeroize Card Disable Byte is 0x{zeroize_card_disable_byte:X})") }
         log3ift!(ctx,f,line!(),

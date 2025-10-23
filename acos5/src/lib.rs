@@ -5,12 +5,12 @@
 //!
 //! Admittedly, the source code is quite complicated:
 //! Of course that depends on the material, a number of PKCS# standards, and then the not exactly simple ASN.1 and cryptography in general.
-//! Furthermore, the OpenSC source code written in C is not easily accessible. In addition, I have ambitions to support several things in a source code project:
-//! Different hardware versions (with different functionality), different operating systems (platforms and then also support for a variety of OpenSC releases (currently from 0.20.0 to 0.26.0-rc1)
+//! Furthermore, the `OpenSC` source code written in C is not easily accessible. In addition, I have ambitions to support several things in a source code project:
+//! Different hardware versions (with different functionality), different operating systems (platforms and then also support for a variety of `OpenSC` releases (currently from 0.20.0 to 0.26.0-rc1)
 //!
 //! Zugegebenermaßen ist der Quelltext recht kompliziert:
 //! Das hängt natürlich mit der Materie zusammen, eine Reihe von PKCS# Standards, und dann noch das nicht gerade simple ASN.1 und generell die Kryptographie.
-//! Darüberhinaus ist der in C geschriebene OpenSC Quelltext nicht leicht zugänglich. Weiter hinzu kommen meine Ambitionen, in einem Quelltext-Projekt mehrers zu unterstützen:
+//! Darüberhinaus ist der in C geschriebene `OpenSC` Quelltext nicht leicht zugänglich. Weiter hinzu kommen meine Ambitionen, in einem Quelltext-Projekt mehrers zu unterstützen:
 //! Verschiedene Hardware-Versionen (mit unterschiedlichem Funktionsumfang), verschiedene Betriebssysteme (platforms und dann auch noch Unterstützung for eine Vielzahl von OpenSC-Releases (aktuell von 0.20.0 bis 0.26.0-rc1)
 //!
 //! \[`OpenSC wiki`\]\
@@ -68,13 +68,11 @@ it has a child DF that has been selected.
 #![allow(non_snake_case)]
 */
 
-//#![feature(const_fn)]
 #![warn(rustdoc::broken_intra_doc_links)]
 #![warn(rustdoc::private_intra_doc_links)]
 #![warn(rustdoc::missing_crate_level_docs)]
-//#![warn(rustdoc::missing_doc_code_examples)]
-
-#![expect(rustdoc::private_doc_tests)]
+//#![ expect(rustdoc::missing_doc_code_examples)]
+#![ expect(rustdoc::private_doc_tests)]
 #![warn(rustdoc::invalid_codeblock_attributes)]
 #![warn(rustdoc::invalid_html_tags)]
 #![warn(rustdoc::invalid_rust_codeblocks)]
@@ -82,61 +80,230 @@ it has a child DF that has been selected.
 #![warn(rustdoc::unescaped_backticks)]
 #![warn(rustdoc::redundant_explicit_links)]
 
-#![warn(absolute_paths_not_starting_with_crate)] //    fully qualified paths that start with a module name instead of `crate`, `self`, or an extern crate name
-#![warn(ambiguous_negative_literals)] //    ambiguous negative literals operations
-//#![warn(closure_returning_async_block)] //     closure that returns `async {}` could be rewritten as an async closure
-#![warn(deprecated_in_future)] //     detects use of items that will be deprecated in a future version
-#![warn(deprecated_safe_2024)] //     detects unsafe functions being used as safe functions
-#![expect(edition_2024_expr_fragment_specifier)] //     The `expr` fragment specifier will accept more expressions in the 2024 edition. To keep the existing behavior, use the `expr_2021` fragment specifier.
-#![warn(elided_lifetimes_in_paths)] //     hidden lifetime parameters in types are deprecated
-#![warn(explicit_outlives_requirements)] //     outlives requirements can be inferred
-#![warn(ffi_unwind_calls)] //     call to foreign functions or function pointers with FFI_unwind ABI
-//#![warn(fuzzy_provenance_casts)] //     a fuzzy integer to pointer cast is used
 
-#![warn(impl_trait_overcaptures)] //     `impl Trait` will capture more lifetimes than possibly intended in edition 2024
-#![warn(keyword_idents_2018)] //     detects edition keywords being used as an identifier
-#![warn(keyword_idents_2024)] //     detects edition keywords being used as an identifier
-#![warn(let_underscore_drop)] //     non-binding let on a type that implements `Drop`
-//#![warn(lossy_provenance_casts)] //     a lossy pointer to integer cast is used
-#![warn(macro_use_extern_crate)] //     the `#[macro_use]` attribute is now deprecated in favor of using macros via the module system
-#![warn(meta_variable_misuse)] //     possible meta-variable misuse at macro definition
-#![warn(missing_abi)] //     No declared ABI for extern declaration
-#![warn(missing_copy_implementations)] //     detects potentially-forgotten implementations of `Copy`
-#![warn(missing_debug_implementations)] //     detects missing implementations of Debug
-#![warn(missing_docs)] //     detects missing documentation for public members
-#![warn(missing_unsafe_on_extern)] //     detects missing unsafe keyword on extern declarations
-//#![warn(multiple_supertrait_upcastable)] //     detect when an object-safe trait has multiple supertraits
-//#![warn(must_not_suspend)] //     use of a `#[must_not_suspend]` value across a yield point
-#![warn(non_ascii_idents)] //     detects non-ASCII identifiers
-//#![warn(non_exhaustive_omitted_patterns)] //     detect when patterns of types marked `non_exhaustive` are missed
-#![warn(non_local_definitions)] //     checks for non-local definitions
-#![warn(redundant_imports)] //    imports that are redundant due to being imported already
-#![warn(redundant_lifetimes)] //     detects lifetime parameters that are redundant because they are equal to some other named lifetime
-#![warn(rust_2021_incompatible_closure_captures)] //     detects closures affected by Rust 2021 changes
-#![warn(rust_2021_incompatible_or_patterns)] //     detects usage of old versions of or-patterns
-#![warn(rust_2021_prefixes_incompatible_syntax)] //     identifiers that will be parsed as a prefix in Rust 2021
-#![warn(rust_2021_prelude_collisions)] //     detects the usage of trait methods which are ambiguous with traits added to the prelude in future editions
-//#![warn(rust_2024_incompatible_pat)] //     detects patterns whose meaning will change in Rust 2024
-#![warn(rust_2024_prelude_collisions)] //    detects the usage of trait methods which are ambiguous with traits added to the prelude in future editions
-#![warn(single_use_lifetimes)] //     detects lifetime parameters that are only used once
-#![warn(tail_expr_drop_order)] //    Detect and warn on significant change in drop order in tail expression location
-#![warn(trivial_casts)] //     detects trivial casts which could be removed
-#![expect(trivial_numeric_casts)] //     detects trivial casts of numeric types which could be removed
-#![warn(unit_bindings)] //     binding is useless because it has the unit `()` type
-#![warn(unnameable_types)] //     effective visibility of a type is larger than the area in which it can be named
-#![expect(unreachable_pub)] //     `pub` items not reachable from crate root
-#![warn(unsafe_attr_outside_unsafe)] //     detects unsafe attributes outside of unsafe
-#![expect(unsafe_code)] //     usage of `unsafe` code and other potentially unsound constructs
-#![warn(unsafe_op_in_unsafe_fn)] //     unsafe operations in unsafe functions without an explicit unsafe block are deprecated
-#![warn(unstable_features)] //     enabling unstable features
-#![warn(unused_crate_dependencies)] //     crate dependencies that are never used
-#![warn(unused_extern_crates)] //     extern crates that are never used
-#![warn(unused_import_braces)] //     unnecessary braces around an imported item
-#![warn(unused_lifetimes)] //     detects lifetime parameters that are never used
-#![warn(unused_macro_rules)] //     detects macro rules that were not used
-#![warn(unused_qualifications)] //     detects unnecessarily qualified names
-#![warn(unused_results)] //     unused result of an expression in a statement
-#![warn(variant_size_differences)] //     detects enums with widely varying variant sizes
+#![warn(absolute_paths_not_starting_with_crate)] //  allow    fully qualified paths that start with a module name instead of `crate`, `self`, or an extern crate name
+#![warn(ambiguous_negative_literals)] //  allow    ambiguous negative literals operations
+#![warn(closure_returning_async_block)] //  allow    closure that returns `async {}` could be rewritten as an async closure
+#![warn(deprecated_in_future)] //  allow    detects use of items that will be deprecated in a future version
+#![warn(deprecated_safe_2024)] //  allow    detects unsafe functions being used as safe functions
+#![warn(deref_into_dyn_supertrait)] //  allow    `Deref` implementation with a supertrait trait object for output is shadowed by trait upcasting
+#![warn(edition_2024_expr_fragment_specifier)] //  allow    The `expr` fragment specifier will accept more expressions in the 2024 edition. To keep the existing behavior, use the `expr_2021` fragment specifier.
+#![warn(elided_lifetimes_in_paths)] //  allow    hidden lifetime parameters in types are deprecated
+#![warn(explicit_outlives_requirements)] //  allow    outlives requirements can be inferred
+#![warn(ffi_unwind_calls)] //  allow    call to foreign functions or function pointers with FFI_unwind ABI
+//note: the `fuzzy_provenance_casts` lint is unstable  #![warn(fuzzy_provenance_casts)] //  allow    a fuzzy integer to pointer cast is used
+#![warn(if_let_rescope)] //  allow    `if let` assigns a shorter lifetime to temporary values being pattern_matched against in Edition 2024 and rewriting in `match` is an option to preserve the semantics up to Edition 2021
+#![warn(impl_trait_overcaptures)] //  allow    `impl Trait` will capture more lifetimes than possibly intended in edition 2024
+#![warn(impl_trait_redundant_captures)] //  allow    redundant precise-capturing `use<...>` syntax on an `impl Trait`
+#![warn(keyword_idents_2018)] //  allow    detects edition keywords being used as an identifier
+#![warn(keyword_idents_2024)] //  allow    detects edition keywords being used as an identifier
+#![warn(let_underscore_drop)] //  allow    non-binding let on a type that has a destructor
+#![warn(linker_messages)] //  allow    warnings emitted at runtime by the target-specific linker program
+// note: the `lossy_provenance_casts` lint is unstable #![warn(lossy_provenance_casts)] //  allow    a lossy pointer to integer cast is used
+#![warn(macro_use_extern_crate)] //  allow    the `#[macro_use]` attribute is now deprecated in favor of using macros via the module system
+#![warn(meta_variable_misuse)] //  allow    possible meta-variable misuse at macro definition
+#![warn(missing_copy_implementations)] //  allow    detects potentially-forgotten implementations of `Copy`
+#![warn(missing_debug_implementations)] //  allow    detects missing implementations of Debug
+#![warn(missing_docs)] //  allow    detects missing documentation for public members
+#![warn(missing_unsafe_on_extern)] //  allow    detects missing unsafe keyword on extern declarations
+// note: the `multiple_supertrait_upcastable` lint is unstable #![warn(multiple_supertrait_upcastable)] //  allow    detect when a dyn-compatible trait has multiple supertraits
+// note: the `must_not_suspend` lint is unstable #![warn(must_not_suspend)] //  allow    use of a `#[must_not_suspend]` value across a yield point
+#![warn(non_ascii_idents)] //  allow    detects non-ASCII identifiers
+// note: the `non_exhaustive_omitted_patterns` lint is unstable #![warn(non_exhaustive_omitted_patterns)] //  allow    detect when patterns of types marked `non_exhaustive` are missed
+#![warn(redundant_imports)] //  allow    imports that are redundant due to being imported already
+#![warn(redundant_lifetimes)] //  allow    detects lifetime parameters that are redundant because they are equal to some other named lifetime
+#![warn(rust_2021_incompatible_closure_captures)] //  allow    detects closures affected by Rust 2021 changes
+#![warn(rust_2021_incompatible_or_patterns)] //  allow    detects usage of old versions of or-patterns
+#![warn(rust_2021_prefixes_incompatible_syntax)] //  allow    identifiers that will be parsed as a prefix in Rust 2021
+#![warn(rust_2021_prelude_collisions)] //  allow    detects the usage of trait methods which are ambiguous with traits added to the prelude in future editions
+#![warn(rust_2024_guarded_string_incompatible_syntax)] //  allow    will be parsed as a guarded string in Rust 2024
+#![warn(rust_2024_incompatible_pat)] //  allow    detects patterns whose meaning will change in Rust 2024
+#![warn(rust_2024_prelude_collisions)] //  allow    detects the usage of trait methods which are ambiguous with traits added to the prelude in future editions
+#![warn(single_use_lifetimes)] //  allow    detects lifetime parameters that are only used once
+// note: the `supertrait_item_shadowing_definition` lint is unstable #![warn(supertrait_item_shadowing_definition)] //  allow    detects when a supertrait item is shadowed by a subtrait item
+// note: the `supertrait_item_shadowing_usage` lint is unstable #![warn(supertrait_item_shadowing_usage)] //  allow    detects when a supertrait item is shadowed by a subtrait item
+#![warn(tail_expr_drop_order)] //  allow    Detect and warn on significant change in drop order in tail expression location
+#![warn(trivial_casts)] //  allow    detects trivial casts which could be removed
+#![warn(trivial_numeric_casts)] //  allow    detects trivial casts of numeric types which could be removed
+#![warn(unit_bindings)] //  allow    binding is useless because it has the unit `()` type
+#![warn(unnameable_types)] //  allow    effective visibility of a type is larger than the area in which it can be named
+// note: the `unqualified_local_imports` lint is unstable #![warn(unqualified_local_imports)] //  allow    `use` of a local item without leading `self::`, `super::`, or `crate::`
+#![ expect(unreachable_pub)] //  allow    `pub` items not reachable from crate root
+#![warn(unsafe_attr_outside_unsafe)] //  allow    detects unsafe attributes outside of unsafe
+#![ expect(unsafe_code)] //  allow    usage of `unsafe` code and other potentially unsound constructs
+#![warn(unsafe_op_in_unsafe_fn)] //  allow    unsafe operations in unsafe functions without an explicit unsafe block are deprecated
+#![warn(unstable_features)] //  allow    enabling unstable features
+#![warn(unused_crate_dependencies)] //  allow    crate dependencies that are never used
+#![warn(unused_extern_crates)] //  allow    extern crates that are never used
+#![warn(unused_import_braces)] //  allow    unnecessary braces around an imported item
+#![warn(unused_lifetimes)] //  allow    detects lifetime parameters that are never used
+#![warn(unused_macro_rules)] //  allow    detects macro rules that were not used
+#![warn(unused_qualifications)] //  allow    detects unnecessarily qualified names
+#![warn(unused_results)] //  allow    unused result of an expression in a statement
+#![warn(variant_size_differences)] //  allow    detects enums with widely varying variant sizes
+/*
+aarch64-softfloat-neon  warn     detects code that could be affected by ABI issues on aarch64 softfloat targets
+ambiguous-glob-imports  warn     detects certain glob imports that require reporting an ambiguity error
+ambiguous-glob-reexports  warn     ambiguous glob re-exports
+ambiguous-wide-pointer-comparisons  warn     detects ambiguous wide pointer comparisons
+anonymous-parameters  warn     detects anonymous parameters
+array-into-iter  warn     detects calling `into_iter` on arrays in Rust 2015 and 2018
+asm-sub-register  warn     using only a subset of a register for inline asm inputs
+async-fn-in-trait  warn     use of `async fn` in definition of a publicly-reachable trait
+bad-asm-style  warn     incorrect use of inline assembly
+bare-trait-objects  warn     suggest using `dyn Trait` for trait objects
+boxed-slice-into-iter  warn     detects calling `into_iter` on boxed slices in Rust 2015, 2018, and 2021
+break-with-label-and-loop  warn     `break` expression with label and unlabeled loop as value expression
+clashing-extern-declarations  warn     detects when an extern fn has been declared with the same name but different types
+coherence-leak-check  warn     distinct impls distinguished only by the leak-check code
+confusable-idents  warn     detects visually confusable pairs between identifiers
+const-evaluatable-unchecked  warn     detects a generic constant is used in a type without a emitting a warning
+const-item-mutation  warn     detects attempts to mutate a `const` item
+dangling-pointers-from-temporaries  warn     detects getting a pointer from a temporary
+dead-code  warn     detect unused, unexported items
+dependency-on-unit-never-type-fallback  warn     never type fallback affecting unsafe function calls
+deprecated  warn     detects use of deprecated items
+deprecated-where-clause-location  warn     deprecated where clause location
+deref-nullptr  warn     detects when an null pointer is dereferenced
+double-negations  warn     detects expressions of the form `--x`
+dropping-copy-types  warn     calls to `std::mem::drop` with a value that implements Copy
+dropping-references  warn     calls to `std::mem::drop` with a reference instead of an owned value
+drop-bounds  warn     bounds of the form `T: Drop` are most likely incorrect
+duplicate-macro-attributes  warn     duplicated attribute
+dyn-drop  warn     trait objects of the form `dyn Drop` are useless
+ellipsis-inclusive-range-patterns  warn     `...` range patterns are deprecated
+exported-private-dependencies  warn     public interface leaks type from a private dependency
+forbidden-lint-groups  warn     applying forbid to lint-groups
+forgetting-copy-types  warn     calls to `std::mem::forget` with a value that implements Copy
+forgetting-references  warn     calls to `std::mem::forget` with a reference instead of an owned value
+for-loops-over-fallibles  warn     for-looping over an `Option` or a `Result`, which is more clearly expressed as an `if let`
+function-item-references  warn     suggest casting to a function pointer when attempting to take references to function items
+hidden-glob-reexports  warn     name introduced by a private item shadows a name introduced by a public glob re-export
+improper-ctypes  warn     proper use of libc types in foreign modules
+improper-ctypes-definitions  warn     proper use of libc types in foreign item definitions
+incomplete-features  warn     incomplete features that may function improperly in some or all cases
+inline-no-sanitize  warn     detects incompatible use of `#[inline(always)]` and `#[no_sanitize(...)]`
+internal-features  warn     internal features are not supposed to be used
+invalid-from-utf8  warn     using a non UTF-8 literal in `std::str::from_utf8`
+invalid-macro-export-arguments  warn     "invalid_parameter" isn't a valid argument for `#[macro_export]`
+invalid-nan-comparisons  warn     detects invalid floating point NaN comparisons
+invalid-value  warn     an invalid value is being created (such as a null reference)
+irrefutable-let-patterns  warn     detects irrefutable patterns in `if let` and `while let` statements
+large-assignments  warn     detects large moves or copies
+late-bound-lifetime-arguments  warn     detects generic lifetime arguments in path segments with late bound lifetime parameters
+legacy-derive-helpers  warn     detects derive helper attributes that are used before they are introduced
+map-unit-fn  warn     `Iterator::map` call that discard the iterator's values
+mismatched-lifetime-syntaxes  warn     detects when a lifetime uses different syntax between arguments and return values
+missing-abi  warn     No declared ABI for extern declaration
+mixed-script-confusables  warn     detects Unicode scripts whose mixed script confusables codepoints are solely used
+named-arguments-used-positionally  warn     named arguments in format used positionally
+never-type-fallback-flowing-into-unsafe  warn     never type fallback affecting unsafe function calls
+non-camel-case-types  warn     types, variants, traits and type parameters should have camel case names
+non-contiguous-range-endpoints  warn     detects off-by-one errors with exclusive range patterns
+non-fmt-panics  warn     detect single-argument panic!() invocations in which the argument is not a format string
+non-local-definitions  warn     checks for non-local definitions
+non-shorthand-field-patterns  warn     using `Struct { x: x }` instead of `Struct { x }` in a pattern
+non-snake-case  warn     variables, methods, functions, lifetime parameters and modules should have snake case names
+non-upper-case-globals  warn     static constants should have uppercase identifiers
+noop-method-call  warn     detects the use of well-known noop methods
+no-mangle-generic-items  warn     generic items must be mangled
+opaque-hidden-inferred-bound  warn     detects the use of nested `impl Trait` types in associated type bounds that are not general enough
+out-of-scope-macro-calls  warn     detects out of scope calls to `macro_rules` in key-value attributes
+overlapping-range-endpoints  warn     detects range patterns with overlapping endpoints
+path-statements  warn     path statements with no effect
+private-bounds  warn     private type in secondary interface of an item
+private-interfaces  warn     private type in primary interface of an item
+ptr-to-integer-transmute-in-consts  warn     detects pointer to integer transmutes in const functions and associated constants
+redundant-semicolons  warn     detects unnecessary trailing semicolons
+refining-impl-trait-internal  warn     impl trait in impl method signature does not match trait method signature
+refining-impl-trait-reachable  warn     impl trait in impl method signature does not match trait method signature
+renamed-and-removed-lints  warn     lints that have been renamed or removed
+repr-transparent-external-private-fields  warn     transparent type contains an external ZST that is marked #[non_exhaustive] or contains private fields
+self-constructor-from-outer-item  warn     detect unsupported use of `Self` from outer item
+semicolon-in-expressions-from-macros  warn     trailing semicolon in macro body used as expression
+special-module-name  warn     module declarations for files with a special meaning
+stable-features  warn     stable features found in `#[feature]` directive
+static-mut-refs  warn     creating a shared reference to mutable static
+suspicious-double-ref-op  warn     suspicious call of trait method on `&&T`
+trivial-bounds  warn     these bounds don't depend on an type parameters
+type-alias-bounds  warn     bounds in type aliases are not enforced
+tyvar-behind-raw-pointer  warn     raw pointer to an inference variable
+uncommon-codepoints  warn     detects uncommon Unicode codepoints in identifiers
+unconditional-recursion  warn     functions that cannot return without calling themselves
+uncovered-param-in-projection  warn     impl contains type parameters that are not covered
+unexpected-cfgs  warn     detects unexpected names and values in `#[cfg]` conditions
+unfulfilled-lint-expectations  warn     unfulfilled lint expectation
+ungated-async-fn-track-caller  warn     enabling track_caller on an async fn is a no-op unless the async_fn_track_caller feature is enabled
+uninhabited-static  warn     uninhabited static
+unknown-lints  warn     unrecognized lint attribute
+unknown-or-malformed-diagnostic-attributes  warn     unrecognized or malformed diagnostic attribute
+unnameable-test-items  warn     detects an item that cannot be named being marked as `#[test_case]`
+unnecessary-transmutes  warn     detects transmutes that can also be achieved by other operations
+unpredictable-function-pointer-comparisons  warn     detects unpredictable function pointer comparisons
+unreachable-code  warn     detects unreachable code paths
+unreachable-patterns  warn     detects unreachable patterns
+unstable-name-collisions  warn     detects name collision with an existing but unstable method
+unstable-syntax-pre-expansion  warn     unstable syntax can change at any point in the future, causing a hard error!
+unsupported-calling-conventions  warn     use of unsupported calling convention
+unsupported-fn-ptr-calling-conventions  warn     use of unsupported calling convention for function pointer
+unused-allocation  warn     detects unnecessary allocations that can be eliminated
+unused-assignments  warn     detect assignments that will never be read
+unused-associated-type-bounds  warn     detects unused `Foo = Bar` bounds in `dyn Trait<Foo = Bar>`
+unused-attributes  warn     detects attributes that were not used by the compiler
+unused-braces  warn     unnecessary braces around an expression
+unused-comparisons  warn     comparisons made useless by limits of the types involved
+unused-doc-comments  warn     detects doc comments that aren't used by rustdoc
+unused-features  warn     unused features found in crate-level `#[feature]` directives
+unused-imports  warn     imports that are never used
+unused-labels  warn     detects labels that are never used
+unused-macros  warn     detects macros that were not used
+unused-must-use  warn     unused result of a type flagged as `#[must_use]`
+unused-mut  warn     detect mut variables which don't need to be mutable
+unused-parens  warn     `if`, `match`, `while` and `return` do not need parentheses
+unused-unsafe  warn     unnecessary use of an `unsafe` block
+unused-variables  warn     detect variables which are not used in any way
+useless-ptr-null-checks  warn     useless checking of non-null-typed pointer
+uses-power-alignment  warn     Structs do not follow the power alignment rule under repr(C)
+warnings  warn     mass-change the level for lints which produce warnings
+while-true  warn     suggest using `loop { }` instead of `while true { }`
+ambiguous-associated-items  deny     ambiguous associated items
+arithmetic-overflow  deny     arithmetic operation overflows
+binary-asm-labels  deny     labels in inline assembly containing only 0 or 1 digits
+bindings-with-variant-name  deny     detects pattern bindings with the same name as one of the matched variants
+conflicting-repr-hints  deny     conflicts between `#[repr(..)]` hints that were previously accepted and used in practice
+dangerous-implicit-autorefs  deny     implicit reference to a dereference of a raw pointer
+default-overrides-default-fields  deny     detect `Default` impl that should use the type's default field values
+elided-lifetimes-in-associated-constant  deny     elided lifetimes cannot be used in associated constants in impls
+enum-intrinsics-non-enums  deny     detects calls to `core::mem::discriminant` and `core::mem::variant_count` with non-enum types
+explicit-builtin-cfgs-in-flags  deny     detects builtin cfgs set via the `--cfg`
+ill-formed-attribute-input  deny     ill-formed attribute inputs that were previously accepted and used in practice
+incomplete-include  deny     trailing content in included file
+ineffective-unstable-trait-impl  deny     detects `#[unstable]` on stable trait implementations for stable types
+invalid-atomic-ordering  deny     usage of invalid atomic ordering in atomic operations and memory fences
+invalid-doc-attributes  deny     detects invalid `#[doc(...)]` attributes
+invalid-from-utf8-unchecked  deny     using a non UTF-8 literal in `std::str::from_utf8_unchecked`
+invalid-null-arguments  deny     invalid null pointer in arguments
+invalid-reference-casting  deny     casts of `&T` to `&mut T` without interior mutability
+invalid-type-param-default  deny     type parameter default erroneously allowed in invalid location
+let-underscore-lock  deny     non-binding let on a synchronization lock
+long-running-const-eval  deny     detects long const eval operations
+macro-expanded-macro-exports-accessed-by-absolute-paths  deny     macro-expanded `macro_export` macros from the current crate cannot be referred to by absolute paths
+mutable-transmutes  deny     transmuting &T to &mut T is undefined behavior, even if the reference is unused
+named-asm-labels  deny     named labels in inline assembly
+no-mangle-const-items  deny     const items will not have their symbols exported
+overflowing-literals  deny     literal out of range for its type
+patterns-in-fns-without-body  deny     patterns in functions without body were erroneously allowed
+proc-macro-derive-resolution-fallback  deny     detects proc macro derives using inaccessible names from parent modules
+pub-use-of-private-extern-crate  deny     detect public re-exports of private extern crates
+soft-unstable  deny     a feature gate that doesn't break dependent crates
+test-unstable-lint  deny     this unstable lint is only for testing
+text-direction-codepoint-in-comment  deny     invisible directionality-changing codepoints in comment
+text-direction-codepoint-in-literal  deny     detect special Unicode codepoints that affect the visual representation of text on screen, changing the direction in which text flows
+unconditional-panic  deny     operation will cause a panic at runtime
+undropped-manually-drops  deny     calls to `std::mem::drop` with `std::mem::ManuallyDrop` instead of it's inner value
+unknown-crate-types  deny     unknown crate type found in `#[crate_type]` directive
+useless-deprecated  deny     detects deprecation attributes with no effect
+*/
 
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
@@ -261,10 +428,10 @@ use constants_types::{ui_context, set_ui_ctx, get_ui_ctx, acos5_ask_user_consent
 
 mod crypto;
 
-/// There are some functions implemented in OpenSC and available from a static libopensc.a library
+/// There are some functions implemented in `OpenSC` and available from a static libopensc.a library
 /// (typically not made available by distribution packages),
 /// but not available from a dynamically linked libopensc.so/.dll library.
-/// The solution should be, to convince OpenSC maintainers to export those 'missing export functions'
+/// The solution should be, to convince `OpenSC` maintainers to export those 'missing export functions'
 /// as well.
 /// In the meantime, I duplicated the code of valuable non-callable functions via this module.
 mod missing_exports;
@@ -344,8 +511,8 @@ mod   test_v2_v3;
 /// version 0.27.0 (change configure.ac; define(\[`PACKAGE_VERSION_MINOR`\], \[27\]) )
 /// In this example, `cfg!(v0_27_0`) will then match that
 ///
-/// call site: function load_dynamic_driver, close to:
-/// libopensc/ctx.c:515:    *(void **)tmodv = sc_dlsym(handle, "sc_driver_version");
+/// call site: function `load_dynamic_driver`, close to:
+/// libopensc/ctx.c:515:    *(void **)tmodv = `sc_dlsym(handle`, "`sc_driver_version`");
 /// @return   The `OpenSC` release/imaginary version, that this driver implementation supports
 #[unsafe(no_mangle)]
 pub extern "C" fn sc_driver_version() -> *const c_char {
@@ -563,7 +730,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
        card.type_ will be set accordingly, but not before the successful return of match_card */
     let mut type_out = 0;
     let     acos5_atrs = acos5_supported_atrs();
-    let idx_acos5_atrs = unsafe { _sc_match_atr(card, acos5_atrs.as_ptr(), &mut type_out) };
+    let idx_acos5_atrs = unsafe { _sc_match_atr(card, acos5_atrs.as_ptr(), &raw mut type_out) };
 ////println!("reader.supported_protocols: {}, reader.active_protocol: {}\n", reader.supported_protocols, reader.active_protocol);
 ////println!("idx_acos5_atrs: {}, card.type_: {}, type_out: {}, &card.atr.value[..20]: {:X?}\n", idx_acos5_atrs, card.type_, type_out, &card.atr.value[..20]);
     if idx_acos5_atrs < 0 {
@@ -580,7 +747,7 @@ extern "C" fn acos5_match_card(card_ptr: *mut sc_card) -> i32
             is_ident_self_okay: SW2 different from expected! Returning with 0 (no match)", 0) },
         Err(_e) => return log3ifr_ret!(ctx,f,line!(), c"Card doesn't match: is_ident_self_okay \
             failed! Returning with 0 (no match)", 0),
-    };
+    }
 
     /* check for 'Card OS Version' */
     let rbuf_card_os_version = match cos_version(card) {
@@ -815,7 +982,7 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
             #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
             unsafe { rv = _sc_card_add_ec_alg(card, elem.size, c_ulong::from(flags), c_ulong::from(ext_flags), &mut elem.curve_oid) };
             #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
-            unsafe { rv = _sc_card_add_ec_alg(card, elem.size, flags, ext_flags, &mut elem.curve_oid) };
+            unsafe { rv = _sc_card_add_ec_alg(card, elem.size, flags, ext_flags, &raw mut elem.curve_oid) };
             assert_eq!(SC_SUCCESS, rv);
         }
     }
@@ -840,10 +1007,10 @@ extern "C" fn acos5_init(card_ptr: *mut sc_card) -> i32
 cfg_if::cfg_if! {
     if #[cfg(not(target_os = "windows"))] {
         let mut pkcs15_definitions : asn1_node = null_mut();
-        let mut error_description = [0x00 as c_char; 129];
+        let mut error_description = [0x00_i8; 129];
         // let asn1_result = unsafe { crate::tasn1_sys::asn1_parser2tree(c"acos5_gui/source/PKCS15.asn".as_ptr(),
         //     &mut pkcs15_definitions, error_description.as_mut_ptr()) };
-        let asn1_result = unsafe { asn1_array2tree(tasn1_pkcs15_definitions().as_ptr(), &mut pkcs15_definitions,
+        let asn1_result = unsafe { asn1_array2tree(tasn1_pkcs15_definitions().as_ptr(), &raw mut pkcs15_definitions,
                                                    error_description.as_mut_ptr()) };
         if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
             let c_str = unsafe { CStr::from_ptr(error_description.as_ptr()) };
@@ -987,7 +1154,7 @@ DataPrivate:                                                size_of: 1792, align
         }
     }
     // final selection in acos5_init  After the card powers up or resets, the MF is selected by default.
-    rv = unsafe { sc_select_file(card, &path_mf, null_mut()) }; // acos5_select_file: if !does_mf_exist { return SC_ERROR_NOT_ALLOWED; }
+    rv = unsafe { sc_select_file(card, &raw const path_mf, null_mut()) }; // acos5_select_file: if !does_mf_exist { return SC_ERROR_NOT_ALLOWED; }
     assert_eq!(SC_SUCCESS, rv);
 // card.sm_ctx.info
     let sm_info = &mut card.sm_ctx.info;
@@ -1211,8 +1378,8 @@ println!("sc_update_binary: rv: {}", rv);
         else {
             let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
             if !dp.pkcs15_definitions.is_null() {
-                let rv = unsafe { asn1_delete_structure(&mut dp.pkcs15_definitions) };
-                assert_eq!(ASN1_SUCCESS, rv.try_into().unwrap())
+                let rv = unsafe { asn1_delete_structure(&raw mut dp.pkcs15_definitions) };
+                assert_eq!(ASN1_SUCCESS, rv.try_into().unwrap());
             }
         }
     }
@@ -1231,7 +1398,6 @@ println!("sc_update_binary: rv: {}", rv);
 
 #[named]
 extern "C" fn acos5_check_sw(card_ptr: *mut sc_card, sw1: u32, sw2: u32) -> i32
-//pub check_sw : Option< unsafe extern "C" fn (card: *mut sc_card, sw1: u32, sw2: u32) -> i32 >,
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
         return SC_ERROR_INVALID_ARGUMENTS;
@@ -1241,8 +1407,8 @@ extern "C" fn acos5_check_sw(card_ptr: *mut sc_card, sw1: u32, sw2: u32) -> i32
     let f_cstr = CString::new(function_name!()).expect("CString::new failed");
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
-    log3ifr_ret!(ctx,f,line!(), if sw1 == 0x61 {SC_SUCCESS} else
-        { unsafe { (*(*sc_get_iso7816_driver()).ops).check_sw.unwrap()(card_ptr, sw1, sw2) } } )
+    log3ifr_ret!(ctx,f,line!(), if sw1 == 0x61 {SC_SUCCESS} else {
+        unsafe { (*(*sc_get_iso7816_driver()).ops).check_sw.unwrap()(card_ptr, sw1, sw2) } } )
 }
 
 /**
@@ -1331,7 +1497,7 @@ extern "C" fn acos5_erase_binary(card_ptr: *mut sc_card, idx: u32, count: usize,
             apdu.data = end_offset.as_ptr();
         }
 
-        let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
+        let mut rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
         if rv != SC_SUCCESS {
             return log3ifr_ret!(ctx,f,line!(), c"Error: #### Failed to erase binary. Returning with", rv);
@@ -1688,7 +1854,7 @@ extern "C" fn acos5_get_response(card_ptr: *mut sc_card, count_ptr: *mut usize, 
     /* don't call GET RESPONSE recursively */
     apdu.flags  |= SC_APDU_FLAGS_NO_GET_RESP;
 
-    let mut rv = unsafe { sc_transmit_apdu(card, &mut apdu) };
+    let mut rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };
 //    LOG_TEST_RET(card->ctx, rv, "APDU transmit failed");
     if rv != SC_SUCCESS {
         if      apdu.sw1==0x6B && apdu.sw2==0x00 {
@@ -1768,7 +1934,7 @@ extern "C" fn acos5_get_challenge(card_ptr: *mut sc_card, buf_ptr: *mut u8, coun
     // let is_count_multiple : bool;
     let cond_1 = card.type_ > SC_CARD_TYPE_ACOS5_64_V3;
     let cond_2 = cond_1 && count>8;
-    let is_count_multiple = if cond_2 {count%16==0} else {count%8==0};
+    let is_count_multiple = if cond_2 {count.is_multiple_of(16)} else {count.is_multiple_of(8)};
     // let is_count_multiple16 =  count%16 == 0;
     let chunk_size = if cond_2 {16_usize} else {8_usize};
     let loop_count = count/chunk_size + usize::from(!is_count_multiple);
@@ -1806,7 +1972,7 @@ extern "C" fn acos5_logout(card_ptr: *mut sc_card) -> i32
 
 //    let aid = null_mut();
     let mut p15card_ptr = null_mut();
-    let mut rv = unsafe { sc_pkcs15_bind(card, null_mut(), &mut p15card_ptr) };
+    let mut rv = unsafe { sc_pkcs15_bind(card, null_mut(), &raw mut p15card_ptr) };
     if rv < SC_SUCCESS {
         return log3ifr_ret!(ctx,f,line!(), c"Error: sc_pkcs15_bind. Returning with", rv);
     }
@@ -1937,7 +2103,7 @@ println!("file_id: {file_id:X} is not a key of hashmap dp.files");
     let mut rv;
     if need_to_select_or_process_fci {
         let mut file = null_mut();
-        let guard_file = GuardFile::new(&mut file);
+        let guard_file = GuardFile::new(&raw mut file);
         rv = unsafe { sc_select_file(card, path_ref, *guard_file) };
         if rv != SC_SUCCESS {
             return rv;
@@ -1969,7 +2135,7 @@ println!("file_id: {file_id:X} is not a key of hashmap dp.files");
             path.value[..2].copy_from_slice(&path_ref.value[path_ref.len-2..path_ref.len]);
         }
         let func_ptr = unsafe { (*(*sc_get_iso7816_driver()).ops).delete_file.unwrap() };
-        rv = unsafe { func_ptr(card, &path) };
+        rv = unsafe { func_ptr(card, &raw const path) };
     }
 ////
     if rv == SC_SUCCESS {
@@ -2300,7 +2466,7 @@ println!("Failure: Non-match in let acl_category. file_ref.type_: {}", file_ref.
 
     /* 4 bytes will be written for tag ISO7816_TAG_FCP_FID (0x83)  MANDATORY */
     buf2.copy_from_slice(&u16::try_from(file_ref.id).unwrap().to_be_bytes());
-    let mut rv = unsafe { sc_asn1_put_tag(u32::from(ISO7816_TAG_FCP_FID), buf2.as_ptr(), 2, p, *outlen-ptr_diff_sum, &mut p) };
+    let mut rv = unsafe { sc_asn1_put_tag(u32::from(ISO7816_TAG_FCP_FID), buf2.as_ptr(), 2, p, *outlen-ptr_diff_sum, &raw mut p) };
     assert_eq!(SC_SUCCESS, rv);
     ptr_diff_sum += 4;
 
@@ -2315,21 +2481,21 @@ println!("Failure: Non-match in let acl_category. file_ref.type_: {}", file_ref.
         rec_buf[0] = fdb;
         rec_buf[3] = u8::try_from(file_ref.record_length).unwrap();
         rec_buf[4] = u8::try_from(file_ref.record_count).unwrap();
-        rv = unsafe { sc_asn1_put_tag(u32::from(ISO7816_TAG_FCP_TYPE), rec_buf.as_ptr(), 5, p, *outlen-ptr_diff_sum, &mut p) };
+        rv = unsafe { sc_asn1_put_tag(u32::from(ISO7816_TAG_FCP_TYPE), rec_buf.as_ptr(), 5, p, *outlen-ptr_diff_sum, &raw mut p) };
         assert_eq!(SC_SUCCESS, rv);
         ptr_diff_sum += 7;
     }
     else {
         buf2[0] = fdb;
         buf2[1] = 0;
-        rv = unsafe { sc_asn1_put_tag(u32::from(ISO7816_TAG_FCP_TYPE), buf2.as_ptr(), 2, p, *outlen-ptr_diff_sum, &mut p) };
+        rv = unsafe { sc_asn1_put_tag(u32::from(ISO7816_TAG_FCP_TYPE), buf2.as_ptr(), 2, p, *outlen-ptr_diff_sum, &raw mut p) };
         assert_eq!(SC_SUCCESS, rv);
         ptr_diff_sum += 4;
     }
 
     /* 3 bytes will be written for tag ISO7816_TAG_FCP_LCS (0x8A) */
     buf2[0] = 1; // skip cos5 command "Activate File" and create as activated
-    rv = unsafe { sc_asn1_put_tag(u32::from(ISO7816_TAG_FCP_LCS), buf2.as_ptr(), 1, p, *outlen-ptr_diff_sum, &mut p) };
+    rv = unsafe { sc_asn1_put_tag(u32::from(ISO7816_TAG_FCP_LCS), buf2.as_ptr(), 1, p, *outlen-ptr_diff_sum, &raw mut p) };
     assert_eq!(SC_SUCCESS, rv);
     ptr_diff_sum += 3;
 
@@ -2337,27 +2503,27 @@ println!("Failure: Non-match in let acl_category. file_ref.type_: {}", file_ref.
         /* 4 bytes will be written for tag ISO7816_TAG_FCP_SIZE (0x80) */
         assert!(file_ref.size > 0);
         buf2.copy_from_slice(&u16::try_from(file_ref.size).unwrap().to_be_bytes());
-        rv = unsafe { sc_asn1_put_tag(u32::from(ISO7816_TAG_FCP_SIZE), buf2.as_ptr(), 2, p, *outlen-ptr_diff_sum, &mut p) };
+        rv = unsafe { sc_asn1_put_tag(u32::from(ISO7816_TAG_FCP_SIZE), buf2.as_ptr(), 2, p, *outlen-ptr_diff_sum, &raw mut p) };
         assert_eq!(SC_SUCCESS, rv);
         ptr_diff_sum += 4;
     }
 
     /*  bytes will be written for tag ISO7816_RFU_TAG_FCP_SAC (0x8C) MANDATORY */
     rv = unsafe { sc_asn1_put_tag(u32::from(ISO7816_RFU_TAG_FCP_SAC), bytes_tag_fcp_sac.as_ptr(), bytes_tag_fcp_sac.len(),
-                             p, *outlen-ptr_diff_sum, &mut p) };
+                             p, *outlen-ptr_diff_sum, &raw mut p) };
     assert_eq!(SC_SUCCESS, rv);
     ptr_diff_sum += 2+bytes_tag_fcp_sac.len();
 
     if is_DFMF(fdb) {
         /* 4 bytes will be written for tag ISO7816_RFU_TAG_FCP_SEID (0x8D) */
         buf2.copy_from_slice(&u16::try_from(file_ref.id+3).unwrap().to_be_bytes());
-        rv = unsafe { sc_asn1_put_tag(u32::from(ISO7816_RFU_TAG_FCP_SEID), buf2.as_ptr(), 2, p, *outlen-ptr_diff_sum, &mut p) };
+        rv = unsafe { sc_asn1_put_tag(u32::from(ISO7816_RFU_TAG_FCP_SEID), buf2.as_ptr(), 2, p, *outlen-ptr_diff_sum, &raw mut p) };
         assert_eq!(SC_SUCCESS, rv);
         ptr_diff_sum += 4;
 
         if file_ref.namelen>0 {
             /* bytes will be written for tag ISO7816_TAG_FCP_DF_NAME (0x84) */
-            rv = unsafe { sc_asn1_put_tag(u32::from(ISO7816_TAG_FCP_DF_NAME), file_ref.name.as_ptr(), file_ref.namelen, p, *outlen-ptr_diff_sum, &mut p) };
+            rv = unsafe { sc_asn1_put_tag(u32::from(ISO7816_TAG_FCP_DF_NAME), file_ref.name.as_ptr(), file_ref.namelen, p, *outlen-ptr_diff_sum, &raw mut p) };
             assert_eq!(SC_SUCCESS, rv);
             ptr_diff_sum += 2+file_ref.namelen;
         }
@@ -2704,7 +2870,7 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
     }
 
     assert!((512..=4096).contains(&modulus_length));
-    assert!(num_integer::Integer::is_multiple_of(&modulus_length, &256));
+    assert!(modulus_length.is_multiple_of(256));
     let mlbyte = usize::try_from(modulus_length).unwrap()/8; /* key modulus_length in byte (expected to be a multiple of 32)*/
     let le_total = mlbyte + 21;
     log3if!(ctx,f,line!(), c"read public key(modulus_length: %i; modulus_bytes: %zu)", modulus_length, mlbyte);
@@ -2722,14 +2888,14 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
         }
         else {
             let mut flags : c_ulong = 0;
-            if (card.caps & SC_CARD_CAP_APDU_EXT) == 0 { sc_read_binary(card, 0, rbuf.as_mut_ptr(), le_total, &mut flags)
+            if (card.caps & SC_CARD_CAP_APDU_EXT) == 0 { sc_read_binary(card, 0, rbuf.as_mut_ptr(), le_total, &raw mut flags)
             }
             else {
                 let mut apdu = build_apdu(ctx, &[0x80, 0xCA, 0, 0, 0,
                     u8::try_from((RSAPUB_MAX_LEN>>8) & 0xFF).unwrap(),
                     u8::try_from((RSAPUB_MAX_LEN   ) & 0xFF).unwrap()],
                     SC_APDU_CASE_2_EXT, &mut rbuf);
-                let mut r = sc_transmit_apdu(card, &mut apdu);  if r != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), r); }
+                let mut r = sc_transmit_apdu(card, &raw mut apdu);  if r != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), r); }
                 r = sc_check_sw(card, apdu.sw1, apdu.sw2);
                 if r != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), r); }
                 i32::try_from(apdu.resplen).unwrap()
@@ -2768,7 +2934,7 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
     };
 
     /* transform the raw content to der-encoded */
-    rv = unsafe { sc_pkcs15_encode_pubkey_rsa(ctx, &rsa_key, out, out_len) };
+    rv = unsafe { sc_pkcs15_encode_pubkey_rsa(ctx, &raw const rsa_key, out, out_len) };
     if rv < 0 {
         return log3ifr_ret!(ctx,f,line!(), c"Error: sc_pkcs15_encode_pubkey_rsa failed: returning with", rv);
     }
@@ -2797,7 +2963,7 @@ fn read_public_key_ec(card: &mut sc_card,
         }
         else {
             let mut flags : c_ulong = 0;
-            sc_read_binary(card, 0, rbuf.as_mut_ptr(), 6, &mut flags)
+            sc_read_binary(card, 0, rbuf.as_mut_ptr(), 6, &raw mut flags)
         }
     }};
 
@@ -2837,7 +3003,7 @@ fn read_public_key_ec(card: &mut sc_card,
         }
         else {
             let mut flags : c_ulong = 0;
-            sc_read_binary(card, 5, rbuf.as_mut_ptr(), point_length_readable.into(), &mut flags)
+            sc_read_binary(card, 5, rbuf.as_mut_ptr(), point_length_readable.into(), &raw mut flags)
         }
     }};
 
@@ -2853,7 +3019,7 @@ fn read_public_key_ec(card: &mut sc_card,
     };
 
     /* transform the raw content to der-encoded */
-    rv = unsafe { sc_pkcs15_encode_pubkey_ec(ctx, &mut ec_key, out, out_len) };
+    rv = unsafe { sc_pkcs15_encode_pubkey_ec(ctx, &raw mut ec_key, out, out_len) };
 
     if rv < 0 {
         return log3ifr_ret!(ctx,f,line!(), c"Error: sc_pkcs15_encode_pubkey_ec failed: returning with", rv);
@@ -2906,7 +3072,7 @@ Tokenunfo
             env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01,
             if [SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_ECCPRIVATE].contains(&env_ref.operation) {0x40} else {0x80}];
         let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+        rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return rv; }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
 //println!("rv: {}, apdu: {:?}", rv, apdu);
         if rv != SC_SUCCESS {
@@ -2927,7 +3093,7 @@ Tokenunfo
         let mut command = [0x00, 0x22, 0x01, CRT_TAG_DST, 0x0A, 0x80, 0x01, algo, 0x81, 0x02,
             env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
         let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+        rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return rv; }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
 //println!("rv: {}, apdu: {:?}", rv, apdu);
         if rv != SC_SUCCESS {
@@ -2940,7 +3106,7 @@ Tokenunfo
         command = [0x00, 0x22, 0x01, CRT_TAG_CT, 0x0A, 0x80, 0x01, algo, 0x81, 0x02,
             env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
         let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) };  if rv != SC_SUCCESS { return rv; }
+        rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return rv; }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
 //println!("rv: {}, apdu: {:?}", rv, apdu);
         if rv != SC_SUCCESS {
@@ -2961,7 +3127,7 @@ Tokenunfo
         let command = [0x00, 0x22, 0x01, CRT_TAG_CT, 0x0A, 0x80, 0x01, algo, 0x81, 0x02,
             env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
         let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
+        rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) }; if rv != SC_SUCCESS { return rv; }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
 //println!("rv: {}, apdu: {:?}", rv, apdu);
         if rv != SC_SUCCESS {
@@ -2982,7 +3148,7 @@ Tokenunfo
         let command = [0x00, 0x22, 0x01, CRT_TAG_CT, 0x0A, 0x80, 0x01, algo, 0x81, 0x02,
             env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x80];
         let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
+        rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) }; if rv != SC_SUCCESS { return rv; }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
 //    println!("rv: {}, apdu: {:?}", rv, apdu);
         if rv != SC_SUCCESS {
@@ -3050,7 +3216,7 @@ Tokenunfo
                         assert_eq!(vec.len(), 16+ len);
                         vec[16..].copy_from_slice(unsafe { from_raw_parts(sec_env_param.value as *const u8, len) });
                     },
-                    SC_SEC_ENV_PARAM_TARGET_FILE => { continue; }
+                    SC_SEC_ENV_PARAM_TARGET_FILE => { /*continue;*/ }
                     _ => { break; },
                 }
             }
@@ -3077,7 +3243,7 @@ pub const SC_SEC_ENV_PARAM_DES_CBC           : u32 = 4;
         vec[13] = env_ref.key_ref[0];
 
         let mut apdu = build_apdu(ctx, &vec, SC_APDU_CASE_3_SHORT, &mut[]);
-        rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
+        rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) }; if rv != SC_SUCCESS { return rv; }
         rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
         if rv != SC_SUCCESS {
             return log3ifr_ret!(ctx,f,line!(), rv);
@@ -3099,7 +3265,7 @@ pub const SC_SEC_ENV_PARAM_DES_CBC           : u32 = 4;
             let command = [0x00, 0x22, 0x01, CRT_TAG_CT, 0x0A, 0x80, 0x01, algo, 0x81, 0x02,
                 env_ref.file_ref.value[path_idx], env_ref.file_ref.value[path_idx+1],  0x95, 0x01, 0x40];
             let mut apdu = build_apdu(ctx, &command, SC_APDU_CASE_3_SHORT, &mut[]);
-            rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
+            rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) }; if rv != SC_SUCCESS { return rv; }
             rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
 //println!("rv: {}, apdu: {:?}", rv, apdu);
             if rv != SC_SUCCESS {
@@ -3188,7 +3354,7 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
     }
 
     set_is_running_cmd_long_response(card, true); // switch to false is done by acos5_get_response
-    rv = unsafe { sc_transmit_apdu(card, &mut apdu) }; if rv != SC_SUCCESS { return rv; }
+    rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) }; if rv != SC_SUCCESS { return rv; }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen==0 {
         log3ift!(ctx,f,line!(), c"### 0x%02X%02X: decipher failed or \
@@ -3488,7 +3654,7 @@ println!("acos5_compute_signature :  apdu : {:?}", apdu);
                 }
                 else {
                     sc_pkcs1_encode(ctx, c_ulong::from(sec_env_algo_flags | SC_ALGORITHM_RSA_HASH_NONE), digest_info.as_ptr(),
-                                                  digest_info.len(), vec.as_mut_ptr(), &mut vec_len, vec_len * 8, null_mut())
+                                                  digest_info.len(), vec.as_mut_ptr(), &raw mut vec_len, vec_len * 8, null_mut())
                 }
             }};
 
@@ -3584,7 +3750,7 @@ extern "C" fn acos5_unwrap(card_ptr: *mut sc_card, crgram: *const u8, crgram_len
         while vec.len() < usize::from(dp.sym_key_rec_cnt) { vec.push(0); }
         let mut path = sc_path { len: 2, ..sc_path::default() };
         path.value[..2].copy_from_slice(&dp.sym_key_file_id.to_be_bytes());
-        rv = unsafe { sc_select_file(card, &path, null_mut()) };
+        rv = unsafe { sc_select_file(card, &raw const path, null_mut()) };
         assert_eq!(SC_SUCCESS, rv);
         /* TODO This only works if Login-PIN is the same as required for SC_AC_OP_UPDATE of file dp.sym_key_file_id */
         #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))]

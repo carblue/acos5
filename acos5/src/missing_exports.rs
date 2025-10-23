@@ -225,7 +225,7 @@ pub fn me_card_find_alg(card: &mut sc_card,
             let comp : u32 = SC_ALGORITHM_EC;
             #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
             let comp : u32 = SC_ALGORITHM_EC.try_into().unwrap();
-            if info.algorithm == comp && unsafe { sc_compare_oid(param, &info.u.ec.params.id) } != 0 {
+            if info.algorithm == comp && unsafe { sc_compare_oid(param, &raw const info.u.ec.params.id) } != 0 {
                 continue;
             }
         }
