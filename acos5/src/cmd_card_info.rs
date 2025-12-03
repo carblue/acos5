@@ -18,7 +18,7 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
 
-/* functions, (most of) callable via sc_card_ctl(acos5_card_ctl), mostly used by acos5_gui */
+/* functions, (most of) callable via sc_card_ctl(card, SC_CARDCTL_ACOS5_..., data), mostly used by acos5_gui */
 use std::ffi::CString;
 use function_name::named;
 use opensc_sys::opensc::{sc_card, sc_transmit_apdu, sc_check_sw};/*, SC_PROTO_T1*/
@@ -60,7 +60,7 @@ use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_rv_ret, wr_do_log_sds, 
 /// println!("serial_number: {:X?}", serial_number);
 /// ```
 #[named]
-pub fn serial_no(card: &mut sc_card) -> Result<sc_serial_number, i32>
+pub(crate) fn serial_no(card: &mut sc_card) -> Result<sc_serial_number, i32>
 {
     if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
@@ -77,7 +77,7 @@ pub fn serial_no(card: &mut sc_card) -> Result<sc_serial_number, i32>
     //debug_assert!(SC_MAX_SERIALNR >= len_serial_num);
     let mut serial = sc_serial_number::default();
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 0, 0, u8::try_from(len_serial_num).
-        expect("len_serial_num is neither 6 nor b8  ")], SC_APDU_CASE_2_SHORT, &mut serial.value);
+        expect("len_serial_num is neither 6 nor 8  ")], SC_APDU_CASE_2_SHORT, &mut serial.value);
     let mut rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen != len_serial_num {
@@ -119,7 +119,7 @@ pub fn serial_no(card: &mut sc_card) -> Result<sc_serial_number, i32>
 /// println!("count_files_curr_df: {}", count_files_curr_df);
 /// ```
 #[named]
-pub fn count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
+pub(crate) fn count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
 {
     if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
@@ -160,7 +160,7 @@ pub fn count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
 ///
 /// # Errors
 #[named]
-pub fn file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> Result<[u8; 8], i32>
+pub(crate) fn file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> Result<[u8; 8], i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -193,7 +193,7 @@ pub fn file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> Resul
 ///
 /// # Errors
 #[named]
-pub fn free_space(card: &mut sc_card) -> Result<u32, i32>
+pub(crate) fn free_space(card: &mut sc_card) -> Result<u32, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -224,7 +224,7 @@ pub fn free_space(card: &mut sc_card) -> Result<u32, i32>
 ///
 /// # Errors
 #[named]
-pub fn is_ident_self_okay(card: &mut sc_card, candidate_card_type: i32) -> Result<bool, i32> // get_ident_self
+pub(crate) fn is_ident_self_okay(card: &mut sc_card, candidate_card_type: i32) -> Result<bool, i32> // get_ident_self
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -254,7 +254,7 @@ pub fn is_ident_self_okay(card: &mut sc_card, candidate_card_type: i32) -> Resul
 ///
 /// # Errors
 #[named]
-pub fn cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
+pub(crate) fn cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -284,7 +284,7 @@ pub fn cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
 ///
 /// # Errors
 #[named]
-pub fn manufacture_date(card: &mut sc_card) -> Result<u32, i32>
+pub(crate) fn manufacture_date(card: &mut sc_card) -> Result<u32, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -312,7 +312,7 @@ pub fn manufacture_date(card: &mut sc_card) -> Result<u32, i32>
 ///
 /// # Errors
 #[named]
-pub fn rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
+pub(crate) fn rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -342,7 +342,7 @@ pub fn rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
 ///
 /// # Errors
 #[named]
-pub fn op_mode_byte(card: &mut sc_card, candidate_card_type: i32) -> Result<u8, i32>
+pub(crate) fn op_mode_byte(card: &mut sc_card, candidate_card_type: i32) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -389,7 +389,7 @@ pub fn op_mode_byte(card: &mut sc_card, candidate_card_type: i32) -> Result<u8, 
 ///
 /// # Errors
 #[named]
-pub fn op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
+pub(crate) fn op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -416,7 +416,7 @@ pub fn op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 ///
 /// # Errors
 #[named]
-pub fn is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_FIPS_compliant==true get_fips_compliance
+pub(crate) fn is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_FIPS_compliant==true get_fips_compliance
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -446,7 +446,7 @@ pub fn is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_FIPS_com
 ///
 /// # Errors
 #[named]
-pub fn is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i32>
+pub(crate) fn is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -477,7 +477,7 @@ pub fn is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i
 ///
 /// # Errors
 #[named]
-pub fn is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i32>
+pub(crate) fn is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -508,7 +508,7 @@ pub fn is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i
 ///
 /// # Errors
 #[named]
-pub fn get_zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
+pub(crate) fn get_zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -533,7 +533,7 @@ pub fn get_zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i3
 ///
 /// # Errors
 #[named]
-pub fn card_life_cycle_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
+pub(crate) fn card_life_cycle_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };

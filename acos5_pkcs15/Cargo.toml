@@ -1,6 +1,6 @@
 [package]
 name = "acos5_pkcs15"
-version = "0.0.30"
+version = "0.0.31"
 authors = ["Carsten Blüggel, carblue <bluecars@posteo.eu>"]
 edition = "2024"
 

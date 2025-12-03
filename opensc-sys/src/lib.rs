@@ -3,7 +3,7 @@
 //! [`OpenSC wiki`]\
 //! [`Rust website`]
 //!
-//! This binding supports `OpenSC` release versions 0.20.0 - 0.26.0
+//! This binding supports `OpenSC` release versions 0.20.0 - 0.26.1
 //!
 //! The state is Work In Progress WIP, though usable.\
 //! The focus is on the generic header subset, i.o. to support new driver etc. external module development.\
@@ -64,14 +64,14 @@
 //! For some versions they are available from the opensc-sys/windows-x86_64/lib/ directory.
 //!
 //! The build.rs file employs a detection of installed  libopensc.so/opensc.dll and retrieving it's version information.
-//! That is designed to fail, if the version is lower than 0.17.0, the min. supported version of this binding.
+//! That is designed to fail, if the version is lower than 0.20.0, the min. supported version of this binding.
 //!
 //! Run e.g. opensc-tool -i\
-//! `OpenSC` 0.22.0 [gcc  11.2.0]
+//! `OpenSC` 0.26.1 [gcc  13.3.0]
 //! Enabled features: locking zlib readline openssl pcsc(libpcsclite.so.1)
 //!
 //! The important pieces of information here are:\
-//! 1. The release version of my `OpenSC` binary is 0.22.0, thus covered by this binding.\
+//! 1. The release version of my `OpenSC` binary is 0.26.1, thus covered by this binding.\
 //! 2. A dependency on openssl is given by the binary, i.e. #define `ENABLE_OPENSSL` 1  was used in config.h\
 //! 3. Sadly the other required info is not reported, thus run:  `cargo test test_struct_sizeof -- --nocapture`
 //!    That will check the variable struct sizes of `list_t` and `sc_card` (and more) for `x86_64` Linux/Windows against
@@ -81,9 +81,9 @@
 //!    of opensc-tool.
 //!    Once the test passes, the opensc-sys binding is ready to be used.
 //!
-//! Not selecting any `OpenSC` release versions 0.17.0 - 0.25.0, is treated as unsupported, except:
-//! That's experimental only: Take `OpenSC` master branch, change configure.ac to read  define(\[`PACKAGE_VERSION_MINOR`\], \[26\]) ,
-//! the next/imaginary version (currently 0.26.0) and build from source.
+//! Not selecting any `OpenSC` release versions 0.20.0 - 0.26.1, is treated as unsupported, except:
+//! That's experimental only: Take `OpenSC` master branch, change configure.ac to read  define(\[`PACKAGE_VERSION_MINOR`\], \[27\]) ,
+//! the next/imaginary version (currently 0.27.0) and build from source.
 //! At irregular intervals only I check master's implications for the binding. E.g. there was a commit (effective since
 //! `OpenSC` release versions 0.18.0), that changed parsing of
 //! EF.Tokeninfo supportedAlgorithms/parameters/PKCS15ECParameters.

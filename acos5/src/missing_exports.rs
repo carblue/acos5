@@ -175,7 +175,7 @@ fn me_card_add_algorithm(card: &mut sc_card, info: &sc_algorithm_info) -> i32
     log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
 }
 
-pub fn me_card_add_symmetric_alg(card: &mut sc_card,
+pub(crate) fn me_card_add_symmetric_alg(card: &mut sc_card,
     #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
                                  algorithm: u32,
     #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
@@ -201,7 +201,7 @@ pub fn me_card_add_symmetric_alg(card: &mut sc_card,
 }
 
 
-pub fn me_card_find_alg(card: &mut sc_card,
+pub(crate) fn me_card_find_alg(card: &mut sc_card,
                         #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
                         algorithm: u32,
                         #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
@@ -377,7 +377,7 @@ PKCS #1: RSA Cryptography Specifications  Version 2.2  https://tools.ietf.org/ht
 /// # Errors
 ///
 /// Will return `Err` if there is no valid 01 padding
-pub fn me_pkcs1_strip_01_padding(in_dat: &[u8]) -> Result<&[u8], i32>
+pub(crate) fn me_pkcs1_strip_01_padding(in_dat: &[u8]) -> Result<&[u8], i32>
 {
     let  in_len = in_dat.len();
     let mut len = in_dat.len();
@@ -425,7 +425,7 @@ pub fn me_pkcs1_add_01_padding(digest_info: &[u8], outlen: usize) -> Result<Vec<
 
 /* remove pkcs1 BT02 padding */
 /* returns length of padding to be removed from vec's crgram_len such that net message/plain text remains */
-pub fn me_pkcs1_strip_02_padding(vec: &mut Vec<u8>) -> i32 //-> Result<Vec<u8>, i32>
+pub(crate) fn me_pkcs1_strip_02_padding(vec: &mut Vec<u8>) -> i32 //-> Result<Vec<u8>, i32>
 {
 //0  1  2  3  4  5  6  7  8  9  10  11
 //00 02 1  2  3  4  5  6  7  8  00          PS_Len==8 is the minimum length of PS

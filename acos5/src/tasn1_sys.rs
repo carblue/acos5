@@ -2,7 +2,7 @@
  * Copyright (C) 2002-2014 Free Software Foundation, Inc.
  * Copyright (C) 2020-  for the binding: Carsten Blüggel <bluecars@posteo.eu>
  *
- * The file libtasn1.h this is derived from, is part of LIBTASN1.
+ * The file libtasn1.h this is derived from, is part of LIBTASN1, version 4.19
  *
  * LIBTASN1 is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as
@@ -79,35 +79,35 @@ use std::ptr::null;
  *
  * Version of the library as a string.
  */
-pub const ASN1_VERSION: &[u8; 7_usize] = b"4.16.0\0";
+pub(crate) const ASN1_VERSION: &[u8; 7_usize] = b"4.19.0\0";
 
 /**
  * `ASN1_VERSION_MAJOR`:
  *
  * Major version number of the library.
  */
-pub const ASN1_VERSION_MAJOR: u32 = 4;
+pub(crate) const ASN1_VERSION_MAJOR: u32 = 4;
 
 /**
  * `ASN1_VERSION_MINOR`:
  *
  * Minor version number of the library.
  */
-pub const ASN1_VERSION_MINOR: u32 = 16;
+pub(crate) const ASN1_VERSION_MINOR: u32 = 19;
 
 /**
  * `ASN1_VERSION_PATCH`:
  *
  * Patch version number of the library.
  */
-pub const ASN1_VERSION_PATCH: u32 = 0;
+pub(crate) const ASN1_VERSION_PATCH: u32 = 0;
 
 /**
  * `ASN1_VERSION_NUMBER`:
  *
  * Version number of the library as a number.
  */
-pub const ASN1_VERSION_NUMBER: u32 = 0x0004_1000;
+pub(crate) const ASN1_VERSION_NUMBER: u32 = 0x0004_1300;
 
 
 /*
@@ -126,67 +126,67 @@ pub const ASN1_VERSION_NUMBER: u32 = 0x0004_1000;
 /*****************************************/
 /* Errors returned by libtasn1 functions */
 /*****************************************/
-pub const ASN1_SUCCESS: u32 = 0;
-pub const ASN1_FILE_NOT_FOUND: u32 = 1;
-pub const ASN1_ELEMENT_NOT_FOUND: u32 = 2;
-pub const ASN1_IDENTIFIER_NOT_FOUND: u32 = 3;
-pub const ASN1_DER_ERROR: u32 = 4;
-pub const ASN1_VALUE_NOT_FOUND: u32 = 5;
-pub const ASN1_GENERIC_ERROR: u32 = 6;
-pub const ASN1_VALUE_NOT_VALID: u32 = 7;
-pub const ASN1_TAG_ERROR: u32 = 8;
-pub const ASN1_TAG_IMPLICIT: u32 = 9;
-pub const ASN1_ERROR_TYPE_ANY: u32 = 10;
-pub const ASN1_SYNTAX_ERROR: u32 = 11;
-pub const ASN1_MEM_ERROR: u32 = 12;
-pub const ASN1_MEM_ALLOC_ERROR: u32 = 13;
-pub const ASN1_DER_OVERFLOW: u32 = 14;
-pub const ASN1_NAME_TOO_LONG: u32 = 15;
-pub const ASN1_ARRAY_ERROR: u32 = 16;
-pub const ASN1_ELEMENT_NOT_EMPTY: u32 = 17;
-pub const ASN1_TIME_ENCODING_ERROR: u32 = 18;
-pub const ASN1_RECURSION: u32 = 19;
+pub(crate) const ASN1_SUCCESS: u32 = 0;
+pub(crate) const ASN1_FILE_NOT_FOUND: u32 = 1;
+pub(crate) const ASN1_ELEMENT_NOT_FOUND: u32 = 2;
+pub(crate) const ASN1_IDENTIFIER_NOT_FOUND: u32 = 3;
+pub(crate) const ASN1_DER_ERROR: u32 = 4;
+pub(crate) const ASN1_VALUE_NOT_FOUND: u32 = 5;
+pub(crate) const ASN1_GENERIC_ERROR: u32 = 6;
+pub(crate) const ASN1_VALUE_NOT_VALID: u32 = 7;
+pub(crate) const ASN1_TAG_ERROR: u32 = 8;
+pub(crate) const ASN1_TAG_IMPLICIT: u32 = 9;
+pub(crate) const ASN1_ERROR_TYPE_ANY: u32 = 10;
+pub(crate) const ASN1_SYNTAX_ERROR: u32 = 11;
+pub(crate) const ASN1_MEM_ERROR: u32 = 12;
+pub(crate) const ASN1_MEM_ALLOC_ERROR: u32 = 13;
+pub(crate) const ASN1_DER_OVERFLOW: u32 = 14;
+pub(crate) const ASN1_NAME_TOO_LONG: u32 = 15;
+pub(crate) const ASN1_ARRAY_ERROR: u32 = 16;
+pub(crate) const ASN1_ELEMENT_NOT_EMPTY: u32 = 17;
+pub(crate) const ASN1_TIME_ENCODING_ERROR: u32 = 18;
+pub(crate) const ASN1_RECURSION: u32 = 19;
 
 /*************************************/
 /* Constants used in asn1_visit_tree */
 /*************************************/
-pub const ASN1_PRINT_NAME: u32 = 1;
-pub const ASN1_PRINT_NAME_TYPE: u32 = 2;
-pub const ASN1_PRINT_NAME_TYPE_VALUE: u32 = 3;
-pub const ASN1_PRINT_ALL: u32 = 4;
+pub(crate) const ASN1_PRINT_NAME: u32 = 1;
+pub(crate) const ASN1_PRINT_NAME_TYPE: u32 = 2;
+pub(crate) const ASN1_PRINT_NAME_TYPE_VALUE: u32 = 3;
+pub(crate) const ASN1_PRINT_ALL: u32 = 4;
 
 /*****************************************/
 /* Constants returned by asn1_read_tag   */
 /*****************************************/
-pub const ASN1_CLASS_UNIVERSAL        : u32 = 0x00; /* old: 1 */
-pub const ASN1_CLASS_APPLICATION      : u32 = 0x40; /* old: 2 */
-pub const ASN1_CLASS_CONTEXT_SPECIFIC : u32 = 0x80; /* old: 3 */
-pub const ASN1_CLASS_PRIVATE          : u32 = 0xC0; /* old: 4 */
-pub const ASN1_CLASS_STRUCTURED       : u32 = 0x20;
+pub(crate) const ASN1_CLASS_UNIVERSAL        : u32 = 0x00; /* old: 1 */
+pub(crate) const ASN1_CLASS_APPLICATION      : u32 = 0x40; /* old: 2 */
+pub(crate) const ASN1_CLASS_CONTEXT_SPECIFIC : u32 = 0x80; /* old: 3 */
+pub(crate) const ASN1_CLASS_PRIVATE          : u32 = 0xC0; /* old: 4 */
+pub(crate) const ASN1_CLASS_STRUCTURED       : u32 = 0x20;
 
 /*****************************************/
 /* Constants returned by asn1_read_tag   */
 /*****************************************/
-pub const ASN1_TAG_BOOLEAN          : u32 = 0x01;
-pub const ASN1_TAG_INTEGER          : u32 = 0x02;
-pub const ASN1_TAG_SEQUENCE         : u32 = 0x10;
-pub const ASN1_TAG_SET              : u32 = 0x11;
-pub const ASN1_TAG_OCTET_STRING     : u32 = 0x04;
-pub const ASN1_TAG_BIT_STRING       : u32 = 0x03;
-pub const ASN1_TAG_UTCTime          : u32 = 0x17;
-pub const ASN1_TAG_GENERALIZEDTime  : u32 = 0x18;
-pub const ASN1_TAG_OBJECT_ID        : u32 = 0x06;
-pub const ASN1_TAG_ENUMERATED       : u32 = 0x0A;
-pub const ASN1_TAG_NULL             : u32 = 0x05;
-pub const ASN1_TAG_GENERALSTRING    : u32 = 0x1B;
-pub const ASN1_TAG_NUMERIC_STRING   : u32 = 0x12;
-pub const ASN1_TAG_IA5_STRING       : u32 = 0x16;
-pub const ASN1_TAG_TELETEX_STRING   : u32 = 0x14;
-pub const ASN1_TAG_PRINTABLE_STRING : u32 = 0x13;
-pub const ASN1_TAG_UNIVERSAL_STRING : u32 = 0x1C;
-pub const ASN1_TAG_BMP_STRING       : u32 = 0x1E;
-pub const ASN1_TAG_UTF8_STRING      : u32 = 0x0C;
-pub const ASN1_TAG_VISIBLE_STRING   : u32 = 0x1A;
+pub(crate) const ASN1_TAG_BOOLEAN          : u32 = 0x01;
+pub(crate) const ASN1_TAG_INTEGER          : u32 = 0x02;
+pub(crate) const ASN1_TAG_SEQUENCE         : u32 = 0x10;
+pub(crate) const ASN1_TAG_SET              : u32 = 0x11;
+pub(crate) const ASN1_TAG_OCTET_STRING     : u32 = 0x04;
+pub(crate) const ASN1_TAG_BIT_STRING       : u32 = 0x03;
+pub(crate) const ASN1_TAG_UTCTime          : u32 = 0x17;
+pub(crate) const ASN1_TAG_GENERALIZEDTime  : u32 = 0x18;
+pub(crate) const ASN1_TAG_OBJECT_ID        : u32 = 0x06;
+pub(crate) const ASN1_TAG_ENUMERATED       : u32 = 0x0A;
+pub(crate) const ASN1_TAG_NULL             : u32 = 0x05;
+pub(crate) const ASN1_TAG_GENERALSTRING    : u32 = 0x1B;
+pub(crate) const ASN1_TAG_NUMERIC_STRING   : u32 = 0x12;
+pub(crate) const ASN1_TAG_IA5_STRING       : u32 = 0x16;
+pub(crate) const ASN1_TAG_TELETEX_STRING   : u32 = 0x14;
+pub(crate) const ASN1_TAG_PRINTABLE_STRING : u32 = 0x13;
+pub(crate) const ASN1_TAG_UNIVERSAL_STRING : u32 = 0x1C;
+pub(crate) const ASN1_TAG_BMP_STRING       : u32 = 0x1E;
+pub(crate) const ASN1_TAG_UTF8_STRING      : u32 = 0x0C;
+pub(crate) const ASN1_TAG_VISIBLE_STRING   : u32 = 0x1A;
 
 /**
  * `asn1_node`:
@@ -196,14 +196,14 @@ pub const ASN1_TAG_VISIBLE_STRING   : u32 = 0x1A;
  */
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct asn1_node_st {
+pub(crate) struct asn1_node_st {
     _unused: [u8; 0],
 }
 
 #[allow(non_camel_case_types)]
-pub type asn1_node = *mut asn1_node_st;
+pub(crate) type asn1_node = *mut asn1_node_st;
 #[allow(non_camel_case_types)]
-pub type asn1_node_const = *const asn1_node_st;
+pub(crate) type asn1_node_const = *const asn1_node_st;
 
 /**
  * `ASN1_MAX_NAME_SIZE`:
@@ -211,7 +211,7 @@ pub type asn1_node_const = *const asn1_node_st;
  * Maximum number of characters of a name
  * inside a file with ASN1 definitions.
  */
-pub const ASN1_MAX_NAME_SIZE: u32 = 64;
+pub(crate) const ASN1_MAX_NAME_SIZE: u32 = 64;
 
 
 /**
@@ -224,63 +224,63 @@ pub const ASN1_MAX_NAME_SIZE: u32 = 64;
  */
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct asn1_static_node_st {
+pub(crate) struct asn1_static_node_st {
     pub name: *const c_char, /* Node name */
     pub type_: c_uint, /* Node type */
     pub value: *const c_void, /* Node value */
 }
 
 impl asn1_static_node_st {
-    pub fn new(name: &std::ffi::CStr, type_: c_uint, value: &std::ffi::CStr) -> Self {
+    pub(crate) fn new(name: &std::ffi::CStr, type_: c_uint, value: &std::ffi::CStr) -> Self {
         Self { name: name.as_ptr(), type_, value: value.as_ptr().cast::<c_void>() }
     }
-    pub fn new_name_null(type_: c_uint, value: &std::ffi::CStr) -> Self {
+    pub(crate) fn new_name_null(type_: c_uint, value: &std::ffi::CStr) -> Self {
         Self { name: null(), type_, value: value.as_ptr().cast::<c_void>() }
     }
-    pub fn new_value_null(name: &std::ffi::CStr, type_: c_uint) -> Self {
+    pub(crate) fn new_value_null(name: &std::ffi::CStr, type_: c_uint) -> Self {
         Self { name: name.as_ptr(), type_, value: null() }
     }
-    pub fn new_name_value_null(type_: c_uint) -> Self {
+    pub(crate) fn new_name_value_null(type_: c_uint) -> Self {
         Self { name: null(), type_, value: null() }
     }
 }
 
 #[allow(non_camel_case_types)]
-pub type asn1_static_node = asn1_static_node_st;
+pub(crate) type asn1_static_node = asn1_static_node_st;
 
 /* List of constants for field type of node_asn  */
-pub const ASN1_ETYPE_INVALID: u32 = 0;
-pub const ASN1_ETYPE_CONSTANT: u32 = 1;
-pub const ASN1_ETYPE_IDENTIFIER: u32 = 2;
-pub const ASN1_ETYPE_INTEGER: u32 = 3;
-pub const ASN1_ETYPE_BOOLEAN: u32 = 4;
-pub const ASN1_ETYPE_SEQUENCE: u32 = 5;
-pub const ASN1_ETYPE_BIT_STRING: u32 = 6;
-pub const ASN1_ETYPE_OCTET_STRING: u32 = 7;
-pub const ASN1_ETYPE_TAG: u32 = 8;
-pub const ASN1_ETYPE_DEFAULT: u32 = 9;
-pub const ASN1_ETYPE_SIZE: u32 = 10;
-pub const ASN1_ETYPE_SEQUENCE_OF: u32 = 11;
-pub const ASN1_ETYPE_OBJECT_ID: u32 = 12;
-pub const ASN1_ETYPE_ANY: u32 = 13;
-pub const ASN1_ETYPE_SET: u32 = 14;
-pub const ASN1_ETYPE_SET_OF: u32 = 15;
-pub const ASN1_ETYPE_DEFINITIONS: u32 = 16;
-pub const ASN1_ETYPE_CHOICE: u32 = 18;
-pub const ASN1_ETYPE_IMPORTS: u32 = 19;
-pub const ASN1_ETYPE_NULL: u32 = 20;
-pub const ASN1_ETYPE_ENUMERATED: u32 = 21;
-pub const ASN1_ETYPE_GENERALSTRING: u32 = 27;
-pub const ASN1_ETYPE_NUMERIC_STRING: u32 = 28;
-pub const ASN1_ETYPE_IA5_STRING: u32 = 29;
-pub const ASN1_ETYPE_TELETEX_STRING: u32 = 30;
-pub const ASN1_ETYPE_PRINTABLE_STRING: u32 = 31;
-pub const ASN1_ETYPE_UNIVERSAL_STRING: u32 = 32;
-pub const ASN1_ETYPE_BMP_STRING: u32 = 33;
-pub const ASN1_ETYPE_UTF8_STRING: u32 = 34;
-pub const ASN1_ETYPE_VISIBLE_STRING: u32 = 35;
-pub const ASN1_ETYPE_UTC_TIME: u32 = 36;
-pub const ASN1_ETYPE_GENERALIZED_TIME: u32 = 37;
+pub(crate) const ASN1_ETYPE_INVALID: u32 = 0;
+pub(crate) const ASN1_ETYPE_CONSTANT: u32 = 1;
+pub(crate) const ASN1_ETYPE_IDENTIFIER: u32 = 2;
+pub(crate) const ASN1_ETYPE_INTEGER: u32 = 3;
+pub(crate) const ASN1_ETYPE_BOOLEAN: u32 = 4;
+pub(crate) const ASN1_ETYPE_SEQUENCE: u32 = 5;
+pub(crate) const ASN1_ETYPE_BIT_STRING: u32 = 6;
+pub(crate) const ASN1_ETYPE_OCTET_STRING: u32 = 7;
+pub(crate) const ASN1_ETYPE_TAG: u32 = 8;
+pub(crate) const ASN1_ETYPE_DEFAULT: u32 = 9;
+pub(crate) const ASN1_ETYPE_SIZE: u32 = 10;
+pub(crate) const ASN1_ETYPE_SEQUENCE_OF: u32 = 11;
+pub(crate) const ASN1_ETYPE_OBJECT_ID: u32 = 12;
+pub(crate) const ASN1_ETYPE_ANY: u32 = 13;
+pub(crate) const ASN1_ETYPE_SET: u32 = 14;
+pub(crate) const ASN1_ETYPE_SET_OF: u32 = 15;
+pub(crate) const ASN1_ETYPE_DEFINITIONS: u32 = 16;
+pub(crate) const ASN1_ETYPE_CHOICE: u32 = 18;
+pub(crate) const ASN1_ETYPE_IMPORTS: u32 = 19;
+pub(crate) const ASN1_ETYPE_NULL: u32 = 20;
+pub(crate) const ASN1_ETYPE_ENUMERATED: u32 = 21;
+pub(crate) const ASN1_ETYPE_GENERALSTRING: u32 = 27;
+pub(crate) const ASN1_ETYPE_NUMERIC_STRING: u32 = 28;
+pub(crate) const ASN1_ETYPE_IA5_STRING: u32 = 29;
+pub(crate) const ASN1_ETYPE_TELETEX_STRING: u32 = 30;
+pub(crate) const ASN1_ETYPE_PRINTABLE_STRING: u32 = 31;
+pub(crate) const ASN1_ETYPE_UNIVERSAL_STRING: u32 = 32;
+pub(crate) const ASN1_ETYPE_BMP_STRING: u32 = 33;
+pub(crate) const ASN1_ETYPE_UTF8_STRING: u32 = 34;
+pub(crate) const ASN1_ETYPE_VISIBLE_STRING: u32 = 35;
+pub(crate) const ASN1_ETYPE_UTC_TIME: u32 = 36;
+pub(crate) const ASN1_ETYPE_GENERALIZED_TIME: u32 = 37;
 
 /**
  * `ASN1_DELETE_FLAG_ZEROIZE`:
@@ -289,7 +289,7 @@ pub const ASN1_ETYPE_GENERALIZED_TIME: u32 = 37;
  *
  * Zeroize values prior to deinitialization.
  */
-pub const ASN1_DELETE_FLAG_ZEROIZE: u32 = 1;
+pub(crate) const ASN1_DELETE_FLAG_ZEROIZE: u32 = 1;
 
 /**
  * `ASN1_DECODE_FLAG_ALLOW_PADDING`:
@@ -298,7 +298,7 @@ pub const ASN1_DELETE_FLAG_ZEROIZE: u32 = 1;
  *
  * This flag would allow arbitrary data past the DER data.
  */
-pub const ASN1_DECODE_FLAG_ALLOW_PADDING: u32 = 1;
+pub(crate) const ASN1_DECODE_FLAG_ALLOW_PADDING: u32 = 1;
 /**
  * `ASN1_DECODE_FLAG_STRICT_DER`:
  *
@@ -306,7 +306,7 @@ pub const ASN1_DECODE_FLAG_ALLOW_PADDING: u32 = 1;
  *
  * This flag would ensure that no BER decoding takes place.
  */
-pub const ASN1_DECODE_FLAG_STRICT_DER: u32 = 2;
+pub(crate) const ASN1_DECODE_FLAG_STRICT_DER: u32 = 2;
 /**
  * `ASN1_DECODE_FLAG_ALLOW_INCORRECT_TIME`:
  *
@@ -314,7 +314,7 @@ pub const ASN1_DECODE_FLAG_STRICT_DER: u32 = 2;
  *
  * This flag will tolerate Time encoding errors when in strict DER.
  */
-pub const ASN1_DECODE_FLAG_ALLOW_INCORRECT_TIME: u32 = 4;
+pub(crate) const ASN1_DECODE_FLAG_ALLOW_INCORRECT_TIME: u32 = 4;
 
 
 /**
@@ -328,7 +328,7 @@ pub const ASN1_DECODE_FLAG_ALLOW_INCORRECT_TIME: u32 = 4;
  */
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct asn1_data_node_st {
+pub(crate) struct asn1_data_node_st {
     pub name: *const c_char, /* Node name */
     pub value: *const c_void, /* Node value */
     pub value_len: c_uint, /* Node value size */
@@ -346,72 +346,72 @@ pub struct asn1_data_node_st {
  * of a description message
  * (null character included).
  */
-pub const ASN1_MAX_ERROR_DESCRIPTION_SIZE: u32 = 128;
+pub(crate) const ASN1_MAX_ERROR_DESCRIPTION_SIZE: u32 = 128;
 
 /***********************************/
 /*  Functions definitions          */
 /***********************************/
 
 unsafe extern "C" {
-    pub fn asn1_parser2tree(
+    pub(crate) fn asn1_parser2tree(
         file: *const c_char,
         definitions: *mut asn1_node,
         error_desc: *mut c_char
     ) -> c_int;
 
-    pub fn asn1_parser2array(
+    pub(crate) fn asn1_parser2array(
         inputFileName: *const c_char,
         outputFileName: *const c_char,
         vectorName: *const c_char,
         error_desc: *mut c_char
     ) -> c_int;
 
-    pub fn asn1_array2tree(
+    pub(crate) fn asn1_array2tree(
         array: *const asn1_static_node,
         definitions: *mut asn1_node,
         errorDescription: *mut c_char
     ) -> c_int;
 
-    pub fn asn1_print_structure(
+    pub(crate) fn asn1_print_structure(
         out: *mut libc::FILE,
         structure: asn1_node_const,
         name: *const c_char,
         mode: c_int
     );
 
-    pub fn asn1_create_element(
+    pub(crate) fn asn1_create_element(
         definitions: asn1_node_const,
         source_name: *const c_char,
         element: *mut asn1_node
     ) -> c_int;
 
-    pub fn asn1_delete_structure(structure: *mut asn1_node) -> c_int;
+    pub(crate) fn asn1_delete_structure(structure: *mut asn1_node) -> c_int;
 
-    pub fn asn1_delete_structure2(
+    pub(crate) fn asn1_delete_structure2(
         structure: *mut asn1_node,
         flags: c_uint
     ) -> c_int;
 
-    pub fn asn1_delete_element(
+    pub(crate) fn asn1_delete_element(
         structure: asn1_node,
         element_name: *const c_char
     ) -> c_int;
 
-    pub fn asn1_write_value(
+    pub(crate) fn asn1_write_value(
         node_root: asn1_node,
         name: *const c_char,
         ivalue: *const c_void,
         len: c_int
     ) -> c_int;
 
-    pub fn asn1_read_value(
+    pub(crate) fn asn1_read_value(
         root: asn1_node_const,
         name: *const c_char,
         ivalue: *mut c_void,
         len: *mut c_int
     ) -> c_int;
 
-    pub fn asn1_read_value_type(
+    pub(crate) fn asn1_read_value_type(
         root: asn1_node_const,
         name: *const c_char,
         ivalue: *mut c_void,
@@ -419,18 +419,18 @@ unsafe extern "C" {
         etype: *mut c_uint
     ) -> c_int;
 
-    pub fn asn1_read_node_value(
+    pub(crate) fn asn1_read_node_value(
         node: asn1_node_const,
         data: *mut asn1_data_node_st
     ) -> c_int;
 
-    pub fn asn1_number_of_elements(
+    pub(crate) fn asn1_number_of_elements(
         element: asn1_node_const,
         name: *const c_char,
         num: *mut c_int
     ) -> c_int;
 
-    pub fn asn1_der_coding(
+    pub(crate) fn asn1_der_coding(
         element: asn1_node_const,
         name: *const c_char,
         ider: *mut c_void,
@@ -438,7 +438,7 @@ unsafe extern "C" {
         ErrorDescription: *mut c_char
     ) -> c_int;
 
-    pub fn asn1_der_decoding2(
+    pub(crate) fn asn1_der_decoding2(
         element: *mut asn1_node,
         ider: *const c_void,
         max_ider_len: *mut c_int,
@@ -446,7 +446,7 @@ unsafe extern "C" {
         errorDescription: *mut c_char
     ) -> c_int;
 
-    pub fn asn1_der_decoding(
+    pub(crate) fn asn1_der_decoding(
         element: *mut asn1_node,
         ider: *const c_void,
         ider_len: c_int,
@@ -458,7 +458,7 @@ unsafe extern "C" {
     since = "1.4.16",
     note = "Please use the asn1_der_decoding function instead"
     )]
-    pub fn asn1_der_decoding_element(
+    pub(crate) fn asn1_der_decoding_element(
         structure: *mut asn1_node,
         elementName: *const c_char,
         ider: *const c_void,
@@ -466,7 +466,7 @@ unsafe extern "C" {
         errorDescription: *mut c_char
     ) -> c_int;
 
-    pub fn asn1_der_decoding_startEnd(
+    pub(crate) fn asn1_der_decoding_startEnd(
         element: asn1_node,
         ider: *const c_void,
         ider_len: c_int,
@@ -475,59 +475,59 @@ unsafe extern "C" {
         end: *mut c_int
     ) -> c_int;
 
-    pub fn asn1_expand_any_defined_by(
+    pub(crate) fn asn1_expand_any_defined_by(
         definitions: asn1_node_const,
         element: *mut asn1_node
     ) -> c_int;
 
-    pub fn asn1_expand_octet_string(
+    pub(crate) fn asn1_expand_octet_string(
         definitions: asn1_node_const,
         element: *mut asn1_node,
         octetName: *const c_char,
         objectName: *const c_char
     ) -> c_int;
 
-    pub fn asn1_read_tag(
+    pub(crate) fn asn1_read_tag(
         root: asn1_node_const,
         name: *const c_char,
         tagValue: *mut c_int,
         classValue: *mut c_int
     ) -> c_int;
 
-    pub fn asn1_find_structure_from_oid(
+    pub(crate) fn asn1_find_structure_from_oid(
         definitions: asn1_node_const,
         oidValue: *const c_char
     ) -> *const c_char;
 
     // #[ffi_pure]
-    pub fn asn1_check_version(
+    pub(crate) fn asn1_check_version(
         req_version: *const c_char
     ) -> *const c_char;
 
     // #[ffi_pure]
-    pub fn asn1_strerror(error: c_int) -> *const c_char;
+    pub(crate) fn asn1_strerror(error: c_int) -> *const c_char;
 
-    pub fn asn1_perror(error: c_int);
+    pub(crate) fn asn1_perror(error: c_int);
 }
 
-pub const ASN1_MAX_TAG_SIZE: u32 = 4;
-pub const ASN1_MAX_LENGTH_SIZE: u32 = 9;
-pub const ASN1_MAX_TL_SIZE: u32 = ASN1_MAX_TAG_SIZE+ASN1_MAX_LENGTH_SIZE;
+pub(crate) const ASN1_MAX_TAG_SIZE: u32 = 4;
+pub(crate) const ASN1_MAX_LENGTH_SIZE: u32 = 9;
+pub(crate) const ASN1_MAX_TL_SIZE: u32 = ASN1_MAX_TAG_SIZE+ASN1_MAX_LENGTH_SIZE;
 
 unsafe extern "C" {
-    pub fn asn1_get_length_der(
+    pub(crate) fn asn1_get_length_der(
         der: *const c_uchar,
         der_len: c_int,
         len: *mut c_int
     ) -> c_long;
 
-    pub fn asn1_get_length_ber(
+    pub(crate) fn asn1_get_length_ber(
         ber: *const c_uchar,
         ber_len: c_int,
         len: *mut c_int
     ) -> c_long;
 
-    pub fn asn1_length_der(
+    pub(crate) fn asn1_length_der(
         len: c_ulong,
         der: *mut c_uchar,
         der_len: *mut c_int
@@ -535,7 +535,7 @@ unsafe extern "C" {
 
 /* Other utility functions. */
 
-    pub fn asn1_decode_simple_der(
+    pub(crate) fn asn1_decode_simple_der(
         etype: c_uint,
         der: *const c_uchar,
         _der_len: c_uint,
@@ -543,7 +543,7 @@ unsafe extern "C" {
         str_len: *mut c_uint
     ) -> c_int;
 
-    pub fn asn1_decode_simple_ber(
+    pub(crate) fn asn1_decode_simple_ber(
         etype: c_uint,
         der: *const c_uchar,
         _der_len: c_uint,
@@ -552,7 +552,7 @@ unsafe extern "C" {
         ber_len: *mut c_uint
     ) -> c_int;
 
-    pub fn asn1_encode_simple_der(
+    pub(crate) fn asn1_encode_simple_der(
         etype: c_uint,
         str_: *const c_uchar,
         str_len: c_uint,
@@ -560,26 +560,26 @@ unsafe extern "C" {
         tl_len: *mut c_uint
     ) -> c_int;
 
-    pub fn asn1_find_node(
+    pub(crate) fn asn1_find_node(
         pointer: asn1_node_const,
         name: *const c_char
     ) -> asn1_node;
 
-    pub fn asn1_copy_node(
+    pub(crate) fn asn1_copy_node(
         dst: asn1_node,
         dst_name: *const c_char,
         src: asn1_node_const,
         src_name: *const c_char
     ) -> c_int;
 
-    pub fn asn1_dup_node(
+    pub(crate) fn asn1_dup_node(
         src: asn1_node_const,
         src_name: *const c_char
     ) -> asn1_node;
 
 /* Internal and low-level DER utility functions. */
 
-    pub fn asn1_get_tag_der(
+    pub(crate) fn asn1_get_tag_der(
         der: *const c_uchar,
         der_len: c_int,
         cls: *mut c_uchar,
@@ -587,14 +587,14 @@ unsafe extern "C" {
         tag: *mut c_ulong
     ) -> c_int;
 
-    pub fn asn1_octet_der(
+    pub(crate) fn asn1_octet_der(
         str_: *const c_uchar,
         str_len: c_int,
         der: *mut c_uchar,
         der_len: *mut c_int
     );
 
-    pub fn asn1_get_octet_der(
+    pub(crate) fn asn1_get_octet_der(
         der: *const c_uchar,
         der_len: c_int,
         ret_len: *mut c_int,
@@ -603,14 +603,14 @@ unsafe extern "C" {
         str_len: *mut c_int
     ) -> c_int;
 
-    pub fn asn1_bit_der(
+    pub(crate) fn asn1_bit_der(
         str_: *const c_uchar,
         bit_len: c_int,
         der: *mut c_uchar,
         der_len: *mut c_int
     );
 
-    pub fn asn1_get_bit_der(
+    pub(crate) fn asn1_get_bit_der(
         der: *const c_uchar,
         der_len: c_int,
         ret_len: *mut c_int,
@@ -619,7 +619,7 @@ unsafe extern "C" {
         bit_len: *mut c_int
     ) -> c_int;
 
-    pub fn asn1_get_object_id_der(
+    pub(crate) fn asn1_get_object_id_der(
         der: *const c_uchar,
         der_len: c_int,
         ret_len: *mut c_int,

@@ -63,7 +63,7 @@ use crate::wrappers::{wr_do_log, wr_do_log_t, wr_do_log_tttt, wr_do_log_tu, wr_d
 
 #[allow(clippy::cast_possible_truncation)]
 #[allow(non_upper_case_globals)]
-pub const SM_SMALL_CHALLENGE_LEN_u8 : u8 = SM_SMALL_CHALLENGE_LEN as u8;
+pub(crate) const SM_SMALL_CHALLENGE_LEN_u8 : u8 = SM_SMALL_CHALLENGE_LEN as u8;
 
 fn get_ck_enc_card(card: &sc_card) -> [u8; 3*DES_KEY_SZ] { // get_cwa_keyset_enc_card
     let mut result = [0; 3*DES_KEY_SZ];
@@ -501,7 +501,7 @@ mac_resp:
 // TODO all code below assumes block_size is 8, i.e. using exclusively TDES for SM, which is not true anymore for ACOS5-EVO
 
 // original APDU type (without SM): SC_APDU_CASE_2_SHORT: no command data, but expects response data (with SM, there are command data: the tagged le)
-pub fn sm_common_read(card: &mut sc_card,
+pub(crate) fn sm_common_read(card: &mut sc_card,
                       idx: u16,
                       buf: &mut [u8],
 //                      count: usize,
@@ -612,7 +612,7 @@ pub fn sm_common_read(card: &mut sc_card,
 
 
 // original APDU type (without SM): SC_APDU_CASE_3_SHORT: yes command data, but doesn't expect response data (with SM, there are response data)
-pub fn sm_common_update(card: &mut sc_card,
+pub(crate) fn sm_common_update(card: &mut sc_card,
                         idx: u16,
                         buf: &[u8],
 //                        count: usize,
@@ -726,7 +726,7 @@ pub fn sm_common_update(card: &mut sc_card,
 
 // original APDU type (without SM): SC_APDU_CASE_3_SHORT:
 // no command data, but expects response data (with SM, there are command data: the tagged le)
-pub fn sm_erase_binary(card: &mut sc_card, idx: u16, count: u16, flags: c_ulong, has_ct: bool) -> i32
+pub(crate) fn sm_erase_binary(card: &mut sc_card, idx: u16, count: u16, flags: c_ulong, has_ct: bool) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -810,7 +810,7 @@ pub fn sm_erase_binary(card: &mut sc_card, idx: u16, count: u16, flags: c_ulong,
 
 // original APDU type (without SM): SC_APDU_CASE_1 or SC_APDU_CASE_3_SHORT:
 // Doesn't expect response data (with SM, )
-pub fn sm_delete_file(card: &mut sc_card) -> i32
+pub(crate) fn sm_delete_file(card: &mut sc_card) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -956,7 +956,7 @@ fn sm_create_file(card: &mut sc_card,
 
 
 #[allow(clippy::similar_names)]
-pub fn sm_pin_cmd(card: &mut sc_card,
+pub(crate) fn sm_pin_cmd(card: &mut sc_card,
                   pin_cmd_data: &mut sc_pin_cmd_data,
                   tries_left: &mut i32,
                   has_ct: bool) -> i32
@@ -1081,7 +1081,7 @@ pub fn sm_pin_cmd(card: &mut sc_card,
     log3ifr_ret!(ctx,f,line!(), rv)
 }
 
-pub fn sm_pin_cmd_get_policy(card: &mut sc_card,
+pub(crate) fn sm_pin_cmd_get_policy(card: &mut sc_card,
                              pin_cmd_data: &mut sc_pin_cmd_data/*, pin_reference: u8*/,
                              tries_left: &mut i32) -> i32
 {

@@ -6,12 +6,12 @@
 //! Admittedly, the source code is quite complicated:
 //! Of course that depends on the material, a number of PKCS# standards, and then the not exactly simple ASN.1 and cryptography in general.
 //! Furthermore, the `OpenSC` source code written in C is not easily accessible. In addition, I have ambitions to support several things in a source code project:
-//! Different hardware versions (with different functionality), different operating systems (platforms and then also support for a variety of `OpenSC` releases (currently from 0.20.0 to 0.26.0-rc1)
+//! Different hardware versions (with different functionality), different operating systems (platforms and then also support for a variety of `OpenSC` releases (currently from 0.20.0 to 0.26.1)
 //!
 //! Zugegebenermaßen ist der Quelltext recht kompliziert:
 //! Das hängt natürlich mit der Materie zusammen, eine Reihe von PKCS# Standards, und dann noch das nicht gerade simple ASN.1 und generell die Kryptographie.
 //! Darüberhinaus ist der in C geschriebene `OpenSC` Quelltext nicht leicht zugänglich. Weiter hinzu kommen meine Ambitionen, in einem Quelltext-Projekt mehrers zu unterstützen:
-//! Verschiedene Hardware-Versionen (mit unterschiedlichem Funktionsumfang), verschiedene Betriebssysteme (platforms und dann auch noch Unterstützung for eine Vielzahl von OpenSC-Releases (aktuell von 0.20.0 bis 0.26.0-rc1)
+//! Verschiedene Hardware-Versionen (mit unterschiedlichem Funktionsumfang), verschiedene Betriebssysteme (platforms und dann auch noch Unterstützung for eine Vielzahl von OpenSC-Releases (aktuell von 0.20.0 bis 0.26.1)
 //!
 //! \[`OpenSC wiki`\]\
 //! \[`Rust website`\]
@@ -128,7 +128,7 @@ it has a child DF that has been selected.
 #![warn(unit_bindings)] //  allow    binding is useless because it has the unit `()` type
 #![warn(unnameable_types)] //  allow    effective visibility of a type is larger than the area in which it can be named
 // note: the `unqualified_local_imports` lint is unstable #![warn(unqualified_local_imports)] //  allow    `use` of a local item without leading `self::`, `super::`, or `crate::`
-#![ expect(unreachable_pub)] //  allow    `pub` items not reachable from crate root
+#![warn(unreachable_pub)] //  allow    `pub` items not reachable from crate root
 #![warn(unsafe_attr_outside_unsafe)] //  allow    detects unsafe attributes outside of unsafe
 #![ expect(unsafe_code)] //  allow    usage of `unsafe` code and other potentially unsound constructs
 #![warn(unsafe_op_in_unsafe_fn)] //  allow    unsafe operations in unsafe functions without an explicit unsafe block are deprecated
@@ -141,9 +141,9 @@ it has a child DF that has been selected.
 #![warn(unused_qualifications)] //  allow    detects unnecessarily qualified names
 #![warn(unused_results)] //  allow    unused result of an expression in a statement
 #![warn(variant_size_differences)] //  allow    detects enums with widely varying variant sizes
+
 /*
 aarch64-softfloat-neon  warn     detects code that could be affected by ABI issues on aarch64 softfloat targets
-ambiguous-glob-imports  warn     detects certain glob imports that require reporting an ambiguity error
 ambiguous-glob-reexports  warn     ambiguous glob re-exports
 ambiguous-wide-pointer-comparisons  warn     detects ambiguous wide pointer comparisons
 anonymous-parameters  warn     detects anonymous parameters
@@ -159,6 +159,7 @@ coherence-leak-check  warn     distinct impls distinguished only by the leak-che
 confusable-idents  warn     detects visually confusable pairs between identifiers
 const-evaluatable-unchecked  warn     detects a generic constant is used in a type without a emitting a warning
 const-item-mutation  warn     detects attempts to mutate a `const` item
+dangling-pointers-from-locals  warn     detects returning a pointer from a local variable
 dangling-pointers-from-temporaries  warn     detects getting a pointer from a temporary
 dead-code  warn     detect unused, unexported items
 dependency-on-unit-never-type-fallback  warn     never type fallback affecting unsafe function calls
@@ -182,7 +183,8 @@ hidden-glob-reexports  warn     name introduced by a private item shadows a name
 improper-ctypes  warn     proper use of libc types in foreign modules
 improper-ctypes-definitions  warn     proper use of libc types in foreign item definitions
 incomplete-features  warn     incomplete features that may function improperly in some or all cases
-inline-no-sanitize  warn     detects incompatible use of `#[inline(always)]` and `#[no_sanitize(...)]`
+inline-no-sanitize  warn     detects incompatible use of `#[inline(always)]` and `#[sanitize(... = "off")]`
+integer-to-ptr-transmutes  warn     detects integer to pointer transmutes
 internal-features  warn     internal features are not supposed to be used
 invalid-from-utf8  warn     using a non UTF-8 literal in `std::str::from_utf8`
 invalid-macro-export-arguments  warn     "invalid_parameter" isn't a valid argument for `#[macro_export]`
@@ -191,9 +193,12 @@ invalid-value  warn     an invalid value is being created (such as a null refere
 irrefutable-let-patterns  warn     detects irrefutable patterns in `if let` and `while let` statements
 large-assignments  warn     detects large moves or copies
 late-bound-lifetime-arguments  warn     detects generic lifetime arguments in path segments with late bound lifetime parameters
-legacy-derive-helpers  warn     detects derive helper attributes that are used before they are introduced
+macro-extended-temporary-scopes  warn     detects when a lifetime-extended temporary borrowed in a macro argument has a future-incompatible scope.
+malformed-diagnostic-attributes  warn     detects malformed diagnostic attributes
+malformed-diagnostic-format-literals  warn     detects diagnostic attribute with malformed diagnostic format literals
 map-unit-fn  warn     `Iterator::map` call that discard the iterator's values
 mismatched-lifetime-syntaxes  warn     detects when a lifetime uses different syntax between arguments and return values
+misplaced-diagnostic-attributes  warn     detects diagnostic attributes that are placed on the wrong item
 missing-abi  warn     No declared ABI for extern declaration
 mixed-script-confusables  warn     detects Unicode scripts whose mixed script confusables codepoints are solely used
 named-arguments-used-positionally  warn     named arguments in format used positionally
@@ -208,7 +213,6 @@ non-upper-case-globals  warn     static constants should have uppercase identifi
 noop-method-call  warn     detects the use of well-known noop methods
 no-mangle-generic-items  warn     generic items must be mangled
 opaque-hidden-inferred-bound  warn     detects the use of nested `impl Trait` types in associated type bounds that are not general enough
-out-of-scope-macro-calls  warn     detects out of scope calls to `macro_rules` in key-value attributes
 overlapping-range-endpoints  warn     detects range patterns with overlapping endpoints
 path-statements  warn     path statements with no effect
 private-bounds  warn     private type in secondary interface of an item
@@ -220,7 +224,6 @@ refining-impl-trait-reachable  warn     impl trait in impl method signature does
 renamed-and-removed-lints  warn     lints that have been renamed or removed
 repr-transparent-external-private-fields  warn     transparent type contains an external ZST that is marked #[non_exhaustive] or contains private fields
 self-constructor-from-outer-item  warn     detect unsupported use of `Self` from outer item
-semicolon-in-expressions-from-macros  warn     trailing semicolon in macro body used as expression
 special-module-name  warn     module declarations for files with a special meaning
 stable-features  warn     stable features found in `#[feature]` directive
 static-mut-refs  warn     creating a shared reference to mutable static
@@ -235,8 +238,8 @@ unexpected-cfgs  warn     detects unexpected names and values in `#[cfg]` condit
 unfulfilled-lint-expectations  warn     unfulfilled lint expectation
 ungated-async-fn-track-caller  warn     enabling track_caller on an async fn is a no-op unless the async_fn_track_caller feature is enabled
 uninhabited-static  warn     uninhabited static
+unknown-diagnostic-attributes  warn     detects unknown diagnostic attributes
 unknown-lints  warn     unrecognized lint attribute
-unknown-or-malformed-diagnostic-attributes  warn     unrecognized or malformed diagnostic attribute
 unnameable-test-items  warn     detects an item that cannot be named being marked as `#[test_case]`
 unnecessary-transmutes  warn     detects transmutes that can also be achieved by other operations
 unpredictable-function-pointer-comparisons  warn     detects unpredictable function pointer comparisons
@@ -245,7 +248,6 @@ unreachable-patterns  warn     detects unreachable patterns
 unstable-name-collisions  warn     detects name collision with an existing but unstable method
 unstable-syntax-pre-expansion  warn     unstable syntax can change at any point in the future, causing a hard error!
 unsupported-calling-conventions  warn     use of unsupported calling convention
-unsupported-fn-ptr-calling-conventions  warn     use of unsupported calling convention for function pointer
 unused-allocation  warn     detects unnecessary allocations that can be eliminated
 unused-assignments  warn     detect assignments that will never be read
 unused-associated-type-bounds  warn     detects unused `Foo = Bar` bounds in `dyn Trait<Foo = Bar>`
@@ -267,6 +269,7 @@ uses-power-alignment  warn     Structs do not follow the power alignment rule un
 warnings  warn     mass-change the level for lints which produce warnings
 while-true  warn     suggest using `loop { }` instead of `while true { }`
 ambiguous-associated-items  deny     ambiguous associated items
+ambiguous-glob-imports  deny     detects certain glob imports that require reporting an ambiguity error
 arithmetic-overflow  deny     arithmetic operation overflows
 binary-asm-labels  deny     labels in inline assembly containing only 0 or 1 digits
 bindings-with-variant-name  deny     detects pattern bindings with the same name as one of the matched variants
@@ -285,16 +288,19 @@ invalid-from-utf8-unchecked  deny     using a non UTF-8 literal in `std::str::fr
 invalid-null-arguments  deny     invalid null pointer in arguments
 invalid-reference-casting  deny     casts of `&T` to `&mut T` without interior mutability
 invalid-type-param-default  deny     type parameter default erroneously allowed in invalid location
+legacy-derive-helpers  deny     detects derive helper attributes that are used before they are introduced
 let-underscore-lock  deny     non-binding let on a synchronization lock
 long-running-const-eval  deny     detects long const eval operations
 macro-expanded-macro-exports-accessed-by-absolute-paths  deny     macro-expanded `macro_export` macros from the current crate cannot be referred to by absolute paths
 mutable-transmutes  deny     transmuting &T to &mut T is undefined behavior, even if the reference is unused
 named-asm-labels  deny     named labels in inline assembly
 no-mangle-const-items  deny     const items will not have their symbols exported
+out-of-scope-macro-calls  deny     detects out of scope calls to `macro_rules` in key-value attributes
 overflowing-literals  deny     literal out of range for its type
 patterns-in-fns-without-body  deny     patterns in functions without body were erroneously allowed
 proc-macro-derive-resolution-fallback  deny     detects proc macro derives using inaccessible names from parent modules
 pub-use-of-private-extern-crate  deny     detect public re-exports of private extern crates
+semicolon-in-expressions-from-macros  deny     trailing semicolon in macro body used as expression
 soft-unstable  deny     a feature gate that doesn't break dependent crates
 test-unstable-lint  deny     this unstable lint is only for testing
 text-direction-codepoint-in-comment  deny     invisible directionality-changing codepoints in comment
@@ -304,7 +310,6 @@ undropped-manually-drops  deny     calls to `std::mem::drop` with `std::mem::Man
 unknown-crate-types  deny     unknown crate type found in `#[crate_type]` directive
 useless-deprecated  deny     detects deprecation attributes with no effect
 */
-
 #![warn(clippy::all)]
 #![warn(clippy::pedantic)]
 
@@ -385,7 +390,7 @@ use card_initialization::{};
 /// it subchapter "Get Card Info". This module implements all of those.
 /// There is a subset of commands available from all hardware versions, the remainder only available
 /// from some specific hardware
-pub mod cmd_card_info;
+mod cmd_card_info;
 use cmd_card_info::{cos_version, count_files_curr_df, file_info, free_space, is_fips_compliant,
                     is_ident_self_okay, is_key_authenticated, is_pin_authenticated, manufacture_date,
                     op_mode_byte, rom_sha1, serial_no};
@@ -485,10 +490,6 @@ use wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_rv_ret, wr_do_log_sds, wr_do_l
 #[cfg(test_v2_v3_token)]
 mod   test_v2_v3;
 */
-
-
-// #[no_mangle] pub extern fn  is the same as  #[no_mangle] pub extern "C" fn
-//   for the time being, be explicit using  #[no_mangle] pub extern "C" fn
 
 
 /// A mandatory library export.  It MUST BE identical for acos5 and `acos5_pkcs15`
@@ -2844,6 +2845,7 @@ println!();
 /// @return          `SC_SUCCESS`  or error code\
 /// On error, buf may have been set to NULL, and (except on `SC_ERROR_ASN1_END_OF_CONTENTS`) no OUT param gets set\
 /// OUT `tag_out` and `taglen` are guaranteed to have values set on `SC_SUCCESS`  (`cla_out` only, if also (buf\[0\] != 0xff && buf\[0\] != 0))\
+#[named]
 extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
                                     algorithm: u32,
                                     key_path_ptr: *mut sc_path,
@@ -2857,7 +2859,8 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
     }
     let card       = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_read_public_key";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
     #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
     let algorithm : c_ulong = algorithm.into();
@@ -2866,7 +2869,7 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
         return log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT);
     }
     if SC_ALGORITHM_EC  == algorithm {
-        return log3ifr_ret!(ctx,f,line!(), read_public_key_ec(card, key_path_ptr, out, out_len));
+        return log3ifr_ret!(ctx,f,line!(), acos5_read_public_key_ec(card, key_path_ptr, out, out_len));
     }
 
     assert!((512..=4096).contains(&modulus_length));
@@ -2941,13 +2944,15 @@ extern "C" fn acos5_read_public_key(card_ptr: *mut sc_card,
     SC_SUCCESS
 }
 
-fn read_public_key_ec(card: &mut sc_card,
+#[named]
+fn acos5_read_public_key_ec(card: &mut sc_card,
                       key_path_ptr: *mut sc_path,
                       out: *mut *mut u8,
                       out_len: *mut usize) -> i32
 {
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"read_public_key_ec";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let mut rv = unsafe { sc_select_file(card, key_path_ptr, null_mut()) };
@@ -3027,6 +3032,7 @@ fn read_public_key_ec(card: &mut sc_card,
     SC_SUCCESS
 }
 
+#[named]
 extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const sc_security_env, _se_num: i32) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || env_ref_ptr.is_null() {
@@ -3034,7 +3040,8 @@ extern "C" fn acos5_set_security_env(card_ptr: *mut sc_card, env_ref_ptr: *const
     }
     let card       = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_set_security_env";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     let env_ref  = unsafe { & *env_ref_ptr };
     log3if!(ctx,f,line!(), c"called  for operation %d", env_ref.operation);
 //println!("set_security_env: *env_ref_ptr: sc_security_env: {:0X?}\n\n", *env_ref);
@@ -3315,6 +3322,7 @@ pub const SC_SEC_ENV_PARAM_DES_CBC           : u32 = 4;
  * @return  error code or number of bytes written into out
  */
 /* see pkcs15-sec.c:sc_pkcs15_decipher This operation is dedicated to be used with RSA keys only ! */
+#[named]
 extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, crgram_len: usize,
                                                        out_ptr:        *mut u8,     outlen: usize) -> i32
 {
@@ -3323,7 +3331,8 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
     }
     let card       = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_decipher";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     let mut rv;
     log3if!(ctx,f,line!(), c"called with: in_len: %zu, out_len: %zu", crgram_len, outlen);
     assert!(outlen >= crgram_len);
@@ -3445,6 +3454,7 @@ extern "C" fn acos5_decipher(card_ptr: *mut sc_card, crgram_ref_ptr: *const u8, 
  * @param
  * @return  error code (neg. value) or number of bytes written into out
  */
+#[named]
 extern "C" fn acos5_compute_signature(card_ptr: *mut sc_card, data_ref_ptr: *const u8, data_len: usize,
                                                                    out_ptr:   *mut u8,   outlen: usize) -> i32
 {
@@ -3460,7 +3470,8 @@ extern "C" fn acos5_compute_signature(card_ptr: *mut sc_card, data_ref_ptr: *con
 ////println!("acos5_compute_signature called with: in_len: {}, out_len: {}", data_len, outlen);
     let card       = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_compute_signature";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3ift!(ctx,f,line!(), c"called with: in_len: %zu, out_len: %zu", data_len, outlen);
     set_is_running_compute_signature(card, false); // this is an info valuable only when delegating to acos5_decipher
 
@@ -3720,6 +3731,7 @@ when pkcs1_strip_PSS_padding works
 // FIXME sc_pkcs15init_store_secret_key get's called, but without calling  profile->ops->store_key (keyargs->key.data_len == 0)
 #[allow(dead_code)]  // no usage currently
 #[cold]
+#[named]
 extern "C" fn acos5_unwrap(card_ptr: *mut sc_card, crgram: *const u8, crgram_len: usize) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } {
@@ -3727,7 +3739,8 @@ extern "C" fn acos5_unwrap(card_ptr: *mut sc_card, crgram: *const u8, crgram_len
     }
     let card       = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_unwrap";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3if!(ctx,f,line!(), c"called with crgram_len: %zu", crgram_len);
 
     let mut vec = vec![0; crgram_len];
@@ -3776,6 +3789,7 @@ extern "C" fn acos5_unwrap(card_ptr: *mut sc_card, crgram: *const u8, crgram_len
  * @param  rec_nr starting from 1
  * @return number of erasing zero bytes written to record, otherwise an error code
  */
+#[named]
 extern "C" fn acos5_delete_record(card_ptr: *mut sc_card, rec_nr: u32) -> i32
 {
     if card_ptr.is_null() || unsafe { (*card_ptr).ctx.is_null() } || rec_nr==0 || rec_nr>0xFF {
@@ -3783,7 +3797,8 @@ extern "C" fn acos5_delete_record(card_ptr: *mut sc_card, rec_nr: u32) -> i32
     }
     let card       = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_delete_record";
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
     log3if!(ctx,f,line!(), c"called with rec_nr: %u", rec_nr);
     assert!(rec_nr>0);
     let rec_nr = u16::try_from(rec_nr).unwrap();
@@ -3791,6 +3806,7 @@ extern "C" fn acos5_delete_record(card_ptr: *mut sc_card, rec_nr: u32) -> i32
     common_update(card, rec_nr, &zero_buf, SC_RECORD_BY_REC_NR, false)
 }
 
+#[named]
 extern "C" fn acos5_append_record(card_ptr: *mut sc_card, buf_ptr: *const u8, count: usize, _flags: c_ulong) -> i32
 {
     if card_ptr.is_null() || buf_ptr.is_null() || count==0 {
@@ -3798,8 +3814,9 @@ extern "C" fn acos5_append_record(card_ptr: *mut sc_card, buf_ptr: *const u8, co
     }
     let card = unsafe { &mut *card_ptr };
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"acos5_append_record";
-    log3ifc!(ctx,f,line!());
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f = f_cstr.as_c_str();
+   log3ifc!(ctx,f,line!());
     let buf      = unsafe { from_raw_parts(buf_ptr, count) };
     common_update(card, 0, buf, 0, false)
 }
@@ -3974,12 +3991,12 @@ println!("called for decryption: out , outlen   {out:p} , {outlen:p}");
         return 0;
     }
     if encrypted_data_len == 0 {
-        log3if!(ctx,c"acos5_decrypt_sym",line!(), c"nothing to do here: returning with 0");
+        log3if!(ctx,f,line!(), c"nothing to do here: returning with 0");
         return 0;
     }
 
     if outlen.is_null() {
-        log3ifc!(ctx,c"acos5_decrypt_sym",line!());
+        log3ifc!(ctx,f,line!());
 println!("called for decryption: outlen {outlen:p}");
         return SC_ERROR_INVALID_ARGUMENTS;
     }

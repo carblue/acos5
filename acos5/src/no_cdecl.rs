@@ -149,7 +149,7 @@ key_host_reference must be enabled for External Authentication and it's Error Co
 /// # Errors
 ///
 #[named]
-pub fn authenticate_external(card: &mut sc_card, key_host_reference: u8, key_host: &[u8]) -> Result<bool, i32> {
+pub(crate) fn authenticate_external(card: &mut sc_card, key_host_reference: u8, key_host: &[u8]) -> Result<bool, i32> {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
     let f_cstr = CString::new(function_name!()).expect("CString::new failed");
@@ -187,7 +187,7 @@ pub fn authenticate_external(card: &mut sc_card, key_host_reference: u8, key_hos
 /// # Errors
 ///
 #[named]
-pub fn authenticate_internal(card: &mut sc_card, key_card_reference: u8, key_card: &[u8]) -> Result<bool, i32> {
+pub(crate) fn authenticate_internal(card: &mut sc_card, key_card_reference: u8, key_card: &[u8]) -> Result<bool, i32> {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
     let f_cstr = CString::new(function_name!()).expect("CString::new failed");
@@ -223,7 +223,7 @@ pub fn authenticate_internal(card: &mut sc_card, key_card_reference: u8, key_car
 /// # Panics
 ///
 #[named]
-pub fn logout_pin(card: &mut sc_card, reference: u8) -> i32 {
+pub(crate) fn logout_pin(card: &mut sc_card, reference: u8) -> i32 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
     let f_cstr = CString::new(function_name!()).expect("CString::new failed");
@@ -501,7 +501,7 @@ same @param and @return as iso7816_select_file
 /// # Panics
 ///
 #[named]
-pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Option<&mut *mut sc_file>, force_process_fci: bool) -> i32
+pub(crate) fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Option<&mut *mut sc_file>, force_process_fci: bool) -> i32
 {
     debug_assert!((path_ref.type_ == SC_PATH_TYPE_FILE_ID && path_ref.len==2) ||
                   (path_ref.type_ == SC_PATH_TYPE_DF_NAME && path_ref.len>=2));
@@ -591,7 +591,7 @@ pub fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_out: Op
 ///
 /// # Panics
 ///
-pub fn select_file_by_path(card: &mut sc_card, path_ref: &sc_path, file_out: Option<&mut *mut sc_file>, force_process_fci: bool) -> i32
+pub(crate) fn select_file_by_path(card: &mut sc_card, path_ref: &sc_path, file_out: Option<&mut *mut sc_file>, force_process_fci: bool) -> i32
 {
     /* manage file_out and force_process_fci: They need to be active only eventually for the target file_id */
     if  !path_ref.len.is_multiple_of(2) {
@@ -685,7 +685,7 @@ fn get_known_sec_env_entry_v3_fips(is_local: bool, rec_nr: u32, buf: &mut [u8])
 /// # Panics
 ///
 #[named]
-pub fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, depth: i32*/) -> i32
+pub(crate) fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/*, depth: i32*/) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -937,7 +937,7 @@ fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*,
 /// # Panics
 /// # Errors
 ///
-pub fn convert_amdo_to_cla_ins_p1_p2_array(amdo_tag: u8, amdo_bytes: &[u8]) -> Result<[u8; 4], i32> //Access Mode Data Object
+pub(crate) fn convert_amdo_to_cla_ins_p1_p2_array(amdo_tag: u8, amdo_bytes: &[u8]) -> Result<[u8; 4], i32> //Access Mode Data Object
 {
     assert!(!amdo_bytes.is_empty() && amdo_bytes.len() <= 4);
     let amb = amdo_tag&0x0F;
@@ -956,10 +956,10 @@ pub fn convert_amdo_to_cla_ins_p1_p2_array(amdo_tag: u8, amdo_bytes: &[u8]) -> R
     Ok(cla_ins_p1_p2)
 }
 
-pub const ACL_CATEGORY_DF_MF  : u8 =  1;
-pub const ACL_CATEGORY_EF_CHV : u8 =  2;
-pub const ACL_CATEGORY_KEY    : u8 =  3;
-pub const ACL_CATEGORY_SE     : u8 =  4;
+pub(crate) const ACL_CATEGORY_DF_MF  : u8 =  1;
+pub(crate) const ACL_CATEGORY_EF_CHV : u8 =  2;
+pub(crate) const ACL_CATEGORY_KEY    : u8 =  3;
+pub(crate) const ACL_CATEGORY_SE     : u8 =  4;
 
 // TODO overhaul this: may be shorter and smarter
 /*
@@ -969,7 +969,7 @@ This MUST match exactly how *mut sc_acl_entry are added in acos5_process_fci or 
 /// # Panics
 /// # Errors
 ///
-pub fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl: &[*mut sc_acl_entry; SC_MAX_AC_OPS], acl_category: u8) -> Result<[u8; 8], i32>
+pub(crate) fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl: &[*mut sc_acl_entry; SC_MAX_AC_OPS], acl_category: u8) -> Result<[u8; 8], i32>
 {
     // let ctx = unsafe { &mut *card.ctx };
     // log3ifc!(ctx,c"convert_acl_array_to_bytes_tag_fcp_sac",line!());
@@ -1154,7 +1154,7 @@ pub fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl: &[*mu
 /// # Panics
 ///
 #[named]
-pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left: &mut i32) -> i32
+pub(crate) fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left: &mut i32) -> i32
 {
 /* when is AODF read for the pin details info info ? */
     assert!(!card.ctx.is_null());
@@ -1204,7 +1204,7 @@ pub fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left
 }
 
 #[must_use]
-pub fn acos5_supported_atrs() -> [sc_atr_table; 6]
+pub(crate) fn acos5_supported_atrs() -> [sc_atr_table; 6]
 {
     [
         sc_atr_table {
@@ -1263,7 +1263,7 @@ pub fn acos5_supported_atrs() -> [sc_atr_table; 6]
 
 /*  ECC: Curves P-224/P-256/P-384/P-521 */
 #[must_use]
-pub fn acos5_supported_ec_curves() -> [Acos5EcCurve; 4]
+pub(crate) fn acos5_supported_ec_curves() -> [Acos5EcCurve; 4]
 {
     [
         Acos5EcCurve {
@@ -1290,14 +1290,14 @@ pub fn acos5_supported_ec_curves() -> [Acos5EcCurve; 4]
     ]
 }
 
-pub fn set_is_running_cmd_long_response(card: &mut sc_card, value: bool)
+pub(crate) fn set_is_running_cmd_long_response(card: &mut sc_card, value: bool)
 {
     let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     dp.is_running_cmd_long_response = value;
     card.drv_data = Box::into_raw(dp).cast::<c_void>();
 }
 
-pub fn get_is_running_cmd_long_response(card: &mut sc_card) -> bool
+pub(crate) fn get_is_running_cmd_long_response(card: &mut sc_card) -> bool
 {
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let result = dp.is_running_cmd_long_response;
@@ -1305,14 +1305,14 @@ pub fn get_is_running_cmd_long_response(card: &mut sc_card) -> bool
     result
 }
 
-pub fn set_is_running_compute_signature(card: &mut sc_card, value: bool)
+pub(crate) fn set_is_running_compute_signature(card: &mut sc_card, value: bool)
 {
     let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     dp.is_running_compute_signature = value;
     card.drv_data = Box::into_raw(dp).cast::<c_void>();
 }
 
-pub fn get_is_running_compute_signature(card: &mut sc_card) -> bool
+pub(crate) fn get_is_running_compute_signature(card: &mut sc_card) -> bool
 {
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let result = dp.is_running_compute_signature;
@@ -1340,7 +1340,7 @@ fn get_rsa_caps(card: &mut sc_card) -> c_ulong
 }
 */
 
-pub fn set_sec_env(card: &mut sc_card, value: &sc_security_env)
+pub(crate) fn set_sec_env(card: &mut sc_card, value: &sc_security_env)
 {
     let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     dp.sec_env = *value;
@@ -1350,7 +1350,7 @@ pub fn set_sec_env(card: &mut sc_card, value: &sc_security_env)
     set_sec_env_mod_len(card, value);
 }
 
-pub fn get_sec_env(card: &mut sc_card) -> sc_security_env
+pub(crate) fn get_sec_env(card: &mut sc_card) -> sc_security_env
 {
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let result = dp.sec_env;
@@ -1358,7 +1358,7 @@ pub fn get_sec_env(card: &mut sc_card) -> sc_security_env
     result
 }
 
-pub fn get_sec_env_mod_len(card: &mut sc_card) -> usize
+pub(crate) fn get_sec_env_mod_len(card: &mut sc_card) -> usize
 {
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let result = usize::from(dp.sec_env_mod_len);
@@ -1470,7 +1470,7 @@ fn encrypt_public_rsa(card_ptr: *mut sc_card, signature: *const u8, siglen: usiz
 ///
 /// # Panics
 ///
-pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtlGenerateAsymCrypt, print: bool) -> i32
+pub(crate) fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtlGenerateAsymCrypt, print: bool) -> i32
 {
     /*  don't use print==true: it's a special, tailored case (with some hard-code crypt_data) for testing purposes */
     assert!(!card.ctx.is_null());
@@ -1555,7 +1555,7 @@ pub fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtlGenerateAsymCryp
 /// # Panics
 ///
 #[named]
-pub fn generate_asym(card: &mut sc_card, data: &mut CardCtlGenerateAsymCrypt) -> i32
+pub(crate) fn generate_asym(card: &mut sc_card, data: &mut CardCtlGenerateAsymCrypt) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -1623,7 +1623,7 @@ pub fn generate_asym(card: &mut sc_card, data: &mut CardCtlGenerateAsymCrypt) ->
 */
 #[allow(non_snake_case)]
 #[must_use]
-pub fn is_any_known_digestAlgorithm(digest_info: &[u8]) -> bool
+pub(crate) fn is_any_known_digestAlgorithm(digest_info: &[u8]) -> bool
 { //                                        sha224  sha384 sha512
     let known_len = [34_usize, 35, 47, 51, 67,    83];
     if !known_len.contains(&digest_info.len()) {
@@ -1815,7 +1815,7 @@ Ok(0)
 /// # Errors
 ///
 #[allow(clippy::match_bool)]
-pub fn algo_ref_mse_sedo(card_type: i32, // one of: SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4
+pub(crate) fn algo_ref_mse_sedo(card_type: i32, // one of: SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4
                          sec_operation: i32, // required only for CRT_TAG_DST: one of: SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_ECCPRIVATE
                          sedo_tag: u8,   // one of: (CRT_TAG_AT, CRT_TAG_KAT,) CRT_TAG_HT, CRT_TAG_CCT, CRT_TAG_DST, CRT_TAG_CT
                          #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
@@ -1951,7 +1951,7 @@ pub fn algo_ref_mse_sedo(card_type: i32, // one of: SC_CARD_TYPE_ACOS5_64_V2, SC
 ///
 /// # Errors
 ///
-pub fn algo_ref_sym_store(card_type: i32,
+pub(crate) fn algo_ref_sym_store(card_type: i32,
                           #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
                           algorithm: u32,
                           #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
@@ -2013,7 +2013,7 @@ but the other input methods `infile` and `indata` (for acos5_gui) still need to 
 ///
 #[allow(non_snake_case)]
 #[named]
-pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt) -> i32
+pub(crate) fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -2288,7 +2288,7 @@ pub fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt) -> i3
 /// # Errors
 ///
 #[named]
-pub fn files_hashmap_info(card: &mut sc_card, key: u16) -> Result<[u8; 32], i32>
+pub(crate) fn files_hashmap_info(card: &mut sc_card, key: u16) -> Result<[u8; 32], i32>
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
@@ -2346,7 +2346,7 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
 /// # Panics
 ///
 #[named]
-pub fn update_hashmap(card: &mut sc_card) {
+pub(crate) fn update_hashmap(card: &mut sc_card) {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
     let f_cstr = CString::new(function_name!()).expect("CString::new failed");
@@ -2382,7 +2382,7 @@ of cos 8.1.3.  Read Binary, see especially the coding for 256 bytes ! */
 ///
 /// # Panics
 ///
-pub fn common_read(card: &mut sc_card,
+pub(crate) fn common_read(card: &mut sc_card,
                    idx: u16,
                    buf: &mut [u8],
                    flags: c_ulong,
@@ -2460,7 +2460,7 @@ pub fn common_read(card: &mut sc_card,
 ///
 /// # Panics
 ///
-pub fn common_update(card: &mut sc_card,
+pub(crate) fn common_update(card: &mut sc_card,
                      idx: u16,
                      buf: &[u8],
                      flags: c_ulong,

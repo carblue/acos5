@@ -36,7 +36,7 @@ use crate::wrappers::wr_do_log_t;
 
 
 #[must_use]
-pub fn file_id_from_cache_current_path(card: &sc_card) -> u16
+pub(crate) fn file_id_from_cache_current_path(card: &sc_card) -> u16
 {
     file_id_from_path_value(&card.cache.current_path.value[..card.cache.current_path.len])
 }
@@ -48,7 +48,7 @@ pub fn file_id_from_cache_current_path(card: &sc_card) -> u16
  * @return
  */
 #[named]
-pub fn current_path_df(card: &mut sc_card) -> &[u8]
+pub(crate) fn current_path_df(card: &mut sc_card) -> &[u8]
 {
     let len = card.cache.current_path.len;
     assert!(len>=2);
@@ -82,7 +82,7 @@ pub fn current_path_df(card: &mut sc_card) -> &[u8]
  * @return
  */
 #[must_use]
-pub fn is_impossible_file_match(path_target: &sc_path) -> bool {
+pub(crate) fn is_impossible_file_match(path_target: &sc_path) -> bool {
     assert!(path_target.len>=2);
     matches!(file_id_from_path_value(&path_target.value[..path_target.len]), 0 | 0xFFFF)
 }
@@ -92,7 +92,7 @@ The task of cut_path:
 Truncate as much as possible from the path to be selected for performance reasons (less select s issued),
 based on acos5 search rules for files
 */
-pub fn cut_path(path_target: &mut [u8], path_target_len: &mut usize, current_path_df: &[u8])
+pub(crate) fn cut_path(path_target: &mut [u8], path_target_len: &mut usize, current_path_df: &[u8])
 {
     /*
     Search Sequence for Target File ID is:

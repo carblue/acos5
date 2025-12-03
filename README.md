@@ -1,5 +1,5 @@
 Help wanted from users of an EVO card or CryptoMate EVO:
-As I stated several times, my hardware, a CryptoMate EVO cryptographic USB Token seems to be buggy, or the underlying software: Recurrent it stops to work, seems to need a reset?
+My hardware, a CryptoMate EVO cryptographic USB Token seems to be buggy, or the underlying software: Recurrent it stops to work, seems to need a reset?
 Reports from EVO users might help to isolate the problem.
 
 
@@ -10,7 +10,7 @@ Driver for Advanced Card Systems (ACS)  ACOS5 Smart Card<br>
   V2.00 ([CryptoMate64](https://www.acs.com.hk/en/products/18/cryptomate64-usb-cryptographic-tokens/ " https://www.acs.com.hk/en/products/18/cryptomate64-usb-cryptographic-tokens/"))<br>
   V3.00 ([CryptoMate Nano (T2)](https://www.acs.com.hk/en/products/414/cryptomate-nano-cryptographic-usb-tokens/ "https://www.acs.com.hk/en/products/414/cryptomate-nano-cryptographic-usb-tokens/")),<br>
   V4.X0 EVO ([CryptoMate EVO](https://www.acs.com.hk/en/products/494/cryptomate-evo-cryptographic-usb-tokens/ "https://www.acs.com.hk/en/products/494/cryptomate-evo-cryptographic-usb-tokens/"))<br>
-as external modules, operating within the [OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki") smartcard software framework (versions supported: 0.20.0 - 0.26.0).
+as external modules, operating within the [OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki") smartcard software framework (versions supported: 0.20.0 - 0.26.1).
 
 
 Motivation:
@@ -20,7 +20,7 @@ There is none known to me for ACOS5 that is open-source, nothing in this regard 
 The only open-source software downloadable from ACS is [acsccid](https://github.com/acshk/acsccid "https://github.com/acshk/acsccid"), a PC/SC driver for Linux/Mac OS X. PC/SC or WinSCard (Windows) is just the basic layer on which a PKCS#11 implementing library can build upon. I never installed acsccid for production use of my CryptoMate64 and CryptoMate Nano, hence the debian/ubuntu-supplied [ccid](https://ccid.apdu.fr/ "https://ccid.apdu.fr/") seems to be sufficient (if it's new enough to list those cards as supported ones: [shouldwork](https://ccid.apdu.fr/ccid/shouldwork.html "https://ccid.apdu.fr/ccid/shouldwork.html")).
 So be careful what You get from ACS when it's called driver. Perhaps You get something that is behind the "File Upon Request" barrier.
 
-[OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki") supplies i.a. a PKCS#11 implementing open-source library (onepin-opensc-pkcs11.so/opensc-pkcs11.so) if it get's augmented by a hardware specific driver, which is missing currently for ACOS5 smart cards in OpenSC v0.26.0, and the one available in previous versions was rudimentary/incomplete; hence excluded for good reasons.
+[OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki") supplies i.a. a PKCS#11 implementing open-source library (onepin-opensc-pkcs11.so/opensc-pkcs11.so) if it get's augmented by a hardware specific driver, which is missing currently for ACOS5 smart cards in OpenSC v0.26.1, and the one available in previous versions was rudimentary/incomplete; hence excluded for good reasons.
 
 With this repo's components 'acos5' and 'acos5_pkcs15' as plug-ins, OpenSC now supports some ACOS5 hardware as well. (Fortunately OpenSC allows such plug-ins as - in OpenSC lingo - external modules/shared libraries/DLL).
 External modules need some configuration once in opensc.conf, such that they get 'registered' and used by OpenSC software, explained below.
@@ -30,7 +30,7 @@ For some reason (that I don't recall now) I didn't decide for [openCryptoki](htt
 
 Support for the EVO chip is given partially, work in progress to be completed. By default, this hardware is operated in protocol T=1 (different from the other supported hardware, T=0). OpenSC wants to handle the APDU case 'SC_APDU_CASE_4_SHORT' differently for T=0/T=1 protocols, but that's not how the ACOS5 EVO behaves. Thus, currently, for the EVO card only, patching OpenSC source code is required (use file diff_apdu_c.txt) like that:<br>
 
-user@host:~/path/to/opensc-0.26.0$ patch -b src/libopensc/apdu.c diff_apdu_c.txt
+user@host:~/path/to/opensc-0.26.1$ patch -b src/libopensc/apdu.c diff_apdu_c.txt
 
 The respective reference manual for Your hardware is available on request from: info@acs.com.hk
 
@@ -39,7 +39,7 @@ Platforms tested: Those that I use:
 Linux/Kubuntu 24.04 LTS (extensively tested, everything implemented works as expected),
 Windows 11 (sparsely tested and questionable: my opensc.dll doesn't show any dependency on OpenSSL; the driver seems to be blocking when it needs to access files opensc.conf or .profile files, thus anything related doesn't work currently: Secure Messaging (SM) and everything that needs acos5_pkcs15.dll: e.g. main_RW_create_key_pair doesn't work; all the remaining read-only operations seem to work as expected. Seems to be a privileges/access right issue. Note that, for the time being, after all this annoying, time consuming hassle with Windows, I don't plan to let this build participate in the goodies that libtasn1 will allow i.a. for sanity-check).
 
-In the future, I'll test only Linux and the latest OpenSC version supported, which is 0.26.0 currently. It's advised to install that OpenSC version.
+In the future, I'll test only Linux and the latest OpenSC version supported, which is 0.26.1 currently. It's advised to install that OpenSC version.
 Also, testing will be limited to 1 hardware version, which is CryptoMate64 currently.
 
 Release tags get added irregularly, mainly i.o. to refer to something from `acos5_gui` (as a minimum driver release requirement). In any case, master's HEAD has the best driver code for You.
@@ -48,11 +48,11 @@ Release tags get added irregularly, mainly i.o. to refer to something from `acos
 Prerequisite installations  
 Mandatory:  
 - Rust compiler rustc and cargo build manager (it's bundled) from [Rust, cargo](https://www.rust-lang.org/tools/install "https://www.rust-lang.org/tools/install")  
-- OpenSC  (requires OpenSSL, the driver will use that as well; *nix OS: requires pcscd and libpcsclite1 and libccid)  
+- [OpenSC](https://github.com/OpenSC/OpenSC/wiki "https://github.com/OpenSC/OpenSC/wiki")  (requires OpenSSL, the driver will use that as well; *nix OS: requires pcscd and libpcsclite1 and libccid)  
 - [Libtasn1](https://www.gnu.org/software/libtasn1/ "https://www.gnu.org/software/libtasn1/") only for non-Windows (*nix) OS  
 
 Recommended:  
-- [pcsc-tools](http://ludovic.rousseau.free.fr/softwares/pcsc-tools/ "http://ludovic.rousseau.free.fr/softwares/pcsc-tools/"), provides `scriptor` for card initialization as a batch run of commands, see [info/card_initialization/README.md](https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md "https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md")<br>
+- [pcsc-tools](https://pcsc-tools.apdu.fr/ "https://pcsc-tools.apdu.fr/"), provides `scriptor` for card initialization as a batch run of commands, see [info/card_initialization/README.md](https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md "https://github.com/carblue/acos5/blob/master/info/card_initialization/README.md")<br>
 `gscriptor` is nice in order to communicate with Your crypto hardware without any PKCS#11 software, i.e. only PC/SC layer (on byte level, and definitely not without the reference manual)
 ```
 $ sudo apt-get update
@@ -109,7 +109,7 @@ Thus a sanity-check without any errors found should prevent the driver from beco
 
 2. Copy acos5_pkcs15/acos5_external.profile to the directory where all the other .profile files installed by OpenSC are located, for Linux probably in /usr/share/opensc/ or /usr/local/share/opensc/, for Windows something like C:/Program Files/OpenSC Project/OpenSC/profiles.  
 
-3. Adapt opensc.conf (see below). Also, in the beginning, switch on logging by a setting `debug=3;` and for debug_file set the file name receiving the logging output.  
+3. Adapt [opensc.conf](https://htmlpreview.github.io/?https://github.com/OpenSC/OpenSC/blob/master/doc/files/files.htmlhttps://htmlpreview.github.io/?https://github.com/OpenSC/OpenSC/blob/master/doc/files/files.html "https://htmlpreview.github.io/?https://github.com/OpenSC/OpenSC/blob/master/doc/files/files.html") (see below). Also, in the beginning, switch on logging by a setting `debug=3;` and for debug_file set the file name receiving the logging output.  
    If all the above went well, the log file will have an entry within it's first 5 lines, reporting: "load_dynamic_driver: successfully loaded card driver 'acos5_external'".  
    Check that by issuing (in a shell; $ is the Linux shell prompt for a user without admin rights, not part of the command): `$ opensc-tool --info`  
    The last command should have successfully loaded card driver 'acos5_external', but it didn't yet use it. The next will do so (and also check for disallowed duplicate file ids):  

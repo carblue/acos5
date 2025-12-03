@@ -802,10 +802,11 @@ pub const SC_PIN_ENCODING_ASCII      : u32 = 0;
 pub const SC_PIN_ENCODING_BCD        : u32 = 1;
 pub const SC_PIN_ENCODING_GLP        : u32 = 2; /* Global Platform - Card Specification v2.0.1 */
 
-/** Values for `sc_pin_cmd_pin.logged_in` */
+/** Values for `sc_pin_cmd_pin.logged_in`, can be bitmapped together */
 pub const SC_PIN_STATE_UNKNOWN       : i32 = -1;    // since opensc source release v0.17.0
 pub const SC_PIN_STATE_LOGGED_OUT    : i32 = 0;     // since opensc source release v0.17.0
 pub const SC_PIN_STATE_LOGGED_IN     : i32 = 1;     // since opensc source release v0.17.0
+pub const SC_PIN_STATE_NEEDS_CHANGE  : i32 = 2;     // since opensc source release v0.27.0
 
 /* A card driver receives the sc_pin_cmd_data and sc_pin_cmd_pin structures filled in by the
  * caller, with the exception of the fields returned by the driver for SC_PIN_CMD_GET_INFO.
@@ -2417,7 +2418,7 @@ pub fn sc_remote_data_init(rdata: *mut sc_remote_data);
  * Clear `ec_params`
  * @ecp
  */
-pub fn sc_clear_ec_params(arg: *mut sc_ec_parameters);
+fn sc_clear_ec_params(arg: *mut sc_ec_parameters);
 
 /**
  * Copy and allocate if needed EC parameters data

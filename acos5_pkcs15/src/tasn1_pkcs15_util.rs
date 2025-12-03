@@ -62,11 +62,11 @@ use crate::constants_types::{DataPrivate, PKCS15_FILE_TYPE_APPDF, PKCS15_FILE_TY
 use crate::tasn1_sys::{asn1_node_st, asn1_node, asn1_delete_structure, ASN1_SUCCESS,
                        asn1_create_element, asn1_der_decoding, asn1_read_value, asn1_strerror, asn1_get_length_der};
 
-pub struct GuardAsn1Node(*mut *mut asn1_node_st);
+pub(crate) struct GuardAsn1Node(*mut *mut asn1_node_st);
 
 impl GuardAsn1Node {
     #[allow(dead_code)]  // no usage in acos5_pkcs15
-    pub fn new(inner: *mut *mut asn1_node_st) -> Self {
+    pub(crate) fn new(inner: *mut *mut asn1_node_st) -> Self {
 // println!("GuardAsn1Node");
         GuardAsn1Node(inner)
     }
@@ -102,19 +102,19 @@ impl DerefMut for GuardAsn1Node {
    The iterator returns RangeInclusive of those separate DER data within the provided buffer.
    The provided buffer usually is from sc_read_binary, which may retrieve "excessive" bytes that
    are not part of any DER data, usually zero bytes. These "excessive" bytes will be ignored */
-pub struct DirectoryRange<'a> {
+pub(crate) struct DirectoryRange<'a> {
     last_end_exclusive: i32,
     rem: &'a [u8],
 }
 
 impl<'a> DirectoryRange<'a> {
     // #[must_use]
-    pub fn new(input: &'a[u8]) -> Self {
+    pub(crate) fn new(input: &'a[u8]) -> Self {
         Self { last_end_exclusive: 0, rem: input }
     }
 
     #[allow(dead_code)] // test case usage only
-    pub fn unused_len(&mut self) -> usize {
+    pub(crate) fn unused_len(&mut self) -> usize {
         while !self.rem.is_empty() && self.next().is_some() {}
         self.rem.len()
     }
@@ -148,7 +148,7 @@ impl Iterator for DirectoryRange<'_> {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct FidPkcs15Type(u16, u8);
+pub(crate) struct FidPkcs15Type(u16, u8);
 
 /* this will mark the file 3F002F00 as PKCS15_FILE_TYPE_DIR (after check that it contains valid data for "PKCS15.DIRRecord")
    and mark the appDF as PKCS15_FILE_TYPE_APPDF (appDF=="path" extracted from EF.DIR)
@@ -172,7 +172,7 @@ and returns first aid found
 */
 #[allow(dead_code)]  // no usage in acos5_pkcs15
 #[allow(clippy::too_many_lines)]
-pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Result<bool, i32> {
+pub(crate) fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Result<bool, i32> {
     if card.app_count>0 && !card.app[0].is_null() {
 // println!("card.app[0]: {:X?}", unsafe { *card.app[0] });
     }
@@ -346,7 +346,7 @@ pub fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Re
 }
 
 #[allow(dead_code)]  // no usage in acos5_pkcs15
-pub fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
+pub(crate) fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
 /* This relies on function analyze_PKCS15_DIRRecord_2F00 having marked as PKCS15_FILE_TYPE_ODF
    any EF.ODF specified by EF.DIR, so we can iterate over hashmah dp.files and search byte dp_files_value.1[6]
     [ "EF(ODF)",          "PKCS15.PKCS15Objects",      "",                              "PKCS15.PKCS15ObjectsChoice", "pkcs15Objects"],
@@ -513,7 +513,7 @@ fn does_pkcs15type_need_filemarking(pkcs15_type: u8) -> bool {
 
 
 #[allow(dead_code)]  // no usage in acos5_pkcs15
-pub fn analyze_PKCS15_PKCS15Objects(card: &mut sc_card, elem: FidPkcs15Type) {
+pub(crate) fn analyze_PKCS15_PKCS15Objects(card: &mut sc_card, elem: FidPkcs15Type) {
 
     fn get_arr0<'a>(idx_0: u8) -> &'a CStr {
         match idx_0 {

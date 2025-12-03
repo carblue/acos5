@@ -96,7 +96,7 @@ Message in debug_file: successfully loaded pkcs15init driver 'acos5-external'
 #![warn(rustdoc::private_intra_doc_links)]
 #![warn(rustdoc::missing_crate_level_docs)]
 //#![ expect(rustdoc::missing_doc_code_examples)]
-#![ warn(rustdoc::private_doc_tests)]
+#![ expect(rustdoc::private_doc_tests)]
 #![warn(rustdoc::invalid_codeblock_attributes)]
 #![warn(rustdoc::invalid_html_tags)]
 #![warn(rustdoc::invalid_rust_codeblocks)]
@@ -128,7 +128,7 @@ Message in debug_file: successfully loaded pkcs15init driver 'acos5-external'
 #![warn(meta_variable_misuse)] //  allow    possible meta-variable misuse at macro definition
 #![warn(missing_copy_implementations)] //  allow    detects potentially-forgotten implementations of `Copy`
 #![warn(missing_debug_implementations)] //  allow    detects missing implementations of Debug
-#![ expect(missing_docs)] //  allow    detects missing documentation for public members
+#![ warn(missing_docs)] //  allow    detects missing documentation for public members
 #![warn(missing_unsafe_on_extern)] //  allow    detects missing unsafe keyword on extern declarations
 // note: the `multiple_supertrait_upcastable` lint is unstable #![warn(multiple_supertrait_upcastable)] //  allow    detect when a dyn-compatible trait has multiple supertraits
 // note: the `must_not_suspend` lint is unstable #![warn(must_not_suspend)] //  allow    use of a `#[must_not_suspend]` value across a yield point
@@ -150,7 +150,7 @@ Message in debug_file: successfully loaded pkcs15init driver 'acos5-external'
 #![warn(trivial_casts)] //  allow    detects trivial casts which could be removed
 #![warn(trivial_numeric_casts)] //  allow    detects trivial casts of numeric types which could be removed
 #![warn(unit_bindings)] //  allow    binding is useless because it has the unit `()` type
-#![ expect(unnameable_types)] //  allow    effective visibility of a type is larger than the area in which it can be named
+#![warn(unnameable_types)] //  allow    effective visibility of a type is larger than the area in which it can be named
 // note: the `unqualified_local_imports` lint is unstable #![warn(unqualified_local_imports)] //  allow    `use` of a local item without leading `self::`, `super::`, or `crate::`
 #![ expect(unreachable_pub)] //  allow    `pub` items not reachable from crate root
 #![warn(unsafe_attr_outside_unsafe)] //  allow    detects unsafe attributes outside of unsafe
@@ -175,6 +175,7 @@ Message in debug_file: successfully loaded pkcs15init driver 'acos5-external'
 #![warn(clippy::similar_names)]
 #![warn(clippy::too_many_arguments)]
 #![warn(clippy::too_many_lines)]
+#![allow(dead_code)]
 
 #![ expect(clippy::manual_dangling_ptr)]
 
@@ -219,18 +220,18 @@ use opensc_sys::log::sc_dump_hex; /*sc_do_log, SC_LOG_DEBUG_NORMAL,*/
 
 
 #[macro_use]
-pub mod    macros; // shared file among modules acos5, acos5_pkcs15
+mod    macros; // shared file among modules acos5, acos5_pkcs15
 
-pub mod    constants_types; // shared file among modules acos5, acos5_pkcs15
+mod        constants_types; // shared file among modules acos5, acos5_pkcs15
 use crate::constants_types::{CARD_DRV_SHORT_NAME, DataPrivate, SC_CARDCTL_ACOS5_SDO_CREATE,
                              SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, SC_CARD_TYPE_ACOS5_64_V3, build_apdu,
                              SC_CARDCTL_ACOS5_SANITY_CHECK, GuardFile, file_id_from_path_value,
                              SC_CARD_TYPE_ACOS5_EVO_V4};
 
-pub mod    missing_exports; // this is NOT the same as in acos5
+mod        missing_exports; // this is NOT the same as in acos5
 use crate::missing_exports::{me_profile_get_file, me_pkcs15_dup_bignum/*, my_file_dup*/};
 
-pub mod    no_cdecl; // this is NOT the same as in acos5
+mod        no_cdecl; // this is NOT the same as in acos5
 use crate::no_cdecl::{rsa_modulus_bits_canonical, first_of_free_indices, construct_sym_key_entry, free_fid_asym}; /*call_dynamic_update_hashmap, call_dynamic_sm_test,*/
 
 #[cfg(not(target_os = "windows"))]
@@ -243,7 +244,7 @@ cfg_if::cfg_if! {
     }
 }
 
-pub mod    wrappers; // shared file among modules acos5, acos5_pkcs15
+mod        wrappers; // shared file among modules acos5, acos5_pkcs15
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tu};
 
 

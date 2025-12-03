@@ -25,15 +25,15 @@
 
 use std::os::raw::{c_long, c_int};
 
-pub const DES_KEY_SZ_u8 : u8    = 8; // sizeof(DES_cblock)
-pub const DES_KEY_SZ    : usize = 8; // sizeof(DES_cblock)
+pub(crate) const DES_KEY_SZ_u8 : u8    = 8; // sizeof(DES_cblock)
+pub(crate) const DES_KEY_SZ    : usize = 8; // sizeof(DES_cblock)
 #[allow(dead_code)]
 const AES_BLOCK_SIZE: usize = 16;
 
-pub const Encrypt: i32 = 1;
-pub const Decrypt: i32 = 0;
+pub(crate) const Encrypt: i32 = 1;
+pub(crate) const Decrypt: i32 = 0;
 
-pub type DES_cblock       = [u8; DES_KEY_SZ];
+pub(crate) type DES_cblock       = [u8; DES_KEY_SZ];
 /*
 pub type const_DES_cblock = [u8; DES_KEY_SZ];
 pub type DES_LONG = c_ulong;
@@ -73,11 +73,11 @@ unsafe extern "C" {
     /// from openssl/rand.h: `RAND_bytes()` generates num random bytes using a cryptographically secure
     /// pseudo random generator (CSPRNG) and stores them in buf. buf MUST NOT be NULL.
     /// <https://docs.openssl.org/master/man3/RAND_bytes/>
-    pub fn RAND_bytes(buf: *mut u8, num: i32) -> i32; // RAND_bytes() returns 1 on success, 0 otherwise
+    pub(crate) fn RAND_bytes(buf: *mut u8, num: i32) -> i32; // RAND_bytes() returns 1 on success, 0 otherwise
 
     /// from openssl/des.h: `DES_set_odd_parity()` sets the parity of the passed key to odd.
     /// <https://docs.openssl.org/master/man3/DES_random_key/>
-    pub fn DES_set_odd_parity(key: *mut DES_cblock);
+    pub(crate) fn DES_set_odd_parity(key: *mut DES_cblock);
     /// from openssl/des.h: `DES_set_key_checked()` will check that the key passed is of odd parity
     /// and is not a weak or semi-weak key.
     /// <https://docs.openssl.org/master/man3/DES_random_key/>
@@ -193,7 +193,7 @@ pub fn des_ecb3_pad_pkcs5(data: &[u8], key: &str, mode: i32) -> Vec<u8> {
 /* this gets used currently only for Encrypt and data.len() known to be multiple of DES_KEY_SZ */
 /// Document this !
 #[must_use]
-pub fn des_ecb3_unpadded_8(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> { // -> [u8; DES_KEY_SZ] {
+pub(crate) fn des_ecb3_unpadded_8(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> { // -> [u8; DES_KEY_SZ] {
     assert!(data.len().is_multiple_of(DES_KEY_SZ));
     assert_eq!(24, key.len());
 
@@ -223,7 +223,7 @@ if pi==00, then it's known, that no 0x80 byte was added
 */
 /// Document this !
 #[must_use]
-pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode: i32, pi: u8) -> Vec<u8> {
+pub(crate) fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode: i32, pi: u8) -> Vec<u8> {
     assert_eq!(3*DES_KEY_SZ, key.len());
     assert!(mode==Encrypt || data.len().is_multiple_of(DES_KEY_SZ));
 
@@ -261,7 +261,7 @@ pub fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock, mode:
 
 /// Document this !
 #[must_use]
-pub fn des_ede3_cbc_pad_80_mac(data: &[u8], key: &[u8], ivec: &mut DES_cblock) -> Vec<u8> {
+pub(crate) fn des_ede3_cbc_pad_80_mac(data: &[u8], key: &[u8], ivec: &mut DES_cblock) -> Vec<u8> {
     let mut result = des_ede3_cbc_pad_80(data, key, ivec, Encrypt, 0);
     assert!(result.len() >= DES_KEY_SZ);
     while result.len()>DES_KEY_SZ { let _unused = result.remove(0); }

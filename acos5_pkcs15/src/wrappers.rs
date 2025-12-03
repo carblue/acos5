@@ -36,7 +36,7 @@ const CSTR_INT_CSTR       : &CStr =             c"%s: %d (%s)\n";
 /// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
 /// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
 /// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
-pub fn wr_do_log        (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr)
+pub(crate) fn wr_do_log        (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr)
 {
     if cfg!(log) {
         unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(), fmt.as_ptr()) };
@@ -47,7 +47,7 @@ pub fn wr_do_log        (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr)
 /// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
 /// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
 /// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
-pub fn wr_do_log_t<T>   (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg: T)
+pub(crate) fn wr_do_log_t<T>   (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg: T)
 {
     if cfg!(log) {
         unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(), fmt.as_ptr(), arg) };
@@ -58,7 +58,7 @@ pub fn wr_do_log_t<T>   (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, 
 /// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
 /// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
 /// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
-pub fn wr_do_log_tt<T>  (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: T)
+pub(crate) fn wr_do_log_tt<T>  (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: T)
 {
     if cfg!(log) {
         unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(), fmt.as_ptr(), arg1, arg2) };
@@ -69,7 +69,7 @@ pub fn wr_do_log_tt<T>  (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, 
 /// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
 /// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
 /// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
-pub fn wr_do_log_ttt<T> (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: T, arg3: T)
+pub(crate) fn wr_do_log_ttt<T> (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: T, arg3: T)
 {
     if cfg!(log) {
         unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(), fmt.as_ptr(), arg1, arg2, arg3) };
@@ -80,7 +80,7 @@ pub fn wr_do_log_ttt<T> (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, 
 /// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
 /// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
 /// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
-pub fn wr_do_log_tttt<T>(ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: T, arg3: T, arg4: T)
+pub(crate) fn wr_do_log_tttt<T>(ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: T, arg3: T, arg4: T)
 {
     if cfg!(log) {
         unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(), fmt.as_ptr(), arg1, arg2, arg3, arg4) };
@@ -91,7 +91,7 @@ pub fn wr_do_log_tttt<T>(ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, 
 /// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
 /// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
 /// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
-pub fn wr_do_log_tu<T,U>      (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: U)
+pub(crate) fn wr_do_log_tu<T,U>      (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: U)
 {
     if cfg!(log) {
         unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(), fmt.as_ptr(), arg1, arg2) };
@@ -102,7 +102,7 @@ pub fn wr_do_log_tu<T,U>      (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &
 /// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
 /// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
 /// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
-pub fn wr_do_log_tuv<T,U,V>   (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: U, arg3: V)
+pub(crate) fn wr_do_log_tuv<T,U,V>   (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: U, arg3: V)
 {
     if cfg!(log) {
         unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(), fmt.as_ptr(), arg1, arg2, arg3) };
@@ -113,7 +113,7 @@ pub fn wr_do_log_tuv<T,U,V>   (ctx: &mut sc_context, f: &CStr, line: u32, fmt: &
 /// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
 /// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
 /// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
-pub fn wr_do_log_tuvw<T,U,V,W>(ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: U, arg3: V, arg4: W)
+pub(crate) fn wr_do_log_tuvw<T,U,V,W>(ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, arg1: T, arg2: U, arg3: V, arg4: W)
 {
     if cfg!(log) {
         unsafe { sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(), fmt.as_ptr(), arg1, arg2, arg3, arg4) };
@@ -139,7 +139,7 @@ pub fn wr_do_log_8u8_i32(ctx: &mut sc_context, f: &CStr, line: u32, fmt: &CStr, 
 /// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
 /// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
 /// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
-pub fn wr_do_log_sds(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv: i32/*, arg3: &CStr*/)
+pub(crate) fn wr_do_log_sds(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv: i32/*, arg3: &CStr*/)
 {
     if cfg!(log) {
         unsafe { sc_do_log_color(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(), SC_COLOR_FG_RED,
@@ -148,7 +148,7 @@ pub fn wr_do_log_sds(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv:
 }
 
 /// # Panics
-pub fn wr_do_log_sds_ret(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv: i32/*, arg3: &CStr*/) -> i32
+pub(crate) fn wr_do_log_sds_ret(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr, rv: i32/*, arg3: &CStr*/) -> i32
 {
     if cfg!(log) {
         unsafe { sc_do_log_color(ctx, SC_LOG_DEBUG_NORMAL, CRATE.as_ptr(), i32::try_from(line).unwrap(), f.as_ptr(), SC_COLOR_FG_RED,
@@ -162,7 +162,7 @@ pub fn wr_do_log_sds_ret(ctx: &mut sc_context, f: &CStr, line: u32, arg1: &CStr,
 /// The expanded expression for the 'line' macro has type `u32`, but the `OpenSC` logging functions
 /// `sc_do_log` and `sc_do_log_color` expect i32 arguments (what a bad developer's decision). Thus we
 /// need a '`i32::try_from`'-conversion, which theoretically may panic, but here in practice, will never do.
-pub fn wr_do_log_rv(ctx: &mut sc_context, f: &CStr, line: u32, rv: i32)
+pub(crate) fn wr_do_log_rv(ctx: &mut sc_context, f: &CStr, line: u32, rv: i32)
 {
     if cfg!(log) { unsafe {
         if rv <= 0 {
@@ -177,7 +177,7 @@ pub fn wr_do_log_rv(ctx: &mut sc_context, f: &CStr, line: u32, rv: i32)
 }
 
 /// # Panics
-pub fn wr_do_log_rv_ret(ctx: &mut sc_context, f: &CStr, line: u32, rv: i32) -> i32
+pub(crate) fn wr_do_log_rv_ret(ctx: &mut sc_context, f: &CStr, line: u32, rv: i32) -> i32
 {
     if cfg!(log) { unsafe {
         if rv <= 0 {

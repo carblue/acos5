@@ -44,7 +44,7 @@ fn main() {
             },
         Err(e) => {
             match &e {
-                Error::DlOpen { desc: _ } => { println!("libloading DlOpen opensc: {e}"); },
+                Error::DlOpen { source: _ } => { println!("libloading DlOpen opensc: {e}"); },
                 Error::DlOpenUnknown => { println!("libloading DlOpenUnknown opensc: {e}"); },
                 Error::LoadLibraryExW { source: _ } => { println!("libloading LoadLibraryW opensc: {e}"); },
                 Error::LoadLibraryExWUnknown => { println!("libloading LoadLibraryWUnknown opensc: {e}"); },

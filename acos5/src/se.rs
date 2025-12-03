@@ -109,7 +109,7 @@ It's not possible to map file access conditions from ACOS5 (scb8) to OpenSC exac
    SC_AC_PRO It's assumed that it's a marker only to visualize in opensc-tool, that this operation will be SM protected,
      but OpenSC does nothing else with that
 */
-pub fn map_scb8_to_acl(card: &mut sc_card, file: &mut sc_file, scb8: [u8; 8], fdb: u8)
+pub(crate) fn map_scb8_to_acl(card: &mut sc_card, file: &mut sc_file, scb8: [u8; 8], fdb: u8)
 {
     /* select_file is always allowed */
     assert_eq!(    SC_SUCCESS, unsafe { sc_file_add_acl_entry(file, SC_AC_OP_SELECT,     SC_AC_NONE, SC_AC_KEY_REF_NONE) } );
@@ -318,7 +318,7 @@ SCB: 81; [80 01 01  A4 09 83 01 81 83 01 01 95 01 88]                           
  * @param   `search_template`  IN    usually searching for `CRT_TAG_AT`, `CRT_TAG_CCT` or `CRT_TAG_CT_SYM`
  * @return  pin/sym. key reference ==  pin/sym. key id (global)  or  pin/sym. key id | 0x80 (local)
  */
-pub fn se_get_references(card: &mut sc_card, file_id: u16, se_reference: u8, search_template: &sc_crt, skip_usage: bool) -> Vec<u32>
+pub(crate) fn se_get_references(card: &mut sc_card, file_id: u16, se_reference: u8, search_template: &sc_crt, skip_usage: bool) -> Vec<u32>
 {
     let mut result : Vec<u32> = Vec::with_capacity(8); //SC_AC_KEY_REF_NONE;
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
@@ -384,7 +384,7 @@ pub fn se_get_references(card: &mut sc_card, file_id: u16, se_reference: u8, sea
  * @return  a tuple: 1. elem: whether the CRT templates match the requirements for SM, forcing at least SM mode Authenticity (SM-sign)
  *                   2. elem: whether there also is a CT template, forcing SM mode Confidentiality (SM-sign + SM-enc)
  */
-pub fn se_get_is_scb_suitable_for_sm_has_ct(card: &mut sc_card, file_id: u16, se_reference: u8) -> (bool, bool)
+pub(crate) fn se_get_is_scb_suitable_for_sm_has_ct(card: &mut sc_card, file_id: u16, se_reference: u8) -> (bool, bool)
 {
     let mut result = (false /*is_suitable_for_sm*/, false /*has_ct*/);
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
@@ -454,7 +454,7 @@ pub fn se_get_is_scb_suitable_for_sm_has_ct(card: &mut sc_card, file_id: u16, se
     result
 }
 
-pub fn se_get_sae_scb(card: &mut sc_card, cla_ins_p1_p2: [u8; 4]) -> u8
+pub(crate) fn se_get_sae_scb(card: &mut sc_card, cla_ins_p1_p2: [u8; 4]) -> u8
 {
     let mut scb = 0;
     let file_id_dir = file_id_from_path_value(current_path_df(card));
@@ -501,7 +501,7 @@ pub fn se_get_sae_scb(card: &mut sc_card, cla_ins_p1_p2: [u8; 4]) -> u8
  * @param
  * @return
  */
-pub fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], se_info_node: &mut SACinfo) -> i32 // se_parse_crts
+pub(crate) fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], se_info_node: &mut SACinfo) -> i32 // se_parse_crts
 {
     if data.is_empty() || data[0] == 0 {
         return 0;
@@ -582,7 +582,7 @@ pub fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], se_info
 ///
 /// Will return `Err` if there are errors in the SAE encoding
 #[allow(clippy::similar_names)]
-pub fn se_parse_sae(vec_sac_info_opt: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp_sae: &[u8]) -> Result<Vec<SAEinfo>, i32>
+pub(crate) fn se_parse_sae(vec_sac_info_opt: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp_sae: &[u8]) -> Result<Vec<SAEinfo>, i32>
 {
     use crate::no_cdecl::convert_amdo_to_cla_ins_p1_p2_array;
 

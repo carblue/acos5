@@ -59,7 +59,7 @@ fn select_mf(card: &mut sc_card) -> Result<i32, i32> {
 
 #[cold]
 #[allow(clippy::too_many_lines)]
-pub fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
+pub(crate) fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
     let f = c"sanity_check";
