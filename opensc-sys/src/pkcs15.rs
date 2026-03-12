@@ -20,6 +20,7 @@
 */
 
 #![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
 
 use std::os::raw::{c_char, c_ulong, c_void};
 use std::ptr::null_mut;
@@ -318,13 +319,14 @@ pub struct sc_pkcs15_pubkey_ec {
     pub ecpointQ : sc_pkcs15_u8, /* This is NOT DER, just value and length */
 }
 
-#[cfg(not(any(v0_20_0, v0_21_0)))]
+#[cfg(any(v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_pubkey_eddsa {
     pub pubkey: sc_pkcs15_u8,
 }
 
+#[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_prkey_ec {
@@ -332,8 +334,16 @@ pub struct sc_pkcs15_prkey_ec {
     pub privateD : sc_pkcs15_bignum, /* note this is bignum */
     pub ecpointQ : sc_pkcs15_u8, /* This is NOT DER, just value and length */
 }
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1)))]
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct sc_pkcs15_prkey_ec {
+    pub params : sc_ec_parameters,
+    pub ecpointQ : sc_pkcs15_u8, /* This is NOT DER, just value and length */
+    pub privateD : sc_pkcs15_bignum, /* note this is bignum */
+}
 
-#[cfg(not(any(v0_20_0, v0_21_0)))]
+#[cfg(any(v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct sc_pkcs15_prkey_eddsa {
@@ -363,7 +373,7 @@ pub union sc_pkcs15_pubkey__bindgen_ty_1 {
     #[cfg(any(v0_20_0, v0_21_0, v0_22_0))]
     pub dsa : sc_pkcs15_pubkey_dsa,
     pub ec  : sc_pkcs15_pubkey_ec,
-    #[cfg(not(any(v0_20_0, v0_21_0)))]
+    #[cfg(any(v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))]
     pub eddsa : sc_pkcs15_pubkey_eddsa,
     pub gostr3410 : sc_pkcs15_pubkey_gostr3410,
 //    _bindgen_union_align : [ u64 ; 26usize ] ,
@@ -394,7 +404,7 @@ pub union sc_pkcs15_prkey__bindgen_ty_1 {
     #[cfg(any(v0_20_0, v0_21_0, v0_22_0))]
     pub dsa : sc_pkcs15_prkey_dsa,
     pub ec  : sc_pkcs15_prkey_ec,
-    #[cfg(not(any(v0_20_0, v0_21_0)))]
+    #[cfg(any(v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))]
     pub eddsa : sc_pkcs15_prkey_eddsa,
     pub gostr3410 : sc_pkcs15_prkey_gostr3410,
     pub secret : sc_pkcs15_skey,
@@ -1100,9 +1110,12 @@ pub fn sc_pkcs15_decode_pubkey_ec(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pu
 pub fn sc_pkcs15_encode_pubkey_ec(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey_ec, arg3: *mut *mut u8,
                                   arg4: *mut usize) -> i32;
 
-#[cfg(not(any(v0_20_0, v0_21_0)))]
+#[cfg(    any(                  v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))]
 pub fn sc_pkcs15_encode_pubkey_eddsa(arg1: *mut sc_context,
                                      arg2: *mut sc_pkcs15_pubkey_eddsa, arg3: *mut *mut u8, arg4: *mut usize) -> i32;
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1)))]
+pub fn sc_pkcs15_encode_pubkey_eddsa(arg1: *mut sc_context,
+                                     arg2: *mut sc_pkcs15_pubkey_ec, arg3: *mut *mut u8, arg4: *mut usize) -> i32;
 
 pub fn sc_pkcs15_decode_pubkey(arg1: *mut sc_context, arg2: *mut sc_pkcs15_pubkey, arg3: *const u8,
                                arg4: usize) -> i32;

@@ -21,13 +21,18 @@
 
 //from openssl  des.h and rand.h
 
-#![allow(nonstandard_style, clippy::upper_case_acronyms)]
+#![allow(nonstandard_style, reason = "..")]
+#![allow(clippy::upper_case_acronyms, reason = "..")]
 
-use std::os::raw::{c_long, c_int};
+use std::os::raw::c_long;
+#[cfg(test)]
+use std::os::raw::c_int;
+
+use crate::constants_types::safe_int_try_from;
 
 pub(crate) const DES_KEY_SZ_u8 : u8    = 8; // sizeof(DES_cblock)
 pub(crate) const DES_KEY_SZ    : usize = 8; // sizeof(DES_cblock)
-#[allow(dead_code)]
+#[cfg(test)]
 const AES_BLOCK_SIZE: usize = 16;
 
 pub(crate) const Encrypt: i32 = 1;
@@ -51,6 +56,7 @@ struct DES_key_schedule {
     ks: [DES_cblock; 16],
 }
 
+#[cfg(test)]
 #[repr(C)]
 #[derive(/*Default,*/ Debug)]
 struct AES_KEY {
@@ -58,6 +64,7 @@ struct AES_KEY {
     rounds: c_int,
 }
 
+#[cfg(test)]
 impl Default for AES_KEY {
     fn default() -> Self {
         Self {
@@ -107,16 +114,20 @@ unsafe extern "C" {
     // return 0 for success, -1 if userKey or key is NULL, or -2 if the number of bits is unsupported.
 
     /// <https://mta.openssl.org/pipermail/openssl-users/2021-August/014103.html>
-    #[allow(dead_code)]
+    //#[expect(dead_code, reason = "..")]
+    #[cfg(test)]
     fn AES_set_encrypt_key(userKey: *const u8, bits: i32, key: *mut AES_KEY) -> i32;
-    #[allow(dead_code)]
+    //#[expect(dead_code, reason = "..")]
+    #[cfg(test)]
     fn AES_set_decrypt_key(userKey: *const u8, bits: i32, key: *mut AES_KEY) -> i32;
 
     /// <https://docs.openssl.org/3.1/man7/migration_guide>
-    #[allow(dead_code)]
+    //#[expect(dead_code, reason = "..")]
+    #[cfg(test)]
     fn AES_ecb_encrypt(in_: *const u8, out: *mut u8, key: *const AES_KEY, enc: i32);
     /// <https://docs.openssl.org/3.1/man7/migration_guide>
-    #[allow(dead_code)]
+    //#[expect(dead_code, reason = "..")]
+    #[cfg(test)]
     fn AES_cbc_encrypt(in_: *const u8, out: *mut u8, length: usize, key: *const AES_KEY, ivec: *mut u8, enc: i32);
 }
 
@@ -245,7 +256,7 @@ pub(crate) fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock
             }
         }
 
-        DES_ede3_cbc_encrypt(data.as_ptr(), output.as_mut_ptr(), c_long::try_from(data.len()).unwrap(),
+        DES_ede3_cbc_encrypt(data.as_ptr(), output.as_mut_ptr(), safe_int_try_from(data.len()),
                              &raw const ks[0], &raw const ks[1], &raw const ks[2], ivec, mode);
     }
 
@@ -253,7 +264,7 @@ pub(crate) fn des_ede3_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut DES_cblock
         while output.last().unwrap_or(&1) == &0  { let _unused = output.pop(); }
         if let Some(&b) = output.last() {
             if b == 0x80  { let _unused = output.pop(); }
-            else { panic!("Incorrect padding detected!") }
+            else { unreachable!("Incorrect padding detected!") }
         }
     }
     output
@@ -271,7 +282,7 @@ pub(crate) fn des_ede3_cbc_pad_80_mac(data: &[u8], key: &[u8], ivec: &mut DES_cb
 // AES
 /* this will be used by EVO only for Encrypt and data known to be a multiple of AES_BLOCK_SIZE */
 /// Document this !
-#[allow(dead_code)]
+#[cfg(test)]
 #[must_use]
 fn aes_ecb_unpadded_16(data: &[u8], key: &[u8], mode: i32) -> Vec<u8> {
     assert!(data.len().is_multiple_of(AES_BLOCK_SIZE));
@@ -307,7 +318,7 @@ if pi==01, then it's known, that  a 0x80 byte was added (padding was applied and
 if pi==00, then it's known, that no 0x80 byte was added
 */
 /// Document this !
-#[allow(dead_code)]
+#[cfg(test)]
 #[must_use]
 fn aes_cbc_pad_80(data: &[u8], key: &[u8], ivec: &mut [u8; AES_BLOCK_SIZE], mode: i32, pi: u8) -> Vec<u8> {
     assert!(mode==Encrypt || data.len().is_multiple_of(AES_BLOCK_SIZE));

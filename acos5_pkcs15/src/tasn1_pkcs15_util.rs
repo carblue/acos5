@@ -20,7 +20,7 @@
 
 //! Both driver components (libacos5.so/dll and `libacos5_pkcs15.so/dll`) share this same file
 
-#![allow(non_snake_case)]
+#![expect(non_snake_case, reason = "..")]
 
 use std::os::raw::c_void;
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
@@ -57,7 +57,8 @@ use crate::constants_types::{DataPrivate, PKCS15_FILE_TYPE_APPDF, PKCS15_FILE_TY
                              PKCS15_FILE_TYPE_BIOMETRIC,
                              PKCS15_FILE_TYPE_AUTHKEY,
                              PKCS15_FILE_TYPE_NONE,
-                             GuardFile, is_DFMF, file_id_from_path_value, file_id_se, is_child_of};
+                             GuardFile, is_DFMF, file_id_from_path_value, file_id_se, is_child_of,
+                             safe_int_try_from};
 
 use crate::tasn1_sys::{asn1_node_st, asn1_node, asn1_delete_structure, ASN1_SUCCESS,
                        asn1_create_element, asn1_der_decoding, asn1_read_value, asn1_strerror, asn1_get_length_der};
@@ -65,7 +66,7 @@ use crate::tasn1_sys::{asn1_node_st, asn1_node, asn1_delete_structure, ASN1_SUCC
 pub(crate) struct GuardAsn1Node(*mut *mut asn1_node_st);
 
 impl GuardAsn1Node {
-    #[allow(dead_code)]  // no usage in acos5_pkcs15
+    #[allow(dead_code, reason = "no usage in acos5_pkcs15")]
     pub(crate) fn new(inner: *mut *mut asn1_node_st) -> Self {
 // println!("GuardAsn1Node");
         GuardAsn1Node(inner)
@@ -77,7 +78,7 @@ impl Drop for GuardAsn1Node {
         if !self.0.is_null() && unsafe { !(*self.0).is_null() } {
 // println!("Drop for ...");
             let rv = unsafe { asn1_delete_structure(self.0) };
-            assert_eq!(ASN1_SUCCESS, rv.try_into().unwrap());
+            assert_eq!(ASN1_SUCCESS, safe_int_try_from(rv));
         }
     }
 }
@@ -113,7 +114,7 @@ impl<'a> DirectoryRange<'a> {
         Self { last_end_exclusive: 0, rem: input }
     }
 
-    #[allow(dead_code)] // test case usage only
+    #[allow(dead_code, reason = "test case usage only")]
     pub(crate) fn unused_len(&mut self) -> usize {
         while !self.rem.is_empty() && self.next().is_some() {}
         self.rem.len()
@@ -128,20 +129,19 @@ impl Iterator for DirectoryRange<'_> {
             None
         }
         else {
-            #[allow(non_upper_case_globals)]
-            const   T_len : i32 = 1;
+            const   T_LEN : i32 = 1;
             let mut L_len = 0;
-            let     V_len : i32 = unsafe { asn1_get_length_der(self.rem.as_ptr().add(1),
-                                    (self.rem.len()-1).try_into().unwrap(), &raw mut L_len).try_into().unwrap() };
+            let     V_len : i32 = safe_int_try_from(unsafe { asn1_get_length_der(self.rem.as_ptr().add(1),
+                        safe_int_try_from(self.rem.len()-1), &raw mut L_len) });
 //println!("self.rem.len(): {}, V_len: {}, L_len: {}", self.rem.len(), V_len, L_len);
-            let tlv_len = T_len + L_len + V_len;
-            if V_len<0 || !(1..=4).contains(&L_len) || self.rem.len() < tlv_len.try_into().unwrap() {
+            let tlv_len = T_LEN + L_len + V_len;
+            if V_len<0 || !(1..=4).contains(&L_len) || self.rem.len() < safe_int_try_from(tlv_len) {
                 return None;
             }
             let new_end_exclusive = self.last_end_exclusive + tlv_len;
-            let result = Range { start: self.last_end_exclusive.try_into().unwrap(), end: new_end_exclusive.try_into().unwrap() };
+            let result = Range { start: safe_int_try_from(self.last_end_exclusive), end: safe_int_try_from(new_end_exclusive) };
             self.last_end_exclusive = new_end_exclusive;
-            self.rem = &self.rem[tlv_len.try_into().unwrap()..];
+            self.rem = &self.rem[safe_int_try_from(tlv_len)..];
             Some(result)
         }
     }
@@ -170,8 +170,8 @@ PKCS15_FILE_TYPE_TOKENINFO    for whatever file specified (or default) within AP
 
 and returns first aid found
 */
-#[allow(dead_code)]  // no usage in acos5_pkcs15
-#[allow(clippy::too_many_lines)]
+#[allow(dead_code, reason = "no usage in acos5_pkcs15")]
+//#[expect(clippy::too_many_lines, reason = "..")]
 pub(crate) fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid) -> Result<bool, i32> {
     if card.app_count>0 && !card.app[0].is_null() {
 // println!("card.app[0]: {:X?}", unsafe { *card.app[0] });
@@ -184,11 +184,10 @@ pub(crate) fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid
     }
     let size : usize = file_id_se(dp.files[&0x2F00].1).into();
     let _unused = Box::leak(dp);
-    // card.drv_data = Box::into_raw(dp) as p_void;
     if pkcs15_definitions.is_null() { return Err(-1); }
 
     let mut aid_buf = [0_u8; SC_MAX_AID_SIZE];
-    let mut aid_len = i32::try_from(SC_MAX_AID_SIZE).unwrap();
+    let mut aid_len : i32 = safe_int_try_from(SC_MAX_AID_SIZE);
     let mut path_2f00 = sc_path::default();
     unsafe { sc_format_path(c"3F002F00".as_ptr(), &raw mut path_2f00); } // type = SC_PATH_TYPE_PATH;
     let mut file = null_mut();
@@ -206,12 +205,12 @@ pub(crate) fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid
         }
     }};
     if rv <= 0  {  return Err(-1); }
-    for range in DirectoryRange::new(&rbuf[..rv.try_into().unwrap()]) {
+    for range in DirectoryRange::new(&rbuf[..safe_int_try_from(rv)]) {
 //println!("for range in DirectoryRange: {:?}", range);
         let mut structure : asn1_node = null_mut();
         let guard_structure = GuardAsn1Node::new(&raw mut structure);
         let mut asn1_result = unsafe { asn1_create_element(pkcs15_definitions, c"PKCS15.DIRRecord".as_ptr(), *guard_structure) };
-        if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
+        if ASN1_SUCCESS != safe_int_try_from(asn1_result) {
             println!("### Error in structure creation: {:?}", unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
             return Err(-1);
         }
@@ -219,16 +218,16 @@ pub(crate) fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid
         let mut error_description = [0x00_i8; 129];
         /* decode DER data from file 0x3F002F00 into structure "PKCS15.DIRRecord" */
         asn1_result = unsafe { asn1_der_decoding(*guard_structure, rbuf2.as_ptr().cast::<c_void>(),
-                                                 rbuf2.len().try_into().unwrap(), error_description.as_mut_ptr()) };
+                                                 safe_int_try_from(rbuf2.len()), error_description.as_mut_ptr()) };
 
-        if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
+        if ASN1_SUCCESS != safe_int_try_from(asn1_result) {
             println!("error while decoding DIRRecord data: {rbuf2:?}");
             continue;
         }
 //println!("ready to inspect");
         let mut name = c"aid"; // OCTET STRING  MANDATORY
         asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), aid_buf.as_mut_ptr().cast::<c_void>(), &raw mut aid_len) };
-        if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
+        if ASN1_SUCCESS != safe_int_try_from(asn1_result) {
             println!("asn1_result (asn1_read_value  aid): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
             continue;
         }
@@ -240,20 +239,20 @@ pub(crate) fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid
 
         name = c"path"; // OCTET STRING  MANDATORY
         let mut buf = [0_u8; SC_MAX_PATH_SIZE];
-        let mut outlen = i32::try_from(buf.len()).unwrap();
+        let mut outlen : i32 = safe_int_try_from(buf.len());
         asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &raw mut outlen) };
-        if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
+        if ASN1_SUCCESS != safe_int_try_from(asn1_result) {
             println!("asn1_result (asn1_read_value  path): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
             continue;
         }
         if outlen < 2 { continue; }
-        buf_slice = &buf[..usize::try_from(outlen).unwrap()];
+        buf_slice = &buf[..safe_int_try_from(outlen)];
 
         let file_id_app = file_id_from_path_value(buf_slice);
 //println!("path of application directory: 0x{:X?}, fid: 0x{:X}", buf_slice, file_id_app);
 
         let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
-        let dp_files_value_2F00 = dp.files.get_mut(&0x2F00).unwrap();
+        let dp_files_value_2F00 = dp.files.get_mut(&0x2F00).ok_or(-1)?;
         dp_files_value_2F00.1[6] = PKCS15_FILE_TYPE_DIR;
         if !dp.files.contains_key(&file_id_app) {
             let _unused = Box::leak(dp);
@@ -261,15 +260,15 @@ pub(crate) fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid
         }
 
         let dp_files_value_app = &dp.files[&file_id_app];
-        assert!(is_DFMF(dp_files_value_app.1[0]));
-        assert_eq!(buf_slice, &dp_files_value_app.0[..dp_files_value_app.1[1].into()]);
+        if !is_DFMF(dp_files_value_app.1[0]) { return Err(-1); } // assert!(is_DFMF(dp_files_value_app.1[0]));
+        if buf_slice != &dp_files_value_app.0[..dp_files_value_app.1[1].into()] { return Err(-1); } //assert_eq!(buf_slice, &dp_files_value_app.0[..dp_files_value_app.1[1].into()]);
         card.drv_data = Box::into_raw(dp).cast::<c_void>();
 
         name = c"label"; // UTF8String  OPTIONAL
         let mut buf_str = [0_u8; 64];
-        outlen = i32::try_from(buf_str.len()).unwrap();
+        outlen = safe_int_try_from(buf_str.len());
         asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf_str.as_mut_ptr().cast::<c_void>(), &raw mut outlen) };
-        if ASN1_SUCCESS == asn1_result.try_into().unwrap() {
+        if ASN1_SUCCESS == safe_int_try_from(asn1_result) {
 //                     let x = &buf_str[..outlen.try_into().unwrap()];
 // println!("label of application directory: {}", String::from_utf8(x.to_vec()).unwrap_or_default());
         }
@@ -279,10 +278,10 @@ pub(crate) fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid
 
         let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         name = c"ddo.odfPath.path"; // OCTET STRING  OPTIONAL
-        outlen = i32::try_from(buf.len()).unwrap();
+        outlen = safe_int_try_from(buf.len());
         asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &raw mut outlen) };
-        if ASN1_SUCCESS == asn1_result.try_into().unwrap() {
-            buf_slice = &buf[..usize::try_from(outlen).unwrap()];
+        if ASN1_SUCCESS == safe_int_try_from(asn1_result) {
+            buf_slice = &buf[..safe_int_try_from(outlen)];
             let file_id_odf = file_id_from_path_value(buf_slice);
 //println!("ddo.odfPath.path:       0x{:X?}, fid: 0x{:X}", buf_slice, file_id_odf); // ddo.odfPath.path: 0x[3F, 0, 41, 0, 50, 31], fid: 0x5031
             let dp_files_value_5031 = &dp.files[&file_id_odf];
@@ -290,7 +289,7 @@ pub(crate) fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid
                 let _unused = Box::leak(dp);
                 continue;
             }
-            let dp_files_value_5031 = dp.files.get_mut(&file_id_odf).unwrap();
+            let dp_files_value_5031 = dp.files.get_mut(&file_id_odf).ok_or(-1)?;
             dp_files_value_5031.1[6] = PKCS15_FILE_TYPE_ODF;
         }
         else {
@@ -300,15 +299,15 @@ pub(crate) fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid
                 let _unused = Box::leak(dp);
                 continue;
             }
-            let dp_files_value_5031 = dp.files.get_mut(&0x5031).unwrap();
+            let dp_files_value_5031 = dp.files.get_mut(&0x5031).ok_or(-1)?;
             dp_files_value_5031.1[6] = PKCS15_FILE_TYPE_ODF;
         }
 
         name = c"ddo.tokenInfoPath.path"; // OCTET STRING  OPTIONAL
-        outlen = i32::try_from(buf.len()).unwrap();
+        outlen = safe_int_try_from(buf.len());
         asn1_result = unsafe { asn1_read_value(structure, name.as_ptr(), buf.as_mut_ptr().cast::<c_void>(), &raw mut outlen) };
-        if ASN1_SUCCESS == asn1_result.try_into().unwrap() {
-            buf_slice = &buf[..usize::try_from(outlen).unwrap()];
+        if ASN1_SUCCESS == safe_int_try_from(asn1_result) {
+            buf_slice = &buf[..safe_int_try_from(outlen)];
             let file_id_cia = file_id_from_path_value(buf_slice);
 //println!("ddo.tokenInfoPath.path: 0x{:X?}, fid: 0x{:X}", buf_slice, file_id_cia); // ddo.tokenInfoPath.path: 0x[3F, 0, 41, 0, 50, 32], fid: 0x5032
             let dp_files_value_5032 = &dp.files[&file_id_cia];
@@ -316,7 +315,7 @@ pub(crate) fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid
                 let _unused = Box::leak(dp);
                 continue;
             }
-            let dp_files_value_5032 = dp.files.get_mut(&file_id_cia).unwrap();
+            let dp_files_value_5032 = dp.files.get_mut(&file_id_cia).ok_or(-1)?;
             dp_files_value_5032.1[6] = PKCS15_FILE_TYPE_TOKENINFO;
         }
         else {
@@ -326,11 +325,11 @@ pub(crate) fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid
                 let _unused = Box::leak(dp);
                 continue;
             }
-            let dp_files_value_5032 = dp.files.get_mut(&0x5032).unwrap();
+            let dp_files_value_5032 = dp.files.get_mut(&0x5032).ok_or(-1)?;
             dp_files_value_5032.1[6] = PKCS15_FILE_TYPE_TOKENINFO;
         }
 
-        let dp_files_value_app = dp.files.get_mut(&file_id_app).unwrap();
+        let dp_files_value_app = dp.files.get_mut(&file_id_app).ok_or(-1)?;
         dp_files_value_app.1[6] = PKCS15_FILE_TYPE_APPDF;
         card.drv_data = Box::into_raw(dp).cast::<c_void>();
         /* return the first detected aid */
@@ -338,14 +337,14 @@ pub(crate) fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid
            aid_len != 0   &&  aid_buf   != [0_u8; SC_MAX_AID_SIZE]
         {
             aid.value = aid_buf;
-            aid.len   = aid_len.try_into().unwrap();
+            aid.len   = safe_int_try_from(aid_len);
         }
 //println!("loop completed: for range in DirectoryRange::new");
     }
     Ok(true)
 }
 
-#[allow(dead_code)]  // no usage in acos5_pkcs15
+#[allow(dead_code, reason = "no usage in acos5_pkcs15")]
 pub(crate) fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
 /* This relies on function analyze_PKCS15_DIRRecord_2F00 having marked as PKCS15_FILE_TYPE_ODF
    any EF.ODF specified by EF.DIR, so we can iterate over hashmah dp.files and search byte dp_files_value.1[6]
@@ -426,12 +425,12 @@ pub(crate) fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
         }};
         assert!(rv>0);
 
-        for range in DirectoryRange::new(&rbuf[..rv.try_into().unwrap()]) {
+        for range in DirectoryRange::new(&rbuf[..safe_int_try_from(rv)]) {
             let mut structure = null_mut();
             let guard_structure = GuardAsn1Node::new(&raw mut structure);
             let mut asn1_result = unsafe { asn1_create_element(pkcs15_definitions,
                 c"PKCS15.PKCS15Objects".as_ptr(), *guard_structure) };
-            if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
+            if ASN1_SUCCESS != safe_int_try_from(asn1_result) {
                 println!("### Error in structure creation: {:?}", unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
                 let _unused = Box::leak(dp);
                 return;
@@ -440,23 +439,23 @@ pub(crate) fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
 // println!("range: {:?}, rbuf2: {:X?}", range, rbuf2);
             let mut error_description = [0x00_i8; 129];
             asn1_result = unsafe { asn1_der_decoding(*guard_structure, rbuf2.as_ptr().cast::<c_void>(),
-                rbuf2.len().try_into().unwrap(), error_description.as_mut_ptr()) };
+                                   safe_int_try_from(rbuf2.len()), error_description.as_mut_ptr()) };
 
-            if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
+            if ASN1_SUCCESS != safe_int_try_from(asn1_result) {
                 let c_str = unsafe { CStr::from_ptr(error_description.as_ptr()) };
                 println!("asn1_result (asn1_der_decoding): {asn1_result}, error_description: {c_str:?}");
                 continue;
             }
             for type_ in PKCS15_FILE_TYPE_PRKDF..=PKCS15_FILE_TYPE_AODF {
                 let mut buf = [0_u8; SC_MAX_PATH_SIZE];
-                let mut outlen = i32::try_from(buf.len()).unwrap();
+                let mut outlen :i32 = safe_int_try_from(buf.len());
                 asn1_result = unsafe { asn1_read_value(structure, get_arr(type_).as_ptr(),
                                                        buf.as_mut_ptr().cast::<c_void>(), &raw mut outlen) };
-                if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
+                if ASN1_SUCCESS != safe_int_try_from(asn1_result) {
                     //println!("asn1_result (asn1_read_value  path): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
                     continue;
                 }
-                let outlen = usize::try_from(outlen).unwrap();
+                let outlen : usize = safe_int_try_from(outlen);
                 if outlen < 4 {
                     continue;
                 }
@@ -478,11 +477,12 @@ pub(crate) fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
     } // for val in dp.files.values()
     } // for FidPath(_fid, path_app) in vec_appdf     // for each application
     let _unused = Box::leak(dp);
-    // card.drv_data = Box::into_raw(dp) as p_void;
 
     let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
+    #[expect(clippy::pattern_type_mismatch, reason = "despite the mismatch, it works !")]
     for FidPkcs15Type(fid, pkcs15_type) in &vec_FidPkcs15Type {
-        let dp_files_value = dp.files.get_mut(fid).unwrap();
+        #[expect(clippy::expect_used, reason = "..")]
+        let dp_files_value = dp.files.get_mut(fid).expect("");
         dp_files_value.1[6] = *pkcs15_type;
     }
     card.drv_data = Box::into_raw(dp).cast::<c_void>();
@@ -494,8 +494,8 @@ pub(crate) fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
 }
 
 
-#[allow(dead_code)]  // no usage in acos5_pkcs15
-#[allow(clippy::match_same_arms)]
+#[allow(dead_code, reason = "no usage in acos5_pkcs15")]
+#[expect(clippy::match_same_arms, reason = "check that")]
 fn does_pkcs15type_need_filemarking(pkcs15_type: u8) -> bool {
     match pkcs15_type {
         PKCS15_FILE_TYPE_PRKDF => true,
@@ -512,7 +512,7 @@ fn does_pkcs15type_need_filemarking(pkcs15_type: u8) -> bool {
 }
 
 
-#[allow(dead_code)]  // no usage in acos5_pkcs15
+#[allow(dead_code, reason = "no usage in acos5_pkcs15")]
 pub(crate) fn analyze_PKCS15_PKCS15Objects(card: &mut sc_card, elem: FidPkcs15Type) {
 
     fn get_arr0<'a>(idx_0: u8) -> &'a CStr {
@@ -530,7 +530,7 @@ pub(crate) fn analyze_PKCS15_PKCS15Objects(card: &mut sc_card, elem: FidPkcs15Ty
         }
     }
 
-    #[allow(clippy::match_same_arms)]
+    #[expect(clippy::match_same_arms, reason = "check that")]
     fn get_size(idx_0: u8) -> u8 {
         match idx_0 {
             PKCS15_FILE_TYPE_PRKDF          => 2,
@@ -621,12 +621,12 @@ PKCS15_FILE_TYPE_CDF_USEFUL, 0)  => c"x509Certificate.x509CertificateAttributes.
     }};
     assert!(rv>0);
 
-    for range in DirectoryRange::new(&rbuf[..rv.try_into().unwrap() ] ) {
+    for range in DirectoryRange::new(&rbuf[..safe_int_try_from(rv)] ) {
         let mut structure = null_mut();
         let guard_structure = GuardAsn1Node::new(&raw mut structure);
         let mut asn1_result = unsafe { asn1_create_element(pkcs15_definitions,
             get_arr0(elem.1).as_ptr(), *guard_structure) };
-        if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
+        if ASN1_SUCCESS != safe_int_try_from(asn1_result) {
             println!("### Error in structure creation: {:?}", unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
             continue;
         }
@@ -634,33 +634,35 @@ PKCS15_FILE_TYPE_CDF_USEFUL, 0)  => c"x509Certificate.x509CertificateAttributes.
 // println!("range: {:?}, rbuf2: {:X?}", range, rbuf2);
         let mut error_description = [0x00_i8; 129];
         asn1_result = unsafe { asn1_der_decoding(*guard_structure, rbuf2.as_ptr().cast::<c_void>(),
-                               rbuf2.len().try_into().unwrap(), error_description.as_mut_ptr()) };
+                               safe_int_try_from(rbuf2.len()), error_description.as_mut_ptr()) };
 
-        if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
+        if ASN1_SUCCESS != safe_int_try_from(asn1_result) {
             let c_str = unsafe { CStr::from_ptr(error_description.as_ptr()) };
             println!("asn1_result (asn1_der_decoding): {asn1_result}, error_description: {c_str:?}");
             continue;
         }
         for idx_1 in 0..get_size(elem.1) {
             let mut buf = [0_u8; SC_MAX_PATH_SIZE];
-            let mut outlen = i32::try_from(buf.len()).unwrap();
+            let mut outlen : i32 = safe_int_try_from(buf.len());
             asn1_result = unsafe { asn1_read_value(structure, get_arr1(elem.1, idx_1).as_ptr(),
                                                    buf.as_mut_ptr().cast::<c_void>(), &raw mut outlen) };
-            if ASN1_SUCCESS != asn1_result.try_into().unwrap() {
+            if ASN1_SUCCESS != safe_int_try_from(asn1_result) {
                 //println!("asn1_result (asn1_read_value  get_arr1()): {}, error_description: {:?}", asn1_result, unsafe { CStr::from_ptr(asn1_strerror(asn1_result)) });
                 continue;
             }
-            let buf_slice = &buf[..outlen.try_into().unwrap()];
+            let buf_slice = &buf[..safe_int_try_from(outlen)];
 //println!("KeyAttributes.value.indirect.path.path: 0x{:02X?}", buf_slice);
             vec_FidPkcs15Type.push(FidPkcs15Type(file_id_from_path_value(buf_slice), get_type(elem.1, idx_1)) );
             break;
         }
-    }
+    } // for range
     let _unused = Box::leak(dp);
 //println!("vec_FidPkcs15Type: {:X?}", vec_FidPkcs15Type);
     let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
+    #[expect(clippy::pattern_type_mismatch, reason = "despite the mismatch, it works !")]
+    #[expect(clippy::expect_used, reason = "..")]
     for FidPkcs15Type(fid, pkcs15_type) in &vec_FidPkcs15Type {
-        let dp_files_value = dp.files.get_mut(fid).unwrap();
+        let dp_files_value = dp.files.get_mut(fid).expect("");
         dp_files_value.1[6] = *pkcs15_type;
     }
     card.drv_data = Box::into_raw(dp).cast::<c_void>();

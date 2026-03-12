@@ -837,7 +837,7 @@ mod tests {
                 #[cfg(any(target_pointer_width = "32", windows))]
                 { assert_eq!(sc,  1383); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
-                { assert_eq!(sc,  1391); }
+                { assert_eq!(sc,  1304); }
                 #[cfg(any(target_pointer_width = "32", windows))]
                 { assert_eq!(sr,   200); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
@@ -850,9 +850,9 @@ mod tests {
                 assert_eq!(pcd,  208);
                 assert_eq!(sco,  312);
                 #[cfg(any(target_pointer_width = "32", windows))]
-                { assert_eq!(scc,  628); }
+                { assert_eq!(scc,  632); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
-                { assert_eq!(scc, 656); }
+                { assert_eq!(scc, 664); }
 
                 assert_eq!(spo, 2784);
                 assert_eq!(sca,  160);
@@ -874,8 +874,8 @@ mod tests {
                 assert_eq!(sai,  144);
                 assert_eq!(sp,   376);
                 assert_eq!(ssep,  24);
-                assert_eq!(ai,   136);
-                assert_eq!(sep,  108);
+                assert_eq!(ai,   144);
+                assert_eq!(sep,  112);
             }
             else {
                 // experimental use only, this check may not be consistent with current master
@@ -890,7 +890,7 @@ mod tests {
                 #[cfg(any(target_pointer_width = "32", windows))]
                 { assert_eq!(sc,  1384); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
-                { assert_eq!(sc,  1392); }
+                { assert_eq!(sc,  1304); }
                 #[cfg(any(target_pointer_width = "32", windows))]
                 { assert_eq!(sr,   200); }
                 #[cfg(all(target_pointer_width = "64", not(windows)))]
@@ -927,9 +927,8 @@ mod tests {
                 assert_eq!(sai,  144);
                 assert_eq!(sp,   376);
                 assert_eq!(ssep,  24);
-                // assert_eq!(ai,   136);
-                assert_eq!(ai,   0); // that`s intentionally wrong
-                assert_eq!(sep,  104);
+                assert_eq!(ai,   144); // that`s intentionally wrong
+                assert_eq!(sep,  112);
             }
             println!("\nTesting whether linking against the OpenSC binary works: On success, it will state the OpenSC version in the following line:");
             println!("\n### Release version of installed OpenSC binaries is  {:?}  ###\n",

@@ -1,6 +1,6 @@
 [package]
 name = "project_pkcs11_example_apps"
-version = "0.0.30"
+version = "0.0.31"
 authors = ["Carsten Blüggel <bluecars@posteo.eu>"]
 edition = "2024"
 
@@ -8,5 +8,5 @@ edition = "2024"
 
 [dependencies]
 #pkcs11 = "0.5"
-cryptoki = "0.7"
+cryptoki = "0.12"
 cfg-if = "1.0"

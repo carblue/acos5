@@ -27,11 +27,16 @@ use std::collections::HashMap;
 use std::ffi::CStr;
 use std::ptr::{null, null_mut};
 use std::ops::{Mul, Div};
+use std::time::Instant;
+use std::fmt::Debug;
 
-use opensc_sys::opensc::{sc_context, sc_card, sc_security_env, sc_file_free, sc_bytes2apdu,
-                         SC_ALGORITHM_AES/*, SC_CARD_CAP_APDU_EXT*/};
+use opensc_sys::opensc::{sc_context, sc_card, sc_security_env, sc_file_free, sc_bytes2apdu, SC_ALGORITHM_AES};
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1)))]
+use opensc_sys::opensc::sc_card_cache;
+
 
 use opensc_sys::types::{sc_file, sc_apdu, sc_crt, sc_object_id, SC_MAX_CRTS_IN_SE, SC_MAX_PATH_SIZE};
+
 use opensc_sys::pkcs15::sc_pkcs15_id;
 #[cfg(not(target_os = "windows"))]
 use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUSTED,
@@ -41,6 +46,7 @@ use opensc_sys::pkcs15::{SC_PKCS15_PRKDF, SC_PKCS15_PUKDF, SC_PKCS15_PUKDF_TRUST
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_INTERNAL};
 use opensc_sys::iso7816::{/*ISO7816_TAG_FCI, ISO7816_TAG_FCP,*/ ISO7816_TAG_FCP_SIZE, ISO7816_TAG_FCP_TYPE,
                           ISO7816_TAG_FCP_FID, ISO7816_TAG_FCP_DF_NAME, ISO7816_TAG_FCP_LCS};
+use crate::tasn1_sys::asn1_node;
 
 /*
 Limits:
@@ -318,7 +324,7 @@ pub(crate) const CREATE_DF    : usize =  2;
 pub(crate) const DELETE_SELF  : usize =  6;
 
 
-#[allow(non_camel_case_types)]
+#[expect(non_camel_case_types, reason = "..")]
 pub(crate) type p_void = *mut c_void;
 
 /*
@@ -450,7 +456,7 @@ impl Fci {
                     // result.sfi = tlv.value()[0];
                 },
                 ISO7816_RFU_TAG_FCP_SAC => {
-                    result.scb8 = if let Ok(val) = convert_bytes_tag_fcp_sac_to_scb_array(tlv.value()) { val } else { panic!() };
+                    result.scb8 = if let Ok(val) = convert_bytes_tag_fcp_sac_to_scb_array(tlv.value()) { val } else { unreachable!() };
                 },
                 ISO7816_RFU_TAG_FCP_SAE => {
                     result.sae.extend_from_slice(tlv.value());
@@ -790,7 +796,7 @@ pub struct SCDO { // for SCDO_TAGs Always_Deny ..AuthT every scdo content is in 
 
 /* Stores SAE information for an instruction from <AMDO><SCDO> simple-TLV, intended to be placed in a Vec, stored with the DF
    TODO SCDO Tags 0xA0 and 0xAF are not yet covered */
-#[allow(non_snake_case)]
+#[expect(non_snake_case, reason = "..")]
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone,  PartialEq)]
 pub(crate) struct SAEinfo {
@@ -818,13 +824,13 @@ pub(crate) type ValueTypeFiles = ([u8; SC_MAX_PATH_SIZE], [u8; 8], Option<[u8; 8
 #[derive(Debug, /*Copy,*/ Clone)]
 pub(crate) struct DataPrivate { // see settings in acos5_init
     #[cfg(not(target_os = "windows"))]
-    pub pkcs15_definitions : crate::tasn1_sys::asn1_node, // used only as asn1_node_const, except in acos5_finish: asn1_delete_structure
+    pub pkcs15_definitions : asn1_node, // used only as asn1_node_const, except in acos5_finish: asn1_delete_structure
     pub files : HashMap< KeyTypeFiles, ValueTypeFiles >,
     pub sec_env : sc_security_env, // remember the input of last call to acos5_64_set_security_env; especially algorithm_flags will be required in compute_signature
     pub agc : CardCtlGenerateAsymCrypt,  // generate_asym, encrypt_asym
     pub agi : CardCtlGenerateAsymInject, // asym_generate_inject_data
 //  pub sec_env_algo_flags : u32, // remember the padding scheme etc. selected for RSA; required in acos5_64_set_security_env
-    pub time_stamp : std::time::Instant,
+    pub time_stamp : Instant,
     pub sm_cmd : u32,
     #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
     pub rsa_caps : u32, // remember how the rsa_algo_flags where set for _sc_card_add_rsa_alg
@@ -849,6 +855,8 @@ pub(crate) struct DataPrivate { // see settings in acos5_init
     pub sym_key_rec_idx : u8,
     pub sym_key_rec_cnt : u8,
     pub last_keygen_priv_id: sc_pkcs15_id,
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1)))]
+    pub card_cache : sc_card_cache,
     #[cfg(iup_user_consent)]
     pub ui_ctx : ui_context,
 }
@@ -856,7 +864,7 @@ pub(crate) struct DataPrivate { // see settings in acos5_init
 
 /*  returns true, if given a fdb parameter that represents type MF or DF, which are directories,
     returns false for any other fdb, which are 'real' files */
-#[allow(non_snake_case)]
+#[expect(non_snake_case, reason = "..")]
 #[must_use]
 #[inline]
 pub(crate) fn is_DFMF(fdb: u8) -> bool
@@ -989,12 +997,12 @@ pub(crate) fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -
     if bytes_tag_fcp_sac.is_empty() {
         return Ok(scb8);
     }
-    assert!(bytes_tag_fcp_sac.len() <= 8, "bytes_tag_fcp_sac.len() > 8");
+    if bytes_tag_fcp_sac.len() > 8 { return Err(-1); } // assert!(bytes_tag_fcp_sac.len() <= 8, "bytes_tag_fcp_sac.len() > 8");
 
     let mut idx = 0;
     let amb = bytes_tag_fcp_sac[idx];
     idx += 1;
-    if usize::try_from(amb.count_ones()).unwrap() != bytes_tag_fcp_sac.len()-1 { // the count of 1-valued bits of amb Byte must equal (taglen-1), the count of bytes following amb
+    if  safe_int_try_from::<u32, usize>(amb.count_ones()) != bytes_tag_fcp_sac.len()-1 { // the count of 1-valued bits of amb Byte must equal (taglen-1), the count of bytes following amb
         return Err(SC_ERROR_INTERNAL);
     }
 
@@ -1007,24 +1015,19 @@ pub(crate) fn convert_bytes_tag_fcp_sac_to_scb_array(bytes_tag_fcp_sac: &[u8]) -
     Ok(scb8)
 }
 
-#[allow(dead_code)]
 #[must_use]
-pub(crate) fn prev_multiple_of<T:Copy+Mul<Output = T>+Div<Output = T>+std::fmt::Debug+PartialEq>(selff: T, other: T) -> T
+pub(crate) fn prev_multiple_of<T:Copy+Mul<Output = T>+Div<Output = T>+Debug+PartialEq>(selff: T, other: T) -> T
 {
 //    assert_ne!(other, T);
     (selff / other) * other
 }
 
-#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1)))]
-#[repr(C)]
-#[derive(Default, Debug, Copy, Clone)]
-pub struct sc_card_cache {
-    pub current_path : sc_path,
-    pub current_ef : *mut sc_file,
-    pub current_df : *mut sc_file,
-
-    pub valid : i32,
+pub(crate) fn safe_int_try_from<F,T>(f: F) -> T
+where T: TryFrom<F> + Default
+{
+    T::try_from(f).unwrap_or_default()
 }
+
 
 ////////////////
 ////////////////
@@ -1039,7 +1042,7 @@ cfg_if::cfg_if! {
 
         #[repr(C)]
         #[derive(Default, Debug, Copy, Clone)]
-        pub struct ui_context {
+        pub(crate) struct ui_context {
             //    pub user_consent_app : *const c_char,
             pub user_consent_enabled : i32,
         }
@@ -1055,7 +1058,7 @@ cfg_if::cfg_if! {
         }
 */
 
-        pub fn get_ui_ctx(card: &mut sc_card) -> ui_context
+        pub(crate) fn get_ui_ctx(card: &mut sc_card) -> ui_context
         {
             let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
             let ui_ctx = dp.ui_ctx;
@@ -1066,20 +1069,20 @@ cfg_if::cfg_if! {
 
         /* IUP Interface */
         #[derive(Debug)]
-        pub enum Ihandle {}
-        extern "C" {
-            pub fn IupOpen(argc: *const i32, argv: *const *const *const c_char) -> i32;
+        pub(crate) enum Ihandle {}
+        unsafe extern "C" {
+            pub(crate) fn IupOpen(argc: *const i32, argv: *const *const *const c_char) -> i32;
             // pub fn IupClose();
-            pub fn IupMessageDlg() -> *mut Ihandle; // https://tecgraf.puc-rio.br/iup/en/dlg/iupmessagedlg.html
-            pub fn IupDestroy(ih: *mut Ihandle);
-            pub fn IupPopup(ih: *mut Ihandle, x: i32, y: i32) -> i32;
+            pub(crate) fn IupMessageDlg() -> *mut Ihandle; // https://tecgraf.puc-rio.br/iup/en/dlg/iupmessagedlg.html
+            pub(crate) fn IupDestroy(ih: *mut Ihandle);
+            pub(crate) fn IupPopup(ih: *mut Ihandle, x: i32, y: i32) -> i32;
             //    pub fn IupSetAttributes(ih: *mut Ihandle, str: *const c_char) -> *mut Ihandle;
-            pub fn IupSetAttribute(ih: *mut Ihandle, name: *const c_char, value: *const c_char);
-            pub fn IupGetAttribute(ih: *mut Ihandle, name: *const c_char) -> *mut c_char;
+            pub(crate) fn IupSetAttribute(ih: *mut Ihandle, name: *const c_char, value: *const c_char);
+            pub(crate) fn IupGetAttribute(ih: *mut Ihandle, name: *const c_char) -> *mut c_char;
         }
 
         /* called once only from acos5_init */
-        pub fn set_ui_ctx(card: &mut sc_card, ui_ctx: &mut ui_context) -> i32
+        pub(crate) fn set_ui_ctx(card: &mut sc_card, ui_ctx: &mut ui_context) -> i32
         {
             if card.ctx.is_null() {
                 return SC_ERROR_KEYPAD_MSG_TOO_LONG;
@@ -1125,7 +1128,7 @@ cfg_if::cfg_if! {
         ///
         /// # Panics
         #[must_use]
-        pub fn acos5_ask_user_consent() -> i32
+        pub(crate) fn acos5_ask_user_consent() -> i32
         {
             unsafe {
                 let dlg_ptr = IupMessageDlg();
@@ -1144,5 +1147,22 @@ cfg_if::cfg_if! {
                 else          { SC_SUCCESS }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::safe_int_try_from;
+    #[test]
+    fn test1_safe_int_try_from() {
+        let u : usize = 255;
+        let r : u8 = safe_int_try_from(u);
+        assert_eq!(r, 255_u8);
+    }
+    #[test]
+    fn test2_safe_int_try_from() {
+        let u : u32 = 256;
+        let r : u16 = safe_int_try_from(u);
+        assert_eq!(r, 256_u16);
     }
 }

@@ -23,7 +23,7 @@
 
 //! Both driver components (libacos5.so/dll and `libacos5_pkcs15.so/dll`) share this same file
 
-#![allow(dead_code, non_upper_case_globals/*, non_camel_case_types, non_snake_case*/)]
+#![expect(dead_code, non_upper_case_globals, reason = "..")]
 
 /*
  * `libtasn1:Short_Description`:
@@ -73,6 +73,7 @@ extern "C"
 
 use std::os::raw::{c_uchar, c_char, c_uint, c_int, c_ulong, c_long, c_void};
 use std::ptr::null;
+use std::ffi::CStr;
 
 /**
  * `ASN1_VERSION`:
@@ -200,9 +201,9 @@ pub(crate) struct asn1_node_st {
     _unused: [u8; 0],
 }
 
-#[allow(non_camel_case_types)]
+#[expect(non_camel_case_types, reason = "asn1_node is the type name given by ffi")]
 pub(crate) type asn1_node = *mut asn1_node_st;
-#[allow(non_camel_case_types)]
+#[expect(non_camel_case_types, reason = "asn1_node_const is the type name given by ffi")]
 pub(crate) type asn1_node_const = *const asn1_node_st;
 
 /**
@@ -231,13 +232,13 @@ pub(crate) struct asn1_static_node_st {
 }
 
 impl asn1_static_node_st {
-    pub(crate) fn new(name: &std::ffi::CStr, type_: c_uint, value: &std::ffi::CStr) -> Self {
+    pub(crate) fn new(name: &CStr, type_: c_uint, value: &CStr) -> Self {
         Self { name: name.as_ptr(), type_, value: value.as_ptr().cast::<c_void>() }
     }
-    pub(crate) fn new_name_null(type_: c_uint, value: &std::ffi::CStr) -> Self {
+    pub(crate) fn new_name_null(type_: c_uint, value: &CStr) -> Self {
         Self { name: null(), type_, value: value.as_ptr().cast::<c_void>() }
     }
-    pub(crate) fn new_value_null(name: &std::ffi::CStr, type_: c_uint) -> Self {
+    pub(crate) fn new_value_null(name: &CStr, type_: c_uint) -> Self {
         Self { name: name.as_ptr(), type_, value: null() }
     }
     pub(crate) fn new_name_value_null(type_: c_uint) -> Self {
@@ -245,7 +246,7 @@ impl asn1_static_node_st {
     }
 }
 
-#[allow(non_camel_case_types)]
+#[expect(non_camel_case_types, reason = "asn1_static_node is the type name given by ffi")]
 pub(crate) type asn1_static_node = asn1_static_node_st;
 
 /* List of constants for field type of node_asn  */

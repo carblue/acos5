@@ -27,7 +27,7 @@ TODO There is a lot of code duplication here: Abstract as much as possible for t
   thoroughly that all is working as expected
 */
 
-#![allow(clippy::module_name_repetitions)]
+//#![expect(clippy::module_name_repetitions, reason = "..")]
 
 use libc::{free, strlen};
 
@@ -35,7 +35,9 @@ use std::os::raw::{c_char, c_ulong, c_void};
 use std::ffi::CString;
 use std::ptr::{null, null_mut};
 use std::slice::from_raw_parts;
-
+use std::time::Instant;
+use std::cmp::min;
+use function_name::named;
 use opensc_sys::opensc::{sc_context, sc_card, sc_hex_to_bin, sc_transmit_apdu,
                          sc_check_sw, sc_pin_cmd_data, SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT,
                          SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK};
@@ -53,16 +55,17 @@ use opensc_sys::log::sc_dump_hex; /*, SC_LOG_DEBUG_NORMAL, SC_LOG_DEBUG_SM*/
 use opensc_sys::scconf::{scconf_block, scconf_find_blocks, scconf_get_str};
 
 use crate::constants_types::{ACOS5_OBJECT_REF_LOCAL, ACOS5_OBJECT_REF_MAX, CARD_DRV_SHORT_NAME, DataPrivate, build_apdu,
-                             /*p_void,*/ SC_CARD_TYPE_ACOS5_EVO_V4};
+                             /*p_void,*/ SC_CARD_TYPE_ACOS5_EVO_V4, safe_int_try_from};
 use crate::crypto::{DES_KEY_SZ, DES_KEY_SZ_u8, des_ecb3_unpadded_8, des_ede3_cbc_pad_80_mac, des_ede3_cbc_pad_80,
                     DES_set_odd_parity, DES_cblock, Encrypt, Decrypt};
 use crate::no_cdecl::{authenticate_external, authenticate_internal};
 use crate::wrappers::{wr_do_log, wr_do_log_t, wr_do_log_tttt, wr_do_log_tu, wr_do_log_tuv,
-                      wr_do_log_tuvw, wr_do_log_rv_ret, wr_do_log_sds_ret};
+                      wr_do_log_tuvw, wr_do_log_rv_ret, wr_do_log_sds_ret, wr_do_log_rv};
+use crate::tasn1_pkcs15_util::analyze_PKCS15_DIRRecord_2F00;
 
-
-#[allow(clippy::cast_possible_truncation)]
-#[allow(non_upper_case_globals)]
+#[expect(clippy::as_conversions, reason = "..")]
+#[expect(clippy::cast_possible_truncation, reason = "we know, what we are doing here !")]
+#[expect(non_upper_case_globals, reason = "..")]
 pub(crate) const SM_SMALL_CHALLENGE_LEN_u8 : u8 = SM_SMALL_CHALLENGE_LEN as u8;
 
 fn get_ck_enc_card(card: &sc_card) -> [u8; 3*DES_KEY_SZ] { // get_cwa_keyset_enc_card
@@ -101,7 +104,8 @@ fn sm_incr_ssc(card: &mut sc_card) {
 }
 
 
-fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
+#[named]
+fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> Result<(), i32>
 {
     // libc doesn't provide snprintf for windows
     fn sprintf_ref(ref_: u8, qualifier: &str) -> CString {
@@ -134,10 +138,10 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
     let mut hex  : [u8; 48]      = [0; 48];
     let mut hex_len;
     let mut rv : i32;
-    // let ref_ = i32::from(u8::try_from(crt_at.refs[0]).unwrap() & ACOS5_OBJECT_REF_MAX);
-    let ref_ = u8::try_from(crt_at.refs[0]).unwrap() & ACOS5_OBJECT_REF_MAX;
+    let ref_ = ACOS5_OBJECT_REF_MAX & safe_int_try_from::<u32,u8>(crt_at.refs[0]);
 
-    let f  = c"sm_cwa_config_get_keyset";
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
+    let f = f_cstr.as_c_str();
 
     /* look for sc block in opensc.conf */
     for elem in &ctx.conf_blocks {
@@ -171,7 +175,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
     */
 
     /* Keyset ENC */
-    if sm_info.current_aid.len>0 && (u8::try_from(crt_at.refs[0]).unwrap() & ACOS5_OBJECT_REF_LOCAL) >0 {
+    if sm_info.current_aid.len>0 && (safe_int_try_from::<u32,u8>(crt_at.refs[0]) & ACOS5_OBJECT_REF_LOCAL) >0 {
         // unsafe { snprintf(name.as_mut_ptr(), name.len(), c"keyset_%s_%02i_enc".as_ptr(),
         //                   sc_dump_hex(sm_info.current_aid.value.as_ptr(), sm_info.current_aid.len), ref_) };
         name = sprintf_aid_ref(&sm_info.current_aid, ref_, "enc");
@@ -185,7 +189,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
     if value.is_null() {
 ////                sc_debug(ctx, SC_LOG_DEBUG_VERBOSE, "No %s value in OpenSC config", name);
         log3if!(ctx,f,line!(), c"No %s value in OpenSC config", name.as_ptr());
-        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_KEYSET_NOT_FOUND);
+        return Err(log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_KEYSET_NOT_FOUND));
     }
 
 ////            sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "keyset::enc(%"SC_FORMAT_LEN_SIZE_T"u) %s", strlen(value), value);
@@ -201,13 +205,13 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
         if rv != SC_SUCCESS {
 ////sc_debug(ctx, SC_LOG_DEBUG_VERBOSE, "SM get %s: hex to bin failed for '%s'; error %i", name, value, rv);
             log3if!(ctx,f,line!(), c"SM get %s: hextobin failed for '%s'; error %i", name.as_ptr(),value,rv);
-            return log3ifr_ret!(ctx,f,line!(), SC_ERROR_UNKNOWN_DATA_RECEIVED);
+            return Err(log3ifr_ret!(ctx,f,line!(), SC_ERROR_UNKNOWN_DATA_RECEIVED));
         }
 
 ////sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "ENC(%"SC_FORMAT_LEN_SIZE_T"u) %s", hex_len, sc_dump_hex(hex, hex_len));
         log3if!(ctx,f,line!(), c"ENC(%zu) %s", hex_len, unsafe {sc_dump_hex(hex.as_ptr(), hex_len)});
         if hex_len != 3*DES_KEY_SZ {
-            return log3ifr_ret!(ctx,f,line!(), SC_ERROR_INVALID_DATA);
+            return Err(log3ifr_ret!(ctx,f,line!(), SC_ERROR_INVALID_DATA));
         }
         cwa_keyset.enc.copy_from_slice(&hex[..2*DES_KEY_SZ]);
         cwa_session.icc.k[..DES_KEY_SZ].copy_from_slice(&hex[2*DES_KEY_SZ..3*DES_KEY_SZ]);
@@ -216,7 +220,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
     log3if!(ctx,f,line!(), c"%s %s",name.as_ptr(),unsafe{sc_dump_hex(cwa_keyset.enc.as_ptr(), 2*DES_KEY_SZ)});
 
     /* Keyset MAC */
-    if sm_info.current_aid.len>0 && (u8::try_from(crt_at.refs[0]).unwrap() & ACOS5_OBJECT_REF_LOCAL) >0 {
+    if sm_info.current_aid.len>0 && (safe_int_try_from::<u32,u8>(crt_at.refs[0]) & ACOS5_OBJECT_REF_LOCAL) >0 {
         // unsafe { snprintf(name.as_mut_ptr(), name.len(), c"keyset_%s_%02i_mac".as_ptr(),
         //                   sc_dump_hex(sm_info.current_aid.value.as_ptr(), sm_info.current_aid.len), ref_) };
         name = sprintf_aid_ref(&sm_info.current_aid, ref_, "mac");
@@ -231,7 +235,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
     if value.is_null() {
 ////                sc_debug(ctx, SC_LOG_DEBUG_VERBOSE, "No %s value in OpenSC config", name);
         log3if!(ctx,f,line!(), c"No %s value in OpenSC config", name.as_ptr());
-        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_KEYSET_NOT_FOUND);
+        return Err(log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_KEYSET_NOT_FOUND));
     }
 
 ////sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "keyset::mac(%"SC_FORMAT_LEN_SIZE_T"u) %s", strlen(value), value);
@@ -247,13 +251,13 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
         if rv != SC_SUCCESS {
 ////sc_debug(ctx, SC_LOG_DEBUG_VERBOSE, "SM get '%s': hex to bin failed for '%s'; error %i", name, value, rv);
             log3if!(ctx,f,line!(), c"SM get %s: hextobin failed for '%s'; error %i",name.as_ptr(), value, rv);
-            return log3ifr_ret!(ctx,f,line!(), SC_ERROR_UNKNOWN_DATA_RECEIVED);
+            return Err(log3ifr_ret!(ctx,f,line!(), SC_ERROR_UNKNOWN_DATA_RECEIVED));
         }
 
 ////sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "MAC(%"SC_FORMAT_LEN_SIZE_T"u) %s", hex_len, sc_dump_hex(hex, hex_len));
         log3if!(ctx,f,line!(), c"MAC(%zu) %s", hex_len, unsafe {sc_dump_hex(hex.as_ptr(), hex_len)});
         if hex_len != 3*DES_KEY_SZ {
-            return log3ifr_ret!(ctx,f,line!(), SC_ERROR_INVALID_DATA);
+            return Err(log3ifr_ret!(ctx,f,line!(), SC_ERROR_INVALID_DATA));
         }
 
         cwa_keyset.mac.copy_from_slice(&hex[..2*DES_KEY_SZ]);
@@ -270,14 +274,14 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
 //            value = scconf_get_str(sm_conf_block, "ifd_serial", NULL);
     value = unsafe { scconf_get_str(sm_conf_block, c"ifd_serial".as_ptr(), null::<c_char>()) };
     if value.is_null() {
-        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_IFD_DATA_MISSING);
+        return Err(log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_IFD_DATA_MISSING));
     }
     hex_len = hex.len();
     rv = unsafe { sc_hex_to_bin(value, hex.as_mut_ptr(), &raw mut hex_len) };
     if rv != SC_SUCCESS   {
 //sc_debug(ctx, SC_LOG_DEBUG_VERBOSE, "SM get 'ifd_serial': hex to bin failed for '%s'; error %i", value, rv);
         log3if!(ctx,f,line!(), c"SM get 'ifd_serial': hex to bin failed for '%s'; error %i", value, rv);
-        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_UNKNOWN_DATA_RECEIVED);
+        return Err(log3ifr_ret!(ctx,f,line!(), SC_ERROR_UNKNOWN_DATA_RECEIVED));
     }
 
     if hex_len != cwa_session.ifd.sn.len() {
@@ -285,7 +289,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
 //                        "SM get 'ifd_serial': invalid IFD serial length: %"SC_FORMAT_LEN_SIZE_T"u",
 //                        hex_len);
         log3if!(ctx,f,line!(), c"SM get 'ifd_serial': invalid IFD serial length: %zu", hex_len);
-        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_UNKNOWN_DATA_RECEIVED);
+        return Err(log3ifr_ret!(ctx,f,line!(), SC_ERROR_UNKNOWN_DATA_RECEIVED));
     }
 
 //            memcpy(cwa_session->ifd.sn, hex, hex_len);
@@ -293,7 +297,7 @@ fn sm_cwa_config_get_keyset(ctx: &mut sc_context, sm_info: &mut sm_info) -> i32
 // println!("cwa_session.ifd.sn: {:X?}", cwa_session.ifd.sn);
 // println!("sm_info.serialnr:   {:X?}", sm_info.serialnr);
     if cwa_session.ifd.sn != sm_info.serialnr.value[..sm_info.serialnr.len] {
-        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM);
+        return Err(log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM));
     }
 
     /*
@@ -315,7 +319,8 @@ sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "IFD.Serial: %s", sc_dump_hex(cwa_session->if
 sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "IFD.Rnd: %s", sc_dump_hex(cwa_session->ifd.rnd, sizeof(cwa_session->ifd.rnd)));
 sc_debug(ctx, SC_LOG_DEBUG_NORMAL, "IFD.K: %s", sc_dump_hex(cwa_session->ifd.k, sizeof(cwa_session->ifd.k)));
     */
-    log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
+    log3ifr!(ctx,f,line!(), SC_SUCCESS);
+    Ok(())
 }
 
 fn sm_cwa_initialize(card: &mut sc_card/*, sm_info: &mut sm_info, _rdata: &mut sc_remote_data*/) -> i32
@@ -393,33 +398,43 @@ fn sm_dur(cmd: u32) -> u128
     }
 }
 
-fn sm_manage_keyset(card: &mut sc_card) -> i32
+#[named]
+fn sm_manage_keyset(card: &mut sc_card) -> Result<(), i32>
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(-1) }
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"sm_manage_keyset";
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
     if unsafe { card.sm_ctx.info.session.cwa.session_mac.ne(&[0; 16]) } {
-        log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
+        log3ifr!(ctx,f,line!(), SC_SUCCESS);
+        Ok(())
     }
     else {
 /* */
         #[cfg(not(target_os = "windows"))]
         if card.sm_ctx.info.current_aid.len == 0 {
             let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
-            assert!(!dp.pkcs15_definitions.is_null());
+            if dp.pkcs15_definitions.is_null() { let _unused = Box::leak(dp); return Err(-1) }
+            cfg_if::cfg_if! {
+            if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
+                let curr_path = card.cache.current_path;
+            }
+            else {
+                let curr_path = dp.card_cache.current_path;
+            } }
             let _unused = Box::leak(dp);
-            let curr_path = card.cache.current_path;
+
             let mut aid = sc_aid::default();
-            let res = crate::tasn1_pkcs15_util::analyze_PKCS15_DIRRecord_2F00(card, &mut aid);
-            if res.is_err() || !res.unwrap(){
-                return log3ifr_ret!(ctx,f,line!(), -1);
+            let res = analyze_PKCS15_DIRRecord_2F00(card, &mut aid);
+            if !res.unwrap_or(false) {
+                return Err(log3ifr_ret!(ctx,f,line!(), -1));
             }
             //println!("AID: {:X?}", &aid.value[..aid.len]);
             card.sm_ctx.info.current_aid = aid;
             let rv = unsafe { sc_select_file(card, &raw const curr_path, null_mut()) };
             if rv != SC_SUCCESS {
-                return log3ifr_ret!(ctx,f,line!(), rv);
+                return Err(log3ifr_ret!(ctx,f,line!(), rv));
             }
         }
 /* */
@@ -427,11 +442,11 @@ fn sm_manage_keyset(card: &mut sc_card) -> i32
             unsafe { sc_dump_hex(card.sm_ctx.info.current_aid.value.as_ptr(), card.sm_ctx.info.current_aid.len) });
 
 //        case SM_TYPE_CWA14890:
-        let rv = sm_cwa_config_get_keyset(ctx, &mut card.sm_ctx.info);
-        if rv < SC_SUCCESS {
-            return log3ifr_ret!(ctx,f,line!(), c"SM acos5 configuration error. Returning with", rv);
+        if let Err(e) = sm_cwa_config_get_keyset(ctx, &mut card.sm_ctx.info) {
+            return Err(log3ifr_ret!(ctx,f,line!(), c"SM acos5 configuration error. Returning with", e));
         }
-        log3ifr_ret!(ctx,f,line!(), rv)
+        log3ifr!(ctx,f,line!(), SC_SUCCESS);
+        Ok(())
     }
 }
 
@@ -446,18 +461,20 @@ timeline:                   *x                *x                *y              
                              <- last cmd: ? -> <- last cmd: x -> <- last cmd: x -> <- last cmd: y -> <- last cmd: x ->
                             =new_session      =dep on timing    =new_session      =new_session
 */
-fn sm_manage_initialize(card: &mut sc_card) -> i32
+#[named]
+fn sm_manage_initialize(card: &mut sc_card) -> Result<(), i32>
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(-1) }
     let ctx = unsafe { &mut *card.ctx };
-    let f = c"sm_manage_initialize";
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let last_sm_cmd = dp.sm_cmd;
     dp.sm_cmd = card.sm_ctx.info.cmd;
     let last_time_stamp = dp.time_stamp;
-    dp.time_stamp = std::time::Instant::now();
+    dp.time_stamp = Instant::now();
     card.drv_data = Box::into_raw(dp).cast::<c_void>();
 
 //println!("elapsed ms: {}, last_sm_cmd: {:X}, this_sm_cmd: {:X}", last_time_stamp.elapsed().as_millis(), last_sm_cmd, card.sm_ctx.info.cmd);
@@ -471,12 +488,13 @@ fn sm_manage_initialize(card: &mut sc_card) -> i32
         }
 
         let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
-        dp.time_stamp = std::time::Instant::now();
+        dp.time_stamp = Instant::now();
         card.drv_data = Box::into_raw(dp).cast::<c_void>();
-        log3ifr_ret!(ctx,f,line!(), rv)
+        Err(log3ifr_ret!(ctx,f,line!(), rv))
     }
     else {
-        log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
+        log3ifr!(ctx,f,line!(), SC_SUCCESS);
+        Ok(())
     }
 }
 
@@ -515,7 +533,7 @@ pub(crate) fn sm_common_read(card: &mut sc_card,
     let f = if bin {c"sm_read_binary"} else {c"sm_read_record"};
     log3if!(ctx,f,line!(), c"called with flags %zu", flags);
 
-    if sm_manage_keyset(card) != SC_SUCCESS || sm_manage_initialize(card) != SC_SUCCESS {
+    if sm_manage_keyset(card).is_err() || sm_manage_initialize(card).is_err() {
         return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_NOT_INITIALIZED);
     }
 
@@ -524,15 +542,15 @@ pub(crate) fn sm_common_read(card: &mut sc_card,
 
 //println!("sm_common_read          get_cs_mac:  {:X?}\n", get_cs_mac(card));
     assert!(buf.len()<256);
-    let count = std::cmp::min(buf.len(), 255);
-    let len_read : u8 = std::cmp::min(if has_ct {239} else {240}, count.try_into().unwrap());
+    let count = min(buf.len(), 255);
+    let len_read : u8 = min(if has_ct {239} else {240}, safe_int_try_from(count));
 ////println!("len_read : {}", len_read);
     let len_read2 : u8 = len_read.next_multiple_of(DES_KEY_SZ_u8);// padding added if required
 ////println!("len_read2: {}", len_read2);
     debug_assert!(len_read2.is_multiple_of(DES_KEY_SZ_u8));
     assert!(len_read2 <= 240);
     let pos : usize = if has_ct {13} else {12};
-    let len_resp = u8::try_from(pos).unwrap() +
+    let len_resp = safe_int_try_from::<usize,u8>(pos) +
         if has_ct { len_read2 + if len_read.is_multiple_of(DES_KEY_SZ_u8) {DES_KEY_SZ_u8} else {0} } else { len_read };
 ////println!("len_resp: {}", len_resp);
     /* cmd without SM: SC_APDU_CASE_2_SHORT; with SM: SC_APDU_CASE_4_SHORT */
@@ -554,7 +572,7 @@ pub(crate) fn sm_common_read(card: &mut sc_card,
         }
         else {
             assert!(idx<32);
-            [0x89_u8,4, 0x0C, 0xB2, u8::try_from(idx).unwrap(),4,  0x97,1,len_read]
+            [0x89_u8,4, 0x0C, 0xB2, safe_int_try_from(idx),4,  0x97,1,len_read]
         };
 
 ////println!("sm_common_read ssc old:                 {:X?}", unsafe { card.sm_ctx.info.session.cwa.ssc });
@@ -581,7 +599,7 @@ pub(crate) fn sm_common_read(card: &mut sc_card,
 
     /* verify mac_resp */
     let mut mac_resp_in = vec![hdr[0],hdr[1],hdr[2],hdr[3],hdr[4],hdr[5], 0x99, 2, 0x90, 0];
-    if has_ct { mac_resp_in.extend_from_slice(&[0x87_u8, len_resp -u8::try_from(pos-1).unwrap(), rbuf[pos-1]]); }
+    if has_ct { mac_resp_in.extend_from_slice(&[0x87_u8, len_resp - safe_int_try_from::<usize,u8>(pos-1), rbuf[pos-1]]); }
     else      { mac_resp_in.extend_from_slice(&[0x81_u8, len_read]); }
     mac_resp_in.extend_from_slice(&rbuf[pos..]);
 
@@ -626,7 +644,7 @@ pub(crate) fn sm_common_update(card: &mut sc_card,
     let f = if bin {c"sm_update_binary"} else {c"sm_update_record"};
     log3if!(ctx,f,line!(), c"called with flags %zu", flags);
 
-    if sm_manage_keyset(card) != SC_SUCCESS || sm_manage_initialize(card) != SC_SUCCESS {
+    if sm_manage_keyset(card).is_err() || sm_manage_initialize(card).is_err() {
         return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_NOT_INITIALIZED);
     }
 
@@ -634,8 +652,8 @@ pub(crate) fn sm_common_update(card: &mut sc_card,
 //println!("sm_common_update        get_cs_enc:  {:X?}\n", get_cs_enc(card));
 //println!("sm_common_update        get_cs_mac:  {:X?}\n", get_cs_mac(card));
     assert!(buf.len()<256);
-    let count = std::cmp::min(buf.len(), 255);
-    let len_update = std::cmp::min(if has_ct {232_u8} else {240_u8/*checked*/},u8::try_from(count).unwrap());
+    let count = min(buf.len(), 255);
+    let len_update = min(if has_ct {232_u8} else {240_u8/*checked*/},safe_int_try_from(count));
 ////println!("len_update : {}", len_update);
     let len_update2 = len_update.next_multiple_of(DES_KEY_SZ_u8); // padding added if required
 ////println!("len_update2: {}", len_update2);
@@ -654,7 +672,7 @@ pub(crate) fn sm_common_update(card: &mut sc_card,
         else {
             assert!(idx<32);
             [0x89_u8,4, 0x0C, if idx==0 && flags==0 {0xE2} else {0xDC},
-                u8::try_from(idx).unwrap(),        if idx==0 && flags==0 {0}    else {4} ]
+                safe_int_try_from(idx),        if idx==0 && flags==0 {0}    else {4} ]
         };
 
 ////println!("sm_common_update ssc old:                 {:X?}", unsafe { card.sm_ctx.info.session.cwa.ssc });
@@ -733,7 +751,7 @@ pub(crate) fn sm_erase_binary(card: &mut sc_card, idx: u16, count: u16, flags: c
     let f = c"sm_erase_binary";
     log3if!(ctx,f,line!(), c"called with flags %zu", flags);
 
-    if sm_manage_keyset(card) != SC_SUCCESS || sm_manage_initialize(card) != SC_SUCCESS {
+    if sm_manage_keyset(card).is_err() || sm_manage_initialize(card).is_err() {
         return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_NOT_INITIALIZED);
     }
 
@@ -817,7 +835,7 @@ pub(crate) fn sm_delete_file(card: &mut sc_card) -> i32
     let f = c"sm_delete_file";
     log3ifc!(ctx,f,line!());
 
-    if sm_manage_keyset(card) != SC_SUCCESS || sm_manage_initialize(card) != SC_SUCCESS {
+    if sm_manage_keyset(card).is_err() || sm_manage_initialize(card).is_err() {
         return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_NOT_INITIALIZED);
     }
 //println!("sm_delete_file          get_cs_enc:  {:X?}\n", get_cs_enc(card));
@@ -860,7 +878,7 @@ pub(crate) fn sm_delete_file(card: &mut sc_card) -> i32
 
 
 //TODO this doesn't work for SM Confidentiality (has_ct==true)
-#[allow(dead_code)]
+#[expect(dead_code, reason = "no usage currently, but that will change")]
 fn sm_create_file(card: &mut sc_card,
                   buf: &[u8], // starting with 0x62
                   has_ct: bool) -> i32
@@ -870,14 +888,14 @@ fn sm_create_file(card: &mut sc_card,
     let f = c"sm_create_file";
     log3ifc!(ctx,f,line!());
 
-    if sm_manage_keyset(card) != SC_SUCCESS || sm_manage_initialize(card) != SC_SUCCESS {
+    if sm_manage_keyset(card).is_err() || sm_manage_initialize(card).is_err() {
         return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_NOT_INITIALIZED);
     }
 
 //println!("sm_create_file          get_cs_enc:  {:X?}\n", get_cs_enc(card));
 //println!("sm_create_file          get_cs_mac:  {:X?}\n", get_cs_mac(card));
-//    let count = std::cmp::min(buf.len(), 255);
-    let len_update = std::cmp::min(if has_ct {232_u8} else {240_u8},u8::try_from(buf.len()).unwrap());
+//    let count = min(buf.len(), 255);
+    let len_update : u8 = min(if has_ct {232_u8} else {240_u8}, safe_int_try_from(buf.len()));
     assert!(buf.len()<= usize::from(len_update));
 ////println!("len_update : {}", len_update);
     let len_update2 = len_update.next_multiple_of(DES_KEY_SZ_u8); // padding added if required
@@ -955,7 +973,7 @@ fn sm_create_file(card: &mut sc_card,
 } // sm_create_file
 
 
-#[allow(clippy::similar_names)]
+#[expect(clippy::similar_names, reason = "..")]
 pub(crate) fn sm_pin_cmd(card: &mut sc_card,
                   pin_cmd_data: &mut sc_pin_cmd_data,
                   tries_left: &mut i32,
@@ -969,7 +987,7 @@ pub(crate) fn sm_pin_cmd(card: &mut sc_card,
     pin_cmd_data.pin1.tries_left = -1;
     *tries_left = pin_cmd_data.pin1.tries_left;
 
-    if sm_manage_keyset(card) != SC_SUCCESS || sm_manage_initialize(card) != SC_SUCCESS {
+    if sm_manage_keyset(card).is_err() || sm_manage_initialize(card).is_err() {
         return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_NOT_INITIALIZED);
     }
 
@@ -979,7 +997,7 @@ pub(crate) fn sm_pin_cmd(card: &mut sc_card,
         SC_PIN_CMD_VERIFY  => 0x20,
         SC_PIN_CMD_CHANGE  => 0x24,
         SC_PIN_CMD_UNBLOCK => 0x2C,
-        _ => panic!("unexpected pin command"),
+        _ => unreachable!("unexpected pin command"),
     };
     let mut pin_data : Vec<u8> = Vec::with_capacity(16);
     pin_data.extend_from_slice(unsafe { from_raw_parts(pin_cmd_data.pin1.data,
@@ -988,7 +1006,7 @@ pub(crate) fn sm_pin_cmd(card: &mut sc_card,
         #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
             pin_cmd_data.pin1.len,
     ) });
-    let mut len_pin = u8::try_from(pin_cmd_data.pin1.len).unwrap();
+    let mut len_pin : u8 = safe_int_try_from(pin_cmd_data.pin1.len);
     if ins == 0x24 || ins == 0x2C {
         len_pin *= 2;
         pin_data.extend_from_slice(unsafe { from_raw_parts(pin_cmd_data.pin2.data,
@@ -1006,7 +1024,7 @@ pub(crate) fn sm_pin_cmd(card: &mut sc_card,
     let pi = u8::from(has_ct && ! len_pin.is_multiple_of(DES_KEY_SZ_u8));
 ////println!("pi: {}", pi);
     /* cmd without SM: SC_APDU_CASE_3_SHORT; with SM: SC_APDU_CASE_4_SHORT */
-    let hdr = [0x89_u8,4, 0x0C, ins, 0, u8::try_from(pin_cmd_data.pin_reference).unwrap()];
+    let hdr = [0x89_u8,4, 0x0C, ins, 0, safe_int_try_from(pin_cmd_data.pin_reference)];
 ////println!("sm_pin_cmd ssc old:                 {:X?}", unsafe { card.sm_ctx.info.session.cwa.ssc });
     sm_incr_ssc(card);
 ////println!("sm_pin_cmd ssc new:                 {:X?}", unsafe { card.sm_ctx.info.session.cwa.ssc });
@@ -1081,25 +1099,25 @@ pub(crate) fn sm_pin_cmd(card: &mut sc_card,
     log3ifr_ret!(ctx,f,line!(), rv)
 }
 
-pub(crate) fn sm_pin_cmd_get_policy(card: &mut sc_card,
+#[named]
+pub(crate) fn sm_pin_cmd_get_policy(card: &mut sc_card, ctx: &mut sc_context,
                              pin_cmd_data: &mut sc_pin_cmd_data/*, pin_reference: u8*/,
-                             tries_left: &mut i32) -> i32
+                             tries_left: &mut i32) -> Result<i32, i32>
 {
-    assert!(!card.ctx.is_null());
-    let ctx = unsafe { &mut *card.ctx };
-    let f = c"sm_pin_cmd_get_policy";
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
+    let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
     pin_cmd_data.pin1.tries_left = -1;
     *tries_left = pin_cmd_data.pin1.tries_left;
 
-    if sm_manage_keyset(card) != SC_SUCCESS || sm_manage_initialize(card) != SC_SUCCESS {
-        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_NOT_INITIALIZED);
+    if sm_manage_keyset(card).is_err() || sm_manage_initialize(card).is_err() {
+        return Err(log3ifr_ret!(ctx,f,line!(), SC_ERROR_SM_NOT_INITIALIZED));
     }
 //println!("sm_pin_cmd_get_policy   get_cs_enc:  {:X?}\n", get_cs_enc(card));
 //println!("sm_pin_cmd_get_policy   get_cs_mac:  {:X?}\n", get_cs_mac(card));
     /* cmd without SM: SC_APDU_CASE_1; with SM: SC_APDU_CASE_4_SHORT */
-    let hdr = [0x89_u8,4, 0x0C, 0x20, 0, u8::try_from(pin_cmd_data.pin_reference).unwrap()];
+    let hdr = [0x89_u8,4, 0x0C, 0x20, 0, safe_int_try_from(pin_cmd_data.pin_reference)];
 ////println!("sm_common_read ssc old:                 {:X?}", unsafe { card.sm_ctx.info.session.cwa.ssc });
     sm_incr_ssc(card);
     let mut ivec = unsafe { card.sm_ctx.info.session.cwa.ssc };
@@ -1109,16 +1127,16 @@ pub(crate) fn sm_pin_cmd_get_policy(card: &mut sc_card,
     let cmd  = [hdr[2],hdr[3],hdr[4],hdr[5], 6, 0x8E,4, mac_cmd[0],mac_cmd[1],mac_cmd[2],mac_cmd[3], 10];
     let mut rbuf = [0; 10];
     let mut apdu = build_apdu(ctx, &cmd, SC_APDU_CASE_4_SHORT, &mut rbuf);
-    assert_eq!(apdu.le, rbuf.len());
-    let mut rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
+    if apdu.le != rbuf.len() { return Err(log3ifr_ret!(ctx,f,line!(), -1)); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        return log3ifr_ret!(ctx,f,line!(), rv);
+        return Err(log3ifr_ret!(ctx,f,line!(), rv));
     }
 
     if !(u32::from(rbuf[2]) == 0x63 && (u32::from(rbuf[3]) & 0xC0) == 0xC0) {
         log3if!(ctx,f,line!(), c"Error: 'Get remaining number of retries left for the PIN' failed");
-        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_KEYPAD_MSG_TOO_LONG);
+        return Err(log3ifr_ret!(ctx,f,line!(), SC_ERROR_KEYPAD_MSG_TOO_LONG));
     }
 
 
@@ -1137,5 +1155,5 @@ pub(crate) fn sm_pin_cmd_get_policy(card: &mut sc_card,
     else {
         rv = SC_ERROR_SM;
     }
-    log3ifr_ret!(ctx,f,line!(), rv)
+    Ok(log3ifr_ret!(ctx,f,line!(), rv))
 }

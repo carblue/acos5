@@ -18,14 +18,12 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
 
-#![allow(clippy::module_name_repetitions)]
+//#![allow(clippy::module_name_repetitions)]
 
 use std::ffi::CString;
 use function_name::named;
 use opensc_sys::opensc::sc_card;
-use opensc_sys::types::sc_path;/*, SC_MAX_PATH_SIZE*/
-//use opensc_sys::log::sc_dump_hex;
-//use opensc_sys::errors::SC_SUCCESS;
+use opensc_sys::types::{sc_path, SC_MAX_PATH_SIZE};
 
 use crate::constants_types::{DataPrivate, FDB_CHV_EF, FDB_CYCLIC_EF, FDB_DF, FDB_ECC_KEY_EF, FDB_LINEAR_FIXED_EF,
                              FDB_LINEAR_VARIABLE_EF, FDB_MF, FDB_PURSE_EF, FDB_RSA_KEY_EF, FDB_SE_FILE,
@@ -38,7 +36,16 @@ use crate::wrappers::wr_do_log_t;
 #[must_use]
 pub(crate) fn file_id_from_cache_current_path(card: &sc_card) -> u16
 {
-    file_id_from_path_value(&card.cache.current_path.value[..card.cache.current_path.len])
+    cfg_if::cfg_if! {
+    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
+        file_id_from_path_value(&card.cache.current_path.value[..card.cache.current_path.len])
+    }
+    else {
+        let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
+        let res = file_id_from_path_value(&dp.card_cache.current_path.value[..dp.card_cache.current_path.len]);
+        let _unused = Box::leak(dp);
+        res
+     } }
 }
 
 /*
@@ -48,22 +55,30 @@ pub(crate) fn file_id_from_cache_current_path(card: &sc_card) -> u16
  * @return
  */
 #[named]
-pub(crate) fn current_path_df(card: &mut sc_card) -> &[u8]
+pub(crate) fn current_path_df(card: &mut sc_card) -> Vec<u8> //&[u8]
 {
-    let len = card.cache.current_path.len;
-    assert!(len>=2);
-    debug_assert_eq!(card.cache.current_path.value[0], 0x3F);
-    debug_assert_eq!(card.cache.current_path.value[1], 0);
-    let file_id = u16::from_be_bytes([card.cache.current_path.value[len-2], card.cache.current_path.value[len-1]]);
-
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
+    cfg_if::cfg_if! {
+    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
+        let cp = &card.cache.current_path;
+    }
+    else {
+        let cp = &dp.card_cache.current_path;
+    } }
+    let len = cp.len;
+    assert!(len>=2);
+    debug_assert_eq!(cp.value[0], 0x3F);
+    debug_assert_eq!(cp.value[1], 0);
+    let file_id = u16::from_be_bytes([cp.value[len-2], cp.value[len-1]]);
+
+    //let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     assert!(dp.files.contains_key(&file_id));
     let fdb = dp.files[&file_id].1[0];
-    let _unused = Box::leak(dp);
 
     if ![FDB_MF, FDB_DF, FDB_TRANSPARENT_EF, FDB_LINEAR_FIXED_EF, FDB_LINEAR_VARIABLE_EF, FDB_CYCLIC_EF, FDB_SE_FILE,
         FDB_RSA_KEY_EF, FDB_CHV_EF, FDB_SYMMETRIC_KEY_EF, FDB_PURSE_EF, FDB_ECC_KEY_EF].contains(&fdb) {
         assert!(!card.ctx.is_null());
+        #[expect(clippy::expect_used, reason = "..")]
         let f_cstr = CString::new(function_name!()).expect("CString::new failed");
         let f = f_cstr.as_c_str();
         log3if!(unsafe { &mut *card.ctx },f , line!(),
@@ -71,7 +86,10 @@ pub(crate) fn current_path_df(card: &mut sc_card) -> &[u8]
         unreachable!("Encountered unknown FDB");
     }
     assert!(is_DFMF(fdb) || len>=4);
-    &card.cache.current_path.value[..len - if is_DFMF(fdb) {0} else {2}]
+    let mut res : Vec<u8> = Vec::with_capacity(SC_MAX_PATH_SIZE);
+    res.extend_from_slice(&cp.value[..len - if is_DFMF(fdb) {0} else {2}]);
+    let _unused = Box::leak(dp);
+    res
 }
 
 /* select_file target is known to be non-selectable (reserved or erroneous file id) */

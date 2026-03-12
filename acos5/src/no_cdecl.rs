@@ -18,24 +18,26 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
 
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::manual_dangling_ptr)]
+//#![allow(clippy::too_many_lines)]
+#![allow(clippy::manual_dangling_ptr, reason = "..")]
 
 use std::os::raw::{c_char, c_ulong, c_void};
 use std::ffi::{CStr, CString};
 use std::fs;//::{read/*, write*/};
 use std::ptr::null_mut;
 use std::slice::from_raw_parts;
+use std::cmp::min;
+//use std::ptr::dangling_mut;
+use std::io::{Error, ErrorKind};
 use function_name::named;
 use opensc_sys::opensc::{sc_card, sc_pin_cmd_data, sc_security_env, sc_transmit_apdu,
-                         sc_read_record, sc_format_path, sc_select_file, sc_check_sw, //SC_ALGORITHM_RSA_PAD_PKCS1,
+                         sc_read_record, sc_format_path, sc_select_file, sc_check_sw,
                          SC_RECORD_BY_REC_NR, SC_PIN_ENCODING_ASCII, SC_READER_SHORT_APDU_MAX_RECV_SIZE,
                          SC_SEC_ENV_ALG_PRESENT, SC_SEC_ENV_FILE_REF_PRESENT, SC_ALGORITHM_RSA, SC_SEC_ENV_KEY_REF_PRESENT,
                          SC_ALGORITHM_3DES, SC_ALGORITHM_DES, sc_get_iso7816_driver, SC_SEC_ENV_ALG_REF_PRESENT,
-                         sc_file_get_acl_entry, sc_check_apdu, sc_list_files, //sc_format_apdu, sc_file_new,
+                         sc_file_get_acl_entry, sc_check_apdu, sc_list_files,
                          sc_set_security_env, sc_get_challenge, sc_get_mf_path, SC_ALGORITHM_EC,
-                         SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_ALGORITHM_AES
-                         /*,SC_PIN_STATE_LOGGED_IN, SC_PIN_STATE_LOGGED_OUT, SC_PIN_STATE_UNKNOWN*/};
+                         SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_DECIPHER, SC_ALGORITHM_AES, sc_context};
 use opensc_sys::opensc::{sc_sec_env_param, SC_SEC_ENV_PARAM_IV, SC_SEC_OPERATION_UNWRAP,
                          SC_ALGORITHM_AES_CBC_PAD, SC_ALGORITHM_AES_CBC, SC_ALGORITHM_AES_ECB
 };
@@ -88,7 +90,7 @@ use crate::constants_types::{ATR_MASK, ATR_V2, ATR_V3, BLOCKCIPHER_PAD_TYPE_ANSI
                              file_id_from_path_value, file_id_se,
                              CRT_TAG_HT, CRT_TAG_CCT, CRT_TAG_DST, CRT_TAG_CT,
                              SC_SEC_OPERATION_GENERATE_ECCPRIVATE, SC_SEC_OPERATION_GENERATE_ECCPUBLIC,
-                             prev_multiple_of
+                             prev_multiple_of, safe_int_try_from
 };
 use crate::se::{se_parse_sac, se_get_is_scb_suitable_for_sm_has_ct};
 use crate::path::{cut_path, file_id_from_cache_current_path, current_path_df, is_impossible_file_match};
@@ -99,7 +101,7 @@ use crate::crypto::{RAND_bytes, des_ecb3_unpadded_8, Encrypt};
 
 //use super::acos5_process_fci;/*, acos5_list_files, acos5_select_file, acos5_set_security_env*/
 
-#[allow(dead_code)] // currently unused
+#[expect(dead_code, reason = "currently unused")]
 #[cold]
 #[must_use]
 fn sc_ac_op_name_from_idx(idx: usize) -> &'static CStr
@@ -150,12 +152,12 @@ key_host_reference must be enabled for External Authentication and it's Error Co
 ///
 #[named]
 pub(crate) fn authenticate_external(card: &mut sc_card, key_host_reference: u8, key_host: &[u8]) -> Result<bool, i32> {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
-    assert_eq!(24, key_host.len());
+    if key_host.len() != 24 { return Err(SC_ERROR_INVALID_ARGUMENTS); } //assert_eq!(24, key_host.len());
     if key_host_reference==0 || (key_host_reference&0x7F)>31 {
         return Err(log3ifr_ret!(ctx,f,line!(), SC_ERROR_INVALID_ARGUMENTS));
     }
@@ -188,12 +190,12 @@ pub(crate) fn authenticate_external(card: &mut sc_card, key_host_reference: u8, 
 ///
 #[named]
 pub(crate) fn authenticate_internal(card: &mut sc_card, key_card_reference: u8, key_card: &[u8]) -> Result<bool, i32> {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
-    assert_eq!(24, key_card.len());
+    if key_card.len() != 24 { return Err(SC_ERROR_INVALID_ARGUMENTS); } //assert_eq!(24, key_card.len());
     let mut rv = unsafe {
         RAND_bytes(card.sm_ctx.info.session.cwa.host_challenge.as_mut_ptr(), i32::from(SM_SMALL_CHALLENGE_LEN_u8))
     };
@@ -223,23 +225,23 @@ pub(crate) fn authenticate_internal(card: &mut sc_card, key_card_reference: u8, 
 /// # Panics
 ///
 #[named]
-pub(crate) fn logout_pin(card: &mut sc_card, reference: u8) -> i32 {
-    assert!(!card.ctx.is_null());
-    let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+pub(crate) fn logout_pin(card: &mut sc_card, ctx: &mut sc_context, reference: u8) -> Result<(), i32> {
+    #[expect(clippy::expect_used, reason = "..")]
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
-    if reference == 0  ||  reference & 0x7F > 31 {
-        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_INVALID_ARGUMENTS);
+    if reference == 0  ||  (reference & 0x7F) > 31 {
+        return Err(log3ifr_ret!(ctx,f,line!(), SC_ERROR_INVALID_ARGUMENTS));
     }
 
     let mut apdu = build_apdu(ctx, &[0x80, 0x2E, 0, reference], SC_APDU_CASE_1, &mut[]);
-    let mut rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
+    let mut rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS {
-        return log3ifr_ret!(ctx,f,line!(), c"Error: ACOS5 'Logout command' failed. Returning with", SC_ERROR_CARD_CMD_FAILED);
+        return Err(log3ifr_ret!(ctx,f,line!(), c"Error: ACOS5 'Logout command' failed. Returning with", SC_ERROR_CARD_CMD_FAILED));
     }
-    log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
+    log3ifr!(ctx,f,line!(), SC_SUCCESS);
+    Ok(())
 }
 
 // reference: 1..=31
@@ -247,12 +249,13 @@ pub(crate) fn logout_pin(card: &mut sc_card, reference: u8) -> i32 {
 ///
 /// # Panics
 ///
-#[allow(dead_code)]
+#[expect(dead_code, reason = "..")]
 #[cold]
 #[named]
 fn logout_key(card: &mut sc_card, reference: u8) -> i32 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
+    #[expect(clippy::expect_used, reason = "..")]
     let f_cstr = CString::new(function_name!()).expect("CString::new failed");
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
@@ -400,7 +403,7 @@ fn iso7816_select_file_replica(card: &mut sc_card, in_path_ref: &sc_path, file_o
         apdu.p2 = 0;        /* first record, return FCI */
         apdu.resp = buf.as_mut_ptr();
         apdu.resplen = buf.len();
-        apdu.le = std::cmp::min(me_get_max_recv_size(card), 256);
+        apdu.le = min(me_get_max_recv_size(card), 256);
     }
 
     r = unsafe { sc_transmit_apdu(card, &mut apdu) };
@@ -510,22 +513,32 @@ pub(crate) fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    #[expect(clippy::expect_used, reason = "..")]
+    let f_cstr = CString::new(function_name!()).expect("CString::new failed"); // .map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     let fmt_1   = c"    called. curr_type: %d, curr_value: %s, force_process_fci: %d";
     let fmt_2   = c"              to_type: %d,   to_value: %s";
     let fmt_3   = c"returning:  curr_type: %d, curr_value: %s, rv=%d";
-    log3if!(ctx,f,line!(), fmt_1, card.cache.current_path.type_,
-        unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, force_process_fci);
+    cfg_if::cfg_if! {
+    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
+        let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
+        log3if!(ctx,f,line!(), fmt_1, card.cache.current_path.type_,
+            unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, force_process_fci);
+    }
+    else {
+        let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
+        log3if!(ctx,f,line!(), fmt_1, dp.card_cache.current_path.type_,
+            unsafe {sc_dump_hex(dp.card_cache.current_path.value.as_ptr(), dp.card_cache.current_path.len)}, force_process_fci);
+    } }
     log3if!(ctx,f,line!(), fmt_2, path_ref.type_, unsafe {sc_dump_hex(path_ref.value.as_ptr(), path_ref.len)});
     let mut file = null_mut();
     let guard_file = GuardFile::new(&raw mut file);
 //println!("file_out.is_null: {}", file_out.is_none());
     let file_tmp : Option<&mut *mut sc_file> = if force_process_fci {unsafe{guard_file.as_mut()}} else {file_out};
-    #[allow(clippy::unnecessary_unwrap)]
+    #[expect(clippy::expect_used, reason = "iso7816_driver DOES implement the method 'select_file'")]
     let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).select_file.
         expect("The OpenSC iso7816_driver didn't implement the method 'select_file' !")
-        (card, path_ref, if file_tmp.is_some() {file_tmp.unwrap()} else {&raw mut file} ) };
+        (card, path_ref, if let Some(val) = file_tmp {val} else {&raw mut file} ) };
 //    let rv = iso7816_select_file_replica(card, path_ref, &mut file_tmp);
     let mut file_id : u16 = 0;
 /*
@@ -557,23 +570,36 @@ pub(crate) fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_
               SC_ERROR_SECURITY_STATUS_NOT_SATISFIED ].contains(&rv) {
         // file got selected
         if path_ref.type_ == SC_PATH_TYPE_FILE_ID {
-            file_id = if path_ref.value[0..2] == [0x3F_u8, 0xFF][..] {file_id_from_path_value(current_path_df(card))}
+            file_id = if path_ref.value[0..2] == [0x3F_u8, 0xFF][..] {file_id_from_path_value(&current_path_df(card))}
                       else {u16::from_be_bytes([path_ref.value[0], path_ref.value[1]])};
         }
-        let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         assert!(dp.files.contains_key(&file_id));
         let dp_files_value = &dp.files[&file_id];
-        card.cache.current_path.value = dp_files_value.0;
-        card.cache.current_path.len   = usize::from(dp_files_value.1[1]);
-        let _unused = Box::leak(dp);
+        cfg_if::cfg_if! {
+        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
+            card.cache.current_path.value = dp_files_value.0;
+            card.cache.current_path.len   = usize::from(dp_files_value.1[1]);
+        }
+        else {
+            dp.card_cache.current_path.value = dp_files_value.0;
+            dp.card_cache.current_path.len   = usize::from(dp_files_value.1[1]);
+        } }
     }
     else {
         unreachable!("calling `iso7816_select_file_replica` returned the error code rv: {rv}. Function \
             `tracking_select_file` doesn't yet handle that error (whether to adapt card.cache.current_path?)");
     }
 
-    log3if!(ctx,f,line!(), fmt_3, card.cache.current_path.type_,
-        unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, rv);
+    cfg_if::cfg_if! {
+    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
+        log3if!(ctx,f,line!(), fmt_3, card.cache.current_path.type_,
+            unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, rv);
+    }
+    else {
+        log3if!(ctx,f,line!(), fmt_3, dp.card_cache.current_path.type_,
+            unsafe {sc_dump_hex(dp.card_cache.current_path.value.as_ptr(), dp.card_cache.current_path.len)}, rv);
+    } }
+    let _unused = Box::leak(dp);
     rv
 }
 
@@ -598,7 +624,7 @@ pub(crate) fn select_file_by_path(card: &mut sc_card, path_ref: &sc_path, file_o
         return SC_ERROR_INVALID_ARGUMENTS;
     }
     let mut path1 = *path_ref;
-    cut_path(&mut path1.value[..path1.len], &mut path1.len, current_path_df(card));
+    cut_path(&mut path1.value[..path1.len], &mut path1.len, &current_path_df(card));
     if  !path1.len.is_multiple_of(2) || path1.len==0 {
         return SC_ERROR_CARD_CMD_FAILED;
     }
@@ -689,6 +715,7 @@ pub(crate) fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
+    #[expect(clippy::expect_used, reason = "..")]
     let f_cstr = CString::new(function_name!()).expect("CString::new failed");
     let f = f_cstr.as_c_str();
     let mut fmt   = c"called for path: %s";
@@ -696,10 +723,11 @@ pub(crate) fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/
 
     let file_id = file_id_from_path_value(&path_ref.value[..path_ref.len]);
     let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
-    let mut dp_files_value = dp.files.get_mut(&file_id).unwrap();
+    #[expect(clippy::expect_used, reason = "..")]
+    let mut dp_files_value = dp.files.get_mut(&file_id).expect("");
     let fdb = dp_files_value.1[0];
     dp_files_value.0    = path_ref.value;
-    dp_files_value.1[1] = u8::try_from(path_ref.len).unwrap();
+    dp_files_value.1[1] = safe_int_try_from(path_ref.len);
     /* assumes meaningful values in dp_files_value.1 */
     let mrl = usize::from(dp_files_value.1[4]); // MRL: Max. Record Length; this is correct only if the file is record-based
     let nor  = u32::from(dp_files_value.1[5]);   // NOR: Number Of Records
@@ -804,7 +832,8 @@ pub(crate) fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/
 
         let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         assert!(dp.files.contains_key(&file_id_dir));
-        dp_files_value = dp.files.get_mut(&file_id_dir).unwrap(); // &mut tuple
+        #[expect(clippy::expect_used, reason = "..")]
+        { dp_files_value = dp.files.get_mut(&file_id_dir).expect(""); } // &mut tuple
         /* DF's SAE processing was done already, i.e. dp_files_value.3 may be Some */
         dp_files_value.3.get_or_insert(Vec::new()).extend_from_slice(&vec_sac_info);
         card.drv_data = Box::into_raw(dp).cast::<c_void>();
@@ -835,7 +864,7 @@ pub(crate) fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/
                 return log3ifr_ret!(ctx,f,line!(), rv);
             }
             // debug_assert!(rv.is_multiple_of(2));
-            files_contained.truncate(usize::try_from(rv).unwrap());
+            files_contained.truncate(safe_int_try_from(rv));
             /* * /
                     println!("chunk1 files_contained: {:?}", &files_contained[  ..32]);
                     println!("chunk2 files_contained: {:?}", &files_contained[32..64]);
@@ -883,6 +912,7 @@ fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*,
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
+    #[expect(clippy::expect_used, reason = "..")]
     let f_cstr = CString::new(function_name!()).expect("CString::new failed");
     let f = f_cstr.as_c_str();
     let mut fmt   = c"called for path: %s";
@@ -910,10 +940,11 @@ fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*,
         else {
             let mut files_contained= vec![0_u8; 2*255];
             rv = unsafe { sc_list_files(card, files_contained.as_mut_ptr(), files_contained.len()) };
+            #[expect(clippy::modulo_arithmetic, reason = "..")]
             if rv < SC_SUCCESS || (rv%2)==1 {
                 return log3ifr_ret!(ctx,f,line!(), rv);
             }
-            files_contained.truncate(usize::try_from(rv).unwrap());
+            files_contained.truncate(safe_int_try_from(rv));
             for chunk in files_contained.chunks_exact(2) {
                 let mut tmp_path = *path_ref;
                 tmp_path.value[tmp_path.len  ] = chunk[0];
@@ -932,23 +963,22 @@ fn enum_dir_gui(card: &mut sc_card, path_ref: &sc_path/*, only_se_df: bool*/ /*,
 
 
 ///
-/// # Errors
-///
 /// # Panics
 /// # Errors
 ///
 pub(crate) fn convert_amdo_to_cla_ins_p1_p2_array(amdo_tag: u8, amdo_bytes: &[u8]) -> Result<[u8; 4], i32> //Access Mode Data Object
 {
-    assert!(!amdo_bytes.is_empty() && amdo_bytes.len() <= 4);
+    if amdo_bytes.is_empty() || amdo_bytes.len() > 4 { return Err(SC_ERROR_INVALID_ARGUMENTS); }
+    //assert!(!amdo_bytes.is_empty() && amdo_bytes.len() <= 4);
     let amb = amdo_tag&0x0F;
-    assert!(amb>0);
-    if amdo_bytes.len() != amb.count_ones().try_into().unwrap() { // the count of 1-valued bits of amb Byte must equal  the count of bytes following amb
+    if amb==0 { return Err(-1); } // assert!(amb>0);
+    if amdo_bytes.len() != safe_int_try_from(amb.count_ones()) { // the count of 1-valued bits of amb Byte must equal  the count of bytes following amb
         return Err(SC_ERROR_KEYPAD_MSG_TOO_LONG);
     }
     let mut idx = 0;
     let mut cla_ins_p1_p2 = [0_u8; 4];
     for (pos, item) in cla_ins_p1_p2.iter_mut().enumerate() { // for pos in 0..4
-        if (amb & (0b1000 >> u8::try_from(pos).unwrap())) != 0 { //assert(i);we should never get anything for scb8[7], it's not used by ACOS
+        if (amb & (0b1000 >> pos)) != 0 { //assert(i);we should never get anything for scb8[7], it's not used by ACOS
             *item = amdo_bytes[idx];
             idx += 1;
         }
@@ -969,6 +999,7 @@ This MUST match exactly how *mut sc_acl_entry are added in acos5_process_fci or 
 /// # Panics
 /// # Errors
 ///
+#[expect(clippy::as_conversions, reason = "..")]
 pub(crate) fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl: &[*mut sc_acl_entry; SC_MAX_AC_OPS], acl_category: u8) -> Result<[u8; 8], i32>
 {
     // let ctx = unsafe { &mut *card.ctx };
@@ -978,14 +1009,14 @@ pub(crate) fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl
     let mut result = [0x7F_u8,0,0,0,0,0,0,0];
     match acl_category {
         ACL_CATEGORY_SE => {
-            let p = acl[usize::try_from(SC_AC_OP_READ).unwrap()];
+            let p = acl[safe_int_try_from::<u32,usize>(SC_AC_OP_READ)];
             if p.is_null() {                      result[7] = 0; }
             else if p==(1 as *mut sc_acl_entry) { result[7] = 0xFF; }
             else if p==(2 as *mut sc_acl_entry) { result[7] = 0; }
             else if p==(3 as *mut sc_acl_entry) { result[7] = 0xFF; }
         },
         ACL_CATEGORY_DF_MF => {
-            let mut p = acl[usize::try_from(SC_AC_OP_DELETE).unwrap()];
+            let mut p = acl[safe_int_try_from::<u32,usize>(SC_AC_OP_DELETE)];
             if p.is_null() {                      result[7] = 0; }
             else if p==(1 as *mut sc_acl_entry) { result[7] = 0xFF; }
             else if p==(2 as *mut sc_acl_entry) { result[7] = 0; }
@@ -995,9 +1026,9 @@ pub(crate) fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl
 //println!("SC_AC_OP_DELETE sc_acl_entry: {:?}", *p_ref );
                 if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
                 { return Err(SC_ERROR_NOT_ALLOWED); }
-                result[7] = u8::try_from(p_ref.key_ref).unwrap();
+                result[7] = safe_int_try_from(p_ref.key_ref);
             }
-            p = acl[usize::try_from(SC_AC_OP_CREATE_EF).unwrap()];
+            p = acl[safe_int_try_from::<u32,usize>(SC_AC_OP_CREATE_EF)];
             if p.is_null() {                      result[6] = 0; }
             else if p==(1 as *mut sc_acl_entry) { result[6] = 0xFF; }
             else if p==(2 as *mut sc_acl_entry) { result[6] = 0; }
@@ -1007,9 +1038,9 @@ pub(crate) fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl
 //println!("SC_AC_OP_CREATE_EF sc_acl_entry: {:?}", *p_ref );
                 if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
                 { return Err(SC_ERROR_NOT_ALLOWED); }
-                result[6] = u8::try_from(p_ref.key_ref).unwrap();
+                result[6] = safe_int_try_from(p_ref.key_ref);
             }
-            p = acl[usize::try_from(SC_AC_OP_CREATE_DF).unwrap()];
+            p = acl[safe_int_try_from::<u32,usize>(SC_AC_OP_CREATE_DF)];
             if p.is_null() {                      result[5] = 0; }
             else if p==(1 as *mut sc_acl_entry) { result[5] = 0xFF; }
             else if p==(2 as *mut sc_acl_entry) { result[5] = 0; }
@@ -1019,11 +1050,11 @@ pub(crate) fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl
 //println!("SC_AC_OP_CREATE_DF sc_acl_entry: {:?}", *p_ref );
                 if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
                 { return Err(SC_ERROR_NOT_ALLOWED); }
-                result[5] = u8::try_from(p_ref.key_ref).unwrap();
+                result[5] = safe_int_try_from(p_ref.key_ref);
             }
         }
         ACL_CATEGORY_KEY => {
-            let mut p = acl[usize::try_from(SC_AC_OP_READ).unwrap()];
+            let mut p = acl[safe_int_try_from::<u32,usize>(SC_AC_OP_READ)];
             if p.is_null() {                      result[7] = 0; }
             else if p==(1 as *mut sc_acl_entry) { result[7] = 0xFF; }
             else if p==(2 as *mut sc_acl_entry) { result[7] = 0; }
@@ -1033,9 +1064,9 @@ pub(crate) fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl
 //println!("SC_AC_OP_READ sc_acl_entry: {:?}", *p_ref );
                 if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
                 { return Err(SC_ERROR_NOT_ALLOWED); }
-                result[7] = u8::try_from(p_ref.key_ref).unwrap();
+                result[7] = safe_int_try_from(p_ref.key_ref);
             }
-            p = acl[usize::try_from(SC_AC_OP_UPDATE).unwrap()];
+            p = acl[safe_int_try_from::<u32,usize>(SC_AC_OP_UPDATE)];
             if p.is_null() {                      result[6] = 0; }
             else if p==(1 as *mut sc_acl_entry) { result[6] = 0xFF; }
             else if p==(2 as *mut sc_acl_entry) { result[6] = 0; }
@@ -1045,9 +1076,9 @@ pub(crate) fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl
 //println!("SC_AC_OP_UPDATE sc_acl_entry: {:?}", *p_ref );
                 if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
                 { return Err(SC_ERROR_NOT_ALLOWED); }
-                result[6] = u8::try_from(p_ref.key_ref).unwrap();
+                result[6] = safe_int_try_from(p_ref.key_ref);
             }
-            p = acl[usize::try_from(SC_AC_OP_CRYPTO).unwrap()];
+            p = acl[safe_int_try_from::<u32,usize>(SC_AC_OP_CRYPTO)];
             if p.is_null() {                      result[5] = 0; }
             else if p==(1 as *mut sc_acl_entry) { result[5] = 0xFF; }
             else if p==(2 as *mut sc_acl_entry) { result[5] = 0; }
@@ -1057,11 +1088,11 @@ pub(crate) fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl
 //println!("SC_AC_OP_CRYPTO sc_acl_entry: {:?}", *p_ref );
                 if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
                 { return Err(SC_ERROR_NOT_ALLOWED); }
-                result[5] = u8::try_from(p_ref.key_ref).unwrap();
+                result[5] = safe_int_try_from(p_ref.key_ref);
             }
         }
         ACL_CATEGORY_EF_CHV => {
-            let mut p = acl[usize::try_from(SC_AC_OP_READ).unwrap()];
+            let mut p = acl[safe_int_try_from::<u32,usize>(SC_AC_OP_READ)];
             if p.is_null() {                      result[7] = 0; }
             else if p==(1 as *mut sc_acl_entry) { result[7] = 0xFF; }
             else if p==(2 as *mut sc_acl_entry) { result[7] = 0; }
@@ -1071,9 +1102,9 @@ pub(crate) fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl
 //println!("SC_AC_OP_READ sc_acl_entry: {:?}", *p_ref );
                 if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
                 { return Err(SC_ERROR_NOT_ALLOWED); }
-                result[7] = u8::try_from(p_ref.key_ref).unwrap();
+                result[7] = safe_int_try_from(p_ref.key_ref);
             }
-            p = acl[usize::try_from(SC_AC_OP_UPDATE).unwrap()];
+            p = acl[safe_int_try_from::<u32,usize>(SC_AC_OP_UPDATE)];
             if p.is_null() {                      result[6] = 0; }
             else if p==(1 as *mut sc_acl_entry) { result[6] = 0xFF; }
             else if p==(2 as *mut sc_acl_entry) { result[6] = 0; }
@@ -1083,12 +1114,12 @@ pub(crate) fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl
 //println!("SC_AC_OP_UPDATE sc_acl_entry: {:?}", *p_ref );
                 if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
                 { return Err(SC_ERROR_NOT_ALLOWED); }
-                result[6] = u8::try_from(p_ref.key_ref).unwrap();
+                result[6] = safe_int_try_from(p_ref.key_ref);
             }
         },
         _ => (),
     }
-    let mut p = acl[usize::try_from(SC_AC_OP_INVALIDATE).unwrap()];
+    let mut p = acl[safe_int_try_from::<u32,usize>(SC_AC_OP_INVALIDATE)];
     if p.is_null() {                      result[4] = 0; }
     else if p==(1 as *mut sc_acl_entry) { result[4] = 0xFF; }
     else if p==(2 as *mut sc_acl_entry) { result[4] = 0; }
@@ -1098,10 +1129,10 @@ pub(crate) fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl
 //println!("SC_AC_OP_INVALIDATE sc_acl_entry: {:?}", *p_ref );
         if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
         { return Err(SC_ERROR_NOT_ALLOWED); }
-        result[4] = u8::try_from(p_ref.key_ref).unwrap();
+        result[4] = safe_int_try_from(p_ref.key_ref);
     }
 
-    p = acl[usize::try_from(SC_AC_OP_REHABILITATE).unwrap()];
+    p = acl[safe_int_try_from::<u32,usize>(SC_AC_OP_REHABILITATE)];
     if p.is_null() {                      result[3] = 0; }
     else if p==(1 as *mut sc_acl_entry) { result[3] = 0xFF; }
     else if p==(2 as *mut sc_acl_entry) { result[3] = 0; }
@@ -1111,10 +1142,10 @@ pub(crate) fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl
 //println!("SC_AC_OP_REHABILITATE sc_acl_entry: {:?}", *p_ref );
         if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
         { return Err(SC_ERROR_NOT_ALLOWED); }
-        result[3] = u8::try_from(p_ref.key_ref).unwrap();
+        result[3] = safe_int_try_from(p_ref.key_ref);
     }
 
-    p = acl[usize::try_from(SC_AC_OP_LOCK).unwrap()];
+    p = acl[safe_int_try_from::<u32,usize>(SC_AC_OP_LOCK)];
     if p.is_null() {                      result[2] = 0; }
     else if p==(1 as *mut sc_acl_entry) { result[2] = 0xFF; }
     else if p==(2 as *mut sc_acl_entry) { result[2] = 0; }
@@ -1124,10 +1155,10 @@ pub(crate) fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl
 //println!("SC_AC_OP_LOCK sc_acl_entry: {:?}", *p_ref );
         if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
         { return Err(SC_ERROR_NOT_ALLOWED); }
-        result[2] = u8::try_from(p_ref.key_ref).unwrap();
+        result[2] = safe_int_try_from(p_ref.key_ref);
     }
 
-    p = acl[usize::try_from(SC_AC_OP_DELETE_SELF).unwrap()];
+    p = acl[safe_int_try_from::<u32,usize>(SC_AC_OP_DELETE_SELF)];
     if p.is_null() {                      result[1] = 0; }
     else if p==(1 as *mut sc_acl_entry) { result[1] = 0xFF; }
     else if p==(2 as *mut sc_acl_entry) { result[1] = 0; }
@@ -1137,7 +1168,7 @@ pub(crate) fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl
 //println!("SC_AC_OP_DELETE_SELF sc_acl_entry: {:?}", *p_ref );
         if !SC_AC_FLAGS_ALL_ALLOWED.contains(&p_ref.method)
         { return Err(SC_ERROR_NOT_ALLOWED); }
-        result[1] = u8::try_from(p_ref.key_ref).unwrap();
+        result[1] = safe_int_try_from(p_ref.key_ref);
     }
 
     Ok(result)
@@ -1154,12 +1185,10 @@ pub(crate) fn convert_acl_array_to_bytes_tag_fcp_sac(/*card: &mut sc_card,*/ acl
 /// # Panics
 ///
 #[named]
-pub(crate) fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tries_left: &mut i32) -> i32
+pub(crate) fn pin_get_policy(card: &mut sc_card, ctx: &mut sc_context, data: &mut sc_pin_cmd_data, tries_left: &mut i32) -> Result<i32, i32>
 {
 /* when is AODF read for the pin details info info ? */
-    assert!(!card.ctx.is_null());
-    let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
@@ -1181,13 +1210,13 @@ pub(crate) fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tri
 
     data.pin1.max_tries = 8;//pin_tries_max; /* Used for signaling back from SC_PIN_CMD_GET_INFO */ /* assume: 8 as factory setting; max allowed number of retries is unretrievable with proper file access condition NEVER read */
 
-    let mut apdu = build_apdu(ctx, &[0x00_u8, 0x20, 0x00, u8::try_from(data.pin_reference).unwrap()], SC_APDU_CASE_1, &mut[]);
-    let rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return log3ifr_ret!(ctx,f,line!(), rv); }
+    let mut apdu = build_apdu(ctx, &[0x00_u8, 0x20, 0x00, safe_int_try_from(data.pin_reference)], SC_APDU_CASE_1, &mut[]);
+    let rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     if apdu.sw1 == 0x63 && ((apdu.sw2 & 0xC0) == 0xC0) {}
     else {
-        return log3ifr_ret!(ctx,f,line!(), c"Error: 'Get remaining number of retries left for the PIN' failed. Returning with", SC_ERROR_KEYPAD_MSG_TOO_LONG);
+        return Err(log3ifr_ret!(ctx,f,line!(), c"Error: 'Get remaining number of retries left for the PIN' failed. Returning with", SC_ERROR_KEYPAD_MSG_TOO_LONG));
     }
-    data.pin1.tries_left = i32::try_from(apdu.sw2 & 0x0F_u32).unwrap(); //  63 Cnh     n is remaining tries
+    data.pin1.tries_left = safe_int_try_from(apdu.sw2 & 0x0F_u32); //  63 Cnh     n is remaining tries
     *tries_left = data.pin1.tries_left;
 /*
     if card.type_ == SC_CARD_TYPE_ACOS5_64_V3 {
@@ -1200,7 +1229,7 @@ pub(crate) fn pin_get_policy(card: &mut sc_card, data: &mut sc_pin_cmd_data, tri
 //        data.pin1.logged_in = SC_PIN_STATE_LOGGED_IN; // without this, session will be closed for pkcs11-tool -t -l, since v0.20.0
     }
 */
-    log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
+    Ok(log3ifr_ret!(ctx,f,line!(), SC_SUCCESS))
 }
 
 #[must_use]
@@ -1400,7 +1429,6 @@ fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
     }
     card.drv_data = Box::into_raw(dp).cast::<c_void>();
 }
-//std::cmp::min(512,outlen)
 
 /// # Safety
 ///
@@ -1410,7 +1438,7 @@ fn set_sec_env_mod_len(card: &mut sc_card, env_ref: &sc_security_env)
 ///
 /// # Panics
 ///
-#[allow(dead_code)]
+#[expect(dead_code, reason = "..")]
 #[cold]
 fn encrypt_public_rsa(card_ptr: *mut sc_card, signature: *const u8, siglen: usize)
 {
@@ -1439,7 +1467,7 @@ fn encrypt_public_rsa(card_ptr: *mut sc_card, signature: *const u8, siglen: usiz
     apdu.data    = signature;
     apdu.datalen = siglen;
     apdu.lc      = siglen;
-    apdu.le      = std::cmp::min(siglen, SC_READER_SHORT_APDU_MAX_RECV_SIZE);
+    apdu.le      = min(siglen, SC_READER_SHORT_APDU_MAX_RECV_SIZE);
     if apdu.lc > card.max_send_size {
         apdu.flags |= SC_APDU_FLAGS_CHAINING;
     }
@@ -1517,7 +1545,7 @@ pub(crate) fn encrypt_asym(card: &mut sc_card, crypt_data: &mut CardCtlGenerateA
     apdu.data    = crypt_data.data.as_ptr();
     apdu.datalen = crypt_data.data_len;
     apdu.lc      = crypt_data.data_len;
-    apdu.le      = std::cmp::min(crypt_data.data_len, SC_READER_SHORT_APDU_MAX_RECV_SIZE);
+    apdu.le      = min(crypt_data.data_len, SC_READER_SHORT_APDU_MAX_RECV_SIZE);
     if apdu.lc > card.max_send_size {
         apdu.flags |= SC_APDU_FLAGS_CHAINING;
     }
@@ -1559,6 +1587,7 @@ pub(crate) fn generate_asym(card: &mut sc_card, data: &mut CardCtlGenerateAsymCr
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
+    #[expect(clippy::expect_used, reason = "..")]
     let f_cstr = CString::new(function_name!()).expect("CString::new failed");
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
@@ -1621,7 +1650,7 @@ pub(crate) fn generate_asym(card: &mut sc_card, data: &mut CardCtlGenerateAsymCr
 
   This function refers only to hash algorithms other than sha1 / sha256
 */
-#[allow(non_snake_case)]
+#[expect(non_snake_case, reason = "..")]
 #[must_use]
 pub(crate) fn is_any_known_digestAlgorithm(digest_info: &[u8]) -> bool
 { //                                        sha224  sha384 sha512
@@ -1740,7 +1769,7 @@ fn trailing_blockcipher_padding_get_length(
     last_block_values: &[u8]
 ) -> Result<u8,i32> // in general: 0 <= result_len <= block_size, but different for some padding_type
 {
-    assert_eq!(usize::from(block_size), last_block_values.len());
+    if usize::from(block_size) != last_block_values.len() { return Err(SC_ERROR_INVALID_ARGUMENTS); } // assert_eq!(usize::from(block_size), last_block_values.len());
     match padding_type {
         BLOCKCIPHER_PAD_TYPE_ZEROES => {
             let mut cnt = 0_u8;
@@ -1814,7 +1843,7 @@ Ok(0)
 ///
 /// # Errors
 ///
-#[allow(clippy::match_bool)]
+#[expect(clippy::match_bool, reason = "..")]
 pub(crate) fn algo_ref_mse_sedo(card_type: i32, // one of: SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, SC_CARD_TYPE_ACOS5_EVO_V4
                          sec_operation: i32, // required only for CRT_TAG_DST: one of: SC_SEC_OPERATION_SIGN, SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_SEC_OPERATION_GENERATE_ECCPRIVATE
                          sedo_tag: u8,   // one of: (CRT_TAG_AT, CRT_TAG_KAT,) CRT_TAG_HT, CRT_TAG_CCT, CRT_TAG_DST, CRT_TAG_CT
@@ -1981,14 +2010,15 @@ pub(crate) fn algo_ref_sym_store(card_type: i32,
 
 ///
 /// # Errors
+#[expect(clippy::absolute_paths, reason = "..")]
 fn vecu8_from_file(path_ptr: *const c_char) -> std::io::Result<Vec<u8>>
 {
     if path_ptr.is_null() {
-        return Err(std::io::Error::other("oh no!"));
+        return Err(Error::other("oh no!"));
     }
     let path_str = match unsafe { CStr::from_ptr(path_ptr).to_str() } {
         Ok(path) => path,
-        Err(_e) => return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "oh no!")),
+        Err(_e) => return Err(Error::new(ErrorKind::InvalidInput, "oh no!")),
     };
     fs::read(path_str)
 }
@@ -2011,12 +2041,13 @@ but the other input methods `infile` and `indata` (for acos5_gui) still need to 
 ///
 /// # Panics
 ///
-#[allow(non_snake_case)]
+#[expect(non_snake_case, reason = "..")]
 #[named]
 pub(crate) fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt) -> i32
 {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
+    #[expect(clippy::expect_used, reason = "..")]
     let f_cstr = CString::new(function_name!()).expect("CString::new failed");
     let f = f_cstr.as_c_str();
     log3if!(ctx,f,line!(), if crypt_sym.encrypt {c"called for encryption"}
@@ -2028,7 +2059,7 @@ pub(crate) fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt
     let mut vec_in = Vec::new();
     let Len1: usize;
     if crypt_sym.infile.is_null() && crypt_sym.inbuf.is_null() {
-        indata_len = std::cmp::min(crypt_sym.indata_len, crypt_sym.indata.len());
+        indata_len = min(crypt_sym.indata_len, crypt_sym.indata.len());
         Len1 = indata_len;
         indata_ptr = crypt_sym.indata.as_ptr();
     }
@@ -2041,17 +2072,18 @@ pub(crate) fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt
             Len1 = crypt_sym.indata_len; // for ECB and CBC this is Len2 ! Len1 is not known
         }
         else {
-            Len1 = crypt_sym.indata_len.saturating_sub(
-            usize:: from(trailing_blockcipher_padding_get_length(
-                crypt_sym.block_size,
-                crypt_sym.pad_type,
+            Len1 = crypt_sym.indata_len.saturating_sub( usize:: from(
+                    #[expect(clippy::expect_used, reason = "..")]
+                    trailing_blockcipher_padding_get_length(
+                        crypt_sym.block_size,
+                        crypt_sym.pad_type,
                 &vec_in[len.saturating_sub(crypt_sym.block_size.into()) .. len]
-            ).unwrap() ) );// -> Result<u8,i32>
+            ).expect("") ) );// -> Result<u8,i32>
         }
         if crypt_sym.encrypt && (crypt_sym.algorithm_flags & SC_ALGORITHM_AES_CBC_PAD) > 0 {
             debug_assert_eq!(BLOCKCIPHER_PAD_TYPE_PKCS7, crypt_sym.pad_type);
             vec_in.extend_from_slice(&trailing_blockcipher_padding_calculate(crypt_sym.block_size, crypt_sym.pad_type,
-                u8::try_from(len- prev_multiple_of(len, block_size)).unwrap()) );
+             safe_int_try_from(len- prev_multiple_of(len, block_size))) );
 //println!("acos5_encrypt_sym {:02X?}", vec_in.as_slice());
         }
         indata_len = vec_in.len();
@@ -2059,9 +2091,10 @@ pub(crate) fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt
         debug_assert!(indata_len.is_multiple_of(block_size));
     }
     else {
+        #[expect(clippy::expect_used, reason = "..")]
         vec_in.extend_from_slice(match vecu8_from_file(crypt_sym.infile) {
             Ok(vec) => vec,
-            Err(e) => return e.raw_os_error().unwrap(),
+            Err(e) => return e.raw_os_error().expect(""),
         }.as_ref());
         indata_len = vec_in.len();
         Len1 = indata_len;
@@ -2118,6 +2151,7 @@ pub(crate) fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt
     // let condition      = condition_weak && crypt_sym.perform_mse;
 
     let mut senv = sc_security_env::default();
+    #[expect(clippy::expect_used, reason = "..")]
     if crypt_sym.perform_mse || condition_weak {
         /* Security Environment */
         senv = sc_security_env {
@@ -2126,9 +2160,9 @@ pub(crate) fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt
             algorithm: if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else if crypt_sym.key_len==8 {SC_ALGORITHM_DES} else {SC_ALGORITHM_3DES},
             key_ref: [crypt_sym.key_ref, 0,0,0,0,0,0,0],
             key_ref_len: 1,
-            algorithm_ref: algo_ref_mse_sedo(card.type_, 0, CRT_TAG_CT,
+            algorithm_ref: safe_int_try_from(algo_ref_mse_sedo(card.type_, 0, CRT_TAG_CT,
                 if crypt_sym.block_size==16 {SC_ALGORITHM_AES} else if crypt_sym.key_len==8 {SC_ALGORITHM_DES} else {SC_ALGORITHM_3DES},
-                         0, crypt_sym.cbc, false).unwrap().into(),
+                         0, crypt_sym.cbc, false).expect("") ),
             ..sc_security_env::default()
         };
         // { senv.flags |= SC_SEC_ENV_KEY_REF_SYMMETRIC; }
@@ -2203,7 +2237,7 @@ pub(crate) fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt
         if !crypt_sym.cbc || Len2-cnt <= max_send || condition_weak { apdu.cla = 0 }
         // if cnt < Len0 {
         apdu.data = unsafe { indata_ptr.add(cnt) };
-        apdu.datalen = std::cmp::min(max_send, Len2-cnt);
+        apdu.datalen = min(max_send, Len2-cnt);
         /* correct IV for next loop cycle */
         if condition_weak {
             crypt_sym.iv.copy_from_slice(unsafe { from_raw_parts(indata_ptr.add(cnt + apdu.datalen - block_size), block_size) });
@@ -2247,7 +2281,8 @@ pub(crate) fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt
         let len_padding = trailing_blockcipher_padding_get_length(crypt_sym.block_size, crypt_sym.pad_type,
                                                             &last_block_values[..block_size]);
         if len_padding.is_err() { return log3ifr_ret!(ctx,f,line!(), SC_ERROR_KEYPAD_TIMEOUT); }
-        crypt_sym.outdata_len = cnt - usize::from(len_padding.unwrap());
+        #[expect(clippy::expect_used, reason = "..")]
+        { crypt_sym.outdata_len = cnt - usize::from(len_padding.expect("")); }
     }
 
     if !crypt_sym.encrypt {
@@ -2267,16 +2302,17 @@ pub(crate) fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt
         let path_str = match path.to_str() {
             Ok(path_str) => path_str,
             Err(e) =>
-                return log3ifr_ret!(ctx,f,line!(), i32::try_from(e.valid_up_to()).unwrap()),
+                return log3ifr_ret!(ctx,f,line!(), safe_int_try_from(e.valid_up_to())),
         };
+        #[expect(clippy::expect_used, reason = "..")]
         match fs::write(path_str, vec_out) {
             Ok(()) => (),
             Err(e) =>
-                return log3ifr_ret!(ctx,f,line!(), e.raw_os_error().unwrap()),
+                return log3ifr_ret!(ctx,f,line!(), e.raw_os_error().expect("")),
         }
     }
 
-    rv = i32::try_from(crypt_sym.outdata_len).unwrap();
+    rv = safe_int_try_from(crypt_sym.outdata_len);
     log3if!(ctx,f,line!(), if crypt_sym.encrypt {c"encryption: returning with %d"}
                            else {c"decryption: returning with %d"}, rv);
     rv
@@ -2290,9 +2326,9 @@ pub(crate) fn sym_en_decrypt(card: &mut sc_card, crypt_sym: &mut CardCtlSymCrypt
 #[named]
 pub(crate) fn files_hashmap_info(card: &mut sc_card, key: u16) -> Result<[u8; 32], i32>
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
@@ -2314,6 +2350,7 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
         let dp_files_value_ref = &dp.files[&key];
             rbuf[ 0.. 8].copy_from_slice(&dp_files_value_ref.1);
             rbuf[ 8..24].copy_from_slice(&dp_files_value_ref.0);
+        #[expect(clippy::pattern_type_mismatch, reason = "despite the mismatch, it works !")]
         if let Some(scb8) = &dp_files_value_ref.2 {
             rbuf[24..32].copy_from_slice(scb8);
         }
@@ -2349,6 +2386,7 @@ File Info actually:    {FDB, *,   FILE ID, FILE ID, *,           *,           *,
 pub(crate) fn update_hashmap(card: &mut sc_card) {
     assert!(!card.ctx.is_null());
     let ctx = unsafe { &mut *card.ctx };
+    #[expect(clippy::expect_used, reason = "..")]
     let f_cstr = CString::new(function_name!()).expect("CString::new failed");
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
@@ -2361,13 +2399,17 @@ pub(crate) fn update_hashmap(card: &mut sc_card) {
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let fmt1  = c"key: %04X, val.1: %s";
     let fmt2  = c"key: %04X, val.2: %s";
-    for (key, val) in &dp.files {
+    let mut keys = dp.files.keys().clone().collect::<Vec<_>>();
+    keys.sort();
+    for key in &keys {
+        let val = &dp.files[key];
         if let Some(scb8) = val.2 {
-            log3if!(ctx,f,line!(), fmt1, *key, unsafe { sc_dump_hex(val.1.as_ptr(), 8) });
-            log3if!(ctx,f,line!(), fmt2, *key, unsafe { sc_dump_hex(scb8.as_ptr(), 8) });
+            log3if!(ctx,f,line!(), fmt1, **key, unsafe { sc_dump_hex(val.1.as_ptr(), 8) });
+            log3if!(ctx,f,line!(), fmt2, **key, unsafe { sc_dump_hex(scb8.as_ptr(), 8) });
         }
     }
-    for (key, val) in &dp.files {
+    for key in keys {
+        let val = &dp.files[key];
         if val.2.is_none() {
             log3if!(ctx,f,line!(), fmt1, *key, unsafe { sc_dump_hex(val.1.as_ptr(), 8) });
         }
@@ -2386,10 +2428,10 @@ pub(crate) fn common_read(card: &mut sc_card,
                    idx: u16,
                    buf: &mut [u8],
                    flags: c_ulong,
-                   bin: bool) -> i32
+                   bin: bool) -> Result<i32, i32>
 {
     if card.ctx.is_null() {
-        return SC_ERROR_INVALID_ARGUMENTS;
+        return Err(SC_ERROR_INVALID_ARGUMENTS);
     }
     let ctx = unsafe { &mut *card.ctx };
     let f = if bin {c"common_read for acos5_read_binary"} else {c"common_read for acos5_read_record"};
@@ -2399,58 +2441,60 @@ pub(crate) fn common_read(card: &mut sc_card,
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     let x = &dp.files[&file_id];
     let fdb      = x.1[0];
-    assert!(x.2.is_some());
-    let scb_read = x.2.unwrap()[0];
+    #[expect(clippy::expect_used, reason = "..")]
+    let scb_read = x.2.expect("")[0];
     let _unused = Box::leak(dp);
 
     if scb_read == 0xFF {
-        log3ifr_ret!(ctx,f,line!(),
+        Err(log3ifr_ret!(ctx,f,line!(),
             if bin {c"No read_binary will be done: The file has acl NEVER READ"}
             else   {c"No read_record will be done: The file has acl NEVER READ"},
-                SC_ERROR_SECURITY_STATUS_NOT_SATISFIED)
+                SC_ERROR_SECURITY_STATUS_NOT_SATISFIED))
     }
     else if (scb_read & 0x40) == 0x40 {
         let res_se_sm = if (scb_read & 0x40) == 0x40 { se_get_is_scb_suitable_for_sm_has_ct
             (card, file_id, scb_read & 0x0F) } else { (false, false) };
         if res_se_sm.0 {
             card.sm_ctx.info.cmd = SM_CMD_FILE_READ;
-            log3ifr_ret!(ctx,f,line!(), sm_common_read(card, idx, buf, flags, bin, res_se_sm.1, fdb))
+            Ok(log3ifr_ret!(ctx,f,line!(), sm_common_read(card, idx, buf, flags, bin, res_se_sm.1, fdb)))
         }
         else {
-            log3ifr_ret!(ctx,f,line!(),
+            Err(log3ifr_ret!(ctx,f,line!(),
                 if bin {c"No read_binary will be done: The file has acl SM-protected READ"}
                 else   {c"No read_record will be done: The file has acl SM-protected READ"},
-                    SC_ERROR_SECURITY_STATUS_NOT_SATISFIED)
+                    SC_ERROR_SECURITY_STATUS_NOT_SATISFIED))
         }
     }
     else if bin && [FDB_RSA_KEY_EF, FDB_ECC_KEY_EF].contains(&fdb) {
         card.cla = 0x80;
 ////println!("common_read for acos5_read_binary: buf.len(): {}, idx: {}", buf.len(), idx);
-        let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).get_data.unwrap()
+        #[expect(clippy::expect_used, reason = "..")]
+        let rv = unsafe { (*(*sc_get_iso7816_driver()).ops).get_data.expect("")
             (card, u32::from(idx), buf.as_mut_ptr(), buf.len()) };
         card.cla = 0;
-        log3ifr_ret!(ctx,f,line!(), rv)
+        Ok(log3ifr_ret!(ctx,f,line!(), rv))
     }
     else { unsafe { cfg_if::cfg_if! {
         if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
             if bin {
-                (*(*sc_get_iso7816_driver()).ops).read_binary.unwrap()
+                (*(*sc_get_iso7816_driver()).ops).read_binary.expect("")
                 (card, u32::from(idx), buf.as_mut_ptr(), buf.len(), flags)
             }
             else {
-                (*(*sc_get_iso7816_driver()).ops).read_record.unwrap()
+                (*(*sc_get_iso7816_driver()).ops).read_record.expect("")
                 (card, u32::from(idx), buf.as_mut_ptr(), buf.len(), flags)
             }
         }
         else {
+            #[expect(clippy::expect_used, reason = "..")]
             if bin {
                 let mut myflags: c_ulong = flags;
-                log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).read_binary.unwrap()
-                    (card, u32::from(idx), buf.as_mut_ptr(), buf.len(), &raw mut myflags))
+                Ok(log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).read_binary.expect("")
+                    (card, u32::from(idx), buf.as_mut_ptr(), buf.len(), &raw mut myflags)))
             }
             else {
-                log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).read_record.unwrap()
-                    (card, u32::from(idx), 0, buf.as_mut_ptr(), buf.len(), flags))
+                Ok(log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).read_record.expect("")
+                    (card, u32::from(idx), 0, buf.as_mut_ptr(), buf.len(), flags)))
             }
         }
     } } }
@@ -2479,7 +2523,8 @@ pub(crate) fn common_update(card: &mut sc_card,
     let x = &dp.files[&file_id];
     let fdb      = x.1[0];
     assert!(x.2.is_some());
-    let scb_update = x.2.unwrap()[1];
+    #[expect(clippy::expect_used, reason = "..")]
+    let scb_update = x.2.expect("")[1];
     let _unused = Box::leak(dp);
     // idx==0 means 'append_record' is requested
     if !bin && idx==0 && ![FDB_LINEAR_VARIABLE_EF, FDB_CYCLIC_EF, FDB_SYMMETRIC_KEY_EF, FDB_SE_FILE].contains(&fdb) {
@@ -2511,21 +2556,23 @@ pub(crate) fn common_update(card: &mut sc_card,
     }
     else {
         unsafe {
-            #[allow(clippy::collapsible_else_if)]
+            //#[expect(clippy::collapsible_else_if, reason = "..")]
+            #[expect(clippy::expect_used, reason = "..")]
             if !bin && idx==0 && flags==0 {
-                log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).append_record.unwrap()(card, buf.as_ptr(), buf.len(), flags))
+                log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).append_record.expect("")(card, buf.as_ptr(), buf.len(), flags))
             }
             else { cfg_if::cfg_if! {
                 if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
-                    if bin { log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).update_binary.unwrap()
+                    if bin { log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).update_binary.expect("")
                         (card, u32::from(idx), buf.as_ptr(), buf.len(), flags)) }
-                    else   { log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).update_record.unwrap()
+                    else   { log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).update_record.expect("")
                         (card, u32::from(idx), buf.as_ptr(), buf.len(), flags)) }
                 }
                 else {
-                    if bin { log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).update_binary.unwrap()
+                #[expect(clippy::expect_used, reason = "..")]
+                if bin { log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).update_binary.expect("")
                         (card, u32::from(idx),    buf.as_ptr(), buf.len(), flags)) }
-                    else   { log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).update_record.unwrap()
+                    else   { log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).update_record.expect("")
                         (card, u32::from(idx), 0, buf.as_ptr(), buf.len(), flags)) }
                 }
             }
@@ -2594,7 +2641,7 @@ mod tests {
     fn test_convert_bytes_tag_fcp_sac_to_scb_array_panic() {
         // the complete TLV : [0x8C, 0x07,  0x7D, 0x02, 0x03, 0x04, 0xFF, 0xFF, 0x02]
         let bytes_tag_fcp_sac = [0x8C, 0x07,  0x7D, 0x02, 0x03, 0x04, 0xFF, 0xFF, 0x02];
-        let scb8 = convert_bytes_tag_fcp_sac_to_scb_array(&bytes_tag_fcp_sac).unwrap();
+        let scb8 = convert_bytes_tag_fcp_sac_to_scb_array(&bytes_tag_fcp_sac).expect("bytes_tag_fcp_sac.len() > 8");
         assert_eq!(scb8, [0x02, 0x00, 0xFF, 0xFF, 0x04, 0x03, 0x02, 0xFF]);
     }
 

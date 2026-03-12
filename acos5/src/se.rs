@@ -74,7 +74,7 @@ what to be shown in opensc-tool -f
 For SAE (Security Attributes Expanded), TODO
 */
 
-#![allow(clippy::module_name_repetitions)]
+//#![expect(clippy::module_name_repetitions, reason = "..")]
 
 use opensc_sys::opensc::{sc_card, sc_file_add_acl_entry};
 use opensc_sys::types::{sc_file, sc_crt, SC_AC_NONE, SC_AC_NEVER, SC_AC_UNKNOWN, SC_AC_KEY_REF_NONE,
@@ -89,7 +89,7 @@ use opensc_sys::asn1::{sc_asn1_read_tag, SC_ASN1_TAG_EOC};
 
 use crate::constants_types::{DataPrivate, FDB_RSA_KEY_EF, FDB_SE_FILE, FDB_SYMMETRIC_KEY_EF, SACinfo, SAEinfo, Tlv,
                              is_DFMF, FDB_ECC_KEY_EF, UPDATE, CRYPTO, DELETE_SELF, CREATE_EF, CREATE_DF,
-                             file_id_from_path_value /*, p_void*/};
+                             file_id_from_path_value, safe_int_try_from};
 use crate::path::current_path_df;
 
 /*
@@ -183,7 +183,7 @@ fn se_file_add_acl_entry(card: &mut sc_card, file: &mut sc_file, scb: u8, op: u3
         assert_eq!(SC_SUCCESS, rv);
     }
     else {
-        let file_id = u16::try_from(file.id).unwrap();
+        let file_id : u16 = safe_int_try_from(file.id);
         let res_se_sm = if (scb & 0x40) == 0 {(false,false)}
                                     else {se_get_is_scb_suitable_for_sm_has_ct(card, file_id, scb & 0x0F)};
         let pin_ref = se_get_references(card, file_id, scb & 0x0F, &sc_crt::new_AT(0x08), false);
@@ -350,6 +350,7 @@ pub(crate) fn se_get_references(card: &mut sc_card, file_id: u16, se_reference: 
                 u16::from_be_bytes([dp_files_value.0[path_len-4], dp_files_value.0[path_len-3]])
             };
 //        println!("file_id_dir: {:X}", file_id_dir);
+        #[expect(clippy::pattern_type_mismatch, reason = "despite the mismatch, it works !")]
         if let Some(vec_sac_info) = &dp.files[&file_id_dir].3 {
             for sac_info in vec_sac_info {
                 if sac_info.reference == u32::from(se_reference) {
@@ -398,6 +399,7 @@ pub(crate) fn se_get_is_scb_suitable_for_sm_has_ct(card: &mut sc_card, file_id: 
                                     u16::from_be_bytes([dp_files_value.0[path_len-4], dp_files_value.0[path_len-3]])
                                 };
 //        println!("file_id_dir: {:X}", file_id_dir);
+        #[expect(clippy::pattern_type_mismatch, reason = "despite the mismatch, it works !")]
         if let Some(vec_sac_info) = &dp.files[&file_id_dir].3 {
             for sac_info in vec_sac_info {
                 if sac_info.reference == u32::from(se_reference) {
@@ -419,28 +421,28 @@ pub(crate) fn se_get_is_scb_suitable_for_sm_has_ct(card: &mut sc_card, file_id: 
                         break;
                     }
 */
-                    #[allow(non_snake_case)]
+                    #[expect(non_snake_case, reason = "..")]
                     let search_template_CCT = sc_crt::new_CCT(0x30);
-                    #[allow(non_snake_case)]
+                    #[expect(non_snake_case, reason = "..")]
                     let mut CCT_found = false;
                     for crt in &sac_info.crts[0..sac_info.crts_len] {
                         if crt.tag   != search_template_CCT.tag   { continue; }
                         if (crt.usage & search_template_CCT.usage) != search_template_CCT.usage { continue; }
                         if crt.algo  != 0x02   { continue; }
-                        if ![0x84_u8, 0x81, 0x82, 0x83, 1,2,3].contains(&(u8::try_from(crt.refs[0]).unwrap())) { continue; }
+                        if ![0x84_u8, 0x81, 0x82, 0x83, 1,2,3].contains(&(safe_int_try_from::<u32,u8>(crt.refs[0]))) { continue; }
                         CCT_found = true;
                         break;
                     }
 
-                    #[allow(non_snake_case)]
+                    #[expect(non_snake_case, reason = "..")]
                     let search_template_CT = sc_crt::new_CT(0x30);
-                    #[allow(non_snake_case)]
+                    #[expect(non_snake_case, reason = "..")]
                     let mut CT_found = false;
                     for crt in &sac_info.crts[0..sac_info.crts_len] {
                         if crt.tag   != search_template_CT.tag   { continue; }
                         if (crt.usage & search_template_CT.usage) != search_template_CT.usage   { continue; }
                         if crt.algo  != 0x02   { continue; }
-                        if ![0x84_u8, 0x81, 0x82, 0x83, 1,2,3].contains(&(u8::try_from(crt.refs[0]).unwrap())) { continue; }
+                        if ![0x84_u8, 0x81, 0x82, 0x83, 1,2,3].contains(&(safe_int_try_from::<u32,u8>(crt.refs[0]))) { continue; }
                         CT_found = true;
                         break;
                     }
@@ -457,10 +459,11 @@ pub(crate) fn se_get_is_scb_suitable_for_sm_has_ct(card: &mut sc_card, file_id: 
 pub(crate) fn se_get_sae_scb(card: &mut sc_card, cla_ins_p1_p2: [u8; 4]) -> u8
 {
     let mut scb = 0;
-    let file_id_dir = file_id_from_path_value(current_path_df(card));
+    let file_id_dir = file_id_from_path_value(&current_path_df(card));
 
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     assert!(dp.files.contains_key(&file_id_dir));
+    #[expect(clippy::pattern_type_mismatch, reason = "despite the mismatch, it works !")]
     if let Some(vec_sae_info) = &dp.files[&file_id_dir].4 {
         for sae_info in vec_sae_info {
             if sae_info.ins == cla_ins_p1_p2[1] {
@@ -521,7 +524,7 @@ pub(crate) fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], 
     while buflen_remaining > 0 {
         let mut rv = unsafe{sc_asn1_read_tag(&raw mut data_ptr, buflen_remaining, &raw mut cla_out, &raw mut tag_out, &raw mut taglen)};
         if  rv != SC_SUCCESS || tag_out == SC_ASN1_TAG_EOC {
-            return i32::try_from(data.len() - buflen_remaining).unwrap();
+            return safe_int_try_from::<usize,i32>(data.len() - buflen_remaining);
         }
         assert!(!data_ptr.is_null());
         buflen_remaining -= 2;
@@ -538,7 +541,7 @@ pub(crate) fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], 
             assert_eq!(rv, SC_SUCCESS);
             taglen_remaining -= 2 + taglen; // for taglen>0, the data_ptr must still be updated to point to the next TLV
             buflen_remaining -= 2 + taglen;
-            match u8::try_from(cla_out | tag_out).unwrap() {
+            match safe_int_try_from::<u32,u8>(cla_out | tag_out) {
                 0x80 => {
                     assert_eq!(taglen, 1);
                     unsafe {
@@ -574,14 +577,15 @@ pub(crate) fn se_parse_sac(/*card: &mut sc_card,*/ reference: u32, data: &[u8], 
         idx_crts += 1;
     }
 
-    i32::try_from(data.len() - buflen_remaining).unwrap()
+    safe_int_try_from::<usize,i32>(data.len() - buflen_remaining)
 }
 
 
 /// # Errors
 ///
 /// Will return `Err` if there are errors in the SAE encoding
-#[allow(clippy::similar_names)]
+#[expect(clippy::panic_in_result_fn, reason = "..")]
+#[expect(clippy::similar_names, reason = "..")]
 pub(crate) fn se_parse_sae(vec_sac_info_opt: &mut Option<Vec<SACinfo>>, value_bytes_tag_fcp_sae: &[u8]) -> Result<Vec<SAEinfo>, i32>
 {
     use crate::no_cdecl::convert_amdo_to_cla_ins_p1_p2_array;

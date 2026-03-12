@@ -26,7 +26,7 @@ use opensc_sys::types::{sc_serial_number, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_CARD_CMD_FAILED, SC_ERROR_INVALID_ARGUMENTS,
                          SC_ERROR_NO_CARD_SUPPORT};
 
-use crate::constants_types::{build_apdu, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3};
+use crate::constants_types::{build_apdu, SC_CARD_TYPE_ACOS5_64_V2, SC_CARD_TYPE_ACOS5_64_V3, safe_int_try_from};
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_rv_ret, wr_do_log_sds, wr_do_log_sds_ret};
 //use crate::missing_exports::me_apdu_get_length;
 
@@ -41,9 +41,12 @@ use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_rv_ret, wr_do_log_sds, 
 /// `SC_CARD_TYPE_ACOS5_64_V3` if not in FIPS mode, otherwise 8 bytes, or an `OpenSC` error
 ///
 /// # Panics
+/// No assert-macro involved, but the macro `function_name` may fail and a `try_from` used, which can NOT panic !
 ///
 /// # Errors
-/// If the  macro `function_name` fails
+/// If the `card` argument has wrong content (ctx)
+/// If `sc_transmit_apdu` returns an error code
+/// If `sc_transmit_apdu` returns a status response word which is NOT 0x9000, or the serial no response is shorter than expected
 ///
 /// Will return `Result::Err` if `sc_transmit_apdu` or `sc_check_sw` fails, or `apdu.resplen` is wrong (for the card type),
 /// though this never happened so far. Thus its save to unwrap/expect the Ok variant.
@@ -64,7 +67,7 @@ pub(crate) fn serial_no(card: &mut sc_card) -> Result<sc_serial_number, i32>
 {
     if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
     if card.serialnr.len > 0 {
@@ -77,7 +80,7 @@ pub(crate) fn serial_no(card: &mut sc_card) -> Result<sc_serial_number, i32>
     //debug_assert!(SC_MAX_SERIALNR >= len_serial_num);
     let mut serial = sc_serial_number::default();
     let mut apdu = build_apdu(ctx, &[0x80, 0x14, 0, 0, u8::try_from(len_serial_num).
-        expect("len_serial_num is neither 6 nor 8  ")], SC_APDU_CASE_2_SHORT, &mut serial.value);
+        map_err(|_x| -1)?], SC_APDU_CASE_2_SHORT, &mut serial.value); // expect("len_serial_num is neither 6 nor 8  ")
     let mut rv = unsafe { sc_transmit_apdu(card, &raw mut apdu) };  if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); }
     rv = unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) };
     if rv != SC_SUCCESS || apdu.resplen != len_serial_num {
@@ -123,7 +126,7 @@ pub(crate) fn count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
 {
     if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
@@ -139,9 +142,9 @@ pub(crate) fn count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
         that would be impossible with more than 255 children in a DF: I.e. checking for duplicates would be incomplete
         and all assertions that any file is contained in  HashMap files  would be wrong !
     */
-    assert!(apdu.sw2 <= 255, "There are more than 255 children in this DF !");
+    if apdu.sw2 > 255 { return Err(-1); } // assert!(apdu.sw2 <= 255, "There are more than 255 children in this DF !");
     log3ifr!(ctx,f,line!(), SC_SUCCESS);
-    Ok(u16::try_from(apdu.sw2).unwrap())
+    Ok(safe_int_try_from(apdu.sw2))
 }
 
 
@@ -162,9 +165,9 @@ pub(crate) fn count_files_curr_df(card: &mut sc_card) -> Result<u16, i32>
 #[named]
 pub(crate) fn file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -> Result<[u8; 8], i32>
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
@@ -195,9 +198,9 @@ pub(crate) fn file_info(card: &mut sc_card, reference: u8 /*starting from 0*/) -
 #[named]
 pub(crate) fn free_space(card: &mut sc_card) -> Result<u32, i32>
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
@@ -226,9 +229,9 @@ pub(crate) fn free_space(card: &mut sc_card) -> Result<u32, i32>
 #[named]
 pub(crate) fn is_ident_self_okay(card: &mut sc_card, candidate_card_type: i32) -> Result<bool, i32> // get_ident_self
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
@@ -256,10 +259,10 @@ pub(crate) fn is_ident_self_okay(card: &mut sc_card, candidate_card_type: i32) -
 #[named]
 pub(crate) fn cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
 //    let active_protocol = unsafe { &mut *card.reader }.active_protocol;
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
@@ -286,9 +289,9 @@ pub(crate) fn cos_version(card: &mut sc_card) -> Result<[u8; 8], i32>
 #[named]
 pub(crate) fn manufacture_date(card: &mut sc_card) -> Result<u32, i32>
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
@@ -314,9 +317,9 @@ pub(crate) fn manufacture_date(card: &mut sc_card) -> Result<u32, i32>
 #[named]
 pub(crate) fn rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
@@ -344,9 +347,9 @@ pub(crate) fn rom_sha1(card: &mut sc_card) -> Result<[u8; 20], i32>
 #[named]
 pub(crate) fn op_mode_byte(card: &mut sc_card, candidate_card_type: i32) -> Result<u8, i32>
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
@@ -376,7 +379,7 @@ pub(crate) fn op_mode_byte(card: &mut sc_card, candidate_card_type: i32) -> Resu
              1: Default Mode (Non-FIPS)            (factory default) RECOMMENDED FOR THIS DRIVER !!!
         */
         log3ifr!(ctx,f,line!(), SC_SUCCESS);
-        Ok(u8::try_from(apdu.sw2).unwrap())
+        Ok(safe_int_try_from(apdu.sw2))
     }
     else {
         Err(log3ifr_ret!(ctx,f,line!(), c"Error: ACOS5 'Get Card Info: Operation Mode Byte' failed. Returning with", SC_ERROR_CARD_CMD_FAILED))
@@ -391,9 +394,9 @@ pub(crate) fn op_mode_byte(card: &mut sc_card, candidate_card_type: i32) -> Resu
 #[named]
 pub(crate) fn op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
@@ -418,9 +421,9 @@ pub(crate) fn op_mode_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 #[named]
 pub(crate) fn is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_FIPS_compliant==true get_fips_compliance
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
@@ -448,9 +451,9 @@ pub(crate) fn is_fips_compliant(card: &mut sc_card) -> Result<bool, i32> // is_F
 #[named]
 pub(crate) fn is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i32>
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
@@ -479,9 +482,9 @@ pub(crate) fn is_pin_authenticated(card: &mut sc_card, reference: u8) -> Result<
 #[named]
 pub(crate) fn is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<bool, i32>
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
@@ -510,9 +513,9 @@ pub(crate) fn is_key_authenticated(card: &mut sc_card, reference: u8) -> Result<
 #[named]
 pub(crate) fn get_zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 
@@ -535,9 +538,9 @@ pub(crate) fn get_zeroize_card_disable_byte_eeprom(card: &mut sc_card) -> Result
 #[named]
 pub(crate) fn card_life_cycle_byte_eeprom(card: &mut sc_card) -> Result<u8, i32>
 {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
 

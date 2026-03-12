@@ -40,28 +40,17 @@ use std::os::raw::c_ulong;
 
 use std::slice;
 use function_name::named;
-use opensc_sys::opensc::{/*sc_context,*/ sc_card, sc_algorithm_info, //SC_CARD_CAP_APDU_EXT,
-                         //SC_READER_SHORT_APDU_MAX_RECV_SIZE, SC_READER_SHORT_APDU_MAX_SEND_SIZE, SC_PROTO_T0,
-                         SC_ALGORITHM_EC, sc_compare_oid
-/*                      ,SC_ALGORITHM_RSA_PAD_NONE, SC_ALGORITHM_RSA_PAD_PKCS1,
-                         SC_ALGORITHM_RSA_HASH_NONE,
-                         SC_ALGORITHM_RSA_HASH_MD5,
-                         SC_ALGORITHM_RSA_HASH_SHA1,
-                         SC_ALGORITHM_RSA_HASH_SHA256,
-                         SC_ALGORITHM_RSA_HASH_SHA384,
-                         SC_ALGORITHM_RSA_HASH_SHA512,
-                         SC_ALGORITHM_RSA_HASH_SHA224,
-                         SC_ALGORITHM_RSA_HASH_RIPEMD160,
-                         SC_ALGORITHM_RSA_HASH_MD5_SHA1*/
-};
+use opensc_sys::opensc::{sc_card, sc_algorithm_info, SC_ALGORITHM_EC, sc_compare_oid, sc_context};
 
-use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL, SC_ERROR_OUT_OF_MEMORY, SC_ERROR_INVALID_ARGUMENTS};
+use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_WRONG_PADDING, SC_ERROR_INTERNAL, SC_ERROR_OUT_OF_MEMORY};
 
-use opensc_sys::types::sc_object_id; /*, sc_apdu, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_2_EXT,
-                        SC_APDU_CASE_3_SHORT, SC_APDU_CASE_3_EXT, SC_APDU_CASE_4_SHORT, SC_APDU_CASE_4_EXT*/
+use opensc_sys::types::sc_object_id;
+use crate::constants_types::safe_int_try_from;
+/*, sc_apdu, SC_APDU_CASE_1, SC_APDU_CASE_2_SHORT, SC_APDU_CASE_2_EXT,
+                       SC_APDU_CASE_3_SHORT, SC_APDU_CASE_3_EXT, SC_APDU_CASE_4_SHORT, SC_APDU_CASE_4_EXT*/
 
 //use crate::constants_types::p_void;
-use crate::wrappers::{wr_do_log, wr_do_log_rv_ret};
+use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_rv_ret};
 
 /*
 /** Calculates the length of the encoded APDU in octets.
@@ -152,30 +141,27 @@ pub fn me_get_max_send_size(card: &sc_card) -> usize
 */
 
 #[named]
-fn me_card_add_algorithm(card: &mut sc_card, info: &sc_algorithm_info) -> i32
+fn me_card_add_algorithm(card: &mut sc_card, ctx: &mut sc_context, info: &sc_algorithm_info) -> Result<(), i32>
 {
-    if card.ctx.is_null() {
-        return SC_ERROR_INVALID_ARGUMENTS;
-    }
-    let ctx = unsafe { &mut *card.ctx };
-    let f_cstr = CString::new(function_name!()).expect("CString::new failed");
+    let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
-    let p_ptr = unsafe { libc::realloc(card.algorithms.cast::<c_void>(), usize::try_from(card.algorithm_count + 1).unwrap() *
-        size_of::<sc_algorithm_info>()) }.cast::<sc_algorithm_info>();
+    let p_ptr = unsafe { libc::realloc(card.algorithms.cast::<c_void>(), size_of::<sc_algorithm_info>() *
+        safe_int_try_from::<i32, usize>(card.algorithm_count + 1) ) }.cast::<sc_algorithm_info>();
 
     if p_ptr.is_null() {
-        return log3ifr_ret!(ctx,f,line!(), SC_ERROR_OUT_OF_MEMORY);
+        return Err(log3ifr_ret!(ctx,f,line!(), SC_ERROR_OUT_OF_MEMORY));
     }
     card.algorithms = p_ptr;
-    let p = unsafe { &mut * p_ptr.add(card.algorithm_count.try_into().unwrap()) };
+    let p = unsafe { &mut * p_ptr.add(safe_int_try_from(card.algorithm_count)) };
     card.algorithm_count += 1;
     *p = *info;
 //println!("card.algorithm_count: {}, p.algorithm: {}, p.key_length: {}, p.flags: {}", card.algorithm_count, p.algorithm, p.key_length, p.flags);
-    log3ifr_ret!(ctx,f,line!(), SC_SUCCESS)
+    log3ifr!(ctx,f,line!(), SC_SUCCESS);
+    Ok(())
 }
 
-pub(crate) fn me_card_add_symmetric_alg(card: &mut sc_card,
+pub(crate) fn me_card_add_symmetric_alg(card: &mut sc_card, ctx: &mut sc_context,
     #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
                                  algorithm: u32,
     #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
@@ -188,16 +174,16 @@ pub(crate) fn me_card_add_symmetric_alg(card: &mut sc_card,
                                  flags: u32,
     #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
                                  flags: c_ulong,
-                                ) -> i32
+                                ) -> Result<(), i32>
 { // same as in opensc
     let info = sc_algorithm_info {
         #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
                                        algorithm,
         #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
-                                       algorithm: algorithm.try_into().unwrap(),
+                                       algorithm: safe_int_try_from(algorithm),
         key_length, flags, .. sc_algorithm_info::default()
     };
-    me_card_add_algorithm(card, &info)
+    me_card_add_algorithm(card, ctx, &info)
 }
 
 
@@ -213,18 +199,18 @@ pub(crate) fn me_card_find_alg(card: &mut sc_card,
                         param_opt: Option<*const sc_object_id>)
     -> Option<*const sc_algorithm_info>
 {
-    for info in unsafe { slice::from_raw_parts(card.algorithms, card.algorithm_count.try_into().unwrap()) } {
+    for info in unsafe { slice::from_raw_parts(card.algorithms, safe_int_try_from(card.algorithm_count)) } {
         #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
         if info.algorithm != algorithm { continue; }
         #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
-        if info.algorithm != algorithm.try_into().unwrap() { continue; }
+        if info.algorithm != safe_int_try_from(algorithm) { continue; }
         if info.key_length != key_length { continue; }
 
         if let Some(param) = param_opt {
             #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
             let comp : u32 = SC_ALGORITHM_EC;
             #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
-            let comp : u32 = SC_ALGORITHM_EC.try_into().unwrap();
+            let comp : u32 = safe_int_try_from(SC_ALGORITHM_EC);
             if info.algorithm == comp && unsafe { sc_compare_oid(param, &raw const info.u.ec.params.id) } != 0 {
                 continue;
             }
@@ -380,7 +366,7 @@ PKCS #1: RSA Cryptography Specifications  Version 2.2  https://tools.ietf.org/ht
 pub(crate) fn me_pkcs1_strip_01_padding(in_dat: &[u8]) -> Result<&[u8], i32>
 {
     let  in_len = in_dat.len();
-    let mut len = in_dat.len();
+    let mut len = in_len;
 
     if in_len < 11 {
         return Err(SC_ERROR_INTERNAL);
@@ -444,7 +430,7 @@ pub(crate) fn me_pkcs1_strip_02_padding(vec: &mut Vec<u8>) -> i32 //-> Result<Ve
         return SC_ERROR_WRONG_PADDING;
     }
     drop(vec.drain(..pos));
-    i32::try_from(pos).unwrap()
+    safe_int_try_from::<usize,i32>(pos)
 }
 
 #[cfg(test)]

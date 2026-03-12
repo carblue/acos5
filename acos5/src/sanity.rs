@@ -18,7 +18,7 @@
  * Foundation, 51 Franklin Street, Fifth Floor  Boston, MA 02110  USA
  */
 
-#![allow(clippy::module_name_repetitions)]
+//#![allow(clippy::module_name_repetitions)]
 
 use std::ptr::null_mut;
 use std::ffi::CStr;
@@ -28,7 +28,7 @@ use opensc_sys::opensc::{sc_card, sc_get_mf_path/*, sc_format_path*/, sc_select_
 use opensc_sys::types::sc_crt;
 //#[cfg(not(target_os = "windows"))]
 //use opensc_sys::types::sc_aid;
-use opensc_sys::errors::{/*SC_SUCCESS,*/ SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT_FOUND};
+use opensc_sys::errors::{SC_ERROR_NOT_ALLOWED, SC_ERROR_FILE_NOT_FOUND, SC_ERROR_INVALID_ARGUMENTS};
 // /*, SC_ERROR_INTERNAL*/, SC_ERROR_INVALID_ARGUMENTS, SC_ERROR_KEYPAD_MSG_TOO_LONG,
 //                          SC_ERROR_NO_CARD_SUPPORT, SC_ERROR_INCOMPATIBLE_KEY, SC_ERROR_WRONG_CARD, SC_ERROR_WRONG_PADDING,
 //                          SC_ERROR_INCORRECT_PARAMETERS, SC_ERROR_NOT_SUPPORTED, SC_ERROR_BUFFER_TOO_SMALL, SC_ERROR_NOT_ALLOWED,
@@ -58,9 +58,9 @@ fn select_mf(card: &mut sc_card) -> Result<i32, i32> {
 }
 
 #[cold]
-#[allow(clippy::too_many_lines)]
+//#[expect(clippy::too_many_lines, reason = "..")]
 pub(crate) fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i32> {
-    assert!(!card.ctx.is_null());
+    if card.ctx.is_null() { return Err(SC_ERROR_INVALID_ARGUMENTS); }
     let ctx = unsafe { &mut *card.ctx };
     let f = c"sanity_check";
     log3ifc!(ctx,f,line!());
@@ -146,12 +146,13 @@ pub(crate) fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i3
     for (&key_dfmf, val) in &dp.files {
         if is_DFMF(val.1[0]) {
             let child_id = file_id_se(val.1);
-            assert!(dp.files.contains_key(&child_id)); // or it doesn't exist
+            if !dp.files.contains_key(&child_id) { return Err(-1); } //assert!(dp.files.contains_key(&child_id)); // or it doesn't exist
             let dpfv_child = &dp.files[&child_id];
+            #[expect(clippy::expect_used, reason = "..")]
             if  dpfv_child.1[0] != FDB_SE_FILE || !is_child_of(dpfv_child, val) {
                 println!("DF {key_dfmf:04X} does declare SE file id {child_id:04X}, but either this is no SE-file or is not a child");
             }
-            else if dpfv_child.2.is_none() || dpfv_child.2.unwrap()[READ] != 0 {
+            else if dpfv_child.2.is_none() || dpfv_child.2.expect("")[READ] != 0 {
                 println!("WARNING: Security Access Condition of SE file id {child_id:04X} is different from 'ALWAYS READABLE'. \
                 Hence, OpenSC and this driver won't know any file related Security Access Constraint in directory \
                 {key_dfmf:04X} and You may run into all sorts of errors related to Access Control");
@@ -159,7 +160,8 @@ pub(crate) fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i3
             else {
                 println!("\n[X] DF/MF {key_dfmf:04X} mandatory security environment (SE) file {child_id:04X} seems to be okay (content checked next).");
                 let mut index_used : HashSet<u8> = HashSet::with_capacity(14);
-                for &b in &val.2.unwrap() {
+                #[expect(clippy::expect_used, reason = "..")]
+                for &b in &val.2.expect("") {
                     if ![0, 255].contains(&b) {
                         let _unused = index_used.insert(b);
                     }
@@ -169,7 +171,8 @@ pub(crate) fn sanity_check(card: &mut sc_card, app_name: &CStr) -> Result<(), i3
                         continue;
                     }
                     if is_child_of(val_child, val) {
-                        for &b in &val_child.2.unwrap() {
+                        #[expect(clippy::expect_used, reason = "..")]
+                        for &b in &val_child.2.expect("") {
                             if ![0, 255].contains(&b) {
                                 let _unused = index_used.insert(b);
                             }
@@ -237,7 +240,7 @@ println!("[X] DF/MF {key_dfmf:04X} references (reduced set) found: {index_used:X
     Ok(())
 }
 
-#[allow(dead_code)]
+#[expect(dead_code, reason = "no usage currently")]
 #[cold]
 fn explain_the_driver() {
     println!("The most prominent feature of the driver design is that it maintains state of the file system, stored in");

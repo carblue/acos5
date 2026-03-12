@@ -30,10 +30,12 @@
   As soon as Rust allows it, turn the function into a pub const
  */
 
+#![expect(clippy::decimal_literal_representation, reason = "..")]
+
 use crate::tasn1_sys::asn1_static_node;
 
-#[allow(clippy::too_many_lines)]
-#[allow(clippy::unreadable_literal)]
+#[expect(clippy::too_many_lines, reason = "..")]
+#[expect(clippy::unreadable_literal, reason = "..")]
 pub(crate) fn tasn1_pkcs15_definitions() -> [asn1_static_node; 634] { [
     asn1_static_node::new_value_null(c"PKCS15", 536875024),
     asn1_static_node::new_name_value_null(1610612748),

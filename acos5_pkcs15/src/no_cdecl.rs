@@ -156,8 +156,8 @@ pub fn free_fid_asym(p15card: &mut sc_pkcs15_card) -> Result<(u16, u16), i32>
         /* Enumerate the DF's, so p15card->obj_list is populated. */
         unsafe {
             let _unused =
-            if p15card.ops.parse_df.is_some() { p15card.ops.parse_df.unwrap()(p15card, df) }
-            else                              { sc_pkcs15_parse_df(p15card, df) }
+            if let Some(option) = p15card.ops.parse_df { option(p15card, df) }
+            else                                     { sc_pkcs15_parse_df(p15card, df) }
         ;}
         df = df_ref.next;
     }

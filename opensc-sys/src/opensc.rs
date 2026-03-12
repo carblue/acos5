@@ -51,6 +51,9 @@ use crate::types::{sc_apdu, sc_path, sc_file, sc_acl_entry, sc_object_id, sc_lv_
                    SC_MAX_SUPPORTED_ALGORITHMS, SC_MAX_CARD_APPS, SC_MAX_CARD_DRIVERS};
 #[cfg(v0_20_0)]
 use crate::types::SC_MAX_SDO_ACLS;
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1)))]
+use crate::types::SC_MAX_KEYREF_SIZE;
+
 use crate::scconf::{scconf_context, scconf_block};
 use crate::internal::sc_atr_table;
 use crate::sm::sm_context;
@@ -482,7 +485,11 @@ pub struct sc_security_env {
     pub algorithm_ref   : c_ulong,  /* if used, set flag SC_SEC_ENV_ALG_REF_PRESENT */
 
     pub file_ref        : sc_path,    /* if used, set flag SC_SEC_ENV_FILE_REF_PRESENT */
+    #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1))]
     pub key_ref : [u8; 8],  /* if used, set flag SC_SEC_ENV_KEY_REF_PRESENT */
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1)))]
+    pub key_ref : [u8; SC_MAX_KEYREF_SIZE],  /* if used, set flag SC_SEC_ENV_KEY_REF_PRESENT */
+
     pub key_ref_len : usize,
     pub target_file_ref : sc_path,    /* unused;  target key file in unwrap operation; if used, set flag SC_SEC_ENV_TARGET_FILE_REF_PRESENT */
 
@@ -566,11 +573,11 @@ pub struct sc_pbes2_params {
  * - printable string for non standard OIDS - added in pkcs11 3.0
  *
  * type - type(choice) of 'EC domain parameters' as it present in CKA_EC_PARAMS (PKCS#11).
- *	Recommended value '1' -- namedCurve.
+ * Recommended value '1' -- namedCurve.
  * field_length - EC key size in bits.
  * key_type - 0 implies SC_ALGORITHM_EC, SC_ALGORITHM_EDDSA or SC_ALGORITHM_XEDDSA
- *	Not actually part of CKA_EC_PARAMS - used in OpenSC to differentiate key types that use ec_params
- *	will be set by sc_pkcs15_fix_ec_parameters
+ * Not actually part of CKA_EC_PARAMS - used in OpenSC to differentiate key types that use ec_params
+ * will be set by sc_pkcs15_fix_ec_parameters
  */
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -693,9 +700,9 @@ pub struct sc_ef_atr {
     pub status : u32,
 }
 
-#[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))]
+//#[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))]
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct sc_card_cache {
     pub current_path : sc_path,
     pub current_ef : *mut sc_file,
@@ -771,7 +778,7 @@ pub struct sc_reader {
     pub supported_protocols : u32,
     pub active_protocol     : u32,
     pub max_send_size : usize, /* Max Lc supported by the reader layer */
-    pub max_recv_size : usize, /* Mac Le supported by the reader layer */
+    pub max_recv_size : usize, /* Max Le supported by the reader layer */
 
     pub atr : sc_atr,
     pub uid : sc_uid,                    // since opensc source release v0.17.0
@@ -802,11 +809,21 @@ pub const SC_PIN_ENCODING_ASCII      : u32 = 0;
 pub const SC_PIN_ENCODING_BCD        : u32 = 1;
 pub const SC_PIN_ENCODING_GLP        : u32 = 2; /* Global Platform - Card Specification v2.0.1 */
 
-/** Values for `sc_pin_cmd_pin.logged_in`, can be bitmapped together */
-pub const SC_PIN_STATE_UNKNOWN       : i32 = -1;    // since opensc source release v0.17.0
-pub const SC_PIN_STATE_LOGGED_OUT    : i32 = 0;     // since opensc source release v0.17.0
-pub const SC_PIN_STATE_LOGGED_IN     : i32 = 1;     // since opensc source release v0.17.0
-pub const SC_PIN_STATE_NEEDS_CHANGE  : i32 = 2;     // since opensc source release v0.27.0
+
+/* Values for `sc_pin_cmd_pin.logged_in`, can be bitmapped together */
+cfg_if::cfg_if! {
+    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
+        pub const SC_PIN_STATE_UNKNOWN       : i32 = -1;    // since opensc source release v0.17.0
+        pub const SC_PIN_STATE_LOGGED_OUT    : i32 = 0;     // since opensc source release v0.17.0
+        pub const SC_PIN_STATE_LOGGED_IN     : i32 = 1;     // since opensc source release v0.17.0
+    }
+    else {
+        pub const SC_PIN_STATE_UNKNOWN       : i32 = 0;     // since opensc source release v0.17.0
+        pub const SC_PIN_STATE_LOGGED_OUT    : i32 = 1;     // since opensc source release v0.17.0
+        pub const SC_PIN_STATE_LOGGED_IN     : i32 = 2;     // since opensc source release v0.17.0
+        pub const SC_PIN_STATE_NEEDS_CHANGE  : i32 = 4;     // since opensc source release v0.27.0
+    }
+}
 
 /* A card driver receives the sc_pin_cmd_data and sc_pin_cmd_pin structures filled in by the
  * caller, with the exception of the fields returned by the driver for SC_PIN_CMD_GET_INFO.
@@ -1412,6 +1429,9 @@ pub struct sc_context {
     pub thread_ctx : *mut sc_thread_context,
     pub mutex : *mut c_void,
 
+    #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1)))]
+    pub openssl_config : *mut c_char,
+
     #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
     pub ossl3ctx : *mut c_void, // TODO ossl3ctx_t * ; // ifdef ENABLE_OPENSSL
 
@@ -1469,6 +1489,10 @@ impl Default for sc_context {
             forced_driver: null_mut(),
             thread_ctx: null_mut(),
             mutex: null_mut(),
+
+            #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1)))]
+            openssl_config: null_mut(),
+
             #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)))]
             ossl3ctx: null_mut(),
             magic: 0,
@@ -1493,65 +1517,78 @@ impl std::fmt::Display for sc_context {
 
 
 unsafe extern "C" {
+    /* APDU handling functions */
 
-/* APDU handling functions */
+    /** Sends a APDU to the card
+             *  @param  card  struct `sc_card` object to which the APDU should be send
+             *  @param  apdu  `sc_apdu` object of the APDU to be send
+             *  @return `SC_SUCCESS` on success and an error code otherwise
+     */
+    pub fn sc_transmit_apdu(card: *mut sc_card, apdu: *mut sc_apdu) -> i32;
+}
 
-/** Sends a APDU to the card
- *  @param  card  struct `sc_card` object to which the APDU should be send
- *  @param  apdu  `sc_apdu` object of the APDU to be send
- *  @return `SC_SUCCESS` on success and an error code otherwise
- */
-pub fn sc_transmit_apdu(card: *mut sc_card, apdu: *mut sc_apdu) -> i32;
+pub fn safe_sc_transmit_apdu(card: &mut sc_card, apdu: &mut sc_apdu) -> i32 {
+    // SAFETY: unsafe extern "C" fn: sc_check_sw
+    unsafe { sc_transmit_apdu(card, apdu) }
+}
 
-pub fn sc_format_apdu(card: *mut sc_card, apdu: *mut sc_apdu, cse: i32, ins: i32, p1: i32, p2: i32);
+unsafe extern "C" {
+    pub fn sc_format_apdu(card: *mut sc_card, apdu: *mut sc_apdu, cse: i32, ins: i32, p1: i32, p2: i32);
 
-/** Format an APDU based on the data to be sent and received.
- *
- * Calls \a `sc_transmit_apdu()` by determining the APDU case based on \a datalen
- * and \a resplen. As result, no chaining or GET RESPONSE will be performed in
- * `sc_format_apdu()`.
- */
-pub fn sc_format_apdu_ex(apdu: *mut sc_apdu,
-    cla: u8, ins: u8, p1: u8, p2: u8,
-    data: *const u8, datalen: usize,
-    resp: *mut u8, resplen: usize);
+    /** Format an APDU based on the data to be sent and received.
+       *
+       * Calls \a `sc_transmit_apdu()` by determining the APDU case based on \a datalen
+       * and \a resplen. As result, no chaining or GET RESPONSE will be performed in
+       * `sc_format_apdu()`.
+     */
+    pub fn sc_format_apdu_ex(apdu: *mut sc_apdu,
+                             cla: u8, ins: u8, p1: u8, p2: u8,
+                             data: *const u8, datalen: usize,
+                             resp: *mut u8, resplen: usize);
 
-pub fn sc_check_apdu(card: *mut sc_card, apdu: *const sc_apdu) -> i32;
+    pub fn sc_check_apdu(card: *mut sc_card, apdu: *const sc_apdu) -> i32;
+    
+    /** Transforms an APDU from binary to its @c `sc_apdu` representation
+       *  @param  ctx     `sc_context` object (used for logging)
+       *  @param  buf     APDU to be encoded as an @c `sc_apdu` object
+       *  @param  len     length of @a buf
+       *  @param  apdu    @c `sc_apdu` object to initialize
+       *  @return `SC_SUCCESS` on success and an error code otherwise
+       *  @note On successful initialization apdu->data will point to @a buf with an
+       *  appropriate offset. Only `free()` @a buf, when apdu->data is not needed any
+       *  longer.
+       *  @note On successful initialization @a apdu->resp and apdu->resplen will be
+       *  0. You should modify both if you are expecting data in the response APDU.
+     */
+    pub fn sc_bytes2apdu(ctx: *mut sc_context, buf: *const u8, len: usize, apdu: *mut sc_apdu) -> i32;
 
-/** Transforms an APDU from binary to its @c `sc_apdu` representation
- *  @param  ctx     `sc_context` object (used for logging)
- *  @param  buf     APDU to be encoded as an @c `sc_apdu` object
- *  @param  len     length of @a buf
- *  @param  apdu    @c `sc_apdu` object to initialize
- *  @return `SC_SUCCESS` on success and an error code otherwise
- *  @note On successful initialization apdu->data will point to @a buf with an
- *  appropriate offset. Only `free()` @a buf, when apdu->data is not needed any
- *  longer.
- *  @note On successful initialization @a apdu->resp and apdu->resplen will be
- *  0. You should modify both if you are expecting data in the response APDU.
- */
-pub fn sc_bytes2apdu(ctx: *mut sc_context, buf: *const u8, len: usize, apdu: *mut sc_apdu) -> i32;
+    /** Encodes a APDU as an octet string
+       *  @param  ctx     `sc_context` object (used for logging)
+       *  @param  apdu    APDU to be encoded as an octet string
+       *  @param  proto   protocol version to be used
+       *  @param  out     output buffer of size outlen.
+       *  @param  outlen  size of the output buffer
+       *  @return `SC_SUCCESS` on success and an error code otherwise
+     */
+    fn sc_apdu2bytes(ctx: *mut sc_context, apdu: *const sc_apdu,
+                     proto: u32, out: *mut u8, outlen: usize) -> i32; // since opensc source release v0.18.0; not declared pub because not exported from libopensc.so
 
-/** Encodes a APDU as an octet string
- *  @param  ctx     `sc_context` object (used for logging)
- *  @param  apdu    APDU to be encoded as an octet string
- *  @param  proto   protocol version to be used
- *  @param  out     output buffer of size outlen.
- *  @param  outlen  size of the output buffer
- *  @return `SC_SUCCESS` on success and an error code otherwise
- */
-fn sc_apdu2bytes(ctx: *mut sc_context, apdu: *const sc_apdu,
-    proto: u32, out: *mut u8, outlen: usize) -> i32; // since opensc source release v0.18.0; not declared pub because not exported from libopensc.so
+    /** Calculates the length of the encoded APDU in octets.
+       *  @param  apdu   the APDU
+       *  @param  proto  the desired protocol
+       *  @return length of the encoded APDU
+     */
+    fn sc_apdu_get_length(apdu: *const sc_apdu, proto: u32) -> usize; // since opensc source release v0.18.0; not declared pub because not exported from libopensc.so
 
-/** Calculates the length of the encoded APDU in octets.
- *  @param  apdu   the APDU
- *  @param  proto  the desired protocol
- *  @return length of the encoded APDU
- */
-fn sc_apdu_get_length(apdu: *const sc_apdu, proto: u32) -> usize; // since opensc source release v0.18.0; not declared pub because not exported from libopensc.so
+    pub fn sc_check_sw (card: *mut sc_card, sw1: u32, sw2: u32) -> i32;
+}
 
-pub fn sc_check_sw (card: *mut sc_card, sw1: u32, sw2: u32) -> i32;
+pub fn safe_sc_check_sw(card: &mut sc_card, apdu: & sc_apdu) -> i32 {
+    // SAFETY: unsafe extern "C" fn: sc_check_sw
+    unsafe { sc_check_sw(card, apdu.sw1, apdu.sw2) }
+}
 
+unsafe extern "C" {
 /********************************************************************/
 /*                  opensc context functions                        */
 /********************************************************************/
@@ -2348,6 +2385,7 @@ fn sc_parse_ef_gdo(card: *mut sc_card,
         chn: *mut u8, chn_len: *mut usize) -> i32;  // added since opensc source release v0.18.0
 pub fn sc_update_dir(card: *mut sc_card, app: *mut sc_app_info) -> i32;
 
+#[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))]
 fn sc_invalidate_cache(card: *mut sc_card);  // added since opensc source release v0.18.0
 #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))]
 pub fn sc_print_cache(card: *mut sc_card);
@@ -2418,7 +2456,8 @@ pub fn sc_remote_data_init(rdata: *mut sc_remote_data);
  * Clear `ec_params`
  * @ecp
  */
-fn sc_clear_ec_params(arg: *mut sc_ec_parameters);
+#[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1)))]
+pub fn sc_clear_ec_params(arg: *mut sc_ec_parameters);
 
 /**
  * Copy and allocate if needed EC parameters data
@@ -2464,6 +2503,18 @@ pub safe fn sc_get_version() -> *const c_char;
 /// @binding: No memory problem!  returns pointers to either .rodata or .text of libopensc.so\
 /// @test available
 pub fn sc_get_iso7816_driver() -> *mut sc_card_driver;
+
+/*
+ * @brief Request command chaining if needed.
+ *
+ * @param[in]     card  card
+ * @param[in,out] apdu  apdu structure to update
+ *
+ * @note Checks if the command payload or the expected response fits into the
+ * card transceive buffer. It requests command chaining from the lower levels
+ * if the data length exceeds the buffer size.
+ */
+fn iso7816_fixup_transceive_length(card: *const sc_card, apdu: *mut sc_apdu);
 
 /**
  * @brief Read a complete EF by short file identifier.

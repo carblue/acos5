@@ -272,9 +272,9 @@ const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 ///
 /// @return   The `OpenSC` release/imaginary version, that this driver implementation supports
 #[unsafe(no_mangle)]
-pub extern "C" fn sc_driver_version() -> *const c_char {
+pub unsafe extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = sc_get_version();
-    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1/*, v0_27_0*/))  { version_ptr }
+    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1, v0_27_0))  { version_ptr }
     // v0_27_0: experimental only:  Latest OpenSC gitHub master commit covered:
     else  { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
 }
