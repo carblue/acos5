@@ -237,12 +237,13 @@ use crate::no_cdecl::{rsa_modulus_bits_canonical, first_of_free_indices, constru
 #[cfg(not(target_os = "windows"))]
 use crate::no_cdecl::check_enlarge_prkdf_pukdf;
 
-cfg_if::cfg_if! {
-    if #[cfg(not(target_os = "windows"))] {
+cfg_select! {
+    not(target_os = "windows") => {
         mod tasn1_pkcs15_util; // shared file among modules acos5, acos5_pkcs15
         mod tasn1_sys;         // shared file among modules acos5, acos5_pkcs15
     }
 }
+
 
 mod        wrappers; // shared file among modules acos5, acos5_pkcs15
 use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do_log_tu};
@@ -250,32 +251,38 @@ use crate::wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_sds, wr_do_log_t, wr_do
 
 const BOTH : u32 = SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_DECRYPT;
 
-/// A mandatory library export  It MUST BE identical for acos5 and `acos5_pkcs15`
+/// A mandatory library export. It MUST BE identical for acos5 and `acos5_pkcs15`
 ///
 /// @apiNote
 /// If @return doesn't match the version of `OpenSC` binary libopensc.so/dll installed, then this library
 /// will be rejected/unloaded immediately by `OpenSC`; depends on build.rs setup ref. "cargo:rustc-cfg=v0_??_0".
 ///
 /// Its essential, that this doesn't merely echo, what a call to `sc_get_version` reports:
-/// Its my/developers statement, that the support as reported by `sc_driver_version` got checked !
-/// Thus, if e.g. a new `OpenSC` version 0.22.0 got released and if I didn't reflect that in `sc_driver_version`,
+/// It is my/developers statement, that the support as reported by `sc_driver_version` got checked !
+/// Thus, if e.g. a new `OpenSC` version 0.28.0 got released and if I didn't reflect that in `sc_driver_version`,
 /// (updating opensc-sys binding and code of acos5 and `acos5_pkcs15`),
 /// then the driver won't accidentally malfunction for a not yet supported `OpenSC` environment/version !
 ///
-/// The support of not yet released `OpenSC` code (i.e. github/master) is somewhat experimental:
+/// The support of not yet released `OpenSC` code (i.e. gitHub/master) is somewhat experimental:
 /// Its accuracy depends on how closely the opensc-sys binding and driver code has covered the possible
 /// differences in API and behavior (this function mentions the last `OpenSC` commit covered).
 /// master will be handled as an imaginary new version release:
-/// E.g. while currently the latest release is 0.22.0, build `OpenSC` from source such that it reports imaginary
-/// version 0.23.0 (change configure.ac; define(\[`PACKAGE_VERSION_MINOR`\], \[23\]) )
-/// In this example, `cfg!(v0_23_0)` will then match that
+/// E.g. while currently the latest release is 0.27.1, build `OpenSC` from source such that it reports imaginary
+/// version 0.28.0 (change configure.ac; define(\[`PACKAGE_VERSION_MINOR`\], \[28\]) )
+/// In this example, `cfg!(v0_28_0`) will then match that
 ///
+/// call site: function `load_dynamic_driver`, close to:
+/// libopensc/ctx.c:515:    *(void **)tmodv = `sc_dlsym(handle`, "`sc_driver_version`");
 /// @return   The `OpenSC` release/imaginary version, that this driver implementation supports
+///
+/// # Safety
+///
+/// This function should not be called before the horsemen are ready.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = sc_get_version();
-    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1, v0_27_0))  { version_ptr }
-    // v0_27_0: experimental only:  Latest OpenSC gitHub master commit covered:
+    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1, v0_27_1))  { version_ptr }
+    // v0_28_0: experimental only:  Latest OpenSC gitHub master commit covered:
     else  { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -568,22 +575,22 @@ extern "C" fn acos5_pkcs15_create_key(profile_ptr: *mut sc_profile,
         }
         /* Check that the card supports the requested modulus length */
 //    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))
-        unsafe { cfg_if::cfg_if! {
-            if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
-        if sc_card_find_rsa_alg(card, u32::try_from(keybits).unwrap()).is_null() {
-            rv = SC_ERROR_INVALID_ARGUMENTS;
-            log3if!(ctx,f,line!(), c"Failed: Unsupported RSA key size %zu", keybits);
-            return rv;
-        }
-            }
-            else {
-                if sc_card_find_rsa_alg(card, keybits).is_null() {
+        cfg_select! {
+            any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0) => {
+                if unsafe { sc_card_find_rsa_alg(card, u32::try_from(keybits).unwrap()).is_null() } {
                     rv = SC_ERROR_INVALID_ARGUMENTS;
                     log3if!(ctx,f,line!(), c"Failed: Unsupported RSA key size %zu", keybits);
                     return rv;
                 }
             }
-        }}
+            _ => {
+                if unsafe { sc_card_find_rsa_alg(card, keybits).is_null() } {
+                    rv = SC_ERROR_INVALID_ARGUMENTS;
+                    log3if!(ctx,f,line!(), c"Failed: Unsupported RSA key size %zu", keybits);
+                    return rv;
+                }
+            }
+        }
     }
     else /*SC_PKCS15_TYPE_PRKEY_EC == object.type_*/ {
         keybits = 0;
@@ -1089,13 +1096,14 @@ extern "C" fn acos5_pkcs15_store_key(profile_ptr: *mut sc_profile, p15card_ptr: 
     if rv != SC_SUCCESS {
         return SC_ERROR_SECURITY_STATUS_NOT_SATISFIED;
     }
-    cfg_if::cfg_if! {
-    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
-        unsafe { sc_update_record(card, skey_info.path.index.try_into().unwrap(), key_vec.as_ptr(), key_vec.len(), SC_RECORD_BY_REC_NR) }
+    cfg_select! {
+        any(v0_20_0, v0_21_0, v0_22_0, v0_23_0) => {
+            unsafe { sc_update_record(card, skey_info.path.index.try_into().unwrap(), key_vec.as_ptr(), key_vec.len(), SC_RECORD_BY_REC_NR) }
+        }
+        _ => {
+            unsafe { sc_update_record(card, skey_info.path.index.try_into().unwrap(), 0, key_vec.as_ptr(), key_vec.len(), SC_RECORD_BY_REC_NR) }
+        }
     }
-    else {
-        unsafe { sc_update_record(card, skey_info.path.index.try_into().unwrap(), 0, key_vec.as_ptr(), key_vec.len(), SC_RECORD_BY_REC_NR) }
-    }}
 } // acos5_pkcs15_store_key
 
 

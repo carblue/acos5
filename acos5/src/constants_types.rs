@@ -176,8 +176,8 @@ pub(crate) const CRT_TAG_CCT     : u8 = 0xB4;   // Cryptographic Checksum Templ.
 //pub const SM_MODE_CCT_AND_CT_SYM : u8 = 2; // SM is enforced, providing Authenticity and Confidentiality, specified by a  Cryptographic Checksum Template and Confidentiality Template (ref. key for sym. algorithm)
 
 /* PKCS#15 DF types, see pkcs15.rs */
-cfg_if::cfg_if! {
-if #[cfg(not(target_os = "windows"))] {
+cfg_select! {
+not(target_os = "windows") => {
     pub(crate) const PKCS15_FILE_TYPE_PRKDF         : u8 =  SC_PKCS15_PRKDF;         // = 0,
     pub(crate) const PKCS15_FILE_TYPE_PUKDF         : u8 =  SC_PKCS15_PUKDF;         // = 1,
     pub(crate) const PKCS15_FILE_TYPE_PUKDF_TRUSTED : u8 =  SC_PKCS15_PUKDF_TRUSTED; // = 2,   USES DETECTION LIKE PKCS15_FILE_TYPE_PUKDF !
@@ -1032,8 +1032,8 @@ where T: TryFrom<F> + Default
 ////////////////
 ////////////////
 
-cfg_if::cfg_if! {
-    if #[cfg(iup_user_consent)] {
+cfg_select! {
+    iup_user_consent => {
         use libc::free;
         //use opensc_sys::opensc::{sc_card/*, SC_CTX_FLAG_DISABLE_POPUPS*/};
         use opensc_sys::errors::{SC_ERROR_KEYPAD_MSG_TOO_LONG, SC_ERROR_NOT_ALLOWED};
@@ -1148,6 +1148,7 @@ cfg_if::cfg_if! {
             }
         }
     }
+    _ => {}
 }
 
 #[cfg(test)]

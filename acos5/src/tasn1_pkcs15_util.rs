@@ -195,15 +195,15 @@ pub(crate) fn analyze_PKCS15_DIRRecord_2F00(card: &mut sc_card, aid: &mut sc_aid
     let mut rv = unsafe { sc_select_file(card, &raw const path_2f00, *guard_file) };
     if rv != SC_SUCCESS { return Err(-1); }
     let mut rbuf = vec![0_u8; size];
-    rv = unsafe { cfg_if::cfg_if! {
-        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
-            sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), 0)
-        }
-        else {
-            let mut flags : c_ulong = 0;
-            sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), &raw mut flags)
-        }
+    rv = unsafe { cfg_select! {
+        any(v0_20_0, v0_21_0, v0_22_0, v0_23_0) =>
+             {  sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), 0) }
+        _ => {
+                let mut flags : c_ulong = 0;
+                sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), &raw mut flags)
+             }
     }};
+
     if rv <= 0  {  return Err(-1); }
     for range in DirectoryRange::new(&rbuf[..safe_int_try_from(rv)]) {
 //println!("for range in DirectoryRange: {:?}", range);
@@ -414,14 +414,13 @@ pub(crate) fn analyze_PKCS15_PKCS15Objects_5031(card: &mut sc_card) {
         rv = unsafe { sc_select_file(card, &raw const path_5031, null_mut()) };
         assert_eq!(SC_SUCCESS, rv);
         let mut rbuf = vec![0_u8; size];
-        rv = unsafe { cfg_if::cfg_if! {
-            if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
-                sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), 0)
-            }
-            else {
-                let mut flags : c_ulong = 0;
-                sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), &raw mut flags)
-            }
+        rv = unsafe { cfg_select! {
+            any(v0_20_0, v0_21_0, v0_22_0, v0_23_0) =>
+                 { sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), 0) }
+            _ => {
+                    let mut flags : c_ulong = 0;
+                    sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), &raw mut flags)
+                 }
         }};
         assert!(rv>0);
 
@@ -610,14 +609,13 @@ PKCS15_FILE_TYPE_CDF_USEFUL, 0)  => c"x509Certificate.x509CertificateAttributes.
     rv = unsafe { sc_select_file(card, &raw const path_prkdf, null_mut()) };
     assert_eq!(SC_SUCCESS, rv);
     let mut rbuf = vec![0_u8; size];
-    let rv = unsafe { cfg_if::cfg_if! {
-        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
-            sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), 0)
-        }
-        else {
-            let mut flags : c_ulong = 0;
-            sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), &raw mut flags)
-        }
+    let rv = unsafe { cfg_select! {
+        any(v0_20_0, v0_21_0, v0_22_0, v0_23_0) =>
+             {  sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), 0) }
+        _ => {
+                let mut flags : c_ulong = 0;
+                sc_read_binary(card, 0, rbuf.as_mut_ptr(), rbuf.len(), &raw mut flags)
+             }
     }};
     assert!(rv>0);
 

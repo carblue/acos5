@@ -60,14 +60,11 @@ pub const SC_MAX_KEYREF_SIZE            : usize =     8;
  * src/libopensc/pkcs15-prkey.c and src/libopensc/pkcs15-skey.c
  * `grep "src/libopensc/types.h SC_MAX_SUPPORTED_ALGORITHMS  defined as"'
  */
-cfg_if::cfg_if! {
-    if #[cfg(v0_20_0)] {
-        pub const SC_MAX_SUPPORTED_ALGORITHMS   : usize =  8;
-    }
-    else {
-        pub const SC_MAX_SUPPORTED_ALGORITHMS   : usize =  16; /* since opensc source release v0.21.0 */
-    }
+cfg_select! {
+    v0_20_0 => { pub const SC_MAX_SUPPORTED_ALGORITHMS : usize =  8;  }
+    _       => { pub const SC_MAX_SUPPORTED_ALGORITHMS : usize =  16; } // since opensc source release v0.21.0
 }
+
 
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone)]
@@ -311,12 +308,13 @@ pub const SC_FILE_EF_CYCLIC              : u32 =  0x06;
 pub const SC_FILE_EF_CYCLIC_TLV          : u32 =  0x07;
 
 /* File flags */
-cfg_if::cfg_if! {
-if #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)))] {
+cfg_select! {
+    not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0)) => {
     pub const SC_FILE_FLAG_COMPRESSED_AUTO  : c_ulong =  0x01;
     pub const SC_FILE_FLAG_COMPRESSED_ZLIB  : c_ulong =  0x02;
     pub const SC_FILE_FLAG_COMPRESSED_GZIP  : c_ulong =  0x04;
-}}
+    }
+}
 
 /* File status flags */
 /* ISO7816-4: Unless otherwise specified, the security attributes are valid for the operational state.*/

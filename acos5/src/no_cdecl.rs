@@ -226,7 +226,6 @@ pub(crate) fn authenticate_internal(card: &mut sc_card, key_card_reference: u8, 
 ///
 #[named]
 pub(crate) fn logout_pin(card: &mut sc_card, ctx: &mut sc_context, reference: u8) -> Result<(), i32> {
-    #[expect(clippy::expect_used, reason = "..")]
     let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
@@ -519,13 +518,13 @@ pub(crate) fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_
     let fmt_1   = c"    called. curr_type: %d, curr_value: %s, force_process_fci: %d";
     let fmt_2   = c"              to_type: %d,   to_value: %s";
     let fmt_3   = c"returning:  curr_type: %d, curr_value: %s, rv=%d";
-    cfg_if::cfg_if! {
-    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
+    cfg_select! {
+    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1) => {
         let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         log3if!(ctx,f,line!(), fmt_1, card.cache.current_path.type_,
             unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, force_process_fci);
     }
-    else {
+    _ => {
         let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         log3if!(ctx,f,line!(), fmt_1, dp.card_cache.current_path.type_,
             unsafe {sc_dump_hex(dp.card_cache.current_path.value.as_ptr(), dp.card_cache.current_path.len)}, force_process_fci);
@@ -575,12 +574,12 @@ pub(crate) fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_
         }
         assert!(dp.files.contains_key(&file_id));
         let dp_files_value = &dp.files[&file_id];
-        cfg_if::cfg_if! {
-        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
+        cfg_select! {
+        any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1) => {
             card.cache.current_path.value = dp_files_value.0;
             card.cache.current_path.len   = usize::from(dp_files_value.1[1]);
         }
-        else {
+        _ => {
             dp.card_cache.current_path.value = dp_files_value.0;
             dp.card_cache.current_path.len   = usize::from(dp_files_value.1[1]);
         } }
@@ -590,12 +589,12 @@ pub(crate) fn tracking_select_file(card: &mut sc_card, path_ref: &sc_path, file_
             `tracking_select_file` doesn't yet handle that error (whether to adapt card.cache.current_path?)");
     }
 
-    cfg_if::cfg_if! {
-    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
+    cfg_select! {
+    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1) => {
         log3if!(ctx,f,line!(), fmt_3, card.cache.current_path.type_,
             unsafe {sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)}, rv);
     }
-    else {
+    _ => {
         log3if!(ctx,f,line!(), fmt_3, dp.card_cache.current_path.type_,
             unsafe {sc_dump_hex(dp.card_cache.current_path.value.as_ptr(), dp.card_cache.current_path.len)}, rv);
     } }
@@ -804,11 +803,11 @@ pub(crate) fn enum_dir(card: &mut sc_card, path_ref: &sc_path, only_se_df: bool/
                     get_known_sec_env_entry_v3_fips(is_local, rec_nr, &mut buf[..33]);
                 }
                 else {
-                    rv = unsafe { cfg_if::cfg_if! {
-                        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
+                    rv = unsafe { cfg_select! {
+                        any(v0_20_0, v0_21_0, v0_22_0, v0_23_0) => {
                             sc_read_record(card, rec_nr, buf.as_mut_ptr(), mrl, SC_RECORD_BY_REC_NR)
                         }
-                        else {
+                        _ => {
                             sc_read_record(card, rec_nr, 0, buf.as_mut_ptr(), mrl, SC_RECORD_BY_REC_NR)
                         }
                     }};
@@ -1695,6 +1694,7 @@ RFC 8017                      PKCS #1 v2.2                 November 2016
     let digest_algorithm_sha512     = [0x30_u8, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40];
 
 
+    #[expect(clippy::collapsible_match, reason = "..")]
     match digest_info.len() {
         35 =>  if digest_info[..15] == digest_algorithm_ripemd160    { return true; },
         34 =>  if digest_info[..18] == digest_algorithm_md2
@@ -1733,11 +1733,9 @@ fn trailing_blockcipher_padding_calculate(
             vec.push(0x80);
             for _i in 0..block_size-rem-1 { vec.push(0x00); }
         },
-        BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64 => {
-            if rem != 0 {
-                vec.push(0x80);
-                for _i in 0..block_size-rem-1 { vec.push(0x00); }
-            }
+        BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5_64  if rem != 0 => {
+            vec.push(0x80);
+            for _i in 0..block_size-rem-1 { vec.push(0x00); }
         },
         BLOCKCIPHER_PAD_TYPE_PKCS7 => {
             let pad_byte = block_size-rem;
@@ -2474,8 +2472,8 @@ pub(crate) fn common_read(card: &mut sc_card,
         card.cla = 0;
         Ok(log3ifr_ret!(ctx,f,line!(), rv))
     }
-    else { unsafe { cfg_if::cfg_if! {
-        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
+    else { unsafe { cfg_select! {
+        any(v0_20_0, v0_21_0, v0_22_0, v0_23_0) => {
             if bin {
                 (*(*sc_get_iso7816_driver()).ops).read_binary.expect("")
                 (card, u32::from(idx), buf.as_mut_ptr(), buf.len(), flags)
@@ -2485,7 +2483,7 @@ pub(crate) fn common_read(card: &mut sc_card,
                 (card, u32::from(idx), buf.as_mut_ptr(), buf.len(), flags)
             }
         }
-        else {
+        _ => {
             #[expect(clippy::expect_used, reason = "..")]
             if bin {
                 let mut myflags: c_ulong = flags;
@@ -2554,30 +2552,28 @@ pub(crate) fn common_update(card: &mut sc_card,
     else if bin && fdb == FDB_RSA_KEY_EF { // no put_key support currently
         log3ifr_ret!(ctx,f,line!(), SC_ERROR_NO_CARD_SUPPORT)
     }
-    else {
-        unsafe {
-            //#[expect(clippy::collapsible_else_if, reason = "..")]
-            #[expect(clippy::expect_used, reason = "..")]
-            if !bin && idx==0 && flags==0 {
-                log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).append_record.expect("")(card, buf.as_ptr(), buf.len(), flags))
-            }
-            else { cfg_if::cfg_if! {
-                if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
-                    if bin { log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).update_binary.expect("")
-                        (card, u32::from(idx), buf.as_ptr(), buf.len(), flags)) }
-                    else   { log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).update_record.expect("")
-                        (card, u32::from(idx), buf.as_ptr(), buf.len(), flags)) }
-                }
-                else {
-                #[expect(clippy::expect_used, reason = "..")]
-                if bin { log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).update_binary.expect("")
-                        (card, u32::from(idx),    buf.as_ptr(), buf.len(), flags)) }
-                    else   { log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).update_record.expect("")
-                        (card, u32::from(idx), 0, buf.as_ptr(), buf.len(), flags)) }
-                }
-            }
+    else { unsafe {
+        //#[expect(clippy::collapsible_else_if, reason = "..")]
+        #[expect(clippy::expect_used, reason = "..")]
+        if !bin && idx==0 && flags==0 {
+            log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).append_record.expect("")(card, buf.as_ptr(), buf.len(), flags))
+        }
+        else { cfg_select! {
+                    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0) => {
+                        if bin { log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).update_binary.expect("")
+                            (card, u32::from(idx), buf.as_ptr(), buf.len(), flags)) }
+                        else   { log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).update_record.expect("")
+                            (card, u32::from(idx), buf.as_ptr(), buf.len(), flags)) }
+                    }
+                    _ => {
+                        #[expect(clippy::expect_used, reason = "..")]
+                        if bin { log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).update_binary.expect("")
+                            (card, u32::from(idx),    buf.as_ptr(), buf.len(), flags)) }
+                        else   { log3ifr_ret!(ctx,f,line!(), (*(*sc_get_iso7816_driver()).ops).update_record.expect("")
+                            (card, u32::from(idx), 0, buf.as_ptr(), buf.len(), flags)) }
+                    }
         }}
-    }
+    }}
 }
 
 

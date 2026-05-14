@@ -36,14 +36,14 @@ pub const SC_CARDCTL_GET_DEFAULT_KEY         : c_ulong =  0x0000_0002;
 pub const SC_CARDCTL_LIFECYCLE_GET           : c_ulong =  0x0000_0003;
 pub const SC_CARDCTL_LIFECYCLE_SET           : c_ulong =  0x0000_0004;
 pub const SC_CARDCTL_GET_SERIALNR            : c_ulong =  0x0000_0005;
-cfg_if::cfg_if! {
-    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
+cfg_select! {
+    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0) => {
 pub const SC_CARDCTL_GET_SE_INFO             : c_ulong =  0x0000_0006;
 pub const SC_CARDCTL_GET_CHV_REFERENCE_IN_SE : c_ulong =  0x0000_0007;
 pub const SC_CARDCTL_PKCS11_INIT_TOKEN       : c_ulong =  0x0000_0008;
 pub const SC_CARDCTL_PKCS11_INIT_PIN         : c_ulong =  0x0000_0009;
     }
-    else {
+    _ => {
 pub const SC_CARDCTL_GET_CHANGE_COUNTER      : c_ulong =  0x0000_0006; // since opensc-0.24.0
 pub const SC_CARDCTL_GET_SE_INFO             : c_ulong =  0x0000_0007;
 pub const SC_CARDCTL_GET_CHV_REFERENCE_IN_SE : c_ulong =  0x0000_0008;

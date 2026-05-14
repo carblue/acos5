@@ -78,10 +78,11 @@ pub const SC_SEC_OPERATION_AUTHENTICATE : i32 = 0x0003;
 pub const SC_SEC_OPERATION_DERIVE       : i32 = 0x0004;
 pub const SC_SEC_OPERATION_WRAP         : i32 = 0x0005;
 pub const SC_SEC_OPERATION_UNWRAP       : i32 = 0x0006;
-cfg_if::cfg_if! {
-    if #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))] {
-        pub const SC_SEC_OPERATION_ENCRYPT_SYM  : i32 = 0x0007;
-        pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
+
+cfg_select! {
+    not(any(v0_20_0, v0_21_0, v0_22_0)) => {
+pub const SC_SEC_OPERATION_ENCRYPT_SYM  : i32 = 0x0007;
+pub const SC_SEC_OPERATION_DECRYPT_SYM  : i32 = 0x0008;
     }
 }
 
@@ -102,47 +103,48 @@ pub const SC_SEC_ENV_PARAM_TARGET_FILE       : u32 = 2;       /* unused */
 //pub const SC_SEC_ENV_PARAM_DES_CBC           : u32 = 4;
 
 /* PK algorithms */
-cfg_if::cfg_if! {
-if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
-    pub const SC_ALGORITHM_RSA       : u32 = 0;
+cfg_select! {
+    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0) => {
+pub const SC_ALGORITHM_RSA       : u32 = 0;
     #[cfg(any(v0_20_0, v0_21_0, v0_22_0))]
-    pub const SC_ALGORITHM_DSA       : u32 = 1;
-    pub const SC_ALGORITHM_EC        : u32 = 2;
-    pub const SC_ALGORITHM_GOSTR3410 : u32 = 3;
-    pub const SC_ALGORITHM_EDDSA     : u32 = 4;
-    pub const SC_ALGORITHM_XEDDSA    : u32 = 5;
+pub const SC_ALGORITHM_DSA       : u32 = 1;
+pub const SC_ALGORITHM_EC        : u32 = 2;
+pub const SC_ALGORITHM_GOSTR3410 : u32 = 3;
+pub const SC_ALGORITHM_EDDSA     : u32 = 4;
+pub const SC_ALGORITHM_XEDDSA    : u32 = 5;
 
-    /* Symmetric algorithms */
-    pub const SC_ALGORITHM_DES       : u32 = 64;
-    pub const SC_ALGORITHM_3DES      : u32 = 65;
-    pub const SC_ALGORITHM_GOST      : u32 = 66;
-    pub const SC_ALGORITHM_AES       : u32 = 67;
-    pub const SC_ALGORITHM_UNDEFINED : u32 = 68;    /* used with CKK_GENERIC_SECRET type keys */
+/* Symmetric algorithms */
+pub const SC_ALGORITHM_DES       : u32 = 64;
+pub const SC_ALGORITHM_3DES      : u32 = 65;
+pub const SC_ALGORITHM_GOST      : u32 = 66;
+pub const SC_ALGORITHM_AES       : u32 = 67;
+pub const SC_ALGORITHM_UNDEFINED : u32 = 68;    // used with CKK_GENERIC_SECRET type keys
 
-    /* Hash algorithms */
-    pub const SC_ALGORITHM_MD5       : u32 = 128;
-    pub const SC_ALGORITHM_SHA1      : u32 = 129;
-    pub const SC_ALGORITHM_GOSTR3411 : u32 = 130;
+/* Hash algorithms */
+pub const SC_ALGORITHM_MD5       : u32 = 128;
+pub const SC_ALGORITHM_SHA1      : u32 = 129;
+pub const SC_ALGORITHM_GOSTR3411 : u32 = 130;
+    }
+    _ => {
+pub const SC_ALGORITHM_RSA       : c_ulong = 0;
+pub const SC_ALGORITHM_EC        : c_ulong = 2;
+pub const SC_ALGORITHM_GOSTR3410 : c_ulong = 3;
+pub const SC_ALGORITHM_EDDSA     : c_ulong = 4;
+pub const SC_ALGORITHM_XEDDSA    : c_ulong = 5;
+
+/* Symmetric algorithms */
+pub const SC_ALGORITHM_DES       : c_ulong = 64;
+pub const SC_ALGORITHM_3DES      : c_ulong = 65;
+pub const SC_ALGORITHM_GOST      : c_ulong = 66;
+pub const SC_ALGORITHM_AES       : c_ulong = 67;
+pub const SC_ALGORITHM_UNDEFINED : c_ulong = 68;    /* used with CKK_GENERIC_SECRET type keys */
+
+/* Hash algorithms */
+pub const SC_ALGORITHM_MD5       : c_ulong = 128;
+pub const SC_ALGORITHM_SHA1      : c_ulong = 129;
+pub const SC_ALGORITHM_GOSTR3411 : c_ulong = 130;
+    }
 }
-else {
-    pub const SC_ALGORITHM_RSA       : c_ulong = 0;
-    pub const SC_ALGORITHM_EC        : c_ulong = 2;
-    pub const SC_ALGORITHM_GOSTR3410 : c_ulong = 3;
-    pub const SC_ALGORITHM_EDDSA     : c_ulong = 4;
-    pub const SC_ALGORITHM_XEDDSA    : c_ulong = 5;
-
-    /* Symmetric algorithms */
-    pub const SC_ALGORITHM_DES       : c_ulong = 64;
-    pub const SC_ALGORITHM_3DES      : c_ulong = 65;
-    pub const SC_ALGORITHM_GOST      : c_ulong = 66;
-    pub const SC_ALGORITHM_AES       : c_ulong = 67;
-    pub const SC_ALGORITHM_UNDEFINED : c_ulong = 68;    /* used with CKK_GENERIC_SECRET type keys */
-
-    /* Hash algorithms */
-    pub const SC_ALGORITHM_MD5       : c_ulong = 128;
-    pub const SC_ALGORITHM_SHA1      : c_ulong = 129;
-    pub const SC_ALGORITHM_GOSTR3411 : c_ulong = 130;
-}}
 
 /* Key derivation algorithms */
 pub const SC_ALGORITHM_PBKDF2    : u32 = 192;
@@ -174,43 +176,44 @@ pub const SC_ALGORITHM_RSA_RAW         : u32 = 0x0000_0001;
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
 pub const SC_ALGORITHM_RSA_RAW         : c_ulong = 0x0000_0001;
 
-cfg_if::cfg_if! {
-if #[cfg(v0_20_0)] {
-    pub const SC_ALGORITHM_RSA_PADS : u32 = 0x0000_001F; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
+cfg_select! {
+    v0_20_0 => {
+pub const SC_ALGORITHM_RSA_PADS : u32 = 0x0000_001F; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
+    }
+    any(v0_21_0, v0_22_0, v0_23_0, v0_24_0) => {
+pub const SC_ALGORITHM_RSA_PADS : u32 = 0x0000_003F; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
+    }
+    _ => {
+pub const SC_ALGORITHM_RSA_PADS : u32 = 0x0000_00FF; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
+    }
 }
-else if #[cfg(any(v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
-    pub const SC_ALGORITHM_RSA_PADS : u32 = 0x0000_003F; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
-}
-else /* v0_25_0 */ {
-    pub const SC_ALGORITHM_RSA_PADS : u32 = 0x0000_00FF; // this is WITH SC_ALGORITHM_RSA_PAD_NONE
-}}
 
-cfg_if::cfg_if! {
-if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
-    /* Use SC_ALGORITHM_RSA_PAD_NONE, if card/driver expects an in_len to card.ops.compute_signature == RSA_modulus_length bytes,
-    i.e. card/driver won't pad before signing */
-pub const SC_ALGORITHM_RSA_PAD_NONE : u32 = 0x0000_0001; // SC_ALGORITHM_RSA_RAW
-
-    /** Use SC_ALGORITHM_RSA_PAD_PKCS1, if card/driver expects as input to card.ops.compute_signature: EMSA-PKCS1-v1_5 DigestInfo\
-     https://tools.ietf.org/html/rfc8017#page-62\
-     Not OpenSC, but the card/driver will pad according to EMSA-PKCS1-v1_5; EMSA = Encoding Method for Signature with Appendix
-     before signing */
-pub const SC_ALGORITHM_RSA_PAD_ANSI    : u32 = 0x0000_0004;
-pub const SC_ALGORITHM_RSA_PAD_ISO9796 : u32 = 0x0000_0008;
-pub const SC_ALGORITHM_RSA_PAD_PSS     : u32 = 0x0000_0010; /* PKCS#1 v2.0 PSS */
-#[cfg(not(v0_20_0))]
-pub const SC_ALGORITHM_RSA_PAD_OAEP    : u32 = 0x0000_0020; /* PKCS#1 v2.0 OAEP */
-    pub const SC_ALGORITHM_RSA_PAD_PKCS1   : u32 = 0x0000_0002; /* PKCS#1 v1.5 padding */
-}
-else {
+cfg_select! {
+    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0) => {
 /* Use SC_ALGORITHM_RSA_PAD_NONE, if card/driver expects an in_len to card.ops.compute_signature == RSA_modulus_length bytes,
     i.e. card/driver won't pad before signing */
 pub const SC_ALGORITHM_RSA_PAD_NONE : u32 = 0x0000_0001; // SC_ALGORITHM_RSA_RAW
 
 /** Use SC_ALGORITHM_RSA_PAD_PKCS1, if card/driver expects as input to card.ops.compute_signature: EMSA-PKCS1-v1_5 DigestInfo\
-   <https://tools.ietf.org/html/rfc8017#page-62>
-   Not OpenSC, but the card/driver will pad according to EMSA-PKCS1-v1_5; EMSA = Encoding Method for Signature with Appendix
-   before signing */
+        https://tools.ietf.org/html/rfc8017#page-62\
+        Not OpenSC, but the card/driver will pad according to EMSA-PKCS1-v1_5; EMSA = Encoding Method for Signature with Appendix
+        before signing */
+pub const SC_ALGORITHM_RSA_PAD_ANSI    : u32 = 0x0000_0004;
+pub const SC_ALGORITHM_RSA_PAD_ISO9796 : u32 = 0x0000_0008;
+pub const SC_ALGORITHM_RSA_PAD_PSS     : u32 = 0x0000_0010; /* PKCS#1 v2.0 PSS */
+#[cfg(not(v0_20_0))]
+pub const SC_ALGORITHM_RSA_PAD_OAEP    : u32 = 0x0000_0020; /* PKCS#1 v2.0 OAEP */
+pub const SC_ALGORITHM_RSA_PAD_PKCS1   : u32 = 0x0000_0002; /* PKCS#1 v1.5 padding */
+    }
+    _ => {
+/* Use SC_ALGORITHM_RSA_PAD_NONE, if card/driver expects an in_len to card.ops.compute_signature == RSA_modulus_length bytes,
+    i.e. card/driver won't pad before signing */
+pub const SC_ALGORITHM_RSA_PAD_NONE : c_ulong = 0x0000_0001; // SC_ALGORITHM_RSA_RAW
+
+/** Use SC_ALGORITHM_RSA_PAD_PKCS1, if card/driver expects as input to card.ops.compute_signature: EMSA-PKCS1-v1_5 DigestInfo\
+  <https://tools.ietf.org/html/rfc8017#page-62>
+  Not OpenSC, but the card/driver will pad according to EMSA-PKCS1-v1_5; EMSA = Encoding Method for Signature with Appendix
+  before signing */
 pub const SC_ALGORITHM_RSA_PAD_ANSI    : c_ulong = 0x0000_0004;
 pub const SC_ALGORITHM_RSA_PAD_ISO9796 : c_ulong = 0x0000_0008;
 pub const SC_ALGORITHM_RSA_PAD_PSS     : c_ulong = 0x0000_0010; /* PKCS#1 v2.0 PSS */
@@ -218,7 +221,9 @@ pub const SC_ALGORITHM_RSA_PAD_OAEP    : c_ulong = 0x0000_0020; /* PKCS#1 v2.0 O
 pub const SC_ALGORITHM_RSA_PAD_PKCS1_TYPE_01  : c_ulong = 0x0000_0040; /* PKCS#1 v1.5 padding type 1 */
 pub const SC_ALGORITHM_RSA_PAD_PKCS1_TYPE_02  : c_ulong = 0x0000_0080; /* PKCS#1 v1.5 padding type 2 */
 pub const SC_ALGORITHM_RSA_PAD_PKCS1	      : c_ulong = SC_ALGORITHM_RSA_PAD_PKCS1_TYPE_01 | SC_ALGORITHM_RSA_PAD_PKCS1_TYPE_02; /* PKCS#1 v1.5 (type 1 or 2) */
-}}
+    }
+}
+
 /* If the card is willing to produce a cryptogram with the following
  * hash values, set these flags accordingly.  The interpretation of the hash
  * flags depends on the algorithm and padding chosen: for RSA, the hash flags
@@ -239,8 +244,8 @@ pub const SC_ALGORITHM_RSA_PAD_PKCS1	      : c_ulong = SC_ALGORITHM_RSA_PAD_PKCS
  * It's possible that the card may support different hashes for PKCS1 and PSS
  * signatures; in this case the card driver has to pick the lowest-denominator
  * when it sets these flags to indicate its capabilities. */
-cfg_if::cfg_if! {
-if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
+cfg_select! {
+    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0) => {
 pub const SC_ALGORITHM_RSA_HASH_NONE      : u32 = 0x0000_0100; /* only applies to PKCS1 padding */
 pub const SC_ALGORITHM_RSA_HASH_SHA1      : u32 = 0x0000_0200;
 pub const SC_ALGORITHM_RSA_HASH_MD5       : u32 = 0x0000_0400;
@@ -251,8 +256,8 @@ pub const SC_ALGORITHM_RSA_HASH_SHA384    : u32 = 0x0000_4000;
 pub const SC_ALGORITHM_RSA_HASH_SHA512    : u32 = 0x0000_8000;
 pub const SC_ALGORITHM_RSA_HASH_SHA224    : u32 = 0x0001_0000;
 pub const SC_ALGORITHM_RSA_HASHES      : u32 = 0x0001_FF00; // this is WITH SC_ALGORITHM_RSA_HASH_NONE
-}
-else {
+    }
+    _ => {
 pub const SC_ALGORITHM_RSA_HASH_NONE  : c_ulong = 0x0000_0100; /* only applies to PKCS1 padding */
 pub const SC_ALGORITHM_RSA_HASH_SHA1      : c_ulong = 0x0000_0200;
 pub const SC_ALGORITHM_RSA_HASH_MD5       : c_ulong = 0x0000_0400;
@@ -263,7 +268,8 @@ pub const SC_ALGORITHM_RSA_HASH_SHA384    : c_ulong = 0x0000_4000;
 pub const SC_ALGORITHM_RSA_HASH_SHA512    : c_ulong = 0x0000_8000;
 pub const SC_ALGORITHM_RSA_HASH_SHA224    : c_ulong = 0x0001_0000;
 pub const SC_ALGORITHM_RSA_HASHES      : c_ulong = 0x0001_FF00; // this is WITH SC_ALGORITHM_RSA_HASH_NONE
-}}
+    }
+}
 
 /* This defines the hashes to be used with MGF1 in PSS padding */ // since v0_20_0
 pub const SC_ALGORITHM_MGF1_SHA1       : u32 = 0x0010_0000;
@@ -315,8 +321,9 @@ pub const SC_ALGORITHM_ECDSA_RAW           : c_ulong = 0x0010_0000;
 pub const SC_ALGORITHM_ECDSA_HASH_NONE     : u32 = SC_ALGORITHM_RSA_HASH_NONE;
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]
 pub const SC_ALGORITHM_ECDSA_HASH_NONE : c_ulong = SC_ALGORITHM_RSA_HASH_NONE;
-cfg_if::cfg_if! {
-if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
+
+cfg_select! {
+    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0) => {
 pub const SC_ALGORITHM_ECDSA_HASH_SHA1     : u32 = SC_ALGORITHM_RSA_HASH_SHA1;
 pub const SC_ALGORITHM_ECDSA_HASH_SHA224   : u32 = SC_ALGORITHM_RSA_HASH_SHA224;
 pub const SC_ALGORITHM_ECDSA_HASH_SHA256   : u32 = SC_ALGORITHM_RSA_HASH_SHA256;
@@ -327,8 +334,8 @@ pub const SC_ALGORITHM_ECDSA_HASHES        : u32 = SC_ALGORITHM_ECDSA_HASH_SHA1 
                                                    SC_ALGORITHM_ECDSA_HASH_SHA256 |
                                                    SC_ALGORITHM_ECDSA_HASH_SHA384 |
                                                    SC_ALGORITHM_ECDSA_HASH_SHA512;
-}
-else {
+    }
+    _ => {
 pub const SC_ALGORITHM_ECDSA_HASH_SHA1   : c_ulong = SC_ALGORITHM_RSA_HASH_SHA1;
 pub const SC_ALGORITHM_ECDSA_HASH_SHA224 : c_ulong = SC_ALGORITHM_RSA_HASH_SHA224;
 pub const SC_ALGORITHM_ECDSA_HASH_SHA256 : c_ulong = SC_ALGORITHM_RSA_HASH_SHA256;
@@ -339,8 +346,9 @@ pub const SC_ALGORITHM_ECDSA_HASHES      : c_ulong = SC_ALGORITHM_ECDSA_HASH_SHA
                                                      SC_ALGORITHM_ECDSA_HASH_SHA256 |
                                                      SC_ALGORITHM_ECDSA_HASH_SHA384 |
                                                      SC_ALGORITHM_ECDSA_HASH_SHA512;
+    }
 }
-}
+
 /* EdDSA algorithms */
 pub const SC_ALGORITHM_EDDSA_RAW           : u32 = 0x0040_0000;
 pub const SC_ALGORITHM_XEDDSA_RAW          : u32 = 0x0080_0000;
@@ -358,37 +366,41 @@ pub const SC_ALGORITHM_RAW_MASK        : c_ulong = SC_ALGORITHM_RSA_RAW |
                                                    SC_ALGORITHM_ECDSA_RAW;
 
 /* extended algorithm bits for selected mechs */
-cfg_if::cfg_if! {
-if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
+cfg_select! {
+    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0) => {
 pub const SC_ALGORITHM_EXT_EC_F_P          : u32     = 0x0000_0001;
 pub const SC_ALGORITHM_EXT_EC_F_2M         : u32     = 0x0000_0002;
 pub const SC_ALGORITHM_EXT_EC_ECPARAMETERS : u32     = 0x0000_0004;
 pub const SC_ALGORITHM_EXT_EC_NAMEDCURVE   : u32     = 0x0000_0008;
 pub const SC_ALGORITHM_EXT_EC_UNCOMPRESES  : u32     = 0x0000_0010;
 pub const SC_ALGORITHM_EXT_EC_COMPRESS     : u32     = 0x0000_0020;
-}
-else {
+    }
+    _ => {
 pub const SC_ALGORITHM_EXT_EC_F_P          : c_ulong = 0x0000_0001;
 pub const SC_ALGORITHM_EXT_EC_F_2M         : c_ulong = 0x0000_0002;
 pub const SC_ALGORITHM_EXT_EC_ECPARAMETERS : c_ulong = 0x0000_0004;
 pub const SC_ALGORITHM_EXT_EC_NAMEDCURVE   : c_ulong = 0x0000_0008;
 pub const SC_ALGORITHM_EXT_EC_UNCOMPRESES  : c_ulong = 0x0000_0010;
 pub const SC_ALGORITHM_EXT_EC_COMPRESS     : c_ulong = 0x0000_0020;
-}}
+    }
+}
+
 /* symmetric algorithm flags. More algorithms to be added when implemented. */
-cfg_if::cfg_if! {
-if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
+
+cfg_select! {
+    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0) => {
 pub const SC_ALGORITHM_AES_ECB     : u32     = 0x0100_0000;
 pub const SC_ALGORITHM_AES_CBC     : u32     = 0x0200_0000;
 pub const SC_ALGORITHM_AES_CBC_PAD : u32     = 0x0400_0000;
 pub const SC_ALGORITHM_AES_FLAGS   : u32     = 0x0F00_0000;
-}
-else {
+   }
+    _ => {
 pub const SC_ALGORITHM_AES_ECB     : c_ulong = 0x0100_0000;
 pub const SC_ALGORITHM_AES_CBC     : c_ulong = 0x0200_0000;
 pub const SC_ALGORITHM_AES_CBC_PAD : c_ulong = 0x0400_0000;
 pub const SC_ALGORITHM_AES_FLAGS   : c_ulong = 0x0F00_0000;
-}}
+    }
+}
 
 /* Event masks for sc_wait_for_event() */
 pub const SC_EVENT_CARD_INSERTED   : u32 = 0x0001;
@@ -400,7 +412,7 @@ pub const SC_EVENT_READER_EVENTS   : u32 = SC_EVENT_READER_ATTACHED | SC_EVENT_R
 
 pub const MAX_FILE_SIZE : usize = 65535; // since v0_20_0
 
-pub const ED448_KEY_SIZE_BYTES : usize = 57; // since v0_27_0
+pub const ED448_KEY_SIZE_BYTES : usize = 57; // since v0_27_1
 
 #[repr(C)]
 #[derive(/*Default, not possible for v0_20_0 */ Debug, Copy, Clone)]
@@ -811,17 +823,17 @@ pub const SC_PIN_ENCODING_GLP        : u32 = 2; /* Global Platform - Card Specif
 
 
 /* Values for `sc_pin_cmd_pin.logged_in`, can be bitmapped together */
-cfg_if::cfg_if! {
-    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
+cfg_select! {
+    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1) => {
         pub const SC_PIN_STATE_UNKNOWN       : i32 = -1;    // since opensc source release v0.17.0
         pub const SC_PIN_STATE_LOGGED_OUT    : i32 = 0;     // since opensc source release v0.17.0
         pub const SC_PIN_STATE_LOGGED_IN     : i32 = 1;     // since opensc source release v0.17.0
     }
-    else {
+    _ => {
         pub const SC_PIN_STATE_UNKNOWN       : i32 = 0;     // since opensc source release v0.17.0
         pub const SC_PIN_STATE_LOGGED_OUT    : i32 = 1;     // since opensc source release v0.17.0
         pub const SC_PIN_STATE_LOGGED_IN     : i32 = 2;     // since opensc source release v0.17.0
-        pub const SC_PIN_STATE_NEEDS_CHANGE  : i32 = 4;     // since opensc source release v0.27.0
+        pub const SC_PIN_STATE_NEEDS_CHANGE  : i32 = 4;     // since opensc source release v0.27.1
     }
 }
 
@@ -2390,34 +2402,35 @@ fn sc_invalidate_cache(card: *mut sc_card);  // added since opensc source releas
 #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))]
 pub fn sc_print_cache(card: *mut sc_card);
 
-cfg_if::cfg_if! {
-    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
+cfg_select! {
+    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0) => {
         pub fn sc_card_find_rsa_alg(card: *mut sc_card, key_length: u32) -> *mut sc_algorithm_info;
         pub fn sc_card_find_ec_alg(card: *mut sc_card, field_length: u32, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
             fn sc_card_find_gostr3410_alg(card: *mut sc_card, key_length: u32) -> *mut sc_algorithm_info;
     }
-    else {
+    _ => {
         pub fn sc_card_find_rsa_alg(card: *mut sc_card, key_length: usize) -> *mut sc_algorithm_info;
         pub fn sc_card_find_ec_alg(card: *mut sc_card, field_length: usize, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
             fn sc_card_find_gostr3410_alg(card: *mut sc_card, key_length: usize) -> *mut sc_algorithm_info;
     }
 }
 
-cfg_if::cfg_if! {
-    if #[cfg(any(v0_22_0, v0_23_0, v0_24_0))] {
+cfg_select! {
+    any(v0_22_0, v0_23_0, v0_24_0) => {
         fn sc_card_find_eddsa_alg(card: *mut sc_card,
                                   field_length: u32, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
         fn sc_card_find_xeddsa_alg(card: *mut sc_card,
                                    field_length: u32, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
     }
-    else if #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))] {
-        fn sc_card_find_eddsa_alg(card: *mut sc_card,
+    not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)) => {
+         fn sc_card_find_eddsa_alg(card: *mut sc_card,
                                   field_length: usize, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
         fn sc_card_find_xeddsa_alg(card: *mut sc_card,
                                    field_length: usize, curve_oid: *mut sc_object_id) -> *mut sc_algorithm_info;
     }
 }
-#[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
+
+    #[cfg(    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))]
 fn sc_card_find_alg(card: *mut sc_card,
                     algorithm: u32, key_length: u32, param: *mut c_void) -> *mut sc_algorithm_info;
 #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0)))]

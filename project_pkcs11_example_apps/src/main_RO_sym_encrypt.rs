@@ -30,11 +30,11 @@ use pkcs11::types::{CKF_SERIAL_SESSION, CKU_USER,CK_OBJECT_CLASS, CK_ATTRIBUTE, 
 
 
 fn main() -> Result<(), Error> {
-    cfg_if::cfg_if! {
-        if #[cfg(target_os = "windows")] {
+    cfg_select! {
+        target_os = "windows" => {
             let ctx = Ctx::new_and_initialize("C:/Program Files/OpenSC Project/OpenSC/pkcs11/opensc-pkcs11.dll")?;
         }
-        else {
+        _ => {
             // let ctx = Ctx::new_and_initialize("/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so")?;
             let ctx = Ctx::new_and_initialize("opensc-pkcs11.so")?;
             /* if p11-kit installed and opensc-pkcs11.so configured with highest priority */

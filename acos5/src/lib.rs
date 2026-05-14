@@ -72,7 +72,7 @@ it has a child DF that has been selected.
 #![warn(rustdoc::private_intra_doc_links)]
 #![warn(rustdoc::missing_crate_level_docs)]
 //#![ expect(rustdoc::missing_doc_code_examples)]
-#![ expect(rustdoc::private_doc_tests)]
+#![ expect(rustdoc::private_doc_tests, reason = "..")]
 #![warn(rustdoc::invalid_codeblock_attributes)]
 #![warn(rustdoc::invalid_html_tags)]
 #![warn(rustdoc::invalid_rust_codeblocks)]
@@ -112,7 +112,7 @@ it has a child DF that has been selected.
 // note: the `non_exhaustive_omitted_patterns` lint is unstable #![warn(non_exhaustive_omitted_patterns)] //  allow    detect when patterns of types marked `non_exhaustive` are missed
 #![warn(redundant_imports)] //  allow    imports that are redundant due to being imported already
 #![warn(redundant_lifetimes)] //  allow    detects lifetime parameters that are redundant because they are equal to some other named lifetime
-// note: the `non_exhaustive_omitted_patterns` lint is unstable #![warn(resolving_to_items_shadowing_supertrait_items)] //  allow    detects when a supertrait item is shadowed by a subtrait item
+// note: the `resolving_to_items_shadowing_supertrait_items` lint is unstable #![warn(resolving_to_items_shadowing_supertrait_items)] //  allow    detects when a supertrait item is shadowed by a subtrait item
 #![warn(rust_2021_incompatible_closure_captures)] //  allow    detects closures affected by Rust 2021 changes
 #![warn(rust_2021_incompatible_or_patterns)] //  allow    detects usage of old versions of or-patterns
 #![warn(rust_2021_prefixes_incompatible_syntax)] //  allow    identifiers that will be parsed as a prefix in Rust 2021
@@ -120,10 +120,8 @@ it has a child DF that has been selected.
 #![warn(rust_2024_guarded_string_incompatible_syntax)] //  allow    will be parsed as a guarded string in Rust 2024
 #![warn(rust_2024_incompatible_pat)] //  allow    detects patterns whose meaning will change in Rust 2024
 #![warn(rust_2024_prelude_collisions)] //  allow    detects the usage of trait methods which are ambiguous with traits added to the prelude in future editions
-// note: the `non_exhaustive_omitted_patterns` lint is unstable #![warn(shadowing_supertrait_items)] //  allow    detects when a supertrait item is shadowed by a subtrait item
+// note: the `shadowing_supertrait_items` lint is unstable #![warn(shadowing_supertrait_items)] //  allow    detects when a supertrait item is shadowed by a subtrait item
 #![warn(single_use_lifetimes)] //  allow    detects lifetime parameters that are only used once
-// note: the `supertrait_item_shadowing_definition` lint is unstable #![warn(supertrait_item_shadowing_definition)] //  allow    detects when a supertrait item is shadowed by a subtrait item
-// note: the `supertrait_item_shadowing_usage` lint is unstable #![warn(supertrait_item_shadowing_usage)] //  allow    detects when a supertrait item is shadowed by a subtrait item
 #![warn(tail_expr_drop_order)] //  allow    Detect and warn on significant change in drop order in tail expression location
 #![warn(trivial_casts)] //  allow    detects trivial casts which could be removed
 #![warn(trivial_numeric_casts)] //  allow    detects trivial casts of numeric types which could be removed
@@ -132,7 +130,7 @@ it has a child DF that has been selected.
 // note: the `unqualified_local_imports` lint is unstable #![warn(unqualified_local_imports)] //  allow    `use` of a local item without leading `self::`, `super::`, or `crate::`
 #![warn(unreachable_pub)] //  allow    `pub` items not reachable from crate root
 #![warn(unsafe_attr_outside_unsafe)] //  allow    detects unsafe attributes outside of unsafe
-#![ expect(unsafe_code)] //  allow    usage of `unsafe` code and other potentially unsound constructs
+#![ expect(unsafe_code, reason = "..")] //  allow    usage of `unsafe` code and other potentially unsound constructs
 #![warn(unsafe_op_in_unsafe_fn)] //  allow    unsafe operations in unsafe functions without an explicit unsafe block are deprecated
 #![warn(unstable_features)] //  allow    enabling unstable features
 #![warn(unused_crate_dependencies)] //  allow    crate dependencies that are never used
@@ -537,8 +535,8 @@ use se::{map_scb8_to_acl, se_get_is_scb_suitable_for_sm_has_ct, se_parse_sae, se
 mod sm;
 use sm::{sm_erase_binary, sm_delete_file, sm_pin_cmd, sm_pin_cmd_get_policy};
 
-cfg_if::cfg_if! {
-if #[cfg(not(target_os = "windows"))] {
+cfg_select! {
+not(target_os = "windows") => {
     mod tasn1_pkcs15_array;
     use tasn1_pkcs15_array::tasn1_pkcs15_definitions;
 
@@ -548,7 +546,9 @@ if #[cfg(not(target_os = "windows"))] {
     mod tasn1_sys;
     use tasn1_sys::{ASN1_SUCCESS, asn1_node, asn1_array2tree, asn1_delete_structure};
     // mod tasn1_wrap;
-}}
+}
+_ => {}
+}
 
 mod wrappers;
 use wrappers::{wr_do_log, wr_do_log_rv, wr_do_log_rv_ret, wr_do_log_sds, wr_do_log_sds_ret,
@@ -569,7 +569,7 @@ mod   test_v2_v3;
 ///
 /// Its essential, that this doesn't merely echo, what a call to `sc_get_version` reports:
 /// It is my/developers statement, that the support as reported by `sc_driver_version` got checked !
-/// Thus, if e.g. a new `OpenSC` version 0.27.0 got released and if I didn't reflect that in `sc_driver_version`,
+/// Thus, if e.g. a new `OpenSC` version 0.28.0 got released and if I didn't reflect that in `sc_driver_version`,
 /// (updating opensc-sys binding and code of acos5 and `acos5_pkcs15`),
 /// then the driver won't accidentally malfunction for a not yet supported `OpenSC` environment/version !
 ///
@@ -577,9 +577,9 @@ mod   test_v2_v3;
 /// Its accuracy depends on how closely the opensc-sys binding and driver code has covered the possible
 /// differences in API and behavior (this function mentions the last `OpenSC` commit covered).
 /// master will be handled as an imaginary new version release:
-/// E.g. while currently the latest release is 0.26.1, build `OpenSC` from source such that it reports imaginary
-/// version 0.27.0 (change configure.ac; define(\[`PACKAGE_VERSION_MINOR`\], \[27\]) )
-/// In this example, `cfg!(v0_27_0`) will then match that
+/// E.g. while currently the latest release is 0.27.1, build `OpenSC` from source such that it reports imaginary
+/// version 0.28.0 (change configure.ac; define(\[`PACKAGE_VERSION_MINOR`\], \[28\]) )
+/// In this example, `cfg!(v0_28_0`) will then match that
 ///
 /// call site: function `load_dynamic_driver`, close to:
 /// libopensc/ctx.c:515:    *(void **)tmodv = `sc_dlsym(handle`, "`sc_driver_version`");
@@ -591,8 +591,8 @@ mod   test_v2_v3;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn sc_driver_version() -> *const c_char {
     let version_ptr = sc_get_version();
-    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1, v0_27_0))  { version_ptr }
-    // v0_27_0: experimental only:  Latest OpenSC gitHub master commit covered:
+    if cfg!(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1, v0_27_1))  { version_ptr }
+    // v0_28_0: experimental only:  Latest OpenSC gitHub master commit covered:
     else  { c"0.0.0".as_ptr() } // will definitely cause rejection by OpenSC
 }
 
@@ -1035,13 +1035,13 @@ fn acos5_init(card: &mut sc_card, ctx: &mut sc_context, reader: &mut sc_reader) 
         _ => false,
     };
     let mut rv;
-    cfg_if::cfg_if! {
-    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0))] {
+    cfg_select! {
+    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0) => {
         let     rsa_key_len_from : u32 = if is_fips_mode { 2048 } else {  512 };
         let     rsa_key_len_step : u32 = if is_fips_mode { 1024 } else {  256 };
         let     rsa_key_len_to   : u32 = if is_fips_mode && card.type_==SC_CARD_TYPE_ACOS5_64_V3 { 3072 } else { 4096 };
     }
-    else {
+    _ => {
         let     rsa_key_len_from : usize = if is_fips_mode { 2048 } else {  512 };
         let     rsa_key_len_step : usize = if is_fips_mode { 1024 } else {  256 };
         let     rsa_key_len_to   : usize = if is_fips_mode && card.type_==SC_CARD_TYPE_ACOS5_64_V3 { 3072 } else { 4096 };
@@ -1097,8 +1097,8 @@ fn acos5_init(card: &mut sc_card, ctx: &mut sc_context, reader: &mut sc_reader) 
         { return Err(log3ifr_ret!(ctx,f,line!(), -1)); }
     }
 ////////////////////////////////////////
-cfg_if::cfg_if! {
-    if #[cfg(not(target_os = "windows"))] {
+cfg_select! {
+    not(target_os = "windows") => {
         let mut pkcs15_definitions : asn1_node = null_mut();
         let mut error_description = [0x00_i8; 129];
         // let asn1_result = unsafe { crate::tasn1_sys::asn1_parser2tree(c"acos5_gui/source/PKCS15.asn".as_ptr(),
@@ -1112,6 +1112,7 @@ cfg_if::cfg_if! {
         }
         debug_assert!(!pkcs15_definitions.is_null());
     }
+    _ => {}
 }
     let mut files : HashMap<KeyTypeFiles, ValueTypeFiles> = HashMap::with_capacity(50);
     if files.insert(0x3F00, (
@@ -1240,15 +1241,15 @@ DataPrivate:                                                size_of: 1792, align
     }
 // enum_dir
     let path_mf = unsafe { *sc_get_mf_path() };
-    cfg_if::cfg_if! {
-    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
-        card.cache.current_path = path_mf;
-    }
-    else { {
-        let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
-        dp.card_cache.current_path = path_mf;
-        let _unused = Box::leak(dp);
-    } } }
+    cfg_select! {
+        any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1) => {
+            card.cache.current_path = path_mf;
+        }
+        _ => {
+            let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
+            dp.card_cache.current_path = path_mf;
+            let _unused = Box::leak(dp);
+    } }
 
     rv = enum_dir(card, &path_mf, true/*, 0*/); /* FIXME Doing to much here degrades performance, possibly for no value */
     if rv != SC_SUCCESS { return Err(log3ifr_ret!(ctx,f,line!(), rv)); } // enum_dir returns SC_SUCCESS also for does_mf_exist==false
@@ -1288,16 +1289,16 @@ uint      sm_mode;         will be set from opensc.conf later by sc_card_sm_chec
 //      sm_info.session.cwa.params.crt_at.refs[0] = 0x81; // this is the selection of keyset_... ...01_... to be used !!!            16 byte keys (generate 16 byte session keys)
     }
 
-cfg_if::cfg_if! {
-    if #[cfg(ifd_serial_constrained_for_sm)] {
-        sm_info.serialnr = card.serialnr; // enabling this instead of the following 2 lines would allow to constrain SM to a specific hardware, set in opensc.conf as ifd_serial = "byte_1:byte_2:byte_3:byte_4:byte_5:byte_6:byte_7:byte_8"; ifd_serial of SC_CARD_TYPE_ACOS5_64_V2 has 6 bytes only !
-        sm_info.serialnr.len = 8;
+    cfg_select! {
+        ifd_serial_constrained_for_sm => {
+            sm_info.serialnr = card.serialnr; // enabling this instead of the following 2 lines would allow to constrain SM to a specific hardware, set in opensc.conf as ifd_serial = "byte_1:byte_2:byte_3:byte_4:byte_5:byte_6:byte_7:byte_8"; ifd_serial of SC_CARD_TYPE_ACOS5_64_V2 has 6 bytes only !
+            sm_info.serialnr.len = 8;
+        }
+        _ => {
+            sm_info.serialnr.len   = 8;
+            sm_info.serialnr.value = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0];
+        }
     }
-    else {
-        sm_info.serialnr.len   = 8;
-        sm_info.serialnr.value = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0];
-    }
-}
 
     let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
     dp.files.shrink_to_fit();
@@ -1492,11 +1493,11 @@ println!("sc_update_binary: rv: {}", rv);
     */
 ////////////////////
     debug_assert!(!card.drv_data.is_null(), "drv_data is null");
-    cfg_if::cfg_if! {
-        if #[cfg(target_os = "windows")] {
+    cfg_select! {
+        target_os = "windows" => {
             let     dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         }
-        else {
+        _ => {
             let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
             if !dp.pkcs15_definitions.is_null() {
                 let rv = unsafe { asn1_delete_structure(&raw mut dp.pkcs15_definitions) };
@@ -1504,12 +1505,13 @@ println!("sc_update_binary: rv: {}", rv);
             }
         }
     }
-    cfg_if::cfg_if! {
-        if #[cfg(finish_verbose)] {
+    cfg_select! {
+        finish_verbose => {
             println!("EEPROM remaining free memory space: ~ {} of {}, in kB", f64::from(free_space(card).unwrap())/1000.,
                 if card.type_ > SC_CARD_TYPE_ACOS5_64_V3 {192} else {64});
 //println!("Hashmap: {:02X?}", dp.files);
         }
+        _ => {}
     }
 
     drop(dp);
@@ -1945,15 +1947,14 @@ extern "C" fn acos5_select_file(card_ptr: *mut sc_card, path_ptr: *const sc_path
     log3ifc!(ctx,f,line!());
     let path_ref = unsafe { & *path_ptr };
     // first setting of  card.cache.current_path.len  done in acos5_init
-    cfg_if::cfg_if! {
-    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
-        let cccp_len = card.cache.current_path.len;
+    cfg_select! {
+        any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1) =>
+             { let cccp_len = card.cache.current_path.len; }
+        _ => { let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
+               let cccp_len = dp.card_cache.current_path.len;
+               let _unused = Box::leak(dp);
+        }
     }
-    else {
-        let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
-        let cccp_len = dp.card_cache.current_path.len;
-        let _unused = Box::leak(dp);
-    } }
 
     if cccp_len==0 || (path_ref.type_==SC_PATH_TYPE_FILE_ID && path_ref.len!=2) ||
         !(path_ref.len>=2 && path_ref.len<=16 && (path_ref.len%2==0 || path_ref.type_==SC_PATH_TYPE_DF_NAME)) {
@@ -2284,12 +2285,12 @@ fn acos5_delete_file(card: &mut sc_card, ctx: &mut sc_context,  path_ref: & sc_p
     let f_cstr = CString::new(function_name!()).map_err(|_x| -1)?;
     let f = f_cstr.as_c_str();
     log3ifc!(ctx,f,line!());
-    cfg_if::cfg_if! {
-    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
-    log3if!(ctx,f,line!(), c"card.cache.current_path %s",
-        unsafe{sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)});
+    cfg_select! {
+    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1) => {
+        log3if!(ctx,f,line!(), c"card.cache.current_path %s",
+            unsafe{sc_dump_hex(card.cache.current_path.value.as_ptr(), card.cache.current_path.len)});
     }
-    else {
+    _ => {
         let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         log3if!(ctx,f,line!(), c"card.cache.current_path %s",
             unsafe{sc_dump_hex(dp.card_cache.current_path.value.as_ptr(), dp.card_cache.current_path.len)});
@@ -2359,13 +2360,13 @@ println!("file_id: {file_id:X} is not a key of hashmap dp.files");
     if rv == SC_SUCCESS {
         let mut dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
         if dp.files.remove(&file_id).is_none() { card.drv_data = Box::into_raw(dp).cast::<c_void>(); return Err(-1); }
-        cfg_if::cfg_if! {
-        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
+        cfg_select! {
+        any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1) => {
             if card.cache.current_path.len <= 2 { card.drv_data = Box::into_raw(dp).cast::<c_void>(); return Err(-1); }
             card.cache.current_path.len   -= 2;
             //println!("acos5_delete_file  card.cache.current_path: {:X?}", &card.cache.current_path.value[..card.cache.current_path.len]);
         }
-        else {
+        _ => {
             if dp.card_cache.current_path.len <= 2 { card.drv_data = Box::into_raw(dp).cast::<c_void>(); return Err(-1); }
             dp.card_cache.current_path.len   -= 2;
             //println!("acos5_delete_file  card.cache.current_path: {:X?}", &dp.card_cache.current_path.value[..dp.card_cache.current_path.len]);
@@ -3147,11 +3148,11 @@ fn acos5_read_public_key(card: &mut sc_card, ctx: &mut sc_context,
     }
 
     let mut rbuf = [0; RSAPUB_MAX_LEN];
-    rv = unsafe { cfg_if::cfg_if! {
-        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
+    rv = unsafe { cfg_select! {
+        any(v0_20_0, v0_21_0, v0_22_0, v0_23_0) => {
             sc_read_binary(card, 0, rbuf.as_mut_ptr(), le_total, 0)
         }
-        else {
+        _ => {
             let mut flags : c_ulong = 0;
             if (card.caps & SC_CARD_CAP_APDU_EXT) == 0 { sc_read_binary(card, 0, rbuf.as_mut_ptr(), le_total, &raw mut flags) }
             else {
@@ -3230,11 +3231,11 @@ fn acos5_read_public_key_ec(card: &mut sc_card,
 
     let mut rbuf = [0; ECPUB_MAX_LEN];
     // SAFETY:
-    rv = unsafe { cfg_if::cfg_if! {
-        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
+    rv = unsafe { cfg_select! {
+        any(v0_20_0, v0_21_0, v0_22_0, v0_23_0) => {
             sc_read_binary(card, 0, rbuf.as_mut_ptr(), 6, 0)
         }
-        else {
+        _ => {
             let mut flags = 0;
             sc_read_binary(card, 0, rbuf.as_mut_ptr(), 6, &raw mut flags)
         }
@@ -3271,11 +3272,11 @@ fn acos5_read_public_key_ec(card: &mut sc_card,
         _ => 0,
     };
     // SAFETY:
-    rv = unsafe { cfg_if::cfg_if! {
-        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
+    rv = unsafe { cfg_select! {
+        any(v0_20_0, v0_21_0, v0_22_0, v0_23_0) => {
             sc_read_binary(card, 5, rbuf.as_mut_ptr(), point_length_readable.into(), 0)
         }
-        else {
+        _ => {
             let mut flags : c_ulong = 0;
             sc_read_binary(card, 5, rbuf.as_mut_ptr(), point_length_readable.into(), &raw mut flags)
         }
@@ -3966,19 +3967,13 @@ println!("acos5_compute_signature :  apdu : {:?}", apdu);
               | SC_ALGORITHM_RSA_HASH_NONE   is *NOT* required for ssh for version:
               v0_20_0  (sec_env_algo_flags: 0x102, even if there is no rsa_algo_flags |= SC_ALGORITHM_RSA_HASH_NONE;)
             */
-
-            // SAFETY:
-            rv = unsafe { cfg_if::cfg_if! {
-                if #[cfg(any(v0_20_0, v0_21_0, v0_22_0))] {
-                    sc_pkcs1_encode(ctx, c_ulong::from(sec_env_algo_flags | SC_ALGORITHM_RSA_HASH_NONE), digest_info.as_ptr(),
-                                                 digest_info.len(), vec.as_mut_ptr(), &mut vec_len, vec_len * 8)
-                }
-                else {
-                    sc_pkcs1_encode(ctx, c_ulong::from(sec_env_algo_flags | SC_ALGORITHM_RSA_HASH_NONE), digest_info.as_ptr(),
-                                                  digest_info.len(), vec.as_mut_ptr(), &raw mut vec_len, vec_len * 8, null_mut())
-                }
+            rv = unsafe { cfg_select! {
+                any(v0_20_0, v0_21_0, v0_22_0) =>
+                     { sc_pkcs1_encode(ctx, c_ulong::from(sec_env_algo_flags | SC_ALGORITHM_RSA_HASH_NONE), digest_info.as_ptr(),
+                                                 digest_info.len(), vec.as_mut_ptr(), &mut vec_len, vec_len * 8) }
+                _ => { sc_pkcs1_encode(ctx, c_ulong::from(sec_env_algo_flags | SC_ALGORITHM_RSA_HASH_NONE), digest_info.as_ptr(),
+                                                  digest_info.len(), vec.as_mut_ptr(), &raw mut vec_len, vec_len * 8, null_mut()) }
             }};
-
             if rv != SC_SUCCESS {
                 return Err(rv);
             }

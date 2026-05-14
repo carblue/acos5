@@ -36,16 +36,16 @@ use crate::wrappers::wr_do_log_t;
 #[must_use]
 pub(crate) fn file_id_from_cache_current_path(card: &sc_card) -> u16
 {
-    cfg_if::cfg_if! {
-    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
-        file_id_from_path_value(&card.cache.current_path.value[..card.cache.current_path.len])
+    cfg_select! {
+        any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1) =>
+            { file_id_from_path_value(&card.cache.current_path.value[..card.cache.current_path.len]) }
+        _ => {
+            let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
+            let res = file_id_from_path_value(&dp.card_cache.current_path.value[..dp.card_cache.current_path.len]);
+            let _unused = Box::leak(dp);
+            res
+        }
     }
-    else {
-        let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
-        let res = file_id_from_path_value(&dp.card_cache.current_path.value[..dp.card_cache.current_path.len]);
-        let _unused = Box::leak(dp);
-        res
-     } }
 }
 
 /*
@@ -58,13 +58,11 @@ pub(crate) fn file_id_from_cache_current_path(card: &sc_card) -> u16
 pub(crate) fn current_path_df(card: &mut sc_card) -> Vec<u8> //&[u8]
 {
     let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
-    cfg_if::cfg_if! {
-    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
-        let cp = &card.cache.current_path;
-    }
-    else {
-        let cp = &dp.card_cache.current_path;
-    } }
+    let cp = cfg_select! {
+        any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1) =>
+             { & card.cache.current_path }
+        _ => { & dp.card_cache.current_path }
+    };
     let len = cp.len;
     assert!(len>=2);
     debug_assert_eq!(cp.value[0], 0x3F);

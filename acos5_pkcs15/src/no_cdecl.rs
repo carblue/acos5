@@ -299,15 +299,16 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
     if rv != SC_SUCCESS { return Err(-1); }
     let mut rbuf_priv = vec![0_u8; size_priv];
 
-    rv = unsafe { cfg_if::cfg_if! {
-        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
-            sc_read_binary(card, 0, rbuf_priv.as_mut_ptr(), rbuf_priv.len(), 0)
-        }
-        else {
-            let mut flags : c_ulong = 0;
-            sc_read_binary(card, 0, rbuf_priv.as_mut_ptr(), rbuf_priv.len(), &raw mut flags)
-        }
-    }};
+    rv = unsafe {
+        cfg_select! {
+            any(v0_20_0, v0_21_0, v0_22_0, v0_23_0) => {
+                sc_read_binary(card, 0, rbuf_priv.as_mut_ptr(), rbuf_priv.len(), 0)
+            }
+            _ => {
+                let mut flags : c_ulong = 0;
+                sc_read_binary(card, 0, rbuf_priv.as_mut_ptr(), rbuf_priv.len(), &raw mut flags)
+            }
+        }};
     if rv != size_priv.try_into().unwrap()  { return Err(-1); }
     let unused_len = DirectoryRange::new(&rbuf_priv).unused_len();
 //println!("SC_PKCS15_PRKDF: unused_len: {} of available {},\nfile_priv: {:X?}", unused_len, rv, unsafe {*file_priv});
@@ -373,15 +374,17 @@ pub fn check_enlarge_prkdf_pukdf(profile: &mut sc_profile, p15card: &mut sc_pkcs
     rv = unsafe { sc_select_file(card, &raw const df_path_pub, *guard_file_pub) };
     if rv != SC_SUCCESS { return Err(-1); }
     let mut rbuf_pub = vec![0_u8; size_pub];
-    rv = unsafe { cfg_if::cfg_if! {
-        if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0))] {
-            sc_read_binary(card, 0, rbuf_pub.as_mut_ptr(), rbuf_pub.len(), 0)
+    rv = unsafe {
+        cfg_select! {
+            any(v0_20_0, v0_21_0, v0_22_0, v0_23_0) => {
+                sc_read_binary(card, 0, rbuf_pub.as_mut_ptr(), rbuf_pub.len(), 0)
+            }
+            _ => {
+                let mut flags : c_ulong = 0;
+                sc_read_binary(card, 0, rbuf_pub.as_mut_ptr(), rbuf_pub.len(), &raw mut flags)
+            }
         }
-        else {
-            let mut flags : c_ulong = 0;
-            sc_read_binary(card, 0, rbuf_pub.as_mut_ptr(), rbuf_pub.len(), &raw mut flags)
-        }
-    }};
+    };
     if rv != size_pub.try_into().unwrap()  { return Err(-1); }
     let unused_len = DirectoryRange::new(&rbuf_pub).unused_len();
 //println!("SC_PKCS15_PUKDF: unused_len: {} of available {},\nfile_pub: {:X?}", unused_len, rv, unsafe {*file_pub});

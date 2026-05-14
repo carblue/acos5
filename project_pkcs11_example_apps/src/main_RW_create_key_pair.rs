@@ -131,11 +131,11 @@ secp521r1
 }
 
 fn main() -> Result<(), Error> {
-    cfg_if::cfg_if! {
-        if #[cfg(target_os = "windows")] {
+    cfg_select! {
+        target_os = "windows" => {
             let ctx = Pkcs11::new("C:/Program Files/OpenSC Project/OpenSC/pkcs11/opensc-pkcs11.dll")?;
         }
-        else {
+        _ => {
             //let ctx = Pkcs11::new("/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so")?;
             /* if p11-kit installed and opensc-pkcs11.so configured with highest priority */
             let ctx = Pkcs11::new("/usr/lib/x86_64-linux-gnu/p11-kit-proxy.so")?;

@@ -37,13 +37,14 @@ pub const SC_LOG_DEBUG_RFU1        : i32 = 4;        /* RFU */
 pub const SC_LOG_DEBUG_SM          : i32 = 5;        /* secure messaging */  // since opensc source release v0.20.0
 pub const SC_LOG_DEBUG_ASN1        : i32 = 6;        /* asn1.c */
 pub const SC_LOG_DEBUG_MATCH       : i32 = 7;        /* card matching */
-cfg_if::cfg_if! {
-    if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1))] {
-        pub const SC_LOG_DEBUG_PIN         : i32 = 8;        /* PIN commands */  // since opensc source release v0.21.0
+
+cfg_select! {
+    any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1) => {
+pub const SC_LOG_DEBUG_PIN         : i32 = 8;        /* PIN commands */  // since opensc source release v0.21.0
     }
-    else {
-        pub const SC_LOG_DEBUG_DEPS        : i32 = 8;        /* debugging of dependencies, e.g. OpenSSL */
-        pub const SC_LOG_DEBUG_PIN         : i32 = 9;        /* PIN commands */  // since opensc source release v0.21.0
+    _ => {
+pub const SC_LOG_DEBUG_DEPS        : i32 = 8;        // debugging of dependencies, e.g. OpenSSL
+pub const SC_LOG_DEBUG_PIN         : i32 = 9;        // PIN commands  since opensc source release v0.21.0
     }
 }
 pub const SC_COLOR_FG_RED          : i32 = 0x0001;

@@ -3,7 +3,7 @@
 //! [`OpenSC wiki`]\
 //! [`Rust website`]
 //!
-//! This binding supports `OpenSC` release versions 0.20.0 - 0.26.1
+//! This binding supports `OpenSC` release versions 0.20.0 - 0.27.1
 //!
 //! The state is Work In Progress WIP, though usable.\
 //! The focus is on the generic header subset, i.o. to support new driver etc. external module development.\
@@ -81,9 +81,9 @@
 //!    of opensc-tool.
 //!    Once the test passes, the opensc-sys binding is ready to be used.
 //!
-//! Not selecting any `OpenSC` release versions 0.20.0 - 0.26.1, is treated as unsupported, except:
-//! That's experimental only: Take `OpenSC` master branch, change configure.ac to read  define(\[`PACKAGE_VERSION_MINOR`\], \[27\]) ,
-//! the next/imaginary version (currently 0.27.0) and build from source.
+//! Not selecting any `OpenSC` release versions 0.20.0 - 0.27.1, is treated as unsupported, except:
+//! That's experimental only: Take `OpenSC` master branch, change configure.ac to read  define(\[`PACKAGE_VERSION_MINOR`\], \[28\]) ,
+//! the next/imaginary version (currently 0.28.0) and build from source.
 //! At irregular intervals only I check master's implications for the binding. E.g. there was a commit (effective since
 //! `OpenSC` release versions 0.18.0), that changed parsing of
 //! EF.Tokeninfo supportedAlgorithms/parameters/PKCS15ECParameters.
@@ -822,11 +822,10 @@ mod tests {
                 assert_eq!(ai,   136);
                 assert_eq!(sep,  104);
             }
-            else  if cfg!(v0_27_0) { // experimental only: it's git-master, Latest commit ?, defined as version 0.27.0
-                // experimental use only, this check may not be consistent with current master
-                // testing v0_27_0 verified with Windows 11:    ?
-                // testing v0_27_0 verified with Kubuntu 24.04: ?,  for latest commit  ?
-                println!("For OpenSC 0.27.0 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
+            else  if cfg!(v0_27_1) {
+                // testing v0_27_1 verified with Windows 11:    ?
+                // testing v0_27_1 verified with Kubuntu 24.04: ?
+                println!("For OpenSC 0.27.1 and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
                     size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
                     size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \
                     size_of::<sc_pkcs15_card>: {}, size_of::<sc_file>: {}, size_of::<scconf_context>: {}, size_of::<sc_pkcs15init_prkeyargs>: {}, \
@@ -879,7 +878,9 @@ mod tests {
             }
             else {
                 // experimental use only, this check may not be consistent with current master
-                println!("For OpenSC beyond 0.27.0 (https://github.com/OpenSC/OpenSC  branch: master) i.e. not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25, v0_26, v0_27)) and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
+                // experimental only: it's git-master, Latest commit ?, defined as version 0.28.0
+
+                println!("For OpenSC beyond 0.27.1 (https://github.com/OpenSC/OpenSC  branch: master) i.e. not(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25, v0_26, v0_27)) and 64bit unix/windows OS: size_of::<list_t>: {}, size_of::<sc_card>: {}, size_of::<sc_reader>: {}, \
                     size_of::<sc_security_env>: {}, size_of::<sc_ef_atr>: {}, size_of::<sc_reader_driver>: {}, size_of::<sc_pin_cmd_pin>: {}, \
                     size_of::<sc_pin_cmd_data>: {}, size_of::<sc_card_operations>: {}, size_of::<sc_context>: {}, size_of::<sc_pkcs15_object>: {}, \
                     size_of::<sc_pkcs15_card>: {}, size_of::<sc_file>: {}, size_of::<scconf_context>: {}, size_of::<sc_pkcs15init_prkeyargs>: {}, \

@@ -43,7 +43,7 @@ use opensc_sys::opensc::{sc_context, sc_card, sc_hex_to_bin, sc_transmit_apdu,
                          SC_PIN_CMD_VERIFY, SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK};
 #[cfg(not(target_os = "windows"))]
 use opensc_sys::opensc::sc_select_file;
-use opensc_sys::types::{SC_APDU_CASE_4_SHORT, sc_aid};
+use opensc_sys::types::{SC_APDU_CASE_4_SHORT, sc_aid, sc_path};
 use opensc_sys::errors::{SC_SUCCESS, SC_ERROR_SM_KEYSET_NOT_FOUND, SC_ERROR_UNKNOWN_DATA_RECEIVED, SC_ERROR_INVALID_DATA,
                          SC_ERROR_SM_IFD_DATA_MISSING, SC_ERROR_SM_AUTHENTICATION_FAILED,
                          SC_ERROR_SM_NOT_INITIALIZED, SC_ERROR_SM, SC_ERROR_PIN_CODE_INCORRECT, SC_ERROR_AUTH_METHOD_BLOCKED,
@@ -416,13 +416,11 @@ fn sm_manage_keyset(card: &mut sc_card) -> Result<(), i32>
         if card.sm_ctx.info.current_aid.len == 0 {
             let dp = unsafe { Box::from_raw(card.drv_data.cast::<DataPrivate>()) };
             if dp.pkcs15_definitions.is_null() { let _unused = Box::leak(dp); return Err(-1) }
-            cfg_if::cfg_if! {
-            if #[cfg(any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1))] {
-                let curr_path = card.cache.current_path;
-            }
-            else {
-                let curr_path = dp.card_cache.current_path;
-            } }
+            let curr_path : sc_path = cfg_select! {
+                any(v0_20_0, v0_21_0, v0_22_0, v0_23_0, v0_24_0, v0_25_0, v0_25_1, v0_26_0, v0_26_1) =>
+                     { card.cache.current_path }
+                _ => { dp.card_cache.current_path }
+            };
             let _unused = Box::leak(dp);
 
             let mut aid = sc_aid::default();

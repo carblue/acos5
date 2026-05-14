@@ -41,14 +41,14 @@ use crate::no_cdecl::update_hashmap;
 use crate::constants_types::{DataPrivate, is_DFMF, FDB_SE_FILE, READ, file_id_se, is_child_of /*file_id, p_void*/};
 use crate::se::se_get_references;
 /* * /
-cfg_if::cfg_if! {
-    if #[cfg(not(target_os = "windows"))] {
+cfg_select! {
+    not(target_os = "windows") => {
         // use crate::tasn1_sys::{asn1_check_version};
         use crate::tasn1_pkcs15_util::{analyze_PKCS15_DIRRecord_2F00, analyze_PKCS15_PKCS15Objects_5031 /* , analyze_PKCS15_TokenInfo_5032*/};
     }
 }
-/ * */
-/* route onlY MF doesn't exist to Err ! */
+*/
+/* route only "MF doesn't exist" to Err ! */
 fn select_mf(card: &mut sc_card) -> Result<i32, i32> {
     let rv = unsafe { sc_select_file(card, sc_get_mf_path(), null_mut()) };
     match rv {

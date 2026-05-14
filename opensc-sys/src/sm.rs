@@ -83,13 +83,13 @@ pub const SM_GP_SECURITY_ENC  : u32 = 0x03;
 
 /* As in OpenSSL include/openssl/des.h */
 
-cfg_if::cfg_if! {
-    if #[cfg(not(any(v0_20_0, v0_21_0, v0_22_0)))] {
+cfg_select! {
+    not(any(v0_20_0, v0_21_0, v0_22_0)) => {
         #[allow(non_camel_case_types)]
         pub type sm_des_cblock       = [u8; 8]; // typedef             unsigned char sm_des_cblock[8];
         #[allow(non_camel_case_types)]
         pub type sm_const_des_cblock = [u8; 8]; // typedef /* const */ unsigned char sm_const_des_cblock[8];
-   }
+    }
 }
 
 /* Global Platform (SCP01) data types */

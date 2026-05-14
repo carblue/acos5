@@ -7,7 +7,7 @@ edition = "2024"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(v0_20_0)', 'cfg(v0_21_0)', 'cfg(v0_22_0)', 'cfg(v0_23_0)', 'cfg(v0_24_0)', 'cfg(v0_25_0)', 'cfg(v0_25_1)',
-  'cfg(v0_26_0)', 'cfg(v0_26_1)', 'cfg(v0_27_0)',
+  'cfg(v0_26_0)', 'cfg(v0_26_1)', 'cfg(v0_27_1)',
   'cfg(acos5_impl_default)',
   'cfg(impl_default)',
   'cfg(impl_display)',
@@ -16,7 +16,6 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(v0_20_0)', 'cfg(v0_21_0)',
 
 [dependencies]
 libc = "0.2"
-cfg-if = "1.0"
 
 [build-dependencies]
 libloading = "0.9"
